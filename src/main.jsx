@@ -13,10 +13,8 @@ const DEFAULT_SETTINGS = {
   boxWidth: 16,
   smallDepth: 4,
   smallWidth: 8,
-  penaltyLeftX: 6,
-  penaltyRightX: 35,
-  penaltyLeftY: 13,
-  penaltyRightY: 13,
+  penaltyDistance: 6,
+  penaltyY: 13,
   centerCircleRadius: 4,
   arcRadius: 4,
 };
@@ -28,8 +26,6 @@ function clamp(v, min, max) {
 function createInitialPieces(cols, rows) {
   const midY = Math.floor(rows / 2);
 
-  // Echipa albastră atacă spre dreapta, deci toți sunt inițial în jumătatea stângă.
-  // Echipa roșie atacă spre stânga, deci toți sunt inițial în jumătatea dreaptă.
   const a = [
     ["GK", 2, midY],
     ["LB", 8, midY - 8],
@@ -76,12 +72,10 @@ function App() {
     const next = { ...settings, [key]: Number(value) };
 
     if (key === "cols") {
-      next.penaltyLeftX = clamp(next.penaltyLeftX, 0, Number(value) - 1);
-      next.penaltyRightX = clamp(next.penaltyRightX, 0, Number(value) - 1);
+      next.penaltyDistance = clamp(next.penaltyDistance, 1, Math.floor(Number(value) / 2) - 1);
     }
     if (key === "rows") {
-      next.penaltyLeftY = clamp(next.penaltyLeftY, 0, Number(value) - 1);
-      next.penaltyRightY = clamp(next.penaltyRightY, 0, Number(value) - 1);
+      next.penaltyY = clamp(next.penaltyY, 0, Number(value));
     }
 
     setSettings(next);
@@ -98,18 +92,31 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v05", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v06", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
+  }
+
+  function normalizeLoadedSettings(s) {
+    if ("penaltyDistance" in s) return s;
+    const penaltyDistance = s.penaltyLeftX ?? DEFAULT_SETTINGS.penaltyDistance;
+    const penaltyY = s.penaltyLeftY ?? Math.floor((s.rows ?? DEFAULT_SETTINGS.rows) / 2);
+    return {
+      ...DEFAULT_SETTINGS,
+      ...s,
+      penaltyDistance,
+      penaltyY,
+    };
   }
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v06") ||
       localStorage.getItem("football-board-sandbox-v05") ||
       localStorage.getItem("football-board-sandbox-v04") ||
       localStorage.getItem("football-board-sandbox-v03");
     if (!raw) return alert("Nu există salvare încă.");
     const saved = JSON.parse(raw);
-    setSettings(saved.settings);
+    setSettings(normalizeLoadedSettings(saved.settings));
     setPieces(saved.pieces);
     setZoom(saved.zoom ?? 1);
   }
@@ -171,61 +178,66 @@ function App() {
   const centerX = settings.cols / 2;
   const centerY = settings.rows / 2;
 
-  function arcStyle(side) {
+  const leftPenaltyX = settings.penaltyDistance;
+  const rightPenaltyX = settings.cols - settings.penaltyDistance;
+  const penaltyY = settings.penaltyY;
+
+  function arcMask(side) {
     const r = settings.arcRadius;
-    const cx = side === "left" ? settings.penaltyLeftX : settings.penaltyRightX;
-    const cy = side === "left" ? settings.penaltyLeftY : settings.penaltyRightY;
+    const cx = side === "left" ? leftPenaltyX : rightPenaltyX;
+    const cy = penaltyY;
     const boxEdgeX = side === "left" ? settings.boxDepth : settings.cols - settings.boxDepth;
 
-    const diameter = r * 2;
     const left = cx - r;
     const top = cy - r;
+    const diameter = r * 2;
 
-    // Cercul complet are centrul în punctul de 11m.
-    // Îl mascăm astfel încât să rămână doar partea din afara careului mare.
     if (side === "left") {
-      const visibleStart = boxEdgeX - left;
+      // Show only the part outside the left penalty box, i.e. to the right of the penalty-box vertical line.
+      const maskLeft = boxEdgeX;
+      const maskWidth = Math.max(0, left + diameter - boxEdgeX);
       return {
-        circle: {
-          left: `calc(${left} * var(--cell))`,
+        mask: {
+          left: `calc(${maskLeft} * var(--cell))`,
           top: `calc(${top} * var(--cell))`,
+          width: `calc(${maskWidth} * var(--cell))`,
+          height: `calc(${diameter} * var(--cell))`,
+        },
+        circle: {
+          left: `calc(${left - maskLeft} * var(--cell))`,
+          top: `0px`,
           width: `calc(${diameter} * var(--cell))`,
           height: `calc(${diameter} * var(--cell))`,
-        },
-        mask: {
-          left: `calc(${boxEdgeX} * var(--cell))`,
-          top: `calc(${top} * var(--cell))`,
-          width: `calc(${Math.max(0, left + diameter - boxEdgeX)} * var(--cell))`,
-          height: `calc(${diameter} * var(--cell))`,
-        },
-        innerLeft: `calc(-${visibleStart} * var(--cell))`,
-      };
-    } else {
-      return {
-        circle: {
-          left: `calc(${left} * var(--cell))`,
-          top: `calc(${top} * var(--cell))`,
-          width: `calc(${diameter} * var(--cell))`,
-          height: `calc(${diameter} * var(--cell))`,
-        },
-        mask: {
-          left: `calc(${left} * var(--cell))`,
-          top: `calc(${top} * var(--cell))`,
-          width: `calc(${Math.max(0, boxEdgeX - left)} * var(--cell))`,
-          height: `calc(${diameter} * var(--cell))`,
-        },
-        innerLeft: `0px`,
+        }
       };
     }
+
+    // Show only the part outside the right penalty box, i.e. to the left of the penalty-box vertical line.
+    const maskLeft = left;
+    const maskWidth = Math.max(0, boxEdgeX - left);
+    return {
+      mask: {
+        left: `calc(${maskLeft} * var(--cell))`,
+        top: `calc(${top} * var(--cell))`,
+        width: `calc(${maskWidth} * var(--cell))`,
+        height: `calc(${diameter} * var(--cell))`,
+      },
+      circle: {
+        left: `0px`,
+        top: `0px`,
+        width: `calc(${diameter} * var(--cell))`,
+        height: `calc(${diameter} * var(--cell))`,
+      }
+    };
   }
 
-  const leftArc = arcStyle("left");
-  const rightArc = arcStyle("right");
+  const leftArc = arcMask("left");
+  const rightArc = arcMask("right");
 
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v0.5</span></strong>
+        <strong>Football Board Sandbox <span>v0.6</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -240,10 +252,8 @@ function App() {
         <label>Careu mic X<input type="number" value={settings.smallDepth} min="1" max="24" onChange={e => updateSetting("smallDepth", e.target.value)} /></label>
         <label>Careu mic Y<input type="number" value={settings.smallWidth} min="2" max="40" onChange={e => updateSetting("smallWidth", e.target.value)} /></label>
 
-        <label>11m st X<input type="number" value={settings.penaltyLeftX} min="0" max={settings.cols - 1} onChange={e => updateSetting("penaltyLeftX", e.target.value)} /></label>
-        <label>11m st Y<input type="number" value={settings.penaltyLeftY} min="0" max={settings.rows - 1} onChange={e => updateSetting("penaltyLeftY", e.target.value)} /></label>
-        <label>11m dr X<input type="number" value={settings.penaltyRightX} min="0" max={settings.cols - 1} onChange={e => updateSetting("penaltyRightX", e.target.value)} /></label>
-        <label>11m dr Y<input type="number" value={settings.penaltyRightY} min="0" max={settings.rows - 1} onChange={e => updateSetting("penaltyRightY", e.target.value)} /></label>
+        <label>11m dist<input type="number" value={settings.penaltyDistance} min="1" max={Math.floor(settings.cols/2)-1} onChange={e => updateSetting("penaltyDistance", e.target.value)} /></label>
+        <label>11m Y<input type="number" value={settings.penaltyY} min="0" max={settings.rows} onChange={e => updateSetting("penaltyY", e.target.value)} /></label>
 
         <label>Cerc centru<input type="number" value={settings.centerCircleRadius} min="1" max="20" onChange={e => updateSetting("centerCircleRadius", e.target.value)} /></label>
         <label>Semicerc<input type="number" value={settings.arcRadius} min="1" max="20" onChange={e => updateSetting("arcRadius", e.target.value)} /></label>
@@ -275,15 +285,11 @@ function App() {
             <div className="goal left-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }} />
             <div className="goal right-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }} />
 
-            <div className="penalty-dot" style={{ left: `calc(${settings.penaltyLeftX} * var(--cell) + var(--cell) * .42)`, top: `calc(${settings.penaltyLeftY} * var(--cell) + var(--cell) * .42)` }} />
-            <div className="penalty-dot" style={{ left: `calc(${settings.penaltyRightX} * var(--cell) + var(--cell) * .42)`, top: `calc(${settings.penaltyRightY} * var(--cell) + var(--cell) * .42)` }} />
+            <div className="penalty-dot" style={{ left: `calc(${leftPenaltyX} * var(--cell) - var(--cell) * .08)`, top: `calc(${penaltyY} * var(--cell) - var(--cell) * .08)` }} />
+            <div className="penalty-dot" style={{ left: `calc(${rightPenaltyX} * var(--cell) - var(--cell) * .08)`, top: `calc(${penaltyY} * var(--cell) - var(--cell) * .08)` }} />
 
-            <div className="arc-mask" style={leftArc.mask}>
-              <div className="arc-circle" style={{...leftArc.circle, left: leftArc.innerLeft, top: "0px"}} />
-            </div>
-            <div className="arc-mask" style={rightArc.mask}>
-              <div className="arc-circle" style={{...rightArc.circle, left: rightArc.innerLeft, top: "0px"}} />
-            </div>
+            <div className="arc-mask" style={leftArc.mask}><div className="arc-circle" style={leftArc.circle} /></div>
+            <div className="arc-mask" style={rightArc.mask}><div className="arc-circle" style={rightArc.circle} /></div>
 
             {pieces.map(p => (
               <div
