@@ -4,16 +4,16 @@ import { RotateCcw, Save, Upload, Plus, Minus, Undo2, Edit3, X } from "lucide-re
 import "./styles.css";
 
 const DEFAULT_SETTINGS = {
-  cols: 42,
+  cols: 40,
   rows: 29,
   cellSize: 28,
   goalDepth: 2,
-  goalWidth: 5,
-  boxDepth: 9,
-  boxWidth: 16,
-  smallDepth: 4,
-  smallWidth: 8,
-  penaltyDistance: 6,
+  goalWidth: 7,
+  boxDepth: 6,
+  boxWidth: 17,
+  smallDepth: 2,
+  smallWidth: 9,
+  penaltyDistance: 5,
   penaltyY: 14,
   centerCircleRadius: 4,
   arcRadius: 4,
@@ -21,6 +21,13 @@ const DEFAULT_SETTINGS = {
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
+}
+
+function forceOdd(value, fallback = 1) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  const rounded = Math.round(n);
+  return rounded % 2 === 0 ? rounded + 1 : rounded;
 }
 
 function createInitialPieces(cols, rows) {
@@ -69,13 +76,19 @@ function App() {
   }
 
   function updateSetting(key, value) {
-    const next = { ...settings, [key]: Number(value) };
+    let cleanValue = Number(value);
+    if (key === "rows" || key === "goalWidth") cleanValue = forceOdd(cleanValue);
+    const next = { ...settings, [key]: cleanValue };
 
     if (key === "cols") {
-      next.penaltyDistance = clamp(next.penaltyDistance, 1, Math.floor(Number(value) / 2) - 1);
+      next.penaltyDistance = clamp(next.penaltyDistance, 1, Math.floor(cleanValue / 2) - 1);
     }
     if (key === "rows") {
-      next.penaltyY = clamp(next.penaltyY, 0, Number(value));
+      next.rows = forceOdd(cleanValue);
+      next.penaltyY = Math.floor(next.rows / 2);
+    }
+    if (key === "goalWidth") {
+      next.goalWidth = forceOdd(cleanValue);
     }
 
     setSettings(next);
@@ -92,7 +105,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v07", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v08", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -110,6 +123,7 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v08") ||
       localStorage.getItem("football-board-sandbox-v07") ||
       localStorage.getItem("football-board-sandbox-v06") ||
       localStorage.getItem("football-board-sandbox-v05") ||
@@ -178,6 +192,8 @@ function App() {
   const goalTop = Math.floor((settings.rows - settings.goalWidth) / 2);
   const centerX = settings.cols / 2;
   const centerY = settings.rows / 2;
+  const centerDotX = Math.floor(settings.cols / 2);
+  const centerDotY = Math.floor(settings.rows / 2);
 
   const leftPenaltyX = settings.penaltyDistance;
   const rightPenaltyX = settings.cols - 1 - settings.penaltyDistance;
@@ -238,14 +254,14 @@ function App() {
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v0.7</span></strong>
+        <strong>Football Board Sandbox <span>v0.8</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
-        <label>Teren l<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
+        <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
         <label>Pătrățel<input type="number" value={settings.cellSize} min="16" max="70" onChange={e => updateSetting("cellSize", e.target.value)} /></label>
 
         <label>Poartă X<input type="number" value={settings.goalDepth} min="1" max="12" onChange={e => updateSetting("goalDepth", e.target.value)} /></label>
-        <label>Poartă Y<input type="number" value={settings.goalWidth} min="2" max="30" onChange={e => updateSetting("goalWidth", e.target.value)} /></label>
+        <label>Poartă Y impar<input type="number" value={settings.goalWidth} min="2" max="30" onChange={e => updateSetting("goalWidth", e.target.value)} /></label>
 
         <label>Careu mare X<input type="number" value={settings.boxDepth} min="2" max="36" onChange={e => updateSetting("boxDepth", e.target.value)} /></label>
         <label>Careu mare Y<input type="number" value={settings.boxWidth} min="4" max="60" onChange={e => updateSetting("boxWidth", e.target.value)} /></label>
@@ -267,6 +283,19 @@ function App() {
         <button onClick={resetPieces}><RotateCcw size={16} /> Reset</button>
       </div>
 
+
+      <div className="slotsbar">
+        <strong>Poziții salvate:</strong>
+        {Array.from({ length: 12 }, (_, i) => i + 1).map(slot => (
+          <div className="slot" key={slot}>
+            <span>{slot}</span>
+            <button onClick={() => saveSlot(slot)}>Save</button>
+            <button onClick={() => loadSlot(slot)}>Load</button>
+            <button className="danger" onClick={() => clearSlot(slot)}>×</button>
+          </div>
+        ))}
+      </div>
+
       <div className="board-wrap">
         <div className="pitch-shell">
           <div className="pitch" ref={pitchRef} style={pitchStyle}>
@@ -276,6 +305,10 @@ function App() {
               height: `calc(${settings.centerCircleRadius * 2} * var(--cell))`,
               left: `calc((${centerX} - ${settings.centerCircleRadius}) * var(--cell))`,
               top: `calc((${centerY} - ${settings.centerCircleRadius}) * var(--cell))`,
+            }} />
+            <div className="center-dot" style={{
+              left: `calc((${centerDotX} + .5) * var(--cell) - var(--cell) * .08)`,
+              top: `calc((${centerDotY} + .5) * var(--cell) - var(--cell) * .08)`
             }} />
 
             {line({ left: 0, top: `calc(${boxTop} * var(--cell))`, width: `calc(${settings.boxDepth} * var(--cell))`, height: `calc(${settings.boxWidth} * var(--cell))` })}
