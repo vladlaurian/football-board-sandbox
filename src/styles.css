@@ -26,3 +26,114 @@
 .history-resize{position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;touch-action:none}
 .history-resize:after{content:"";position:absolute;right:4px;bottom:4px;width:8px;height:8px;border-right:2px solid rgba(255,255,255,.55);border-bottom:2px solid rgba(255,255,255,.55)}
 @media(max-width:900px){.controlbar{max-height:92px;overflow:auto}.history-panel{display:block}}
+
+/* v2.2 responsive/touch/lock UI */
+.touch-mode button,
+.touch-mode select,
+.touch-mode input {
+  min-height: 42px;
+  font-size: 15px;
+}
+
+.touch-mode .piece {
+  width: calc(var(--cell) * .95);
+  height: calc(var(--cell) * .95);
+  font-size: calc(var(--cell) * .28);
+}
+
+.locked-ui .topbar,
+.locked-ui .controlbar,
+.locked-ui .formationbar-old,
+.locked-ui .situationsbar-old,
+.locked-ui .status,
+.locked-ui .measure-panel {
+  display: none !important;
+}
+
+.locked-ui .board-wrap {
+  padding: 8px;
+  height: 100vh;
+  width: 100vw;
+}
+
+.locked-controls {
+  position: fixed;
+  left: 10px;
+  top: 10px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0,0,0,.72);
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.locked-controls > button {
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(255,255,255,.22);
+  background: #222;
+  color: white;
+}
+
+@media (pointer: coarse) {
+  .topbar, .controlbar {
+    gap: 9px;
+  }
+
+  .topbar button,
+  .controlbar button,
+  .topbar select,
+  .controlbar select,
+  .topbar input,
+  .controlbar input {
+    min-height: 42px;
+    font-size: 15px;
+  }
+
+  .history-panel {
+    width: min(420px, 90vw) !important;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 900px) {
+  .topbar {
+    max-height: 96px;
+    overflow: auto;
+    padding: 6px 8px;
+  }
+
+  .controlbar {
+    max-height: 66px;
+    overflow: auto;
+    padding: 6px 8px;
+  }
+
+  .board-wrap {
+    padding: 10px;
+  }
+
+  .status {
+    display: none;
+  }
+}
+
+@media (orientation: landscape) and (pointer: coarse) {
+  .topbar strong {
+    width: auto;
+  }
+
+  .topbar input {
+    width: 64px;
+  }
+
+  .controlbar .situation-name {
+    width: 170px;
+  }
+
+  .controlbar select {
+    max-width: 145px;
+  }
+}

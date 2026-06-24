@@ -187,7 +187,10 @@ function App() {
   const [historyDragging, setHistoryDragging] = useState(null);
   const [historyResizing, setHistoryResizing] = useState(null);
   const [historyVisible, setHistoryVisible] = useState(false);
+  const [touchMode, setTouchMode] = useState(false);
+  const [lockUI, setLockUI] = useState(false);
   const pitchRef = useRef(null);
+  const boardWrapRef = useRef(null);
 
   const pitchStyle = useMemo(() => ({
     "--cols": settings.cols,
@@ -327,7 +330,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v21", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v22", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -345,6 +348,7 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v22") ||
       localStorage.getItem("football-board-sandbox-v21") ||
       localStorage.getItem("football-board-sandbox-v20") ||
       localStorage.getItem("football-board-sandbox-v19") ||
@@ -623,15 +627,26 @@ function App() {
     });
   }
 
-  function onHistoryPointerUp() {
-    setHistoryDragging(null);
-    setHistoryResizing(null);
+  function fitWidth() {
+    const wrap = boardWrapRef.current;
+    if (!wrap) return;
+    const pitchWidth = settings.cols * settings.cellSize + 6;
+    const available = Math.max(240, wrap.clientWidth - 28);
+    setZoom(clamp(Number((available / pitchWidth).toFixed(2)), 0.2, 3));
+  }
+
+  function fitHeight() {
+    const wrap = boardWrapRef.current;
+    if (!wrap) return;
+    const pitchHeight = settings.rows * settings.cellSize + 6;
+    const available = Math.max(240, wrap.clientHeight - 28);
+    setZoom(clamp(Number((available / pitchHeight).toFixed(2)), 0.2, 3));
   }
 
   return (
-    <div className="app">
+    <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v2.1</span></strong>
+        <strong>Football Board Sandbox <span>v2.2</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -657,6 +672,14 @@ function App() {
         <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
         <button onClick={undo}><Undo2 size={16} /> Undo</button>
         <button onClick={resetPieces}><RotateCcw size={16} /> Reset</button>
+        <button onClick={fitWidth}>Fit Width</button>
+        <button onClick={fitHeight}>Fit Height</button>
+        <button className={touchMode ? "toggle-on" : ""} onClick={() => setTouchMode(v => !v)}>
+          Touch {touchMode ? "ON" : "OFF"}
+        </button>
+        <button className={lockUI ? "toggle-on" : ""} onClick={() => setLockUI(true)}>
+          Lock UI
+        </button>
         <button className={snapToGrid ? "toggle-on" : ""} onClick={() => setSnapToGrid(v => !v)}>
           Snap {snapToGrid ? "ON" : "OFF"}
         </button>
@@ -731,7 +754,7 @@ function App() {
         </button>
       </div>
 
-      <div className="board-wrap">
+      <div className="board-wrap" ref={boardWrapRef}>
         <div className="pitch-shell">
           <div className="pitch" ref={pitchRef} style={pitchStyle} onPointerDown={onPitchPointerDown}>
             <div className="half-line" />
@@ -871,13 +894,33 @@ function App() {
         Zoom {Math.round(zoom * 100)}% · {settings.cols} x {settings.rows} · Dublu click pe jucător ca să schimbi textul
       </div>
 
+
+      {lockUI && (
+        <div className="locked-controls">
+          <div className="dice-box">
+            <Dices size={16} />
+            <select value={dieType} onChange={e => setDieType(Number(e.target.value))}>
+              <option value={20}>D20</option>
+              <option value={12}>D12</option>
+              <option value={10}>D10</option>
+              <option value={8}>D8</option>
+              <option value={6}>D6</option>
+              <option value={4}>D4</option>
+            </select>
+            <button onClick={rollDie}>Roll</button>
+            <span className={`die-result ${dieResult === 1 ? "die-min" : dieResult === dieType ? "die-max" : ""}`}>{dieResult === null ? "—" : dieResult}</span>
+          </div>
+          <button onClick={() => setLockUI(false)}>Unlock</button>
+        </div>
+      )}
+
       {measureInfo && (
         <div className="measure-panel">
           Riglă: ΔX {measureInfo.dx} · ΔY {measureInfo.dy} · ortogonal {measureInfo.manhattan} · diagonal {measureInfo.chess} · drept {measureInfo.straight}
         </div>
       )}
 
-      {historyVisible && (
+      {historyVisible && !lockUI && (
       <div
         className="history-panel"
         style={{ left: historyPosition.x, top: historyPosition.y, width: historySize.w, height: historySize.h }}

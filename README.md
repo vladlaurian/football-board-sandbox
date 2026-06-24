@@ -1,11 +1,16 @@
-# Football Board Sandbox v2.1
+# Football Board Sandbox v2.2
 
-## v2.1
-- Formații și Situații de joc sunt pe aceeași bară
-- Situațiile de joc rămân salvate între update-uri
-  - cheia localStorage rămâne `football-board-game-situations-v20`
-- History:
-  - buton Show/Hide în bara principală
-  - poate fi mutat cu drag & drop
-  - poate fi minimizat
-  - poate fi redimensionat din colțul dreapta-jos
+## v2.2
+- iPad landscape optimization
+- Touch Mode:
+  - butoane mai mari
+  - piese mai ușor de atins
+- Fit Width:
+  - ajustează zoom-ul ca terenul să intre pe lățime
+- Fit Height:
+  - ajustează zoom-ul ca terenul să intre pe înălțime
+- Lock UI:
+  - ascunde meniurile
+  - terenul ocupă ecranul
+  - rămâne vizibil doar zarul + Unlock
+- Situațiile de joc și formațiile păstrează cheile stabile de salvare
