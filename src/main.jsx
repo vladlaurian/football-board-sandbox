@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { RotateCcw, Save, Upload, Plus, Minus, Undo2 } from "lucide-react";
+import { RotateCcw, Save, Upload, Plus, Minus, Undo2, Edit3, X } from "lucide-react";
 import "./styles.css";
 
 const DEFAULT_SETTINGS = {
@@ -17,9 +17,18 @@ const DEFAULT_SETTINGS = {
   smallDepth: 4,
   smallWidth: 8,
 
-  penaltyDistance: 6,
+  penaltyLeftX: 6,
+  penaltyRightX: 35,
+  penaltyLeftY: 13,
+  penaltyRightY: 13,
+
+  centerCircleRadius: 4,
   arcRadius: 4,
 };
+
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
 
 function createInitialPieces(cols, rows) {
   const midY = Math.floor(rows / 2);
@@ -44,14 +53,12 @@ function createInitialPieces(cols, rows) {
   return pieces;
 }
 
-function clamp(v, min, max) {
-  return Math.max(min, Math.min(max, v));
-}
-
 function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [pieces, setPieces] = useState(() => createInitialPieces(DEFAULT_SETTINGS.cols, DEFAULT_SETTINGS.rows));
   const [selectedId, setSelectedId] = useState(null);
+  const [editingPiece, setEditingPiece] = useState(null);
+  const [editLabel, setEditLabel] = useState("");
   const [zoom, setZoom] = useState(1);
   const [history, setHistory] = useState([]);
   const pitchRef = useRef(null);
@@ -64,11 +71,22 @@ function App() {
   }), [settings, zoom]);
 
   function pushHistory(nextPieces = pieces) {
-    setHistory(h => [...h.slice(-30), JSON.stringify(nextPieces)]);
+    setHistory(h => [...h.slice(-60), JSON.stringify(nextPieces)]);
   }
 
   function updateSetting(key, value) {
     const next = { ...settings, [key]: Number(value) };
+
+    // Keep mirrored penalty point sensible if field size changes.
+    if (key === "cols") {
+      next.penaltyLeftX = clamp(next.penaltyLeftX, 0, Number(value) - 1);
+      next.penaltyRightX = clamp(next.penaltyRightX, 0, Number(value) - 1);
+    }
+    if (key === "rows") {
+      next.penaltyLeftY = clamp(next.penaltyLeftY, 0, Number(value) - 1);
+      next.penaltyRightY = clamp(next.penaltyRightY, 0, Number(value) - 1);
+    }
+
     setSettings(next);
     setPieces(prev => prev.map(p => ({
       ...p,
@@ -83,12 +101,12 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v02", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v03", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
   function loadBoard() {
-    const raw = localStorage.getItem("football-board-sandbox-v02");
+    const raw = localStorage.getItem("football-board-sandbox-v03");
     if (!raw) return alert("Nu există salvare încă.");
     const saved = JSON.parse(raw);
     setSettings(saved.settings);
@@ -116,6 +134,7 @@ function App() {
 
   function onPointerDown(pieceId, e) {
     e.preventDefault();
+    if (editingPiece) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     setSelectedId(pieceId);
     pushHistory();
@@ -131,68 +150,56 @@ function App() {
     setSelectedId(null);
   }
 
+  function openEdit(piece) {
+    if (piece.team === "BALL") return;
+    setEditingPiece(piece);
+    setEditLabel(piece.label);
+  }
+
+  function saveEdit() {
+    if (!editingPiece) return;
+    const clean = editLabel.trim().slice(0, 5) || "?";
+    setPieces(prev => prev.map(p => p.id === editingPiece.id ? { ...p, label: clean } : p));
+    setEditingPiece(null);
+    setEditLabel("");
+  }
+
   const line = (style, extraClass = "") => <div className={`pitch-line ${extraClass}`} style={style} />;
 
   const boxTop = Math.floor((settings.rows - settings.boxWidth) / 2);
   const smallTop = Math.floor((settings.rows - settings.smallWidth) / 2);
   const goalTop = Math.floor((settings.rows - settings.goalWidth) / 2);
-  const centerCircleSize = Math.max(6, Math.round(Math.min(settings.cols, settings.rows) * 0.24));
-
-  const leftPenaltyX = settings.penaltyDistance;
-  const rightPenaltyX = settings.cols - 1 - settings.penaltyDistance;
-  const penaltyY = Math.floor(settings.rows / 2);
+  const centerX = settings.cols / 2;
+  const centerY = settings.rows / 2;
 
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v0.2</span></strong>
+        <strong>Football Board Sandbox <span>v0.3</span></strong>
 
-        <label>Teren L
-          <input type="number" value={settings.cols} min="12" max="90" onChange={e => updateSetting("cols", e.target.value)} />
-        </label>
+        <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
+        <label>Teren l<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
+        <label>Pătrățel<input type="number" value={settings.cellSize} min="16" max="70" onChange={e => updateSetting("cellSize", e.target.value)} /></label>
 
-        <label>Teren l
-          <input type="number" value={settings.rows} min="8" max="60" onChange={e => updateSetting("rows", e.target.value)} />
-        </label>
+        <label>Poartă X<input type="number" value={settings.goalDepth} min="1" max="12" onChange={e => updateSetting("goalDepth", e.target.value)} /></label>
+        <label>Poartă Y<input type="number" value={settings.goalWidth} min="2" max="30" onChange={e => updateSetting("goalWidth", e.target.value)} /></label>
 
-        <label>Pătrățel
-          <input type="number" value={settings.cellSize} min="16" max="64" onChange={e => updateSetting("cellSize", e.target.value)} />
-        </label>
+        <label>Careu mare X<input type="number" value={settings.boxDepth} min="2" max="36" onChange={e => updateSetting("boxDepth", e.target.value)} /></label>
+        <label>Careu mare Y<input type="number" value={settings.boxWidth} min="4" max="60" onChange={e => updateSetting("boxWidth", e.target.value)} /></label>
 
-        <label>Poartă X
-          <input type="number" value={settings.goalDepth} min="1" max="8" onChange={e => updateSetting("goalDepth", e.target.value)} />
-        </label>
+        <label>Careu mic X<input type="number" value={settings.smallDepth} min="1" max="24" onChange={e => updateSetting("smallDepth", e.target.value)} /></label>
+        <label>Careu mic Y<input type="number" value={settings.smallWidth} min="2" max="40" onChange={e => updateSetting("smallWidth", e.target.value)} /></label>
 
-        <label>Poartă Y
-          <input type="number" value={settings.goalWidth} min="2" max="24" onChange={e => updateSetting("goalWidth", e.target.value)} />
-        </label>
+        <label>11m st X<input type="number" value={settings.penaltyLeftX} min="0" max={settings.cols - 1} onChange={e => updateSetting("penaltyLeftX", e.target.value)} /></label>
+        <label>11m st Y<input type="number" value={settings.penaltyLeftY} min="0" max={settings.rows - 1} onChange={e => updateSetting("penaltyLeftY", e.target.value)} /></label>
+        <label>11m dr X<input type="number" value={settings.penaltyRightX} min="0" max={settings.cols - 1} onChange={e => updateSetting("penaltyRightX", e.target.value)} /></label>
+        <label>11m dr Y<input type="number" value={settings.penaltyRightY} min="0" max={settings.rows - 1} onChange={e => updateSetting("penaltyRightY", e.target.value)} /></label>
 
-        <label>Careu mare X
-          <input type="number" value={settings.boxDepth} min="2" max="30" onChange={e => updateSetting("boxDepth", e.target.value)} />
-        </label>
+        <label>Cerc centru<input type="number" value={settings.centerCircleRadius} min="1" max="20" onChange={e => updateSetting("centerCircleRadius", e.target.value)} /></label>
+        <label>Semicerc<input type="number" value={settings.arcRadius} min="1" max="20" onChange={e => updateSetting("arcRadius", e.target.value)} /></label>
 
-        <label>Careu mare Y
-          <input type="number" value={settings.boxWidth} min="4" max="50" onChange={e => updateSetting("boxWidth", e.target.value)} />
-        </label>
-
-        <label>Careu mic X
-          <input type="number" value={settings.smallDepth} min="1" max="18" onChange={e => updateSetting("smallDepth", e.target.value)} />
-        </label>
-
-        <label>Careu mic Y
-          <input type="number" value={settings.smallWidth} min="2" max="32" onChange={e => updateSetting("smallWidth", e.target.value)} />
-        </label>
-
-        <label>11m
-          <input type="number" value={settings.penaltyDistance} min="1" max="24" onChange={e => updateSetting("penaltyDistance", e.target.value)} />
-        </label>
-
-        <label>Arc
-          <input type="number" value={settings.arcRadius} min="1" max="12" onChange={e => updateSetting("arcRadius", e.target.value)} />
-        </label>
-
-        <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.25, 2.8))}><Minus size={16} /></button>
-        <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.25, 2.8))}><Plus size={16} /></button>
+        <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.2, 3))}><Minus size={16} /></button>
+        <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
         <button onClick={undo}><Undo2 size={16} /> Undo</button>
         <button onClick={saveBoard}><Save size={16} /> Save</button>
         <button onClick={loadBoard}><Upload size={16} /> Load</button>
@@ -203,10 +210,10 @@ function App() {
         <div className="pitch" ref={pitchRef} style={pitchStyle}>
           <div className="half-line" />
           <div className="center-circle" style={{
-            width: `calc(${centerCircleSize} * var(--cell))`,
-            height: `calc(${centerCircleSize} * var(--cell))`,
-            left: `calc((${settings.cols / 2} - ${centerCircleSize / 2}) * var(--cell))`,
-            top: `calc((${settings.rows / 2} - ${centerCircleSize / 2}) * var(--cell))`,
+            width: `calc(${settings.centerCircleRadius * 2} * var(--cell))`,
+            height: `calc(${settings.centerCircleRadius * 2} * var(--cell))`,
+            left: `calc((${centerX} - ${settings.centerCircleRadius}) * var(--cell))`,
+            top: `calc((${centerY} - ${settings.centerCircleRadius}) * var(--cell))`,
           }} />
 
           {line({ left: 0, top: `calc(${boxTop} * var(--cell))`, width: `calc(${settings.boxDepth} * var(--cell))`, height: `calc(${settings.boxWidth} * var(--cell))` })}
@@ -226,25 +233,25 @@ function App() {
           }} />
 
           <div className="penalty-dot" style={{
-            left: `calc(${leftPenaltyX} * var(--cell) + var(--cell) * .42)`,
-            top: `calc(${penaltyY} * var(--cell) + var(--cell) * .42)`
+            left: `calc(${settings.penaltyLeftX} * var(--cell) + var(--cell) * .42)`,
+            top: `calc(${settings.penaltyLeftY} * var(--cell) + var(--cell) * .42)`
           }} />
           <div className="penalty-dot" style={{
-            left: `calc(${rightPenaltyX} * var(--cell) + var(--cell) * .42)`,
-            top: `calc(${penaltyY} * var(--cell) + var(--cell) * .42)`
+            left: `calc(${settings.penaltyRightX} * var(--cell) + var(--cell) * .42)`,
+            top: `calc(${settings.penaltyRightY} * var(--cell) + var(--cell) * .42)`
           }} />
 
           <div className="penalty-arc left-arc" style={{
             width: `calc(${settings.arcRadius * 2} * var(--cell))`,
             height: `calc(${settings.arcRadius * 2} * var(--cell))`,
-            left: `calc((${leftPenaltyX} - ${settings.arcRadius}) * var(--cell))`,
-            top: `calc((${penaltyY} - ${settings.arcRadius}) * var(--cell))`,
+            left: `calc((${settings.penaltyLeftX} - ${settings.arcRadius}) * var(--cell))`,
+            top: `calc((${settings.penaltyLeftY} - ${settings.arcRadius}) * var(--cell))`,
           }} />
           <div className="penalty-arc right-arc" style={{
             width: `calc(${settings.arcRadius * 2} * var(--cell))`,
             height: `calc(${settings.arcRadius * 2} * var(--cell))`,
-            left: `calc((${rightPenaltyX} - ${settings.arcRadius}) * var(--cell))`,
-            top: `calc((${penaltyY} - ${settings.arcRadius}) * var(--cell))`,
+            left: `calc((${settings.penaltyRightX} - ${settings.arcRadius}) * var(--cell))`,
+            top: `calc((${settings.penaltyRightY} - ${settings.arcRadius}) * var(--cell))`,
           }} />
 
           {pieces.map(p => (
@@ -259,6 +266,7 @@ function App() {
               onPointerMove={(e) => onPointerMove(p.id, e)}
               onPointerUp={onPointerUp}
               onPointerCancel={onPointerUp}
+              onDoubleClick={() => openEdit(p)}
             >
               {p.label}
             </div>
@@ -267,8 +275,32 @@ function App() {
       </div>
 
       <div className="status">
-        Zoom {Math.round(zoom * 100)}% · {settings.cols} x {settings.rows} · Drag & drop liber · Save local în browser
+        Zoom {Math.round(zoom * 100)}% · {settings.cols} x {settings.rows} · Dublu click pe jucător ca să schimbi textul
       </div>
+
+      {editingPiece && (
+        <div className="modal-backdrop" onPointerDown={() => setEditingPiece(null)}>
+          <div className="modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="modal-title">
+              <strong>Editează jucător</strong>
+              <button className="icon-btn" onClick={() => setEditingPiece(null)}><X size={18} /></button>
+            </div>
+            <p>{editingPiece.team === "A" ? "Echipa albastră" : "Echipa roșie"} · {editingPiece.id}</p>
+            <input
+              className="label-input"
+              value={editLabel}
+              autoFocus
+              maxLength={5}
+              onChange={e => setEditLabel(e.target.value.toUpperCase())}
+              onKeyDown={e => {
+                if (e.key === "Enter") saveEdit();
+                if (e.key === "Escape") setEditingPiece(null);
+              }}
+            />
+            <button className="save-label" onClick={saveEdit}><Edit3 size={16} /> Salvează text</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
