@@ -20,6 +20,13 @@ const DEFAULT_SETTINGS = {
   cornerArcRadius: 1,
 };
 
+const POSITION_OPTIONS = [
+  "GK", "LB", "LWB", "CB", "RB", "RWB",
+  "CDM", "CM", "CAM", "AM",
+  "LM", "RM", "LW", "RW",
+  "LF", "RF", "CF", "ST"
+];
+
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
@@ -38,24 +45,57 @@ function forceOddDirectional(value, previousValue, fallback = 1) {
 
 function createInitialPieces(cols, rows) {
   const midY = Math.floor(rows / 2);
+  const half = Math.floor(cols / 2);
 
-  const a = [
-    ["GK", 2, midY],
-    ["LB", 8, midY - 8],
-    ["CB", 7, midY - 3],
-    ["CB", 7, midY + 3],
-    ["RB", 8, midY + 8],
-    ["CM", 14, midY - 4],
-    ["CM", 14, midY + 4],
-    ["LW", 18, midY - 8],
-    ["RW", 18, midY + 8],
-    ["ST", 19, midY - 2],
-    ["ST", 19, midY + 2],
+  // Albastru: 4-4-2 clasic, atacă spre dreapta.
+  const blue442 = [
+    ["GK", 1, midY],
+    ["LB", 7, midY - 8],
+    ["CB", 6, midY - 3],
+    ["CB", 6, midY + 3],
+    ["RB", 7, midY + 8],
+    ["LM", 13, midY - 9],
+    ["CM", 13, midY - 3],
+    ["CM", 13, midY + 3],
+    ["RM", 13, midY + 9],
+    ["ST", 18, midY - 2],
+    ["ST", 18, midY + 2],
+  ];
+
+  // Roșu: 4-2-3-1, atacă spre stânga.
+  // Definim coordonatele ca distanță față de propria poartă, apoi le oglindim.
+  const red4231Relative = [
+    ["GK", 1, midY],
+    ["LWB", 8, midY + 8],
+    ["CB", 6, midY + 3],
+    ["CB", 6, midY - 3],
+    ["RWB", 8, midY - 8],
+    ["CDM", 12, midY + 2],
+    ["CDM", 12, midY - 2],
+    ["LW", 17, midY + 9],
+    ["AM", 16, midY],
+    ["RW", 17, midY - 9],
+    ["ST", 19, midY],
   ];
 
   const pieces = [];
-  a.forEach(([label, x, y], i) => pieces.push({ id: `A-${i}`, team: "A", label, x: clamp(x, 0, Math.floor(cols/2)-1), y: clamp(y, 0, rows - 1) }));
-  a.forEach(([label, x, y], i) => pieces.push({ id: `B-${i}`, team: "B", label, x: cols - 1 - clamp(x, 0, Math.floor(cols/2)-1), y: clamp(y, 0, rows - 1) }));
+
+  blue442.forEach(([label, x, y], i) => pieces.push({
+    id: `A-${i}`,
+    team: "A",
+    label,
+    x: clamp(x, 0, half - 1),
+    y: clamp(y, 0, rows - 1)
+  }));
+
+  red4231Relative.forEach(([label, xFromOwnGoal, y], i) => pieces.push({
+    id: `B-${i}`,
+    team: "B",
+    label,
+    x: clamp(cols - 1 - xFromOwnGoal, half, cols - 1),
+    y: clamp(y, 0, rows - 1)
+  }));
+
   pieces.push({ id: "BALL", team: "BALL", label: "●", x: Math.floor(cols / 2), y: midY });
   return pieces;
 }
@@ -115,7 +155,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v11", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v12", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -133,7 +173,7 @@ function App() {
 
   function loadBoard() {
     const raw =
-      localStorage.getItem("football-board-sandbox-v11") ||
+      localStorage.getItem("football-board-sandbox-v12") ||
       localStorage.getItem("football-board-sandbox-v10") ||
       localStorage.getItem("football-board-sandbox-v09") ||
       localStorage.getItem("football-board-sandbox-v08") ||
@@ -272,7 +312,7 @@ function App() {
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v1.1</span></strong>
+        <strong>Football Board Sandbox <span>v1.2</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -437,6 +477,17 @@ function App() {
               <button className="icon-btn" onClick={() => setEditingPiece(null)}><X size={18} /></button>
             </div>
             <p>{editingPiece.team === "A" ? "Echipa albastră" : "Echipa roșie"} · {editingPiece.id}</p>
+            <select
+              className="position-select"
+              value={POSITION_OPTIONS.includes(editLabel) ? editLabel : ""}
+              onChange={e => setEditLabel(e.target.value)}
+            >
+              <option value="">Alege poziție...</option>
+              {POSITION_OPTIONS.map(pos => (
+                <option key={pos} value={pos}>{pos}</option>
+              ))}
+            </select>
+
             <input
               className="label-input"
               value={editLabel}

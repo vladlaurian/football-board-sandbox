@@ -1,8 +1,9 @@
-# Football Board Sandbox v1.1
+# Football Board Sandbox v1.2
 
-## v1.1
-- arcurile de colț sunt acum sferturi de cerc în interiorul terenului
-- au fost eliminate butoanele globale Save/Load
-- au rămas Undo și Reset
-- adăugat zar simplu: D20 default, D12, D10, D8, D6, D4 + Roll
-- păstrează sloturile Save/Load Position
+## v1.2
+- echipa albastră default: 4-4-2 clasic
+  - LB CB CB RB / LM CM CM RM / ST ST
+- echipa roșie default: 4-2-3-1
+  - LWB CB CB RWB / CDM CDM / LW AM RW / ST
+- dublu-click pe jucător: dropdown cu poziții standard + input manual
+- păstrează zarurile și sloturile Save/Load Position
