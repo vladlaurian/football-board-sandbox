@@ -7,21 +7,16 @@ const DEFAULT_SETTINGS = {
   cols: 42,
   rows: 26,
   cellSize: 28,
-
   goalDepth: 2,
   goalWidth: 8,
-
   boxDepth: 9,
   boxWidth: 16,
-
   smallDepth: 4,
   smallWidth: 8,
-
   penaltyLeftX: 6,
   penaltyRightX: 35,
   penaltyLeftY: 13,
   penaltyRightY: 13,
-
   centerCircleRadius: 4,
   arcRadius: 4,
 };
@@ -32,6 +27,9 @@ function clamp(v, min, max) {
 
 function createInitialPieces(cols, rows) {
   const midY = Math.floor(rows / 2);
+
+  // Echipa albastră atacă spre dreapta, deci toți sunt inițial în jumătatea stângă.
+  // Echipa roșie atacă spre stânga, deci toți sunt inițial în jumătatea dreaptă.
   const a = [
     ["GK", 2, midY],
     ["LB", 8, midY - 8],
@@ -40,15 +38,15 @@ function createInitialPieces(cols, rows) {
     ["RB", 8, midY + 8],
     ["CM", 14, midY - 4],
     ["CM", 14, midY + 4],
-    ["LW", 19, midY - 9],
-    ["RW", 19, midY + 9],
-    ["ST", 22, midY - 2],
-    ["ST", 22, midY + 2],
+    ["LW", 18, midY - 8],
+    ["RW", 18, midY + 8],
+    ["ST", 19, midY - 2],
+    ["ST", 19, midY + 2],
   ];
 
   const pieces = [];
-  a.forEach(([label, x, y], i) => pieces.push({ id: `A-${i}`, team: "A", label, x, y: clamp(y, 0, rows - 1) }));
-  a.forEach(([label, x, y], i) => pieces.push({ id: `B-${i}`, team: "B", label, x: cols - 1 - x, y: clamp(y, 0, rows - 1) }));
+  a.forEach(([label, x, y], i) => pieces.push({ id: `A-${i}`, team: "A", label, x: clamp(x, 0, Math.floor(cols/2)-1), y: clamp(y, 0, rows - 1) }));
+  a.forEach(([label, x, y], i) => pieces.push({ id: `B-${i}`, team: "B", label, x: cols - 1 - clamp(x, 0, Math.floor(cols/2)-1), y: clamp(y, 0, rows - 1) }));
   pieces.push({ id: "BALL", team: "BALL", label: "●", x: Math.floor(cols / 2), y: midY });
   return pieces;
 }
@@ -100,12 +98,13 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v04", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v05", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v05") ||
       localStorage.getItem("football-board-sandbox-v04") ||
       localStorage.getItem("football-board-sandbox-v03");
     if (!raw) return alert("Nu există salvare încă.");
@@ -129,7 +128,6 @@ function App() {
     const localY = (e.clientY - rect.top) / zoom;
     const x = clamp(Math.floor(localX / settings.cellSize), 0, settings.cols - 1);
     const y = clamp(Math.floor(localY / settings.cellSize), 0, settings.rows - 1);
-
     setPieces(prev => prev.map(p => p.id === pieceId ? { ...p, x, y } : p));
   }
 
@@ -165,7 +163,7 @@ function App() {
     setEditLabel("");
   }
 
-  const line = (style, extraClass = "") => <div className={`pitch-line ${extraClass}`} style={style} />;
+  const line = (style) => <div className="pitch-line" style={style} />;
 
   const boxTop = Math.floor((settings.rows - settings.boxWidth) / 2);
   const smallTop = Math.floor((settings.rows - settings.smallWidth) / 2);
@@ -173,32 +171,61 @@ function App() {
   const centerX = settings.cols / 2;
   const centerY = settings.rows / 2;
 
-  function penaltyArcPath(side) {
+  function arcStyle(side) {
     const r = settings.arcRadius;
-    const boxEdgeX = side === "left" ? settings.boxDepth : settings.cols - settings.boxDepth;
     const cx = side === "left" ? settings.penaltyLeftX : settings.penaltyRightX;
     const cy = side === "left" ? settings.penaltyLeftY : settings.penaltyRightY;
+    const boxEdgeX = side === "left" ? settings.boxDepth : settings.cols - settings.boxDepth;
 
-    const dx = Math.abs(boxEdgeX - cx);
-    if (dx >= r) return "";
+    const diameter = r * 2;
+    const left = cx - r;
+    const top = cy - r;
 
-    const dy = Math.sqrt(r * r - dx * dx);
-
-    const x = boxEdgeX;
-    const y1 = cy - dy;
-    const y2 = cy + dy;
-
-    // Left penalty arc should bulge toward the field: to the right of left box edge.
-    // Right penalty arc should bulge toward the field: to the left of right box edge.
-    const sweep = side === "left" ? 1 : 0;
-
-    return `M ${x} ${y1} A ${r} ${r} 0 0 ${sweep} ${x} ${y2}`;
+    // Cercul complet are centrul în punctul de 11m.
+    // Îl mascăm astfel încât să rămână doar partea din afara careului mare.
+    if (side === "left") {
+      const visibleStart = boxEdgeX - left;
+      return {
+        circle: {
+          left: `calc(${left} * var(--cell))`,
+          top: `calc(${top} * var(--cell))`,
+          width: `calc(${diameter} * var(--cell))`,
+          height: `calc(${diameter} * var(--cell))`,
+        },
+        mask: {
+          left: `calc(${boxEdgeX} * var(--cell))`,
+          top: `calc(${top} * var(--cell))`,
+          width: `calc(${Math.max(0, left + diameter - boxEdgeX)} * var(--cell))`,
+          height: `calc(${diameter} * var(--cell))`,
+        },
+        innerLeft: `calc(-${visibleStart} * var(--cell))`,
+      };
+    } else {
+      return {
+        circle: {
+          left: `calc(${left} * var(--cell))`,
+          top: `calc(${top} * var(--cell))`,
+          width: `calc(${diameter} * var(--cell))`,
+          height: `calc(${diameter} * var(--cell))`,
+        },
+        mask: {
+          left: `calc(${left} * var(--cell))`,
+          top: `calc(${top} * var(--cell))`,
+          width: `calc(${Math.max(0, boxEdgeX - left)} * var(--cell))`,
+          height: `calc(${diameter} * var(--cell))`,
+        },
+        innerLeft: `0px`,
+      };
+    }
   }
+
+  const leftArc = arcStyle("left");
+  const rightArc = arcStyle("right");
 
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v0.4</span></strong>
+        <strong>Football Board Sandbox <span>v0.5</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -245,30 +272,18 @@ function App() {
             {line({ left: 0, top: `calc(${smallTop} * var(--cell))`, width: `calc(${settings.smallDepth} * var(--cell))`, height: `calc(${settings.smallWidth} * var(--cell))` })}
             {line({ right: 0, top: `calc(${smallTop} * var(--cell))`, width: `calc(${settings.smallDepth} * var(--cell))`, height: `calc(${settings.smallWidth} * var(--cell))` })}
 
-            <div className="goal left-goal" style={{
-              top: `calc(${goalTop} * var(--cell))`,
-              width: `calc(${settings.goalDepth} * var(--cell))`,
-              height: `calc(${settings.goalWidth} * var(--cell))`
-            }} />
-            <div className="goal right-goal" style={{
-              top: `calc(${goalTop} * var(--cell))`,
-              width: `calc(${settings.goalDepth} * var(--cell))`,
-              height: `calc(${settings.goalWidth} * var(--cell))`
-            }} />
+            <div className="goal left-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }} />
+            <div className="goal right-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }} />
 
-            <div className="penalty-dot" style={{
-              left: `calc(${settings.penaltyLeftX} * var(--cell) + var(--cell) * .42)`,
-              top: `calc(${settings.penaltyLeftY} * var(--cell) + var(--cell) * .42)`
-            }} />
-            <div className="penalty-dot" style={{
-              left: `calc(${settings.penaltyRightX} * var(--cell) + var(--cell) * .42)`,
-              top: `calc(${settings.penaltyRightY} * var(--cell) + var(--cell) * .42)`
-            }} />
+            <div className="penalty-dot" style={{ left: `calc(${settings.penaltyLeftX} * var(--cell) + var(--cell) * .42)`, top: `calc(${settings.penaltyLeftY} * var(--cell) + var(--cell) * .42)` }} />
+            <div className="penalty-dot" style={{ left: `calc(${settings.penaltyRightX} * var(--cell) + var(--cell) * .42)`, top: `calc(${settings.penaltyRightY} * var(--cell) + var(--cell) * .42)` }} />
 
-            <svg className="arc-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
-              <path d={penaltyArcPath("left")} />
-              <path d={penaltyArcPath("right")} />
-            </svg>
+            <div className="arc-mask" style={leftArc.mask}>
+              <div className="arc-circle" style={{...leftArc.circle, left: leftArc.innerLeft, top: "0px"}} />
+            </div>
+            <div className="arc-mask" style={rightArc.mask}>
+              <div className="arc-circle" style={{...rightArc.circle, left: rightArc.innerLeft, top: "0px"}} />
+            </div>
 
             {pieces.map(p => (
               <div

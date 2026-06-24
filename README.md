@@ -1,12 +1,9 @@
-# Football Board Sandbox v0.4
+# Football Board Sandbox v0.5
 
-## v0.4
-- semicercuri desenate corect ca arc SVG față de careul mare
-- fix pentru ultimul rând/coloană îngustă din grid
+## v0.5
+- semicercurile sunt desenate ca bucăți din cercuri reale cu centrul în punctul de 11m
+- grosimea semicercurilor este egală cu restul liniilor
+- poziționarea inițială a atacanților este în propria jumătate
 - teren centrat pe ecran
-- dimensiune teren
-- dimensiune porți
-- careu mare / careu mic
-- puncte de 11m editabile pe X/Y
-- cerc centru editabil
+- dimensiuni editabile pentru teren, porți, caree, puncte 11m, cerc centru și semicercuri
 - dublu click pe jucător pentru schimbarea textului
