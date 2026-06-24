@@ -330,7 +330,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v22", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v23", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -348,6 +348,7 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v23") ||
       localStorage.getItem("football-board-sandbox-v22") ||
       localStorage.getItem("football-board-sandbox-v21") ||
       localStorage.getItem("football-board-sandbox-v20") ||
@@ -646,7 +647,7 @@ function App() {
   return (
     <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v2.2</span></strong>
+        <strong>Football Board Sandbox <span>v2.3</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -672,8 +673,6 @@ function App() {
         <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
         <button onClick={undo}><Undo2 size={16} /> Undo</button>
         <button onClick={resetPieces}><RotateCcw size={16} /> Reset</button>
-        <button onClick={fitWidth}>Fit Width</button>
-        <button onClick={fitHeight}>Fit Height</button>
         <button className={touchMode ? "toggle-on" : ""} onClick={() => setTouchMode(v => !v)}>
           Touch {touchMode ? "ON" : "OFF"}
         </button>
@@ -897,6 +896,8 @@ function App() {
 
       {lockUI && (
         <div className="locked-controls">
+          <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.2, 3))}><Minus size={16} /></button>
+          <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
           <div className="dice-box">
             <Dices size={16} />
             <select value={dieType} onChange={e => setDieType(Number(e.target.value))}>

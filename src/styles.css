@@ -137,3 +137,23 @@
     max-width: 145px;
   }
 }
+
+/* v2.3 lock UI refinement */
+.locked-ui .board-wrap {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 8px !important;
+  height: 100vh !important;
+  width: 100vw !important;
+  overflow: auto !important;
+}
+
+.locked-ui .pitch-shell {
+  padding: 0 !important;
+}
+
+.locked-controls button {
+  min-width: 42px;
+  min-height: 38px;
+}
