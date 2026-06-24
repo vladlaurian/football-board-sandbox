@@ -157,3 +157,10 @@
   min-width: 42px;
   min-height: 38px;
 }
+
+/* v3.0 Firebase auth/cloud sync */
+.authbox{display:flex;align-items:center;gap:6px;padding:4px 6px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:#202020}
+.authbox .user-email{font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9}
+.cloud-pill{font-size:11px;padding:4px 7px;border-radius:999px;background:#243224;color:#9dff9d;border:1px solid rgba(120,255,120,.25)}
+.cloud-pill.cloud-error{background:#3a1d1d;color:#ffb8b8;border-color:rgba(255,120,120,.35)}
+@media(max-width:900px){.authbox .user-email{max-width:115px}.authbox{order:2}}

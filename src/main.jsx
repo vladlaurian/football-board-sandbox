@@ -1,7 +1,29 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 import { RotateCcw, Plus, Minus, Undo2, Edit3, X, Dices } from "lucide-react";
 import "./styles.css";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCywPIebtVMzK-Ig2nddKck7XpTbyZONBw",
+  authDomain: "football-board-sandbox.firebaseapp.com",
+  projectId: "football-board-sandbox",
+  storageBucket: "football-board-sandbox.firebasestorage.app",
+  messagingSenderId: "532677098723",
+  appId: "1:532677098723:web:d296e40dd849f35a7999d6"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
+const googleProvider = new GoogleAuthProvider();
+
+function userStateRef(uid) {
+  return doc(db, "users", uid, "footballBoard", "mainState");
+}
 
 const DEFAULT_SETTINGS = {
   cols: 40,
@@ -189,6 +211,11 @@ function App() {
   const [historyVisible, setHistoryVisible] = useState(false);
   const [touchMode, setTouchMode] = useState(false);
   const [lockUI, setLockUI] = useState(false);
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [cloudReady, setCloudReady] = useState(false);
+  const [cloudStatus, setCloudStatus] = useState("Local");
+  const [cloudError, setCloudError] = useState("");
   const pitchRef = useRef(null);
   const boardWrapRef = useRef(null);
 
@@ -198,6 +225,121 @@ function App() {
     "--cell": `${settings.cellSize}px`,
     transform: `scale(${zoom})`,
   }), [settings, zoom]);
+
+  function buildCloudState(overrides = {}) {
+    return {
+      version: "3.0",
+      settings,
+      formations,
+      gameSituations,
+      activeSituationId,
+      activeSituationName,
+      blueFormationId,
+      redFormationId,
+      pieces,
+      zoom,
+      dieType,
+      dieResult,
+      touchMode,
+      snapToGrid,
+      showCoordinates,
+      ...overrides,
+    };
+  }
+
+  function applyCloudState(data) {
+    if (!data) return;
+    if (data.settings) setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
+    if (data.formations) setFormations(data.formations);
+    if (data.gameSituations) setGameSituations(data.gameSituations);
+    if (typeof data.activeSituationId === "number") setActiveSituationId(data.activeSituationId);
+    if (data.activeSituationName) setActiveSituationName(data.activeSituationName);
+    if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
+    if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
+    if (data.pieces) setPieces(data.pieces);
+    if (typeof data.zoom === "number") setZoom(data.zoom);
+    if (typeof data.dieType === "number") setDieType(data.dieType);
+    if (data.dieResult !== undefined) setDieResult(data.dieResult);
+    if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
+    if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
+    if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
+  }
+
+  async function saveCloudState(overrides = {}, label = "Cloud saved") {
+    if (!user) return;
+    try {
+      setCloudStatus("Saving...");
+      const payload = buildCloudState(overrides);
+      await setDoc(userStateRef(user.uid), {
+        ...payload,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      setCloudStatus(label);
+      setCloudError("");
+    } catch (error) {
+      console.error(error);
+      setCloudStatus("Cloud error");
+      setCloudError(error.message || String(error));
+    }
+  }
+
+  async function loadCloudState(currentUser) {
+    try {
+      setCloudStatus("Loading cloud...");
+      const ref = userStateRef(currentUser.uid);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        applyCloudState(snap.data());
+        setCloudStatus("Cloud loaded");
+      } else {
+        await setDoc(ref, {
+          ...buildCloudState(),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+        setCloudStatus("Local data uploaded");
+      }
+      setCloudReady(true);
+      setCloudError("");
+    } catch (error) {
+      console.error(error);
+      setCloudStatus("Cloud error");
+      setCloudError(error.message || String(error));
+      setCloudReady(false);
+    }
+  }
+
+  async function loginWithGoogle() {
+    try {
+      setCloudStatus("Login...");
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error(error);
+      setCloudStatus("Login error");
+      setCloudError(error.message || String(error));
+    }
+  }
+
+  async function logout() {
+    await signOut(auth);
+    setCloudReady(false);
+    setCloudStatus("Local");
+  }
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthReady(true);
+      if (currentUser) {
+        loadCloudState(currentUser);
+      } else {
+        setCloudReady(false);
+        setCloudStatus("Local");
+      }
+    });
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function pushHistory(nextPieces = pieces) {
     setHistory(h => [...h.slice(-60), JSON.stringify(nextPieces)]);
@@ -273,6 +415,7 @@ function App() {
 
     setFormations(nextFormations);
     localStorage.setItem("football-board-formations-v18", JSON.stringify(nextFormations));
+    saveCloudState({ formations: nextFormations }, `Formation ${slotId} saved`);
     alert(`Formația a fost salvată în slotul ${slotId}.`);
   }
 
@@ -319,6 +462,7 @@ function App() {
     setGameSituations(nextSituations);
     localStorage.setItem("football-board-game-situations-v20", JSON.stringify(nextSituations));
     setActiveSituationName(cleanName);
+    saveCloudState({ gameSituations: nextSituations, activeSituationName: cleanName }, `Scenario saved`);
     logSnapshot(`Save situație: ${cleanName}`);
   }
 
@@ -330,7 +474,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v25", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v30", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -348,7 +492,7 @@ function App() {
 
   function loadBoard() {
     const raw =
-      localStorage.getItem("football-board-sandbox-v25") ||
+      localStorage.getItem("football-board-sandbox-v30") ||
       localStorage.getItem("football-board-sandbox-v22") ||
       localStorage.getItem("football-board-sandbox-v21") ||
       localStorage.getItem("football-board-sandbox-v20") ||
@@ -647,7 +791,24 @@ function App() {
   return (
     <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v2.5</span></strong>
+        <strong>Football Board Sandbox <span>v3.0</span></strong>
+        <div className="authbox">
+          {!authReady ? (
+            <span>Auth...</span>
+          ) : user ? (
+            <>
+              <span className="user-email">{user.email}</span>
+              <span className={`cloud-pill ${cloudError ? "cloud-error" : ""}`}>{cloudStatus}</span>
+              <button onClick={() => saveCloudState({}, "Cloud saved")}>Cloud Save</button>
+              <button onClick={logout}>Logout</button>
+            </>
+          ) : (
+            <>
+              <span className="cloud-pill">Local</span>
+              <button onClick={loginWithGoogle}>Login Google</button>
+            </>
+          )}
+        </div>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>

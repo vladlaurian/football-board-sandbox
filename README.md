@@ -1,5 +1,10 @@
-# Football Board Sandbox v2.5
+# Football Board Sandbox v3.0
 
-- Zoom implicit: 80%
-- La intrarea în Lock UI zoom-ul crește cu **două trepte** (+0.2).
-- La ieșirea din Lock UI revine la 80%.
+- Firebase conectat
+- Login cu Google / Logout
+- Formațiile și situațiile de joc se salvează și în cloud când apeși Save
+- Buton Cloud Save pentru snapshot complet
+- La login, aplicația încarcă datele din cloud; dacă nu există cloud data, urcă datele locale curente
+- localStorage rămâne fallback pentru utilizare fără login
+
+IMPORTANT: Firestore rules trebuie să permită userului autentificat să citească/scrie doar în propriul nod `/users/{uid}`.
