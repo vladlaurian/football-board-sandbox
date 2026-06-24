@@ -1,13 +1,8 @@
-# Football Board Sandbox v1.8
+# Football Board Sandbox v1.9
 
-## v1.8
-- Formation Manager
-- 15 sloturi de formații
-- dropdown separat pentru Blue și Red
-- Load / Save pentru formația curentă a fiecărei echipe
-- formațiile sunt salvate în localStorage
-- coordonate în format A1, B1 etc.
-- formații prepopulate:
-  1. 4-4-2
-  2. 4-2-3-1
-  3. 3-5-2 (1)
+## v1.9
+- formațiile salvate rămân intacte între update-uri
+  - cheia localStorage pentru formații rămâne `football-board-formations-v18`
+- sloturile libere de formații nu mai sunt goale
+  - fiecare slot liber pornește cu 11 jucători în sistem 4-4-2
+- dacă există sloturi vechi goale din v1.8, aplicația le înlocuiește automat cu 4-4-2 default

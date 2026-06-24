@@ -98,7 +98,7 @@ const FORMATION_SLOTS = [
       ["ST", "M16"], ["ST", "Q16"]
     ]
   },
-  ...Array.from({ length: 12 }, (_, i) => ({ id: i + 4, name: `Slot ${i + 4}`, players: [] }))
+  ...Array.from({ length: 12 }, (_, i) => ({ id: i + 4, name: `Slot ${i + 4} - 4-4-2`, players: [["GK", "O1"], ["LB", "G8"], ["CB", "L7"], ["CB", "R7"], ["RB", "W8"], ["LM", "D16"], ["CM", "L13"], ["CM", "R13"], ["RM", "Z16"], ["ST", "M16"], ["ST", "Q16"]] }))
 ];
 
 function loadStoredFormations() {
@@ -106,7 +106,12 @@ function loadStoredFormations() {
     const raw = localStorage.getItem("football-board-formations-v18");
     if (!raw) return FORMATION_SLOTS;
     const stored = JSON.parse(raw);
-    return FORMATION_SLOTS.map(base => stored.find(s => s.id === base.id) || base);
+    return FORMATION_SLOTS.map(base => {
+      const saved = stored.find(s => s.id === base.id);
+      if (!saved) return base;
+      if (!saved.players || saved.players.length === 0) return base;
+      return saved;
+    });
   } catch {
     return FORMATION_SLOTS;
   }
@@ -253,7 +258,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v18", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v19", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -271,6 +276,7 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v19") ||
       localStorage.getItem("football-board-sandbox-v18") ||
       localStorage.getItem("football-board-sandbox-v17") ||
       localStorage.getItem("football-board-sandbox-v16") ||
@@ -534,7 +540,7 @@ function App() {
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v1.8</span></strong>
+        <strong>Football Board Sandbox <span>v1.9</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
