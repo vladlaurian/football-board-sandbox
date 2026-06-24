@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { RotateCcw, Save, Upload, Plus, Minus, Undo2, Edit3, X } from "lucide-react";
+import { RotateCcw, Plus, Minus, Undo2, Edit3, X, Dices } from "lucide-react";
 import "./styles.css";
 
 const DEFAULT_SETTINGS = {
@@ -68,6 +68,8 @@ function App() {
   const [editLabel, setEditLabel] = useState("");
   const [zoom, setZoom] = useState(1);
   const [history, setHistory] = useState([]);
+  const [dieType, setDieType] = useState(20);
+  const [dieResult, setDieResult] = useState(null);
   const pitchRef = useRef(null);
 
   const pitchStyle = useMemo(() => ({
@@ -113,7 +115,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v10", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v11", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -131,6 +133,7 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v11") ||
       localStorage.getItem("football-board-sandbox-v10") ||
       localStorage.getItem("football-board-sandbox-v09") ||
       localStorage.getItem("football-board-sandbox-v08") ||
@@ -144,6 +147,11 @@ function App() {
     setSettings(normalizeLoadedSettings(saved.settings));
     setPieces(saved.pieces);
     setZoom(saved.zoom ?? 1);
+  }
+
+  function rollDie() {
+    const result = Math.floor(Math.random() * dieType) + 1;
+    setDieResult(result);
   }
 
   function undo() {
@@ -264,7 +272,7 @@ function App() {
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v1.0</span></strong>
+        <strong>Football Board Sandbox <span>v1.1</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -288,10 +296,24 @@ function App() {
 
         <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.2, 3))}><Minus size={16} /></button>
         <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
+        <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.2, 3))}><Minus size={16} /></button>
+        <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
         <button onClick={undo}><Undo2 size={16} /> Undo</button>
-        <button onClick={saveBoard}><Save size={16} /> Save</button>
-        <button onClick={loadBoard}><Upload size={16} /> Load</button>
         <button onClick={resetPieces}><RotateCcw size={16} /> Reset</button>
+
+        <div className="dice-box">
+          <Dices size={16} />
+          <select value={dieType} onChange={e => setDieType(Number(e.target.value))}>
+            <option value={20}>D20</option>
+            <option value={12}>D12</option>
+            <option value={10}>D10</option>
+            <option value={8}>D8</option>
+            <option value={6}>D6</option>
+            <option value={4}>D4</option>
+          </select>
+          <button onClick={rollDie}>Roll</button>
+          <span className="die-result">{dieResult === null ? "—" : dieResult}</span>
+        </div>
       </div>
 
 
@@ -336,22 +358,50 @@ function App() {
             <div className="arc-mask" style={leftArc.mask}><div className="arc-circle" style={leftArc.circle} /></div>
             <div className="arc-mask" style={rightArc.mask}><div className="arc-circle" style={rightArc.circle} /></div>
 
-            <div className="corner-arc corner-tl" style={{
-              width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-              height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-            }} />
-            <div className="corner-arc corner-tr" style={{
-              width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-              height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-            }} />
-            <div className="corner-arc corner-bl" style={{
-              width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-              height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-            }} />
-            <div className="corner-arc corner-br" style={{
-              width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-              height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-            }} />
+            <div className="corner-mask corner-tl" style={{
+              width: `calc(${settings.cornerArcRadius} * var(--cell))`,
+              height: `calc(${settings.cornerArcRadius} * var(--cell))`,
+            }}>
+              <div className="corner-circle" style={{
+                left: `calc(-${settings.cornerArcRadius} * var(--cell))`,
+                top: `calc(-${settings.cornerArcRadius} * var(--cell))`,
+                width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+                height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+              }} />
+            </div>
+            <div className="corner-mask corner-tr" style={{
+              width: `calc(${settings.cornerArcRadius} * var(--cell))`,
+              height: `calc(${settings.cornerArcRadius} * var(--cell))`,
+            }}>
+              <div className="corner-circle" style={{
+                right: `calc(-${settings.cornerArcRadius} * var(--cell))`,
+                top: `calc(-${settings.cornerArcRadius} * var(--cell))`,
+                width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+                height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+              }} />
+            </div>
+            <div className="corner-mask corner-bl" style={{
+              width: `calc(${settings.cornerArcRadius} * var(--cell))`,
+              height: `calc(${settings.cornerArcRadius} * var(--cell))`,
+            }}>
+              <div className="corner-circle" style={{
+                left: `calc(-${settings.cornerArcRadius} * var(--cell))`,
+                bottom: `calc(-${settings.cornerArcRadius} * var(--cell))`,
+                width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+                height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+              }} />
+            </div>
+            <div className="corner-mask corner-br" style={{
+              width: `calc(${settings.cornerArcRadius} * var(--cell))`,
+              height: `calc(${settings.cornerArcRadius} * var(--cell))`,
+            }}>
+              <div className="corner-circle" style={{
+                right: `calc(-${settings.cornerArcRadius} * var(--cell))`,
+                bottom: `calc(-${settings.cornerArcRadius} * var(--cell))`,
+                width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+                height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+              }} />
+            </div>
 
 
             {pieces.map(p => (
