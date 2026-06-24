@@ -23,11 +23,16 @@ function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
 
-function forceOdd(value, fallback = 1) {
+function forceOddDirectional(value, previousValue, fallback = 1) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   const rounded = Math.round(n);
-  return rounded % 2 === 0 ? rounded + 1 : rounded;
+  if (rounded % 2 !== 0) return rounded;
+
+  // Dacă utilizatorul apasă săgeata în jos, mergem la imparul inferior.
+  // Dacă apasă săgeata în sus, mergem la imparul superior.
+  if (Number(previousValue) > rounded) return rounded - 1;
+  return rounded + 1;
 }
 
 function createInitialPieces(cols, rows) {
@@ -77,18 +82,20 @@ function App() {
 
   function updateSetting(key, value) {
     let cleanValue = Number(value);
-    if (key === "rows" || key === "goalWidth") cleanValue = forceOdd(cleanValue);
+    if (key === "rows" || key === "goalWidth") {
+      cleanValue = forceOddDirectional(cleanValue, settings[key], settings[key]);
+    }
     const next = { ...settings, [key]: cleanValue };
 
     if (key === "cols") {
-      next.penaltyDistance = clamp(next.penaltyDistance, 1, Math.floor(cleanValue / 2) - 1);
+      next.penaltyDistance = clamp(next.penaltyDistance, 1, Math.floor(cleanValue / 2));
     }
     if (key === "rows") {
-      next.rows = forceOdd(cleanValue);
+      next.rows = forceOddDirectional(cleanValue, settings.rows, settings.rows);
       next.penaltyY = Math.floor(next.rows / 2);
     }
     if (key === "goalWidth") {
-      next.goalWidth = forceOdd(cleanValue);
+      next.goalWidth = forceOddDirectional(cleanValue, settings.goalWidth, settings.goalWidth);
     }
 
     setSettings(next);
@@ -105,7 +112,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v08", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v09", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -123,6 +130,7 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v09") ||
       localStorage.getItem("football-board-sandbox-v08") ||
       localStorage.getItem("football-board-sandbox-v07") ||
       localStorage.getItem("football-board-sandbox-v06") ||
@@ -195,8 +203,8 @@ function App() {
   const centerDotX = Math.floor(settings.cols / 2);
   const centerDotY = Math.floor(settings.rows / 2);
 
-  const leftPenaltyX = settings.penaltyDistance;
-  const rightPenaltyX = settings.cols - 1 - settings.penaltyDistance;
+  const leftPenaltyX = settings.penaltyDistance - 1;
+  const rightPenaltyX = settings.cols - settings.penaltyDistance;
   const penaltyY = settings.penaltyY;
 
   function arcMask(side) {
@@ -254,7 +262,7 @@ function App() {
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v0.8</span></strong>
+        <strong>Football Board Sandbox <span>v0.9</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -269,7 +277,7 @@ function App() {
         <label>Careu mic X<input type="number" value={settings.smallDepth} min="1" max="24" onChange={e => updateSetting("smallDepth", e.target.value)} /></label>
         <label>Careu mic Y<input type="number" value={settings.smallWidth} min="2" max="40" onChange={e => updateSetting("smallWidth", e.target.value)} /></label>
 
-        <label>11m dist<input type="number" value={settings.penaltyDistance} min="1" max={Math.floor((settings.cols-1)/2)} onChange={e => updateSetting("penaltyDistance", e.target.value)} /></label>
+        <label>11m dist<input type="number" value={settings.penaltyDistance} min="1" max={Math.floor(settings.cols/2)} onChange={e => updateSetting("penaltyDistance", e.target.value)} /></label>
         <label>11m Y<input type="number" value={settings.penaltyY} min="0" max={settings.rows} onChange={e => updateSetting("penaltyY", e.target.value)} /></label>
 
         <label>Cerc centru<input type="number" value={settings.centerCircleRadius} min="1" max="20" onChange={e => updateSetting("centerCircleRadius", e.target.value)} /></label>

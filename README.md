@@ -1,14 +1,7 @@
-# Football Board Sandbox v0.8
+# Football Board Sandbox v0.9
 
-## v0.8
-- default: teren 40 x 29
-- default: careu mare 6 x 17
-- default: careu mic 2 x 9
-- default: poartă 7 pătrățele
-- default: punct 11m la 5 pătrățele de linia porții
-- default: raza cercului central 4
-- default: raza semicercului 4
-- punct la centrul terenului, în centrul pătrățelei, cu aceeași dimensiune ca punctele de 11m
-- lățimea terenului este forțată impară
-- dimensiunea porții este forțată impară
-- 12 sloturi de Save/Load Position
+## v0.9
+- fix pentru câmpurile impare: săgeata în jos merge corect 29 → 27, 7 → 5
+- fix pentru punctul de 11m: câmpul arată distanța reală în pătrățele față de linia porții
+- dacă 11m dist = 5, punctul apare în a 5-a pătrățică de la linia porții
+- păstrează defaulturile v0.8 și cele 12 sloturi Save/Load Position
