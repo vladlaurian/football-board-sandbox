@@ -43,6 +43,17 @@ function forceOddDirectional(value, previousValue, fallback = 1) {
   return rounded + 1;
 }
 
+function rowLetter(index) {
+  let n = index + 1;
+  let label = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    label = String.fromCharCode(65 + rem) + label;
+    n = Math.floor((n - 1) / 26);
+  }
+  return label;
+}
+
 function createInitialPieces(cols, rows) {
   const midY = Math.floor(rows / 2);
   const half = Math.floor(cols / 2);
@@ -160,7 +171,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v14", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v15", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -178,7 +189,9 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v15") ||
       localStorage.getItem("football-board-sandbox-v14") ||
+      localStorage.getItem("football-board-sandbox-v13") ||
       localStorage.getItem("football-board-sandbox-v12") ||
       localStorage.getItem("football-board-sandbox-v11") ||
       localStorage.getItem("football-board-sandbox-v10") ||
@@ -261,7 +274,7 @@ function App() {
     setEditLabel("");
   }
 
-  const line = (style) => <div className="pitch-line" style={style} />;
+  const line = (style, extraClass = "") => <div className={`pitch-line ${extraClass}`} style={style} />;
 
   const boxTop = Math.floor((settings.rows - settings.boxWidth) / 2);
   const smallTop = Math.floor((settings.rows - settings.smallWidth) / 2);
@@ -378,7 +391,7 @@ function App() {
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v1.4</span></strong>
+        <strong>Football Board Sandbox <span>v1.5</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -431,7 +444,7 @@ function App() {
             <option value={4}>D4</option>
           </select>
           <button onClick={rollDie}>Roll</button>
-          <span className="die-result">{dieResult === null ? "—" : dieResult}</span>
+          <span className={`die-result ${dieResult === 1 || dieResult === dieType ? "die-extreme" : ""}`}>{dieResult === null ? "—" : dieResult}</span>
         </div>
       </div>
 
@@ -459,7 +472,7 @@ function App() {
               top: `calc((${centerY} - ${settings.centerCircleRadius}) * var(--cell))`,
             }} />
             <div className="center-dot" style={{
-              left: `calc(${centerX} * var(--cell) - var(--cell) * .08)`,
+              left: `calc(${centerX} * var(--cell) - var(--cell) * .08 + 1px)`,
               top: `calc((${centerDotY} + .5) * var(--cell) - var(--cell) * .08)`
             }} />
 
@@ -475,7 +488,7 @@ function App() {
                 left: `calc(${c.x} * var(--cell))`,
                 top: `calc(${c.y} * var(--cell))`,
               }}>
-                {c.x},{c.y}
+                {rowLetter(c.y)}{c.x + 1}
               </div>
             ))}
 
@@ -503,10 +516,10 @@ function App() {
             )}
 
 
-            {line({ left: 0, top: `calc(${boxTop} * var(--cell))`, width: `calc(${settings.boxDepth} * var(--cell))`, height: `calc(${settings.boxWidth} * var(--cell))` })}
-            {line({ right: 0, top: `calc(${boxTop} * var(--cell))`, width: `calc(${settings.boxDepth} * var(--cell))`, height: `calc(${settings.boxWidth} * var(--cell))` })}
-            {line({ left: 0, top: `calc(${smallTop} * var(--cell))`, width: `calc(${settings.smallDepth} * var(--cell))`, height: `calc(${settings.smallWidth} * var(--cell))` })}
-            {line({ right: 0, top: `calc(${smallTop} * var(--cell))`, width: `calc(${settings.smallDepth} * var(--cell))`, height: `calc(${settings.smallWidth} * var(--cell))` })}
+            {line({ left: 0, top: `calc(${boxTop} * var(--cell))`, width: `calc(${settings.boxDepth} * var(--cell))`, height: `calc(${settings.boxWidth} * var(--cell))` }, "left-box")}
+            {line({ right: 0, top: `calc(${boxTop} * var(--cell))`, width: `calc(${settings.boxDepth} * var(--cell))`, height: `calc(${settings.boxWidth} * var(--cell))` }, "right-box")}
+            {line({ left: 0, top: `calc(${smallTop} * var(--cell))`, width: `calc(${settings.smallDepth} * var(--cell))`, height: `calc(${settings.smallWidth} * var(--cell))` }, "left-box")}
+            {line({ right: 0, top: `calc(${smallTop} * var(--cell))`, width: `calc(${settings.smallDepth} * var(--cell))`, height: `calc(${settings.smallWidth} * var(--cell))` }, "right-box")}
 
             <div className="goal left-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }} />
             <div className="goal right-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }} />
