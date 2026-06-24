@@ -117,6 +117,23 @@ function loadStoredFormations() {
   }
 }
 
+const DEFAULT_GAME_SITUATIONS = Array.from({ length: 12 }, (_, i) => ({
+  id: i + 1,
+  name: `Situația ${i + 1}`,
+  snapshot: null,
+}));
+
+function loadStoredGameSituations() {
+  try {
+    const raw = localStorage.getItem("football-board-game-situations-v20");
+    if (!raw) return DEFAULT_GAME_SITUATIONS;
+    const stored = JSON.parse(raw);
+    return DEFAULT_GAME_SITUATIONS.map(base => stored.find(s => s.id === base.id) || base);
+  } catch {
+    return DEFAULT_GAME_SITUATIONS;
+  }
+}
+
 function createInitialPieces(cols, rows, blueFormation = FORMATION_SLOTS[0], redFormation = FORMATION_SLOTS[1]) {
   const pieces = [];
   const midY = Math.floor(rows / 2);
@@ -148,6 +165,9 @@ function App() {
   const [formations, setFormations] = useState(() => loadStoredFormations());
   const [blueFormationId, setBlueFormationId] = useState(1);
   const [redFormationId, setRedFormationId] = useState(2);
+  const [gameSituations, setGameSituations] = useState(() => loadStoredGameSituations());
+  const [activeSituationId, setActiveSituationId] = useState(1);
+  const [activeSituationName, setActiveSituationName] = useState("Situația 1");
   const [pieces, setPieces] = useState(() => createInitialPieces(DEFAULT_SETTINGS.cols, DEFAULT_SETTINGS.rows, FORMATION_SLOTS[0], FORMATION_SLOTS[1]));
   const [selectedId, setSelectedId] = useState(null);
   const [editingPiece, setEditingPiece] = useState(null);
@@ -250,6 +270,52 @@ function App() {
     alert(`Formația a fost salvată în slotul ${slotId}.`);
   }
 
+  function createCurrentSnapshot() {
+    return {
+      settings,
+      pieces,
+      zoom,
+      blueFormationId,
+      redFormationId,
+      dieType,
+      dieResult,
+    };
+  }
+
+  function applyGameSituation(id) {
+    const situation = gameSituations.find(s => s.id === Number(id));
+    if (!situation) return;
+
+    setActiveSituationId(Number(id));
+    setActiveSituationName(situation.name);
+
+    if (!situation.snapshot) return;
+
+    pushHistory();
+    setSettings(situation.snapshot.settings);
+    setPieces(situation.snapshot.pieces);
+    setZoom(situation.snapshot.zoom ?? 0.9);
+    setBlueFormationId(situation.snapshot.blueFormationId ?? 1);
+    setRedFormationId(situation.snapshot.redFormationId ?? 2);
+    setDieType(situation.snapshot.dieType ?? 20);
+    setDieResult(situation.snapshot.dieResult ?? null);
+    logSnapshot(`Load situație: ${situation.name}`, situation.snapshot.pieces);
+  }
+
+  function saveActiveGameSituation() {
+    const cleanName = activeSituationName.trim() || `Situația ${activeSituationId}`;
+    const nextSituations = gameSituations.map(s =>
+      s.id === Number(activeSituationId)
+        ? { ...s, name: cleanName, snapshot: createCurrentSnapshot() }
+        : s
+    );
+
+    setGameSituations(nextSituations);
+    localStorage.setItem("football-board-game-situations-v20", JSON.stringify(nextSituations));
+    setActiveSituationName(cleanName);
+    logSnapshot(`Save situație: ${cleanName}`);
+  }
+
   function resetPieces() {
     pushHistory();
     const fresh = createInitialPieces(settings.cols, settings.rows, getFormationById(blueFormationId), getFormationById(redFormationId));
@@ -258,7 +324,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v19", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v20", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -276,6 +342,7 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v20") ||
       localStorage.getItem("football-board-sandbox-v19") ||
       localStorage.getItem("football-board-sandbox-v18") ||
       localStorage.getItem("football-board-sandbox-v17") ||
@@ -540,7 +607,7 @@ function App() {
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v1.9</span></strong>
+        <strong>Football Board Sandbox <span>v2.0</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -609,7 +676,6 @@ function App() {
           }}>
             {formations.map(f => <option key={f.id} value={f.id}>{f.id}. {f.name}</option>)}
           </select>
-          <button onClick={() => applyFormation("A", blueFormationId)}>Load</button>
           <button onClick={() => saveCurrentAsFormation("A", blueFormationId)}>Save</button>
         </div>
 
@@ -622,21 +688,23 @@ function App() {
           }}>
             {formations.map(f => <option key={f.id} value={f.id}>{f.id}. {f.name}</option>)}
           </select>
-          <button onClick={() => applyFormation("B", redFormationId)}>Load</button>
           <button onClick={() => saveCurrentAsFormation("B", redFormationId)}>Save</button>
         </div>
       </div>
-
-      <div className="slotsbar">
-        <strong>Poziții salvate:</strong>
-        {Array.from({ length: 12 }, (_, i) => i + 1).map(slot => (
-          <div className="slot" key={slot}>
-            <span>{slot}</span>
-            <button onClick={() => saveSlot(slot)}>Save</button>
-            <button onClick={() => loadSlot(slot)}>Load</button>
-            <button className="danger" onClick={() => clearSlot(slot)}>×</button>
-          </div>
-        ))}
+      <div className="situationsbar">
+        <strong>Situații de joc:</strong>
+        <select value={activeSituationId} onChange={e => applyGameSituation(Number(e.target.value))}>
+          {gameSituations.map(s => (
+            <option key={s.id} value={s.id}>{s.id}. {s.name}{s.snapshot ? "" : " (gol)"}</option>
+          ))}
+        </select>
+        <input
+          className="situation-name"
+          value={activeSituationName}
+          onChange={e => setActiveSituationName(e.target.value)}
+          onFocus={e => e.target.select()}
+        />
+        <button onClick={saveActiveGameSituation}>Save</button>
       </div>
 
       <div className="board-wrap">

@@ -1,8 +1,18 @@
-# Football Board Sandbox v1.9
+# Football Board Sandbox v2.0
 
-## v1.9
-- formațiile salvate rămân intacte între update-uri
-  - cheia localStorage pentru formații rămâne `football-board-formations-v18`
-- sloturile libere de formații nu mai sunt goale
-  - fiecare slot liber pornește cu 11 jucători în sistem 4-4-2
-- dacă există sloturi vechi goale din v1.8, aplicația le înlocuiește automat cu 4-4-2 default
+## v2.0
+- eliminat butonul Load de la formații
+  - selectarea formației o încarcă automat
+- „Poziții salvate” a devenit „Situații de joc”
+- Situații de joc:
+  - selector unic
+  - nume editabil
+  - Save salvează numele + snapshot complet
+  - selectarea situației încarcă automat snapshot-ul, dacă există
+- Snapshot-ul include:
+  - teren
+  - jucători
+  - minge
+  - zoom
+  - formațiile active
+  - zarul curent
