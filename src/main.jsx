@@ -54,58 +54,85 @@ function rowLetter(index) {
   return label;
 }
 
-function createInitialPieces(cols, rows) {
-  const midY = Math.floor(rows / 2);
-  const half = Math.floor(cols / 2);
+function toCoord(x, y) {
+  return `${rowLetter(y)}${x + 1}`;
+}
 
-  // Albastru: 4-4-2 clasic, atacă spre dreapta.
-  const blue442 = [
-    ["GK", 0, midY],
-    ["LB", 7, midY - 8],
-    ["CB", 6, midY - 3],
-    ["CB", 6, midY + 3],
-    ["RB", 7, midY + 8],
-    ["LM", 15, midY - 11],
-    ["CM", 12, midY - 3],
-    ["CM", 12, midY + 3],
-    ["RM", 15, midY + 11],
-    ["ST", 15, midY - 2],
-    ["ST", 15, midY + 2],
-  ];
+function fromCoord(coord) {
+  const match = String(coord).trim().toUpperCase().match(/^([A-Z]+)(\d+)$/);
+  if (!match) return { x: 0, y: 0 };
+  const letters = match[1];
+  const number = Number(match[2]);
+  let y = 0;
+  for (let i = 0; i < letters.length; i++) {
+    y = y * 26 + (letters.charCodeAt(i) - 64);
+  }
+  return { x: number - 1, y: y - 1 };
+}
 
-  // Roșu: 4-2-3-1, atacă spre stânga.
-  // Definim coordonatele ca distanță față de propria poartă, apoi le oglindim.
-  const red4231Relative = [
-    ["GK", 0, midY],
-    ["LWB", 8, midY + 10],
-    ["CB", 6, midY + 3],
-    ["CB", 6, midY - 3],
-    ["RWB", 8, midY - 10],
-    ["CDM", 10, midY + 2],
-    ["CDM", 10, midY - 2],
-    ["LW", 18, midY + 12],
-    ["AM", 15, midY],
-    ["RW", 18, midY - 12],
-    ["ST", 18, midY],
-  ];
+const FORMATION_SLOTS = [
+  {
+    id: 1,
+    name: "4-4-2",
+    players: [
+      ["GK", "O1"], ["LB", "G8"], ["CB", "L7"], ["CB", "R7"], ["RB", "W8"],
+      ["LM", "D16"], ["CM", "L13"], ["CM", "R13"], ["RM", "Z16"],
+      ["ST", "M16"], ["ST", "Q16"]
+    ]
+  },
+  {
+    id: 2,
+    name: "4-2-3-1",
+    players: [
+      ["GK", "O1"], ["LWB", "Y8"], ["CB", "R7"], ["CB", "L7"], ["RWB", "E8"],
+      ["CDM", "M11"], ["CDM", "Q11"], ["LW", "C19"], ["AM", "O16"], ["RW", "AA19"],
+      ["ST", "O19"]
+    ]
+  },
+  {
+    id: 3,
+    name: "3-5-2 (1)",
+    players: [
+      ["GK", "O1"], ["CB", "K7"], ["CB", "O7"], ["CB", "S7"],
+      ["LM", "D16"], ["CM", "K13"], ["CM", "O13"], ["CM", "S13"], ["RM", "Z16"],
+      ["ST", "M16"], ["ST", "Q16"]
+    ]
+  },
+  ...Array.from({ length: 12 }, (_, i) => ({ id: i + 4, name: `Slot ${i + 4}`, players: [] }))
+];
 
+function loadStoredFormations() {
+  try {
+    const raw = localStorage.getItem("football-board-formations-v18");
+    if (!raw) return FORMATION_SLOTS;
+    const stored = JSON.parse(raw);
+    return FORMATION_SLOTS.map(base => stored.find(s => s.id === base.id) || base);
+  } catch {
+    return FORMATION_SLOTS;
+  }
+}
+
+function createInitialPieces(cols, rows, blueFormation = FORMATION_SLOTS[0], redFormation = FORMATION_SLOTS[1]) {
   const pieces = [];
+  const midY = Math.floor(rows / 2);
 
-  blue442.forEach(([label, x, y], i) => pieces.push({
-    id: `A-${i}`,
-    team: "A",
-    label,
-    x: clamp(x, 0, half - 1),
-    y: clamp(y, 0, rows - 1)
-  }));
+  function addFormation(team, formation) {
+    const isBlue = team === "A";
+    formation.players.forEach(([label, coord], i) => {
+      const pos = fromCoord(coord);
+      const x = isBlue ? pos.x : cols - 1 - pos.x;
+      pieces.push({
+        id: `${team}-${i}`,
+        team,
+        label,
+        x: clamp(x, 0, cols - 1),
+        y: clamp(pos.y, 0, rows - 1),
+      });
+    });
+  }
 
-  red4231Relative.forEach(([label, xFromOwnGoal, y], i) => pieces.push({
-    id: `B-${i}`,
-    team: "B",
-    label,
-    x: clamp(cols - 1 - xFromOwnGoal, half, cols - 1),
-    y: clamp(y, 0, rows - 1)
-  }));
+  addFormation("A", blueFormation);
+  addFormation("B", redFormation);
 
   pieces.push({ id: "BALL", team: "BALL", label: "●", x: Math.floor(cols / 2), y: midY });
   return pieces;
@@ -113,7 +140,10 @@ function createInitialPieces(cols, rows) {
 
 function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-  const [pieces, setPieces] = useState(() => createInitialPieces(DEFAULT_SETTINGS.cols, DEFAULT_SETTINGS.rows));
+  const [formations, setFormations] = useState(() => loadStoredFormations());
+  const [blueFormationId, setBlueFormationId] = useState(1);
+  const [redFormationId, setRedFormationId] = useState(2);
+  const [pieces, setPieces] = useState(() => createInitialPieces(DEFAULT_SETTINGS.cols, DEFAULT_SETTINGS.rows, FORMATION_SLOTS[0], FORMATION_SLOTS[1]));
   const [selectedId, setSelectedId] = useState(null);
   const [editingPiece, setEditingPiece] = useState(null);
   const [editLabel, setEditLabel] = useState("");
@@ -168,15 +198,62 @@ function App() {
     })));
   }
 
+  function getFormationById(id) {
+    return formations.find(f => f.id === Number(id)) || formations[0];
+  }
+
+  function applyFormation(team, formationId) {
+    const formation = getFormationById(formationId);
+    pushHistory();
+    setPieces(prev => {
+      const ball = prev.find(p => p.team === "BALL");
+      const others = prev.filter(p => p.team !== team && p.team !== "BALL");
+      const temp = createInitialPieces(
+        settings.cols,
+        settings.rows,
+        team === "A" ? formation : getFormationById(blueFormationId),
+        team === "B" ? formation : getFormationById(redFormationId)
+      ).filter(p => p.team === team);
+      const next = [...others, ...temp, ball].filter(Boolean);
+      logSnapshot(`${team === "A" ? "Blue" : "Red"} formation: ${formation.name}`, next);
+      return next;
+    });
+  }
+
+  function saveCurrentAsFormation(team, slotId) {
+    const slot = formations.find(f => f.id === Number(slotId));
+    const defaultName = slot?.name?.startsWith("Slot ") ? "" : slot?.name;
+    const name = window.prompt(`Nume formație pentru slotul ${slotId}:`, defaultName || `Formație ${slotId}`);
+    if (name === null) return;
+
+    const teamPieces = pieces
+      .filter(p => p.team === team)
+      .map(p => {
+        const x = team === "A" ? Math.round(p.x) : settings.cols - 1 - Math.round(p.x);
+        const y = Math.round(p.y);
+        return [p.label, toCoord(clamp(x, 0, settings.cols - 1), clamp(y, 0, settings.rows - 1))];
+      });
+
+    const nextFormations = formations.map(f =>
+      f.id === Number(slotId)
+        ? { id: Number(slotId), name: name.trim() || `Formație ${slotId}`, players: teamPieces }
+        : f
+    );
+
+    setFormations(nextFormations);
+    localStorage.setItem("football-board-formations-v18", JSON.stringify(nextFormations));
+    alert(`Formația a fost salvată în slotul ${slotId}.`);
+  }
+
   function resetPieces() {
     pushHistory();
-    const fresh = createInitialPieces(settings.cols, settings.rows);
+    const fresh = createInitialPieces(settings.cols, settings.rows, getFormationById(blueFormationId), getFormationById(redFormationId));
     setPieces(fresh);
     logSnapshot("Reset poziții", fresh);
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v17", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v18", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -194,6 +271,7 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v18") ||
       localStorage.getItem("football-board-sandbox-v17") ||
       localStorage.getItem("football-board-sandbox-v16") ||
       localStorage.getItem("football-board-sandbox-v15") ||
@@ -456,7 +534,7 @@ function App() {
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v1.7</span></strong>
+        <strong>Football Board Sandbox <span>v1.8</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -511,6 +589,37 @@ function App() {
         </div>
       </div>
 
+
+
+      <div className="formationbar">
+        <strong>Formații:</strong>
+
+        <div className="formation-control blue">
+          <span>Blue</span>
+          <select value={blueFormationId} onChange={e => {
+            const id = Number(e.target.value);
+            setBlueFormationId(id);
+            applyFormation("A", id);
+          }}>
+            {formations.map(f => <option key={f.id} value={f.id}>{f.id}. {f.name}</option>)}
+          </select>
+          <button onClick={() => applyFormation("A", blueFormationId)}>Load</button>
+          <button onClick={() => saveCurrentAsFormation("A", blueFormationId)}>Save</button>
+        </div>
+
+        <div className="formation-control red">
+          <span>Red</span>
+          <select value={redFormationId} onChange={e => {
+            const id = Number(e.target.value);
+            setRedFormationId(id);
+            applyFormation("B", id);
+          }}>
+            {formations.map(f => <option key={f.id} value={f.id}>{f.id}. {f.name}</option>)}
+          </select>
+          <button onClick={() => applyFormation("B", redFormationId)}>Load</button>
+          <button onClick={() => saveCurrentAsFormation("B", redFormationId)}>Save</button>
+        </div>
+      </div>
 
       <div className="slotsbar">
         <strong>Poziții salvate:</strong>
