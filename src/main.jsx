@@ -330,7 +330,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v24", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v25", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -348,7 +348,7 @@ function App() {
 
   function loadBoard() {
     const raw =
-      localStorage.getItem("football-board-sandbox-v24") ||
+      localStorage.getItem("football-board-sandbox-v25") ||
       localStorage.getItem("football-board-sandbox-v22") ||
       localStorage.getItem("football-board-sandbox-v21") ||
       localStorage.getItem("football-board-sandbox-v20") ||
@@ -647,7 +647,7 @@ function App() {
   return (
     <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v2.4</span></strong>
+        <strong>Football Board Sandbox <span>v2.5</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -676,7 +676,7 @@ function App() {
         <button className={touchMode ? "toggle-on" : ""} onClick={() => setTouchMode(v => !v)}>
           Touch {touchMode ? "ON" : "OFF"}
         </button>
-        <button className={lockUI ? "toggle-on" : ""} onClick={() => { setZoom(z=>Math.min(3, Number((z+0.1).toFixed(2)))); setLockUI(true); }}>
+        <button className={lockUI ? "toggle-on" : ""} onClick={() => { setZoom(z=>Math.min(3, Number((z+0.2).toFixed(2)))); setLockUI(true); }}>
           Lock UI
         </button>
         <button className={snapToGrid ? "toggle-on" : ""} onClick={() => setSnapToGrid(v => !v)}>
