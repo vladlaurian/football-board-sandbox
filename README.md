@@ -1,10 +1,5 @@
-# Football Board Sandbox v2.3
+# Football Board Sandbox v2.4
 
-## v2.3
-- eliminat Fit Width și Fit Height
-- Lock UI:
-  - teren centrat pe ecran
-  - rămân vizibile zoom - / zoom +
-  - rămâne vizibil zarul
-  - rămâne vizibil Unlock
-- formațiile și situațiile de joc păstrează cheile stabile de salvare
+- Zoom implicit: 80%
+- La intrarea în Lock UI zoom-ul crește automat cu o treaptă.
+- La ieșirea din Lock UI revine la zoom-ul implicit.
