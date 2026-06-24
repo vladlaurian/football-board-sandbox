@@ -5,16 +5,16 @@ import "./styles.css";
 
 const DEFAULT_SETTINGS = {
   cols: 42,
-  rows: 26,
+  rows: 29,
   cellSize: 28,
   goalDepth: 2,
-  goalWidth: 8,
+  goalWidth: 5,
   boxDepth: 9,
   boxWidth: 16,
   smallDepth: 4,
   smallWidth: 8,
   penaltyDistance: 6,
-  penaltyY: 13,
+  penaltyY: 14,
   centerCircleRadius: 4,
   arcRadius: 4,
 };
@@ -92,7 +92,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v06", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v07", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -110,6 +110,7 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v07") ||
       localStorage.getItem("football-board-sandbox-v06") ||
       localStorage.getItem("football-board-sandbox-v05") ||
       localStorage.getItem("football-board-sandbox-v04") ||
@@ -179,13 +180,13 @@ function App() {
   const centerY = settings.rows / 2;
 
   const leftPenaltyX = settings.penaltyDistance;
-  const rightPenaltyX = settings.cols - settings.penaltyDistance;
+  const rightPenaltyX = settings.cols - 1 - settings.penaltyDistance;
   const penaltyY = settings.penaltyY;
 
   function arcMask(side) {
     const r = settings.arcRadius;
-    const cx = side === "left" ? leftPenaltyX : rightPenaltyX;
-    const cy = penaltyY;
+    const cx = (side === "left" ? leftPenaltyX : rightPenaltyX) + 0.5;
+    const cy = penaltyY + 0.5;
     const boxEdgeX = side === "left" ? settings.boxDepth : settings.cols - settings.boxDepth;
 
     const left = cx - r;
@@ -237,7 +238,7 @@ function App() {
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v0.6</span></strong>
+        <strong>Football Board Sandbox <span>v0.7</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -252,7 +253,7 @@ function App() {
         <label>Careu mic X<input type="number" value={settings.smallDepth} min="1" max="24" onChange={e => updateSetting("smallDepth", e.target.value)} /></label>
         <label>Careu mic Y<input type="number" value={settings.smallWidth} min="2" max="40" onChange={e => updateSetting("smallWidth", e.target.value)} /></label>
 
-        <label>11m dist<input type="number" value={settings.penaltyDistance} min="1" max={Math.floor(settings.cols/2)-1} onChange={e => updateSetting("penaltyDistance", e.target.value)} /></label>
+        <label>11m dist<input type="number" value={settings.penaltyDistance} min="1" max={Math.floor((settings.cols-1)/2)} onChange={e => updateSetting("penaltyDistance", e.target.value)} /></label>
         <label>11m Y<input type="number" value={settings.penaltyY} min="0" max={settings.rows} onChange={e => updateSetting("penaltyY", e.target.value)} /></label>
 
         <label>Cerc centru<input type="number" value={settings.centerCircleRadius} min="1" max="20" onChange={e => updateSetting("centerCircleRadius", e.target.value)} /></label>
@@ -285,8 +286,8 @@ function App() {
             <div className="goal left-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }} />
             <div className="goal right-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }} />
 
-            <div className="penalty-dot" style={{ left: `calc(${leftPenaltyX} * var(--cell) - var(--cell) * .08)`, top: `calc(${penaltyY} * var(--cell) - var(--cell) * .08)` }} />
-            <div className="penalty-dot" style={{ left: `calc(${rightPenaltyX} * var(--cell) - var(--cell) * .08)`, top: `calc(${penaltyY} * var(--cell) - var(--cell) * .08)` }} />
+            <div className="penalty-dot" style={{ left: `calc((${leftPenaltyX} + .5) * var(--cell) - var(--cell) * .08)`, top: `calc((${penaltyY} + .5) * var(--cell) - var(--cell) * .08)` }} />
+            <div className="penalty-dot" style={{ left: `calc((${rightPenaltyX} + .5) * var(--cell) - var(--cell) * .08)`, top: `calc((${penaltyY} + .5) * var(--cell) - var(--cell) * .08)` }} />
 
             <div className="arc-mask" style={leftArc.mask}><div className="arc-circle" style={leftArc.circle} /></div>
             <div className="arc-mask" style={rightArc.mask}><div className="arc-circle" style={rightArc.circle} /></div>
