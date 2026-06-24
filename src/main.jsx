@@ -54,28 +54,28 @@ function createInitialPieces(cols, rows) {
     ["CB", 6, midY - 3],
     ["CB", 6, midY + 3],
     ["RB", 7, midY + 8],
-    ["LM", 13, midY - 9],
-    ["CM", 13, midY - 3],
-    ["CM", 13, midY + 3],
-    ["RM", 13, midY + 9],
-    ["ST", 18, midY - 2],
-    ["ST", 18, midY + 2],
+    ["LM", 15, midY - 11],
+    ["CM", 12, midY - 3],
+    ["CM", 12, midY + 3],
+    ["RM", 15, midY + 11],
+    ["ST", 15, midY - 2],
+    ["ST", 15, midY + 2],
   ];
 
   // Roșu: 4-2-3-1, atacă spre stânga.
   // Definim coordonatele ca distanță față de propria poartă, apoi le oglindim.
   const red4231Relative = [
     ["GK", 1, midY],
-    ["LWB", 8, midY + 8],
+    ["LWB", 8, midY + 10],
     ["CB", 6, midY + 3],
     ["CB", 6, midY - 3],
-    ["RWB", 8, midY - 8],
-    ["CDM", 12, midY + 2],
-    ["CDM", 12, midY - 2],
-    ["LW", 17, midY + 9],
-    ["AM", 16, midY],
-    ["RW", 17, midY - 9],
-    ["ST", 19, midY],
+    ["RWB", 8, midY - 10],
+    ["CDM", 10, midY + 2],
+    ["CDM", 10, midY - 2],
+    ["LW", 18, midY + 12],
+    ["AM", 15, midY],
+    ["RW", 18, midY - 12],
+    ["ST", 18, midY],
   ];
 
   const pieces = [];
@@ -155,7 +155,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v12", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v13", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -173,7 +173,9 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v13") ||
       localStorage.getItem("football-board-sandbox-v12") ||
+      localStorage.getItem("football-board-sandbox-v11") ||
       localStorage.getItem("football-board-sandbox-v10") ||
       localStorage.getItem("football-board-sandbox-v09") ||
       localStorage.getItem("football-board-sandbox-v08") ||
@@ -312,7 +314,7 @@ function App() {
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v1.2</span></strong>
+        <strong>Football Board Sandbox <span>v1.3</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
