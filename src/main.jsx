@@ -8,7 +8,7 @@ const DEFAULT_SETTINGS = {
   rows: 29,
   cellSize: 28,
   goalDepth: 2,
-  goalWidth: 7,
+  goalWidth: 5,
   boxDepth: 6,
   boxWidth: 17,
   smallDepth: 2,
@@ -17,6 +17,7 @@ const DEFAULT_SETTINGS = {
   penaltyY: 14,
   centerCircleRadius: 4,
   arcRadius: 4,
+  cornerArcRadius: 1,
 };
 
 function clamp(v, min, max) {
@@ -112,7 +113,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v09", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v10", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -130,6 +131,7 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v10") ||
       localStorage.getItem("football-board-sandbox-v09") ||
       localStorage.getItem("football-board-sandbox-v08") ||
       localStorage.getItem("football-board-sandbox-v07") ||
@@ -262,7 +264,7 @@ function App() {
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v0.9</span></strong>
+        <strong>Football Board Sandbox <span>v1.0</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -282,6 +284,7 @@ function App() {
 
         <label>Cerc centru<input type="number" value={settings.centerCircleRadius} min="1" max="20" onChange={e => updateSetting("centerCircleRadius", e.target.value)} /></label>
         <label>Semicerc<input type="number" value={settings.arcRadius} min="1" max="20" onChange={e => updateSetting("arcRadius", e.target.value)} /></label>
+        <label>Arc colț<input type="number" value={settings.cornerArcRadius} min="1" max="5" onChange={e => updateSetting("cornerArcRadius", e.target.value)} /></label>
 
         <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.2, 3))}><Minus size={16} /></button>
         <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
@@ -315,7 +318,7 @@ function App() {
               top: `calc((${centerY} - ${settings.centerCircleRadius}) * var(--cell))`,
             }} />
             <div className="center-dot" style={{
-              left: `calc((${centerDotX} + .5) * var(--cell) - var(--cell) * .08)`,
+              left: `calc(${centerX} * var(--cell) - var(--cell) * .08)`,
               top: `calc((${centerDotY} + .5) * var(--cell) - var(--cell) * .08)`
             }} />
 
@@ -332,6 +335,24 @@ function App() {
 
             <div className="arc-mask" style={leftArc.mask}><div className="arc-circle" style={leftArc.circle} /></div>
             <div className="arc-mask" style={rightArc.mask}><div className="arc-circle" style={rightArc.circle} /></div>
+
+            <div className="corner-arc corner-tl" style={{
+              width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+              height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+            }} />
+            <div className="corner-arc corner-tr" style={{
+              width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+              height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+            }} />
+            <div className="corner-arc corner-bl" style={{
+              width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+              height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+            }} />
+            <div className="corner-arc corner-br" style={{
+              width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+              height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
+            }} />
+
 
             {pieces.map(p => (
               <div
