@@ -117,7 +117,7 @@ function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [editingPiece, setEditingPiece] = useState(null);
   const [editLabel, setEditLabel] = useState("");
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(0.9);
   const [history, setHistory] = useState([]);
   const [dieType, setDieType] = useState(20);
   const [dieResult, setDieResult] = useState(null);
@@ -127,6 +127,8 @@ function App() {
   const [measureStart, setMeasureStart] = useState(null);
   const [measureEnd, setMeasureEnd] = useState(null);
   const [actionLog, setActionLog] = useState([]);
+  const [historyPosition, setHistoryPosition] = useState({ x: window.innerWidth - 300, y: 118 });
+  const [historyDragging, setHistoryDragging] = useState(null);
   const pitchRef = useRef(null);
 
   const pitchStyle = useMemo(() => ({
@@ -174,7 +176,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v16", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v17", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -192,6 +194,7 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v17") ||
       localStorage.getItem("football-board-sandbox-v16") ||
       localStorage.getItem("football-board-sandbox-v15") ||
       localStorage.getItem("football-board-sandbox-v14") ||
@@ -426,10 +429,34 @@ function App() {
     }
   }
 
+  function onHistoryPointerDown(e) {
+    e.preventDefault();
+    setHistoryDragging({
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: historyPosition.x,
+      originY: historyPosition.y,
+    });
+  }
+
+  function onHistoryPointerMove(e) {
+    if (!historyDragging) return;
+    const nextX = historyDragging.originX + (e.clientX - historyDragging.startX);
+    const nextY = historyDragging.originY + (e.clientY - historyDragging.startY);
+    setHistoryPosition({
+      x: clamp(nextX, 0, window.innerWidth - 80),
+      y: clamp(nextY, 0, window.innerHeight - 50),
+    });
+  }
+
+  function onHistoryPointerUp() {
+    setHistoryDragging(null);
+  }
+
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v1.6</span></strong>
+        <strong>Football Board Sandbox <span>v1.7</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -451,8 +478,6 @@ function App() {
         <label>Semicerc<input type="number" value={settings.arcRadius} min="1" max="20" onChange={e => updateSetting("arcRadius", e.target.value)} /></label>
         <label>Arc colț<input type="number" value={settings.cornerArcRadius} min="1" max="5" onChange={e => updateSetting("cornerArcRadius", e.target.value)} /></label>
 
-        <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.2, 3))}><Minus size={16} /></button>
-        <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
         <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.2, 3))}><Minus size={16} /></button>
         <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
         <button onClick={undo}><Undo2 size={16} /> Undo</button>
@@ -645,8 +670,14 @@ function App() {
         </div>
       )}
 
-      <div className="history-panel">
-        <div className="history-title">
+      <div
+        className="history-panel"
+        style={{ left: historyPosition.x, top: historyPosition.y }}
+        onPointerMove={onHistoryPointerMove}
+        onPointerUp={onHistoryPointerUp}
+        onPointerCancel={onHistoryPointerUp}
+      >
+        <div className="history-title" onPointerDown={onHistoryPointerDown}>
           <strong>History</strong>
           <button onClick={clearHistory}>Clear</button>
         </div>

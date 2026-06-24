@@ -1,12 +1,6 @@
-# Football Board Sandbox v1.6
+# Football Board Sandbox v1.7
 
-## v1.6
-- portarii sunt mutați o pătrățică mai în spate by default
-- zar:
-  - minim = roșu
-  - maxim = verde
-- History panel:
-  - log pentru mutări
-  - log pentru aruncările cu zarul
-  - click pe un pas pentru revenire la snapshot
-  - Clear History
+## v1.7
+- History panel poate fi mutat cu drag & drop
+- eliminat duplicarea butoanelor de zoom
+- zoom default scăzut cu un pas: 90%
