@@ -183,7 +183,10 @@ function App() {
   const [measureEnd, setMeasureEnd] = useState(null);
   const [actionLog, setActionLog] = useState([]);
   const [historyPosition, setHistoryPosition] = useState({ x: window.innerWidth - 300, y: 118 });
+  const [historySize, setHistorySize] = useState({ w: 280, h: 360 });
   const [historyDragging, setHistoryDragging] = useState(null);
+  const [historyResizing, setHistoryResizing] = useState(null);
+  const [historyVisible, setHistoryVisible] = useState(false);
   const pitchRef = useRef(null);
 
   const pitchStyle = useMemo(() => ({
@@ -324,7 +327,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v20", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v21", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -342,6 +345,7 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v21") ||
       localStorage.getItem("football-board-sandbox-v20") ||
       localStorage.getItem("football-board-sandbox-v19") ||
       localStorage.getItem("football-board-sandbox-v18") ||
@@ -600,14 +604,34 @@ function App() {
     });
   }
 
+  function onHistoryResizeDown(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setHistoryResizing({
+      startX: e.clientX,
+      startY: e.clientY,
+      originW: historySize.w,
+      originH: historySize.h,
+    });
+  }
+
+  function onHistoryResizeMove(e) {
+    if (!historyResizing) return;
+    setHistorySize({
+      w: clamp(historyResizing.originW + (e.clientX - historyResizing.startX), 220, 700),
+      h: clamp(historyResizing.originH + (e.clientY - historyResizing.startY), 160, 700),
+    });
+  }
+
   function onHistoryPointerUp() {
     setHistoryDragging(null);
+    setHistoryResizing(null);
   }
 
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v2.0</span></strong>
+        <strong>Football Board Sandbox <span>v2.1</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -661,12 +685,7 @@ function App() {
           <span className={`die-result ${dieResult === 1 ? "die-min" : dieResult === dieType ? "die-max" : ""}`}>{dieResult === null ? "—" : dieResult}</span>
         </div>
       </div>
-
-
-
-      <div className="formationbar">
-        <strong>Formații:</strong>
-
+      <div className="controlbar">
         <div className="formation-control blue">
           <span>Blue</span>
           <select value={blueFormationId} onChange={e => {
@@ -690,21 +709,26 @@ function App() {
           </select>
           <button onClick={() => saveCurrentAsFormation("B", redFormationId)}>Save</button>
         </div>
-      </div>
-      <div className="situationsbar">
-        <strong>Situații de joc:</strong>
-        <select value={activeSituationId} onChange={e => applyGameSituation(Number(e.target.value))}>
-          {gameSituations.map(s => (
-            <option key={s.id} value={s.id}>{s.id}. {s.name}{s.snapshot ? "" : " (gol)"}</option>
-          ))}
-        </select>
-        <input
-          className="situation-name"
-          value={activeSituationName}
-          onChange={e => setActiveSituationName(e.target.value)}
-          onFocus={e => e.target.select()}
-        />
-        <button onClick={saveActiveGameSituation}>Save</button>
+
+        <div className="situation-control">
+          <span>Situație</span>
+          <select value={activeSituationId} onChange={e => applyGameSituation(Number(e.target.value))}>
+            {gameSituations.map(s => (
+              <option key={s.id} value={s.id}>{s.id}. {s.name}{s.snapshot ? "" : " (gol)"}</option>
+            ))}
+          </select>
+          <input
+            className="situation-name"
+            value={activeSituationName}
+            onChange={e => setActiveSituationName(e.target.value)}
+            onFocus={e => e.target.select()}
+          />
+          <button onClick={saveActiveGameSituation}>Save</button>
+        </div>
+
+        <button className={historyVisible ? "toggle-on" : ""} onClick={() => setHistoryVisible(v => !v)}>
+          History {historyVisible ? "ON" : "OFF"}
+        </button>
       </div>
 
       <div className="board-wrap">
@@ -853,16 +877,23 @@ function App() {
         </div>
       )}
 
+      {historyVisible && (
       <div
         className="history-panel"
-        style={{ left: historyPosition.x, top: historyPosition.y }}
-        onPointerMove={onHistoryPointerMove}
+        style={{ left: historyPosition.x, top: historyPosition.y, width: historySize.w, height: historySize.h }}
+        onPointerMove={(e) => {
+          onHistoryPointerMove(e);
+          onHistoryResizeMove(e);
+        }}
         onPointerUp={onHistoryPointerUp}
         onPointerCancel={onHistoryPointerUp}
       >
         <div className="history-title" onPointerDown={onHistoryPointerDown}>
           <strong>History</strong>
-          <button onClick={clearHistory}>Clear</button>
+          <div className="history-actions">
+            <button onPointerDown={(e) => e.stopPropagation()} onClick={clearHistory}>Clear</button>
+            <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setHistoryVisible(false)}>_</button>
+          </div>
         </div>
         <div className="history-list">
           {actionLog.length === 0 && <div className="history-empty">Nu există pași încă.</div>}
@@ -873,7 +904,9 @@ function App() {
             </button>
           ))}
         </div>
+        <div className="history-resize" onPointerDown={onHistoryResizeDown} />
       </div>
+      )}
 
       {editingPiece && (
         <div className="modal-backdrop" onPointerDown={() => setEditingPiece(null)}>

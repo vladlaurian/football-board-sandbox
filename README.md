@@ -1,18 +1,11 @@
-# Football Board Sandbox v2.0
+# Football Board Sandbox v2.1
 
-## v2.0
-- eliminat butonul Load de la formații
-  - selectarea formației o încarcă automat
-- „Poziții salvate” a devenit „Situații de joc”
-- Situații de joc:
-  - selector unic
-  - nume editabil
-  - Save salvează numele + snapshot complet
-  - selectarea situației încarcă automat snapshot-ul, dacă există
-- Snapshot-ul include:
-  - teren
-  - jucători
-  - minge
-  - zoom
-  - formațiile active
-  - zarul curent
+## v2.1
+- Formații și Situații de joc sunt pe aceeași bară
+- Situațiile de joc rămân salvate între update-uri
+  - cheia localStorage rămâne `football-board-game-situations-v20`
+- History:
+  - buton Show/Hide în bara principală
+  - poate fi mutat cu drag & drop
+  - poate fi minimizat
+  - poate fi redimensionat din colțul dreapta-jos
