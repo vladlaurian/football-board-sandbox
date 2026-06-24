@@ -110,6 +110,11 @@ function App() {
   const [history, setHistory] = useState([]);
   const [dieType, setDieType] = useState(20);
   const [dieResult, setDieResult] = useState(null);
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [showCoordinates, setShowCoordinates] = useState(false);
+  const [measureMode, setMeasureMode] = useState(false);
+  const [measureStart, setMeasureStart] = useState(null);
+  const [measureEnd, setMeasureEnd] = useState(null);
   const pitchRef = useRef(null);
 
   const pitchStyle = useMemo(() => ({
@@ -155,7 +160,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v13", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v14", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -173,7 +178,7 @@ function App() {
 
   function loadBoard() {
     const raw =
-      localStorage.getItem("football-board-sandbox-v13") ||
+      localStorage.getItem("football-board-sandbox-v14") ||
       localStorage.getItem("football-board-sandbox-v12") ||
       localStorage.getItem("football-board-sandbox-v11") ||
       localStorage.getItem("football-board-sandbox-v10") ||
@@ -208,13 +213,24 @@ function App() {
     const rect = pitch.getBoundingClientRect();
     const localX = (e.clientX - rect.left) / zoom;
     const localY = (e.clientY - rect.top) / zoom;
-    const x = clamp(Math.floor(localX / settings.cellSize), 0, settings.cols - 1);
-    const y = clamp(Math.floor(localY / settings.cellSize), 0, settings.rows - 1);
+
+    let x;
+    let y;
+
+    if (snapToGrid) {
+      x = clamp(Math.floor(localX / settings.cellSize), 0, settings.cols - 1);
+      y = clamp(Math.floor(localY / settings.cellSize), 0, settings.rows - 1);
+    } else {
+      x = clamp(localX / settings.cellSize - 0.5, 0, settings.cols - 1);
+      y = clamp(localY / settings.cellSize - 0.5, 0, settings.rows - 1);
+    }
+
     setPieces(prev => prev.map(p => p.id === pieceId ? { ...p, x, y } : p));
   }
 
   function onPointerDown(pieceId, e) {
     e.preventDefault();
+    e.stopPropagation();
     if (editingPiece) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     setSelectedId(pieceId);
@@ -311,10 +327,58 @@ function App() {
   const leftArc = arcMask("left");
   const rightArc = arcMask("right");
 
+  const selectedPiece = pieces.find(p => p.id === selectedId);
+  const coordinateCells = useMemo(() => {
+    if (!showCoordinates) return [];
+    const cells = [];
+    for (let y = 0; y < settings.rows; y++) {
+      for (let x = 0; x < settings.cols; x++) {
+        cells.push({ x, y });
+      }
+    }
+    return cells;
+  }, [showCoordinates, settings.cols, settings.rows]);
+
+  const measureInfo = useMemo(() => {
+    if (!measureStart || !measureEnd) return null;
+    const dx = Math.abs(measureEnd.x - measureStart.x);
+    const dy = Math.abs(measureEnd.y - measureStart.y);
+    return {
+      dx,
+      dy,
+      manhattan: dx + dy,
+      chess: Math.max(dx, dy),
+      straight: Math.sqrt(dx * dx + dy * dy).toFixed(2),
+    };
+  }, [measureStart, measureEnd]);
+
+  function getGridCellFromPointer(e) {
+    const pitch = pitchRef.current;
+    const rect = pitch.getBoundingClientRect();
+    const localX = (e.clientX - rect.left) / zoom;
+    const localY = (e.clientY - rect.top) / zoom;
+    return {
+      x: clamp(Math.floor(localX / settings.cellSize), 0, settings.cols - 1),
+      y: clamp(Math.floor(localY / settings.cellSize), 0, settings.rows - 1),
+    };
+  }
+
+  function onPitchPointerDown(e) {
+    if (!measureMode) return;
+    if (e.target !== pitchRef.current) return;
+    const cell = getGridCellFromPointer(e);
+    if (!measureStart || (measureStart && measureEnd)) {
+      setMeasureStart(cell);
+      setMeasureEnd(null);
+    } else {
+      setMeasureEnd(cell);
+    }
+  }
+
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v1.3</span></strong>
+        <strong>Football Board Sandbox <span>v1.4</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -342,6 +406,19 @@ function App() {
         <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
         <button onClick={undo}><Undo2 size={16} /> Undo</button>
         <button onClick={resetPieces}><RotateCcw size={16} /> Reset</button>
+        <button className={snapToGrid ? "toggle-on" : ""} onClick={() => setSnapToGrid(v => !v)}>
+          Snap {snapToGrid ? "ON" : "OFF"}
+        </button>
+        <button className={showCoordinates ? "toggle-on" : ""} onClick={() => setShowCoordinates(v => !v)}>
+          Coordonate
+        </button>
+        <button className={measureMode ? "toggle-on" : ""} onClick={() => {
+          setMeasureMode(v => !v);
+          setMeasureStart(null);
+          setMeasureEnd(null);
+        }}>
+          Riglă
+        </button>
 
         <div className="dice-box">
           <Dices size={16} />
@@ -373,7 +450,7 @@ function App() {
 
       <div className="board-wrap">
         <div className="pitch-shell">
-          <div className="pitch" ref={pitchRef} style={pitchStyle}>
+          <div className="pitch" ref={pitchRef} style={pitchStyle} onPointerDown={onPitchPointerDown}>
             <div className="half-line" />
             <div className="center-circle" style={{
               width: `calc(${settings.centerCircleRadius * 2} * var(--cell))`,
@@ -385,6 +462,46 @@ function App() {
               left: `calc(${centerX} * var(--cell) - var(--cell) * .08)`,
               top: `calc((${centerDotY} + .5) * var(--cell) - var(--cell) * .08)`
             }} />
+
+            {selectedPiece && (
+              <div className="selected-cell" style={{
+                left: `calc(${Math.floor(selectedPiece.x)} * var(--cell))`,
+                top: `calc(${Math.floor(selectedPiece.y)} * var(--cell))`,
+              }} />
+            )}
+
+            {coordinateCells.map(c => (
+              <div key={`${c.x}-${c.y}`} className="coord-label" style={{
+                left: `calc(${c.x} * var(--cell))`,
+                top: `calc(${c.y} * var(--cell))`,
+              }}>
+                {c.x},{c.y}
+              </div>
+            ))}
+
+            {measureStart && (
+              <div className="measure-point start" style={{
+                left: `calc((${measureStart.x} + .5) * var(--cell) - var(--cell) * .13)`,
+                top: `calc((${measureStart.y} + .5) * var(--cell) - var(--cell) * .13)`,
+              }} />
+            )}
+            {measureEnd && (
+              <div className="measure-point end" style={{
+                left: `calc((${measureEnd.x} + .5) * var(--cell) - var(--cell) * .13)`,
+                top: `calc((${measureEnd.y} + .5) * var(--cell) - var(--cell) * .13)`,
+              }} />
+            )}
+            {measureStart && measureEnd && (
+              <svg className="measure-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
+                <line
+                  x1={measureStart.x + .5}
+                  y1={measureStart.y + .5}
+                  x2={measureEnd.x + .5}
+                  y2={measureEnd.y + .5}
+                />
+              </svg>
+            )}
+
 
             {line({ left: 0, top: `calc(${boxTop} * var(--cell))`, width: `calc(${settings.boxDepth} * var(--cell))`, height: `calc(${settings.boxWidth} * var(--cell))` })}
             {line({ right: 0, top: `calc(${boxTop} * var(--cell))`, width: `calc(${settings.boxDepth} * var(--cell))`, height: `calc(${settings.boxWidth} * var(--cell))` })}
@@ -470,6 +587,12 @@ function App() {
       <div className="status">
         Zoom {Math.round(zoom * 100)}% · {settings.cols} x {settings.rows} · Dublu click pe jucător ca să schimbi textul
       </div>
+
+      {measureInfo && (
+        <div className="measure-panel">
+          Riglă: ΔX {measureInfo.dx} · ΔY {measureInfo.dy} · ortogonal {measureInfo.manhattan} · diagonal {measureInfo.chess} · drept {measureInfo.straight}
+        </div>
+      )}
 
       {editingPiece && (
         <div className="modal-backdrop" onPointerDown={() => setEditingPiece(null)}>
