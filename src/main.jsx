@@ -25,6 +25,55 @@ function userStateRef(uid) {
   return doc(db, "users", uid, "footballBoard", "mainState");
 }
 
+const ENCODED_ARRAY_MARKER = "__footballBoardArray";
+
+function encodeForFirestore(value) {
+  if (Array.isArray(value)) {
+    return {
+      [ENCODED_ARRAY_MARKER]: true,
+      items: value.reduce((acc, item, index) => {
+        acc[String(index)] = encodeForFirestore(item);
+        return acc;
+      }, {}),
+      length: value.length,
+    };
+  }
+
+  if (value && typeof value === "object") {
+    if (typeof value.toDate === "function") return value;
+    return Object.entries(value).reduce((acc, [key, item]) => {
+      if (item !== undefined && typeof item !== "function") {
+        acc[key] = encodeForFirestore(item);
+      }
+      return acc;
+    }, {});
+  }
+
+  return value;
+}
+
+function decodeFromFirestore(value) {
+  if (value && typeof value === "object" && value[ENCODED_ARRAY_MARKER]) {
+    const items = value.items || {};
+    const length = Number(value.length ?? Object.keys(items).length);
+    return Array.from({ length }, (_, index) => decodeFromFirestore(items[String(index)]));
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(decodeFromFirestore);
+  }
+
+  if (value && typeof value === "object") {
+    if (typeof value.toDate === "function") return value;
+    return Object.entries(value).reduce((acc, [key, item]) => {
+      acc[key] = decodeFromFirestore(item);
+      return acc;
+    }, {});
+  }
+
+  return value;
+}
+
 const DEFAULT_SETTINGS = {
   cols: 40,
   rows: 29,
@@ -218,6 +267,8 @@ function App() {
   const [cloudError, setCloudError] = useState("");
   const pitchRef = useRef(null);
   const boardWrapRef = useRef(null);
+  const isApplyingCloudRef = useRef(false);
+  const autosaveTimerRef = useRef(null);
 
   const pitchStyle = useMemo(() => ({
     "--cols": settings.cols,
@@ -228,7 +279,7 @@ function App() {
 
   function buildCloudState(overrides = {}) {
     return {
-      version: "3.0",
+      version: "3.1",
       settings,
       formations,
       gameSituations,
@@ -269,7 +320,7 @@ function App() {
     if (!user) return;
     try {
       setCloudStatus("Saving...");
-      const payload = buildCloudState(overrides);
+      const payload = encodeForFirestore(buildCloudState(overrides));
       await setDoc(userStateRef(user.uid), {
         ...payload,
         updatedAt: serverTimestamp(),
@@ -289,11 +340,15 @@ function App() {
       const ref = userStateRef(currentUser.uid);
       const snap = await getDoc(ref);
       if (snap.exists()) {
-        applyCloudState(snap.data());
+        isApplyingCloudRef.current = true;
+        applyCloudState(decodeFromFirestore(snap.data()));
+        window.setTimeout(() => {
+          isApplyingCloudRef.current = false;
+        }, 300);
         setCloudStatus("Cloud loaded");
       } else {
         await setDoc(ref, {
-          ...buildCloudState(),
+          ...encodeForFirestore(buildCloudState()),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         }, { merge: true });
@@ -340,6 +395,43 @@ function App() {
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!user || !cloudReady || isApplyingCloudRef.current) return;
+
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+    }
+
+    setCloudStatus("Saving...");
+    autosaveTimerRef.current = window.setTimeout(() => {
+      saveCloudState({}, "Saved");
+    }, 900);
+
+    return () => {
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    user,
+    cloudReady,
+    settings,
+    formations,
+    gameSituations,
+    activeSituationId,
+    activeSituationName,
+    blueFormationId,
+    redFormationId,
+    pieces,
+    zoom,
+    dieType,
+    dieResult,
+    touchMode,
+    snapToGrid,
+    showCoordinates,
+  ]);
 
   function pushHistory(nextPieces = pieces) {
     setHistory(h => [...h.slice(-60), JSON.stringify(nextPieces)]);
@@ -474,7 +566,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v30", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v31", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -492,7 +584,7 @@ function App() {
 
   function loadBoard() {
     const raw =
-      localStorage.getItem("football-board-sandbox-v30") ||
+      localStorage.getItem("football-board-sandbox-v31") ||
       localStorage.getItem("football-board-sandbox-v22") ||
       localStorage.getItem("football-board-sandbox-v21") ||
       localStorage.getItem("football-board-sandbox-v20") ||
@@ -791,7 +883,7 @@ function App() {
   return (
     <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v3.0</span></strong>
+        <strong>Football Board Sandbox <span>v3.1</span></strong>
         <div className="authbox">
           {!authReady ? (
             <span>Auth...</span>
