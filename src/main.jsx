@@ -60,7 +60,7 @@ function createInitialPieces(cols, rows) {
 
   // Albastru: 4-4-2 clasic, atacă spre dreapta.
   const blue442 = [
-    ["GK", 1, midY],
+    ["GK", 0, midY],
     ["LB", 7, midY - 8],
     ["CB", 6, midY - 3],
     ["CB", 6, midY + 3],
@@ -76,7 +76,7 @@ function createInitialPieces(cols, rows) {
   // Roșu: 4-2-3-1, atacă spre stânga.
   // Definim coordonatele ca distanță față de propria poartă, apoi le oglindim.
   const red4231Relative = [
-    ["GK", 1, midY],
+    ["GK", 0, midY],
     ["LWB", 8, midY + 10],
     ["CB", 6, midY + 3],
     ["CB", 6, midY - 3],
@@ -126,6 +126,7 @@ function App() {
   const [measureMode, setMeasureMode] = useState(false);
   const [measureStart, setMeasureStart] = useState(null);
   const [measureEnd, setMeasureEnd] = useState(null);
+  const [actionLog, setActionLog] = useState([]);
   const pitchRef = useRef(null);
 
   const pitchStyle = useMemo(() => ({
@@ -167,11 +168,13 @@ function App() {
 
   function resetPieces() {
     pushHistory();
-    setPieces(createInitialPieces(settings.cols, settings.rows));
+    const fresh = createInitialPieces(settings.cols, settings.rows);
+    setPieces(fresh);
+    logSnapshot("Reset poziții", fresh);
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v15", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v16", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -189,6 +192,7 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v16") ||
       localStorage.getItem("football-board-sandbox-v15") ||
       localStorage.getItem("football-board-sandbox-v14") ||
       localStorage.getItem("football-board-sandbox-v13") ||
@@ -209,9 +213,39 @@ function App() {
     setZoom(saved.zoom ?? 1);
   }
 
+  function logSnapshot(label, nextPieces = pieces) {
+    setActionLog(prev => [
+      ...prev.slice(-79),
+      {
+        id: `${Date.now()}-${Math.random()}`,
+        label,
+        pieces: JSON.stringify(nextPieces),
+        settings: JSON.stringify(settings),
+        zoom,
+        dieType,
+        dieResult,
+        createdAt: new Date().toLocaleTimeString(),
+      }
+    ]);
+  }
+
+  function restoreSnapshot(entry) {
+    setPieces(JSON.parse(entry.pieces));
+    setSettings(JSON.parse(entry.settings));
+    setZoom(entry.zoom ?? 1);
+    setDieType(entry.dieType ?? 20);
+    setDieResult(entry.dieResult ?? null);
+  }
+
+  function clearHistory() {
+    if (!window.confirm("Șterg history-ul?")) return;
+    setActionLog([]);
+  }
+
   function rollDie() {
     const result = Math.floor(Math.random() * dieType) + 1;
     setDieResult(result);
+    logSnapshot(`Zar D${dieType}: ${result}`);
   }
 
   function undo() {
@@ -257,6 +291,10 @@ function App() {
   }
 
   function onPointerUp() {
+    if (selectedId) {
+      const moved = pieces.find(p => p.id === selectedId);
+      if (moved) logSnapshot(`${moved.team === "A" ? "Blue" : moved.team === "B" ? "Red" : "Ball"} ${moved.label} → ${rowLetter(Math.floor(moved.y))}${Math.floor(moved.x) + 1}`);
+    }
     setSelectedId(null);
   }
 
@@ -391,7 +429,7 @@ function App() {
   return (
     <div className="app">
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v1.5</span></strong>
+        <strong>Football Board Sandbox <span>v1.6</span></strong>
 
         <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
         <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
@@ -444,7 +482,7 @@ function App() {
             <option value={4}>D4</option>
           </select>
           <button onClick={rollDie}>Roll</button>
-          <span className={`die-result ${dieResult === 1 || dieResult === dieType ? "die-extreme" : ""}`}>{dieResult === null ? "—" : dieResult}</span>
+          <span className={`die-result ${dieResult === 1 ? "die-min" : dieResult === dieType ? "die-max" : ""}`}>{dieResult === null ? "—" : dieResult}</span>
         </div>
       </div>
 
@@ -606,6 +644,22 @@ function App() {
           Riglă: ΔX {measureInfo.dx} · ΔY {measureInfo.dy} · ortogonal {measureInfo.manhattan} · diagonal {measureInfo.chess} · drept {measureInfo.straight}
         </div>
       )}
+
+      <div className="history-panel">
+        <div className="history-title">
+          <strong>History</strong>
+          <button onClick={clearHistory}>Clear</button>
+        </div>
+        <div className="history-list">
+          {actionLog.length === 0 && <div className="history-empty">Nu există pași încă.</div>}
+          {actionLog.map((entry, index) => (
+            <button key={entry.id} className="history-item" onClick={() => restoreSnapshot(entry)}>
+              <span>{index + 1}. {entry.label}</span>
+              <small>{entry.createdAt}</small>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {editingPiece && (
         <div className="modal-backdrop" onPointerDown={() => setEditingPiece(null)}>
