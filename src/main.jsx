@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { getFirestore } from "firebase/firestore";
 import { RotateCcw, Plus, Minus, Undo2, Edit3, X, Dices } from "lucide-react";
 import "./styles.css";
@@ -23,6 +23,17 @@ const googleProvider = new GoogleAuthProvider();
 
 function userStateRef(uid) {
   return doc(db, "users", uid, "footballBoard", "mainState");
+}
+
+function sessionRef(code) {
+  return doc(db, "sessions", String(code || "").toUpperCase());
+}
+
+function generateSessionCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return code;
 }
 
 const ENCODED_ARRAY_MARKER = "__footballBoardArray";
@@ -417,6 +428,14 @@ function App() {
   const lastTapRef = useRef({ time: 0, x: 0, y: 0 });
   const boardPanRef = useRef(null);
   const beforeLockViewRef = useRef(null);
+  const clientIdRef = useRef(`client_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
+  const sessionSaveTimerRef = useRef(null);
+  const isApplyingSessionRef = useRef(false);
+
+  const [sessionCode, setSessionCode] = useState("");
+  const [joinCode, setJoinCode] = useState("");
+  const [sessionStatus, setSessionStatus] = useState("Offline");
+  const [sessionPlayers, setSessionPlayers] = useState(0);
 
   const pitchStyle = useMemo(() => ({
     "--cols": settings.cols,
@@ -443,7 +462,7 @@ function App() {
 
   function buildCloudState(overrides = {}) {
     return {
-      version: "3.6",
+      version: "multiplayer-0.1",
       settings,
       formations,
       gameSituations,
@@ -480,6 +499,126 @@ function App() {
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
   }
+
+  function buildLiveBoardState(overrides = {}) {
+    return {
+      version: "multiplayer-0.1",
+      settings,
+      pieces: normalizePiecesForBoard(pieces, settings),
+      zoom,
+      dieType,
+      dieResult,
+      snapToGrid,
+      showCoordinates,
+      blueFormationId,
+      redFormationId,
+      actionLog,
+      ...overrides,
+    };
+  }
+
+  function applyLiveBoardState(data) {
+    if (!data) return;
+    const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settings;
+    if (data.settings) setSettings(nextSettings);
+    if (data.pieces) setPieces(normalizePiecesForBoard(data.pieces, nextSettings));
+    if (typeof data.zoom === "number") setZoom(data.zoom);
+    if (typeof data.dieType === "number") setDieType(data.dieType);
+    if (data.dieResult !== undefined) setDieResult(data.dieResult);
+    if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
+    if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
+    if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
+    if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
+    if (data.actionLog) setActionLog(data.actionLog);
+    setPanOffset({ x: 0, y: 0 });
+  }
+
+  async function saveSessionState(overrides = {}) {
+    if (!user || !sessionCode) return;
+    try {
+      const code = sessionCode.toUpperCase();
+      await setDoc(sessionRef(code), {
+        board: encodeForFirestore(buildLiveBoardState(overrides)),
+        updatedAt: serverTimestamp(),
+        updatedBy: clientIdRef.current,
+      }, { merge: true });
+      setSessionStatus("Online saved");
+    } catch (error) {
+      console.error(error);
+      setSessionStatus("Online error");
+    }
+  }
+
+  async function createSession() {
+    if (!user) {
+      setSessionStatus("Login first");
+      return;
+    }
+    const code = generateSessionCode();
+    setSessionStatus("Creating...");
+    await setDoc(sessionRef(code), {
+      code,
+      ownerUid: user.uid,
+      ownerEmail: user.email || "",
+      players: {
+        [user.uid]: {
+          email: user.email || "",
+          joinedAt: new Date().toISOString(),
+          clientId: clientIdRef.current,
+        }
+      },
+      board: encodeForFirestore(buildLiveBoardState()),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      updatedBy: clientIdRef.current,
+    }, { merge: true });
+    setSessionCode(code);
+    setJoinCode(code);
+    setSessionStatus("Online");
+  }
+
+  async function joinSession() {
+    if (!user) {
+      setSessionStatus("Login first");
+      return;
+    }
+    const code = String(joinCode || "").trim().toUpperCase();
+    if (!code) return;
+
+    try {
+      setSessionStatus("Joining...");
+      const ref = sessionRef(code);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        setSessionStatus("Code not found");
+        return;
+      }
+
+      await setDoc(ref, {
+        players: {
+          [user.uid]: {
+            email: user.email || "",
+            joinedAt: new Date().toISOString(),
+            clientId: clientIdRef.current,
+          }
+        },
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+
+      setSessionCode(code);
+      setSessionStatus("Online");
+    } catch (error) {
+      console.error(error);
+      setSessionStatus("Join error");
+    }
+  }
+
+  function leaveSession() {
+    setSessionCode("");
+    setSessionPlayers(0);
+    setSessionStatus("Offline");
+  }
+
 
   async function saveCloudState(overrides = {}, label = "Cloud saved") {
     if (!user) return;
@@ -560,6 +699,73 @@ function App() {
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!user || !sessionCode) return;
+
+    setSessionStatus("Connecting...");
+    const code = sessionCode.toUpperCase();
+    const unsub = onSnapshot(sessionRef(code), (snapshot) => {
+      if (!snapshot.exists()) {
+        setSessionStatus("Session missing");
+        return;
+      }
+
+      const data = snapshot.data();
+      const players = data.players || {};
+      setSessionPlayers(Object.keys(players).length);
+      setSessionStatus("Online");
+
+      if (data.updatedBy === clientIdRef.current) return;
+
+      if (data.board) {
+        isApplyingSessionRef.current = true;
+        applyLiveBoardState(decodeFromFirestore(data.board));
+        window.setTimeout(() => {
+          isApplyingSessionRef.current = false;
+        }, 250);
+      }
+    }, (error) => {
+      console.error(error);
+      setSessionStatus("Online error");
+    });
+
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, sessionCode]);
+
+  useEffect(() => {
+    if (!user || !sessionCode || isApplyingSessionRef.current) return;
+
+    if (sessionSaveTimerRef.current) {
+      window.clearTimeout(sessionSaveTimerRef.current);
+    }
+
+    setSessionStatus("Online saving...");
+    sessionSaveTimerRef.current = window.setTimeout(() => {
+      saveSessionState();
+    }, 180);
+
+    return () => {
+      if (sessionSaveTimerRef.current) {
+        window.clearTimeout(sessionSaveTimerRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    user,
+    sessionCode,
+    settings,
+    pieces,
+    zoom,
+    dieType,
+    dieResult,
+    snapToGrid,
+    showCoordinates,
+    blueFormationId,
+    redFormationId,
+    actionLog,
+  ]);
 
   useEffect(() => {
     if (!user || !cloudReady || isApplyingCloudRef.current) return;
@@ -1173,7 +1379,7 @@ function App() {
   return (
     <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v3.5</span></strong>
+        <strong>Football Board Sandbox <span>Multiplayer 0.1</span></strong>
         <div className="authbox">
           {!authReady ? (
             <span>Auth...</span>
@@ -1188,6 +1394,31 @@ function App() {
             <>
               <span className="cloud-pill">Local</span>
               <button onClick={loginWithGoogle}>Login Google</button>
+            </>
+          )}
+        </div>
+
+        <div className={`sessionbox ${sessionCode ? "session-online" : ""}`}>
+          {sessionCode ? (
+            <>
+              <span className="session-pill">ONLINE</span>
+              <span className="session-code">Code: {sessionCode}</span>
+              <span className="session-players">Players: {sessionPlayers || 1}/2</span>
+              <span className="session-status">{sessionStatus}</span>
+              <button onClick={leaveSession}>Leave</button>
+            </>
+          ) : (
+            <>
+              <button onClick={createSession}>Create Session</button>
+              <input
+                className="join-code"
+                value={joinCode}
+                maxLength={6}
+                placeholder="CODE"
+                onChange={e => setJoinCode(e.target.value.toUpperCase())}
+              />
+              <button onClick={joinSession}>Join</button>
+              <span className="session-status">{sessionStatus}</span>
             </>
           )}
         </div>
