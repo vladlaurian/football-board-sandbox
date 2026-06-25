@@ -306,3 +306,71 @@
 @media(max-width:900px){
   .sessionbox{order:3}
 }
+
+
+/* Multiplayer 0.3 dice panel */
+.dice-panel {
+  position: fixed;
+  z-index: 70;
+  background: rgba(23, 35, 42, 0.96);
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+  overflow: hidden;
+  user-select: none;
+}
+
+.dice-panel-title {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 10px;
+  background: rgba(255,255,255,0.08);
+  cursor: grab;
+  touch-action: none;
+}
+
+.dice-panel-title:active {
+  cursor: grabbing;
+}
+
+.dice-panel-body {
+  padding: 14px;
+}
+
+.floating-dice-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dice-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dice-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.45) 50%);
+}
+
+.die-result {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 30px;
+  padding: 0 8px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  box-sizing: border-box;
+}
