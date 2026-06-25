@@ -1267,6 +1267,45 @@ function App() {
     });
   }
 
+  function onDicePanelPointerDown(e) {
+    e.preventDefault();
+    setDicePanelDragging({
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: dicePanelPosition.x,
+      originY: dicePanelPosition.y,
+    });
+  }
+
+  function onDicePanelPointerMove(e) {
+    if (!dicePanelDragging) return;
+    const nextX = dicePanelDragging.originX + (e.clientX - dicePanelDragging.startX);
+    const nextY = dicePanelDragging.originY + (e.clientY - dicePanelDragging.startY);
+    setDicePanelPosition({
+      x: clamp(nextX, 0, window.innerWidth - 80),
+      y: clamp(nextY, 0, window.innerHeight - 50),
+    });
+  }
+
+  function onDicePanelResizeDown(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDicePanelResizing({
+      startX: e.clientX,
+      startY: e.clientY,
+      originW: dicePanelSize.w,
+      originH: dicePanelSize.h,
+    });
+  }
+
+  function onDicePanelResizeMove(e) {
+    if (!dicePanelResizing) return;
+    setDicePanelSize({
+      w: clamp(dicePanelResizing.originW + (e.clientX - dicePanelResizing.startX), 220, 520),
+      h: clamp(dicePanelResizing.originH + (e.clientY - dicePanelResizing.startY), 120, 420),
+    });
+  }
+
   function fitWidth() {
     const wrap = boardWrapRef.current;
     if (!wrap) return;
@@ -1367,10 +1406,15 @@ function App() {
     setHistoryResizing(null);
   }
 
+  function onDicePanelPointerUp() {
+    setDicePanelDragging(null);
+    setDicePanelResizing(null);
+  }
+
   return (
     <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
-        <strong>Football Board Sandbox <span>Multiplayer 0.2</span></strong>
+        <strong>Football Board Sandbox <span>Multiplayer 0.3</span></strong>
         <div className="authbox">
           {!authReady ? (
             <span>Auth...</span>
@@ -1458,19 +1502,6 @@ function App() {
           Riglă
         </button>
 
-        <div className="dice-box">
-          <Dices size={16} />
-          <select value={dieType} onChange={e => setDieType(Number(e.target.value))}>
-            <option value={20}>D20</option>
-            <option value={12}>D12</option>
-            <option value={10}>D10</option>
-            <option value={8}>D8</option>
-            <option value={6}>D6</option>
-            <option value={4}>D4</option>
-          </select>
-          <button onClick={rollDie}>Roll</button>
-          <span className={`die-result ${dieResult === 1 ? "die-min" : dieResult === dieType ? "die-max" : ""}`}>{dieResult === null ? "—" : dieResult}</span>
-        </div>
       </div>
       <div className="controlbar">
         <div className="formation-control blue">
@@ -1515,6 +1546,9 @@ function App() {
 
         <button className={historyVisible ? "toggle-on" : ""} onClick={() => setHistoryVisible(v => !v)}>
           History {historyVisible ? "ON" : "OFF"}
+        </button>
+        <button className={dicePanelVisible ? "toggle-on" : ""} onClick={() => setDicePanelVisible(v => !v)}>
+          Zaruri {dicePanelVisible ? "ON" : "OFF"}
         </button>
       </div>
 
@@ -1729,6 +1763,42 @@ function App() {
         </div>
         <div className="history-resize" onPointerDown={onHistoryResizeDown} />
       </div>
+      )}
+
+      {dicePanelVisible && !lockUI && (
+        <div
+          className="dice-panel"
+          style={{ left: dicePanelPosition.x, top: dicePanelPosition.y, width: dicePanelSize.w, height: dicePanelSize.h }}
+          onPointerMove={(e) => {
+            onDicePanelPointerMove(e);
+            onDicePanelResizeMove(e);
+          }}
+          onPointerUp={onDicePanelPointerUp}
+          onPointerCancel={onDicePanelPointerUp}
+        >
+          <div className="dice-panel-title" onPointerDown={onDicePanelPointerDown}>
+            <strong>Zaruri</strong>
+            <div className="dice-actions">
+              <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setDicePanelVisible(false)}>_</button>
+            </div>
+          </div>
+          <div className="dice-panel-body">
+            <div className="dice-box floating-dice-box">
+              <Dices size={18} />
+              <select value={dieType} onChange={e => setDieType(Number(e.target.value))}>
+                <option value={20}>D20</option>
+                <option value={12}>D12</option>
+                <option value={10}>D10</option>
+                <option value={8}>D8</option>
+                <option value={6}>D6</option>
+                <option value={4}>D4</option>
+              </select>
+              <button onClick={rollDie}>Roll</button>
+              <span className={`die-result ${dieResult === 1 ? "die-min" : dieResult === dieType ? "die-max" : ""}`}>{dieResult === null ? "—" : dieResult}</span>
+            </div>
+          </div>
+          <div className="dice-resize" onPointerDown={onDicePanelResizeDown} />
+        </div>
       )}
 
       {editingPiece && (
