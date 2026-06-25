@@ -157,6 +157,133 @@ function fromCoord(coord) {
   return { x: number - 1, y: y - 1 };
 }
 
+function normalizeGridPosition(x, y, settingsLike = DEFAULT_SETTINGS) {
+  const safeX = clamp(Math.round(Number(x) || 0), 0, (settingsLike.cols ?? DEFAULT_SETTINGS.cols) - 1);
+  const safeY = clamp(Math.round(Number(y) || 0), 0, (settingsLike.rows ?? DEFAULT_SETTINGS.rows) - 1);
+  return {
+    x: safeX,
+    y: safeY,
+    coord: toCoord(safeX, safeY),
+    square: {
+      id: toCoord(safeX, safeY),
+      coord: toCoord(safeX, safeY),
+      x: safeX,
+      y: safeY,
+      lengthIndex: safeX + 1,
+      widthLetter: rowLetter(safeY),
+    },
+  };
+}
+
+function withBoardPosition(piece, settingsLike = DEFAULT_SETTINGS) {
+  // x/y rămân poziția vizuală reală, inclusiv fracționară când Snap este OFF.
+  // coord/position reprezintă pătrățica logică, rotunjită la celula cea mai apropiată.
+  const rawX = clamp(Number(piece.x) || 0, 0, (settingsLike.cols ?? DEFAULT_SETTINGS.cols) - 1);
+  const rawY = clamp(Number(piece.y) || 0, 0, (settingsLike.rows ?? DEFAULT_SETTINGS.rows) - 1);
+  const grid = normalizeGridPosition(rawX, rawY, settingsLike);
+  return {
+    ...piece,
+    x: rawX,
+    y: rawY,
+    coord: grid.coord,
+    position: {
+      coord: grid.coord,
+      x: grid.x,
+      y: grid.y,
+    },
+  };
+}
+
+function normalizePiecesForBoard(pieces, settingsLike = DEFAULT_SETTINGS) {
+  return (pieces || []).map(piece => withBoardPosition(piece, settingsLike));
+}
+
+function createSquareObject(x, y, pieces = [], settingsLike = DEFAULT_SETTINGS) {
+  const grid = normalizeGridPosition(x, y, settingsLike);
+  const occupants = normalizePiecesForBoard(pieces, settingsLike).filter(piece => piece.coord === grid.coord);
+  return {
+    id: grid.coord,
+    coord: grid.coord,
+    x: grid.x,
+    y: grid.y,
+    lengthIndex: grid.x + 1,
+    widthLetter: rowLetter(grid.y),
+    occupied: occupants.length > 0,
+    pieces: occupants,
+    piece: occupants[0] || null,
+  };
+}
+
+function buildBoardApi(settingsLike, piecesLike) {
+  const boardPieces = normalizePiecesForBoard(piecesLike, settingsLike);
+  return {
+    cols: settingsLike.cols,
+    rows: settingsLike.rows,
+    toCoord: (x, y) => toCoord(x, y),
+    fromCoord,
+    normalizePosition: (x, y) => normalizeGridPosition(x, y, settingsLike),
+    getPieces: () => boardPieces,
+    getPiece: (pieceId) => boardPieces.find(piece => piece.id === pieceId) || null,
+    getPiecesByTeam: (team) => boardPieces.filter(piece => piece.team === team),
+    getPieceAt: (coord) => {
+      const { x, y } = fromCoord(coord);
+      const normalized = normalizeGridPosition(x, y, settingsLike).coord;
+      return boardPieces.find(piece => piece.coord === normalized) || null;
+    },
+    getPiecesAt: (coord) => {
+      const { x, y } = fromCoord(coord);
+      const normalized = normalizeGridPosition(x, y, settingsLike).coord;
+      return boardPieces.filter(piece => piece.coord === normalized);
+    },
+    isEmpty: (coord) => {
+      const { x, y } = fromCoord(coord);
+      const normalized = normalizeGridPosition(x, y, settingsLike).coord;
+      return !boardPieces.some(piece => piece.coord === normalized);
+    },
+    getSquare: (coord) => {
+      const { x, y } = fromCoord(coord);
+      return createSquareObject(x, y, boardPieces, settingsLike);
+    },
+    getAllSquares: () => {
+      const squares = [];
+      for (let y = 0; y < settingsLike.rows; y++) {
+        for (let x = 0; x < settingsLike.cols; x++) {
+          squares.push(createSquareObject(x, y, boardPieces, settingsLike));
+        }
+      }
+      return squares;
+    },
+    movePiece: (pieceId, coord) => {
+      const { x, y } = fromCoord(coord);
+      const grid = normalizeGridPosition(x, y, settingsLike);
+      return boardPieces.map(piece => piece.id === pieceId ? withBoardPosition({ ...piece, x: grid.x, y: grid.y }, settingsLike) : piece);
+    },
+    distance: (fromCoordValue, toCoordValue) => {
+      const a = fromCoord(fromCoordValue);
+      const b = fromCoord(toCoordValue);
+      const dx = Math.abs(a.x - b.x);
+      const dy = Math.abs(a.y - b.y);
+      return {
+        dx,
+        dy,
+        orthogonal: dx + dy,
+        diagonal: Math.max(dx, dy),
+        straight: Math.sqrt(dx * dx + dy * dy),
+      };
+    },
+    adjacentSquares: (coord, includeDiagonals = false) => {
+      const { x, y } = fromCoord(coord);
+      const deltas = includeDiagonals
+        ? [[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]]
+        : [[0,-1],[1,0],[0,1],[-1,0]];
+      return deltas
+        .map(([dx, dy]) => ({ x: x + dx, y: y + dy }))
+        .filter(pos => pos.x >= 0 && pos.y >= 0 && pos.x < settingsLike.cols && pos.y < settingsLike.rows)
+        .map(pos => createSquareObject(pos.x, pos.y, boardPieces, settingsLike));
+    },
+  };
+}
+
 const FORMATION_SLOTS = [
   {
     id: 1,
@@ -244,7 +371,7 @@ function createInitialPieces(cols, rows, blueFormation = FORMATION_SLOTS[0], red
   addFormation("B", redFormation);
 
   pieces.push({ id: "BALL", team: "BALL", label: "●", x: Math.floor(cols / 2), y: midY });
-  return pieces;
+  return normalizePiecesForBoard(pieces, { ...DEFAULT_SETTINGS, cols, rows });
 }
 
 function App() {
@@ -255,7 +382,7 @@ function App() {
   const [gameSituations, setGameSituations] = useState(() => loadStoredGameSituations());
   const [activeSituationId, setActiveSituationId] = useState(1);
   const [activeSituationName, setActiveSituationName] = useState("Situația 1");
-  const [pieces, setPieces] = useState(() => createInitialPieces(DEFAULT_SETTINGS.cols, DEFAULT_SETTINGS.rows, FORMATION_SLOTS[0], FORMATION_SLOTS[1]));
+  const [pieces, setPieces] = useState(() => normalizePiecesForBoard(createInitialPieces(DEFAULT_SETTINGS.cols, DEFAULT_SETTINGS.rows, FORMATION_SLOTS[0], FORMATION_SLOTS[1]), DEFAULT_SETTINGS));
   const [selectedId, setSelectedId] = useState(null);
   const [editingPiece, setEditingPiece] = useState(null);
   const [editLabel, setEditLabel] = useState("");
@@ -302,9 +429,21 @@ function App() {
     transform: `translate(calc(-50% + ${panOffset.x}px), calc(-50% + ${panOffset.y}px))`,
   }), [panOffset]);
 
+
+  const boardApi = useMemo(() => buildBoardApi(settings, pieces), [settings, pieces]);
+
+  useEffect(() => {
+    // Debug/development hook: the board now has a logical coordinate API.
+    // Example in Console: window.__footballBoardApi.getPieceAt("O15")
+    window.__footballBoardApi = boardApi;
+    return () => {
+      if (window.__footballBoardApi === boardApi) delete window.__footballBoardApi;
+    };
+  }, [boardApi]);
+
   function buildCloudState(overrides = {}) {
     return {
-      version: "3.5",
+      version: "3.6",
       settings,
       formations,
       gameSituations,
@@ -312,7 +451,7 @@ function App() {
       activeSituationName,
       blueFormationId,
       redFormationId,
-      pieces,
+      pieces: normalizePiecesForBoard(pieces, settings),
       zoom,
       dieType,
       dieResult,
@@ -332,7 +471,7 @@ function App() {
     if (data.activeSituationName) setActiveSituationName(data.activeSituationName);
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
-    if (data.pieces) setPieces(data.pieces);
+    if (data.pieces) setPieces(normalizePiecesForBoard(data.pieces, data.settings ? normalizeSettingsForApp(data.settings) : settings));
     if (typeof data.zoom === "number") setZoom(data.zoom);
     if (typeof data.dieType === "number") setDieType(data.dieType);
     if (data.dieResult !== undefined) setDieResult(data.dieResult);
@@ -482,11 +621,11 @@ function App() {
     }
 
     setSettings(next);
-    setPieces(prev => prev.map(p => ({
+    setPieces(prev => normalizePiecesForBoard(prev.map(p => ({
       ...p,
       x: clamp(p.x, 0, next.cols - 1),
       y: clamp(p.y, 0, next.rows - 1),
-    })));
+    })), next));
   }
 
   function getFormationById(id) {
@@ -505,7 +644,7 @@ function App() {
         team === "A" ? formation : getFormationById(blueFormationId),
         team === "B" ? formation : getFormationById(redFormationId)
       ).filter(p => p.team === team);
-      const next = [...others, ...temp, ball].filter(Boolean);
+      const next = normalizePiecesForBoard([...others, ...temp, ball].filter(Boolean), settings);
       logSnapshot(`${team === "A" ? "Blue" : "Red"} formation: ${formation.name}`, next);
       return next;
     });
@@ -540,7 +679,7 @@ function App() {
   function createCurrentSnapshot() {
     return {
       settings,
-      pieces,
+      pieces: normalizePiecesForBoard(pieces, settings),
       zoom,
       blueFormationId,
       redFormationId,
@@ -560,7 +699,7 @@ function App() {
 
     pushHistory();
     setSettings(situation.snapshot.settings);
-    setPieces(situation.snapshot.pieces);
+    setPieces(normalizePiecesForBoard(situation.snapshot.pieces, situation.snapshot.settings || settings));
     setZoom(situation.snapshot.zoom ?? 0.9);
     setBlueFormationId(situation.snapshot.blueFormationId ?? 1);
     setRedFormationId(situation.snapshot.redFormationId ?? 2);
@@ -634,7 +773,8 @@ function App() {
     if (!raw) return alert("Nu există salvare încă.");
     const saved = JSON.parse(raw);
     setSettings(normalizeLoadedSettings(saved.settings));
-    setPieces(saved.pieces);
+    const loadedSettings = normalizeLoadedSettings(saved.settings);
+    setPieces(normalizePiecesForBoard(saved.pieces, loadedSettings));
     setZoom(saved.zoom ?? 1);
   }
 
@@ -655,8 +795,9 @@ function App() {
   }
 
   function restoreSnapshot(entry) {
-    setPieces(JSON.parse(entry.pieces));
-    setSettings(JSON.parse(entry.settings));
+    const restoredSettings = JSON.parse(entry.settings);
+    setPieces(normalizePiecesForBoard(JSON.parse(entry.pieces), restoredSettings));
+    setSettings(restoredSettings);
     setZoom(entry.zoom ?? 1);
     setDieType(entry.dieType ?? 20);
     setDieResult(entry.dieResult ?? null);
@@ -676,7 +817,7 @@ function App() {
   function undo() {
     if (!history.length) return;
     const last = history[history.length - 1];
-    setPieces(JSON.parse(last));
+    setPieces(normalizePiecesForBoard(JSON.parse(last), settings));
     setHistory(h => h.slice(0, -1));
   }
 
@@ -697,7 +838,7 @@ function App() {
       y = clamp(localY / settings.cellSize - 0.5, 0, settings.rows - 1);
     }
 
-    setPieces(prev => prev.map(p => p.id === pieceId ? { ...p, x, y } : p));
+    setPieces(prev => normalizePiecesForBoard(prev.map(p => p.id === pieceId ? { ...p, x, y } : p), settings));
   }
 
   function onPointerDown(pieceId, e) {
@@ -718,7 +859,7 @@ function App() {
   function onPointerUp() {
     if (selectedId) {
       const moved = pieces.find(p => p.id === selectedId);
-      if (moved) logSnapshot(`${moved.team === "A" ? "Blue" : moved.team === "B" ? "Red" : "Ball"} ${moved.label} → ${rowLetter(Math.floor(moved.y))}${Math.floor(moved.x) + 1}`);
+      if (moved) logSnapshot(`${moved.team === "A" ? "Blue" : moved.team === "B" ? "Red" : "Ball"} ${moved.label} → ${withBoardPosition(moved, settings).coord}`);
     }
     setSelectedId(null);
   }
@@ -732,7 +873,7 @@ function App() {
   function saveEdit() {
     if (!editingPiece) return;
     const clean = editLabel.trim().slice(0, 5) || "?";
-    setPieces(prev => prev.map(p => p.id === editingPiece.id ? { ...p, label: clean } : p));
+    setPieces(prev => normalizePiecesForBoard(prev.map(p => p.id === editingPiece.id ? { ...p, label: clean } : p), settings));
     setEditingPiece(null);
     setEditLabel("");
   }
@@ -1285,6 +1426,8 @@ function App() {
             {pieces.map(p => (
               <div
                 key={p.id}
+                data-coord={withBoardPosition(p, settings).coord}
+                title={`${p.label} ${withBoardPosition(p, settings).coord}`}
                 className={`piece ${p.team === "A" ? "team-a" : p.team === "B" ? "team-b" : "ball"} ${selectedId === p.id ? "selected" : ""}`}
                 style={{
                   left: `calc(${p.x} * var(--cell) + var(--cell) * ${p.team === "BALL" ? 0.2 : 0.08})`,
