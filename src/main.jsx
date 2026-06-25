@@ -91,6 +91,22 @@ const DEFAULT_SETTINGS = {
   cornerArcRadius: 1,
 };
 
+function normalizeSettingsForApp(rawSettings = {}) {
+  const next = { ...DEFAULT_SETTINGS, ...rawSettings };
+
+  // v3.4 a putut salva accidental Pătrățel = 50 în cloud.
+  // Revenim la default-ul stabil 28 fără să afectăm proporțiile logice ale terenului.
+  if (!Number.isFinite(Number(next.cellSize)) || Number(next.cellSize) > 40) {
+    next.cellSize = 28;
+  }
+
+  next.cols = clamp(Number(next.cols) || DEFAULT_SETTINGS.cols, 12, 100);
+  next.rows = forceOddDirectional(Number(next.rows) || DEFAULT_SETTINGS.rows, DEFAULT_SETTINGS.rows, DEFAULT_SETTINGS.rows);
+  next.goalWidth = forceOddDirectional(Number(next.goalWidth) || DEFAULT_SETTINGS.goalWidth, DEFAULT_SETTINGS.goalWidth, DEFAULT_SETTINGS.goalWidth);
+  next.penaltyY = clamp(Number(next.penaltyY) || Math.floor(next.rows / 2), 0, next.rows - 1);
+  return next;
+}
+
 const POSITION_OPTIONS = [
   "GK", "LB", "LWB", "CB", "RB", "RWB",
   "CDM", "CM", "CAM", "AM",
@@ -232,7 +248,7 @@ function createInitialPieces(cols, rows, blueFormation = FORMATION_SLOTS[0], red
 }
 
 function App() {
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState(() => normalizeSettingsForApp(DEFAULT_SETTINGS));
   const [formations, setFormations] = useState(() => loadStoredFormations());
   const [blueFormationId, setBlueFormationId] = useState(1);
   const [redFormationId, setRedFormationId] = useState(2);
@@ -273,6 +289,7 @@ function App() {
   const touchGestureRef = useRef(null);
   const lastTapRef = useRef({ time: 0, x: 0, y: 0 });
   const boardPanRef = useRef(null);
+  const beforeLockViewRef = useRef(null);
 
   const pitchStyle = useMemo(() => ({
     "--cols": settings.cols,
@@ -287,7 +304,7 @@ function App() {
 
   function buildCloudState(overrides = {}) {
     return {
-      version: "3.4",
+      version: "3.5",
       settings,
       formations,
       gameSituations,
@@ -308,7 +325,7 @@ function App() {
 
   function applyCloudState(data) {
     if (!data) return;
-    if (data.settings) setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
+    if (data.settings) setSettings(normalizeSettingsForApp(data.settings));
     if (data.formations) setFormations(data.formations);
     if (data.gameSituations) setGameSituations(data.gameSituations);
     if (typeof data.activeSituationId === "number") setActiveSituationId(data.activeSituationId);
@@ -990,6 +1007,17 @@ function App() {
     setPanOffset(nextPan);
   }
 
+  function onBoardWheel(e) {
+    // Zoom din rotița mouse-ului numai când cursorul este peste tablă.
+    // Nu afectează inputurile / meniurile din topbar.
+    if (!boardWrapRef.current) return;
+    e.preventDefault();
+
+    const direction = e.deltaY < 0 ? 1 : -1;
+    const step = e.ctrlKey ? 0.05 : 0.1;
+    setZoom(z => clamp(Number((z + direction * step).toFixed(2)), 0.2, 3));
+  }
+
   function onBoardTouchEnd(e) {
     if (e.touches.length < 2) {
       touchGestureRef.current = null;
@@ -1004,7 +1032,7 @@ function App() {
   return (
     <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v3.4</span></strong>
+        <strong>Football Board Sandbox <span>v3.5</span></strong>
         <div className="authbox">
           {!authReady ? (
             <span>Auth...</span>
@@ -1050,7 +1078,7 @@ function App() {
         <button className={touchMode ? "toggle-on" : ""} onClick={() => setTouchMode(v => !v)}>
           Touch {touchMode ? "ON" : "OFF"}
         </button>
-        <button className={lockUI ? "toggle-on" : ""} onClick={() => { setPanOffset({x:0,y:0}); setZoom(z=>Math.min(3, Number((z+0.2).toFixed(2)))); setLockUI(true); }}>
+        <button className={lockUI ? "toggle-on" : ""} onClick={() => { beforeLockViewRef.current = { zoom, panOffset }; setPanOffset({x:0,y:0}); setZoom(z=>Math.min(3, Number((z+0.2).toFixed(2)))); setLockUI(true); }}>
           Lock UI
         </button>
         <button className={snapToGrid ? "toggle-on" : ""} onClick={() => setSnapToGrid(v => !v)}>
@@ -1134,6 +1162,7 @@ function App() {
         onPointerMove={moveBoardPan}
         onPointerUp={endBoardPan}
         onPointerCancel={endBoardPan}
+        onWheel={onBoardWheel}
         onTouchStart={onBoardTouchStart}
         onTouchMove={onBoardTouchMove}
         onTouchEnd={onBoardTouchEnd}
@@ -1296,7 +1325,7 @@ function App() {
             <button onClick={rollDie}>Roll</button>
             <span className={`die-result ${dieResult === 1 ? "die-min" : dieResult === dieType ? "die-max" : ""}`}>{dieResult === null ? "—" : dieResult}</span>
           </div>
-          <button onClick={() => { setLockUI(false); setZoom(0.8); setPanOffset({x:0,y:0}); }}>Unlock</button>
+          <button onClick={() => { const saved = beforeLockViewRef.current; setLockUI(false); if (saved) { setZoom(saved.zoom); setPanOffset(saved.panOffset); } else { setZoom(0.8); setPanOffset({x:0,y:0}); } }}>Unlock</button>
         </div>
       )}
 

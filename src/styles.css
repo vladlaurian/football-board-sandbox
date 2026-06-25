@@ -237,3 +237,30 @@
 .board-wrap .pitch-shell { transition: none; }
 .locked-ui .board-wrap { display:block !important; align-items:initial !important; justify-content:initial !important; overflow:hidden !important; padding:0 !important; }
 .locked-ui .pitch-shell { position:absolute !important; left:50% !important; top:50% !important; padding:0 !important; }
+
+
+/* v3.5 stability */
+.board-wrap {
+  cursor: grab;
+}
+
+.board-wrap:active {
+  cursor: grabbing;
+}
+
+/* Nu mărim vizual piesele pe touch. Hitbox-ul rămâne invizibil prin ::after. */
+@media (pointer: coarse) {
+  .touch-mode .piece:not(.ball),
+  .piece:not(.ball) {
+    width: calc(var(--cell) * .84) !important;
+    height: calc(var(--cell) * .84) !important;
+    font-size: calc(var(--cell) * .25) !important;
+  }
+
+  .touch-mode .piece.ball,
+  .piece.ball {
+    width: calc(var(--cell) * .6) !important;
+    height: calc(var(--cell) * .6) !important;
+    font-size: calc(var(--cell) * .22) !important;
+  }
+}
