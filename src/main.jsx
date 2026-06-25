@@ -462,7 +462,7 @@ function App() {
 
   function buildCloudState(overrides = {}) {
     return {
-      version: "multiplayer-0.1",
+      version: "multiplayer-0.2",
       settings,
       formations,
       gameSituations,
@@ -471,7 +471,6 @@ function App() {
       blueFormationId,
       redFormationId,
       pieces: normalizePiecesForBoard(pieces, settings),
-      zoom,
       dieType,
       dieResult,
       touchMode,
@@ -491,21 +490,18 @@ function App() {
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
     if (data.pieces) setPieces(normalizePiecesForBoard(data.pieces, data.settings ? normalizeSettingsForApp(data.settings) : settings));
-    if (typeof data.zoom === "number") setZoom(data.zoom);
     if (typeof data.dieType === "number") setDieType(data.dieType);
     if (data.dieResult !== undefined) setDieResult(data.dieResult);
     if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
-    setPanOffset({ x: 0, y: 0 });
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
   }
 
   function buildLiveBoardState(overrides = {}) {
     return {
-      version: "multiplayer-0.1",
+      version: "multiplayer-0.2",
       settings,
       pieces: normalizePiecesForBoard(pieces, settings),
-      zoom,
       dieType,
       dieResult,
       snapToGrid,
@@ -522,7 +518,6 @@ function App() {
     const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settings;
     if (data.settings) setSettings(nextSettings);
     if (data.pieces) setPieces(normalizePiecesForBoard(data.pieces, nextSettings));
-    if (typeof data.zoom === "number") setZoom(data.zoom);
     if (typeof data.dieType === "number") setDieType(data.dieType);
     if (data.dieResult !== undefined) setDieResult(data.dieResult);
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
@@ -530,7 +525,6 @@ function App() {
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
     if (data.actionLog) setActionLog(data.actionLog);
-    setPanOffset({ x: 0, y: 0 });
   }
 
   async function saveSessionState(overrides = {}) {
@@ -757,7 +751,6 @@ function App() {
     sessionCode,
     settings,
     pieces,
-    zoom,
     dieType,
     dieResult,
     snapToGrid,
@@ -796,7 +789,6 @@ function App() {
     blueFormationId,
     redFormationId,
     pieces,
-    zoom,
     dieType,
     dieResult,
     touchMode,
@@ -1292,7 +1284,6 @@ function App() {
   }
 
   function resetView() {
-    setPanOffset({ x: 0, y: 0 });
     setZoom(lockUI ? 1.0 : 0.8);
   }
 
@@ -1379,7 +1370,7 @@ function App() {
   return (
     <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
-        <strong>Football Board Sandbox <span>Multiplayer 0.1</span></strong>
+        <strong>Football Board Sandbox <span>Multiplayer 0.2</span></strong>
         <div className="authbox">
           {!authReady ? (
             <span>Auth...</span>

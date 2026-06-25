@@ -1,30 +1,8 @@
-# Football Board Sandbox v3.6
+# Football Board Sandbox - Multiplayer 0.2
 
-## v3.6 – Board Coordinates API
-
-- Added internal Board API based on logical grid coordinates (A1, B1, O15 etc.).
-- Each piece now also carries:
-  - `coord`, for example `O15`
-  - `position`, with `{ coord, x, y }`
-- Added internal square objects:
-  - `coord`
-  - `x`, `y`
-  - `lengthIndex`
-  - `widthLetter`
-  - `occupied`
-  - `piece` / `pieces`
-- Added internal helper API:
-  - `getPiece(id)`
-  - `getPieceAt(coord)`
-  - `getPiecesAt(coord)`
-  - `getSquare(coord)`
-  - `getAllSquares()`
-  - `isEmpty(coord)`
-  - `movePiece(id, coord)`
-  - `distance(from, to)`
-  - `adjacentSquares(coord)`
-- Exposed debug API in browser console as:
-  - `window.__footballBoardApi`
-- No visual/UI changes.
-- Snap OFF remains visually free; logical coordinate is calculated from the nearest square.
-- Cloud/Login/Touch/Zoom/Pan remain unchanged.
+## Multiplayer 0.2
+- Zoom-ul este local pentru fiecare dispozitiv.
+- Pan-ul este local pentru fiecare dispozitiv.
+- Lock UI este local și nu mai afectează zoom-ul celuilalt jucător.
+- Se sincronizează în continuare piesele, mingea, zarul, formațiile active și history.
+- Pornește de la Multiplayer 0.1.

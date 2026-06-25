@@ -264,3 +264,45 @@
     font-size: calc(var(--cell) * .22) !important;
   }
 }
+
+
+/* Multiplayer 0.1 */
+.sessionbox{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:4px 6px;
+  border:1px solid rgba(255,255,255,.16);
+  border-radius:10px;
+  background:#202020;
+}
+.sessionbox.session-online{
+  border-color:rgba(80,255,140,.45);
+  background:#152317;
+}
+.session-pill{
+  font-size:11px;
+  font-weight:900;
+  padding:4px 7px;
+  border-radius:999px;
+  background:#1f7a37;
+  color:#caffd5;
+  border:1px solid rgba(140,255,170,.35);
+}
+.session-code,.session-players,.session-status{
+  font-size:12px;
+  white-space:nowrap;
+}
+.session-code{font-weight:800;color:#fff}
+.session-players{opacity:.85}
+.session-status{opacity:.75}
+.join-code{
+  width:76px !important;
+  text-transform:uppercase;
+  font-weight:900;
+  letter-spacing:1px;
+  text-align:center;
+}
+@media(max-width:900px){
+  .sessionbox{order:3}
+}
