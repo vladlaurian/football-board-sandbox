@@ -571,7 +571,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v32", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v33", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -589,7 +589,7 @@ function App() {
 
   function loadBoard() {
     const raw =
-      localStorage.getItem("football-board-sandbox-v32") ||
+      localStorage.getItem("football-board-sandbox-v33") ||
       localStorage.getItem("football-board-sandbox-v22") ||
       localStorage.getItem("football-board-sandbox-v21") ||
       localStorage.getItem("football-board-sandbox-v20") ||
@@ -962,7 +962,7 @@ function App() {
   return (
     <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v3.2</span></strong>
+        <strong>Football Board Sandbox <span>v3.3</span></strong>
         <div className="authbox">
           {!authReady ? (
             <span>Auth...</span>

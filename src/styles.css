@@ -193,3 +193,40 @@
     border-radius: 999px;
   }
 }
+
+
+/* v3.3 Touch visual size fix
+   Hitbox stays bigger, visual size returns to normal grid scale. */
+.touch-mode .piece:not(.ball) {
+  width: calc(var(--cell) * .84) !important;
+  height: calc(var(--cell) * .84) !important;
+  font-size: calc(var(--cell) * .25) !important;
+}
+
+.touch-mode .piece.ball {
+  width: calc(var(--cell) * .6) !important;
+  height: calc(var(--cell) * .6) !important;
+  font-size: calc(var(--cell) * .22) !important;
+}
+
+@media (pointer: coarse) {
+  .piece {
+    min-width: 0 !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .piece.ball {
+    min-width: 0 !important;
+    min-height: 0 !important;
+  }
+
+  .piece::after {
+    content: "";
+    position: absolute;
+    inset: -10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.001);
+    pointer-events: auto;
+  }
+}
