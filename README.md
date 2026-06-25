@@ -1,10 +1,11 @@
-# Football Board Sandbox v3.0
+# Football Board Sandbox v3.2 – Touch Edition
 
-- Firebase conectat
-- Login cu Google / Logout
-- Formațiile și situațiile de joc se salvează și în cloud când apeși Save
-- Buton Cloud Save pentru snapshot complet
-- La login, aplicația încarcă datele din cloud; dacă nu există cloud data, urcă datele locale curente
-- localStorage rămâne fallback pentru utilizare fără login
-
-IMPORTANT: Firestore rules trebuie să permită userului autentificat să citească/scrie doar în propriul nod `/users/{uid}`.
+## v3.2
+- optimizare pentru iPad/tabletă
+- Touch Mode activat automat pe dispozitive touch
+- hitbox mai mare pentru jucători și minge pe touch
+- pinch-to-zoom cu două degete
+- pan cu două degete
+- double tap pe teren = reset view
+- Lock UI și Cloud Save păstrate
+- desktop rămâne pe comportamentul existent

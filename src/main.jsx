@@ -258,8 +258,9 @@ function App() {
   const [historyDragging, setHistoryDragging] = useState(null);
   const [historyResizing, setHistoryResizing] = useState(null);
   const [historyVisible, setHistoryVisible] = useState(false);
-  const [touchMode, setTouchMode] = useState(false);
+  const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
   const [lockUI, setLockUI] = useState(false);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
@@ -269,17 +270,19 @@ function App() {
   const boardWrapRef = useRef(null);
   const isApplyingCloudRef = useRef(false);
   const autosaveTimerRef = useRef(null);
+  const touchGestureRef = useRef(null);
+  const lastTapRef = useRef({ time: 0, x: 0, y: 0 });
 
   const pitchStyle = useMemo(() => ({
     "--cols": settings.cols,
     "--rows": settings.rows,
     "--cell": `${settings.cellSize}px`,
-    transform: `scale(${zoom})`,
-  }), [settings, zoom]);
+    transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+  }), [settings, zoom, panOffset]);
 
   function buildCloudState(overrides = {}) {
     return {
-      version: "3.1",
+      version: "3.2",
       settings,
       formations,
       gameSituations,
@@ -292,6 +295,7 @@ function App() {
       dieType,
       dieResult,
       touchMode,
+      panOffset,
       snapToGrid,
       showCoordinates,
       ...overrides,
@@ -312,6 +316,7 @@ function App() {
     if (typeof data.dieType === "number") setDieType(data.dieType);
     if (data.dieResult !== undefined) setDieResult(data.dieResult);
     if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
+    if (data.panOffset) setPanOffset(data.panOffset);
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
   }
@@ -566,7 +571,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v31", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v32", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -584,7 +589,7 @@ function App() {
 
   function loadBoard() {
     const raw =
-      localStorage.getItem("football-board-sandbox-v31") ||
+      localStorage.getItem("football-board-sandbox-v32") ||
       localStorage.getItem("football-board-sandbox-v22") ||
       localStorage.getItem("football-board-sandbox-v21") ||
       localStorage.getItem("football-board-sandbox-v20") ||
@@ -880,10 +885,84 @@ function App() {
     setZoom(clamp(Number((available / pitchHeight).toFixed(2)), 0.2, 3));
   }
 
+  function resetView() {
+    setPanOffset({ x: 0, y: 0 });
+    setZoom(lockUI ? 1.0 : 0.8);
+  }
+
+  function touchDistance(t1, t2) {
+    const dx = t2.clientX - t1.clientX;
+    const dy = t2.clientY - t1.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function touchMidpoint(t1, t2) {
+    return { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
+  }
+
+  function onBoardTouchStart(e) {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const [t1, t2] = e.touches;
+      touchGestureRef.current = {
+        mode: "two-finger",
+        startDistance: touchDistance(t1, t2),
+        startMid: touchMidpoint(t1, t2),
+        startZoom: zoom,
+        startPan: panOffset,
+      };
+      return;
+    }
+
+    if (e.touches.length === 1 && e.target === pitchRef.current) {
+      const touch = e.touches[0];
+      const now = Date.now();
+      const last = lastTapRef.current;
+      const dx = touch.clientX - last.x;
+      const dy = touch.clientY - last.y;
+      const closeEnough = Math.sqrt(dx * dx + dy * dy) < 32;
+      if (now - last.time < 320 && closeEnough) {
+        e.preventDefault();
+        resetView();
+        lastTapRef.current = { time: 0, x: 0, y: 0 };
+      } else {
+        lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
+      }
+    }
+  }
+
+  function onBoardTouchMove(e) {
+    const gesture = touchGestureRef.current;
+    if (!gesture || gesture.mode !== "two-finger" || e.touches.length !== 2) return;
+    e.preventDefault();
+    const [t1, t2] = e.touches;
+    const currentDistance = touchDistance(t1, t2);
+    const currentMid = touchMidpoint(t1, t2);
+    const ratio = currentDistance / Math.max(1, gesture.startDistance);
+    const nextZoom = clamp(Number((gesture.startZoom * ratio).toFixed(3)), 0.2, 3);
+    const nextPan = {
+      x: gesture.startPan.x + (currentMid.x - gesture.startMid.x),
+      y: gesture.startPan.y + (currentMid.y - gesture.startMid.y),
+    };
+    setZoom(nextZoom);
+    setPanOffset(nextPan);
+  }
+
+  function onBoardTouchEnd(e) {
+    if (e.touches.length < 2) {
+      touchGestureRef.current = null;
+    }
+  }
+
+  function onHistoryPointerUp() {
+    setHistoryDragging(null);
+    setHistoryResizing(null);
+  }
+
   return (
     <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v3.1</span></strong>
+        <strong>Football Board Sandbox <span>v3.2</span></strong>
         <div className="authbox">
           {!authReady ? (
             <span>Auth...</span>
@@ -929,7 +1008,7 @@ function App() {
         <button className={touchMode ? "toggle-on" : ""} onClick={() => setTouchMode(v => !v)}>
           Touch {touchMode ? "ON" : "OFF"}
         </button>
-        <button className={lockUI ? "toggle-on" : ""} onClick={() => { setZoom(z=>Math.min(3, Number((z+0.2).toFixed(2)))); setLockUI(true); }}>
+        <button className={lockUI ? "toggle-on" : ""} onClick={() => { setPanOffset({x:0,y:0}); setZoom(z=>Math.min(3, Number((z+0.2).toFixed(2)))); setLockUI(true); }}>
           Lock UI
         </button>
         <button className={snapToGrid ? "toggle-on" : ""} onClick={() => setSnapToGrid(v => !v)}>
@@ -1006,7 +1085,14 @@ function App() {
         </button>
       </div>
 
-      <div className="board-wrap" ref={boardWrapRef}>
+      <div
+        className="board-wrap"
+        ref={boardWrapRef}
+        onTouchStart={onBoardTouchStart}
+        onTouchMove={onBoardTouchMove}
+        onTouchEnd={onBoardTouchEnd}
+        onTouchCancel={onBoardTouchEnd}
+      >
         <div className="pitch-shell">
           <div className="pitch" ref={pitchRef} style={pitchStyle} onPointerDown={onPitchPointerDown}>
             <div className="half-line" />
@@ -1164,7 +1250,7 @@ function App() {
             <button onClick={rollDie}>Roll</button>
             <span className={`die-result ${dieResult === 1 ? "die-min" : dieResult === dieType ? "die-max" : ""}`}>{dieResult === null ? "—" : dieResult}</span>
           </div>
-          <button onClick={() => { setLockUI(false); setZoom(0.8); }}>Unlock</button>
+          <button onClick={() => { setLockUI(false); setZoom(0.8); setPanOffset({x:0,y:0}); }}>Unlock</button>
         </div>
       )}
 
