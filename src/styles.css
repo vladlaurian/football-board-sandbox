@@ -307,8 +307,7 @@
   .sessionbox{order:3}
 }
 
-
-/* Multiplayer 0.3 dice panel */
+/* Multiplayer 0.3.1 dice panel */
 .dice-panel {
   position: fixed;
   z-index: 70;
@@ -319,7 +318,6 @@
   overflow: hidden;
   user-select: none;
 }
-
 .dice-panel-title {
   height: 38px;
   display: flex;
@@ -331,38 +329,17 @@
   cursor: grab;
   touch-action: none;
 }
-
-.dice-panel-title:active {
-  cursor: grabbing;
-}
-
-.dice-panel-body {
-  padding: 14px;
-}
-
-.floating-dice-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.dice-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
+.dice-panel-title:active { cursor: grabbing; }
+.dice-panel-body { padding: 14px; }
+.floating-dice-box { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dice-actions { display: flex; align-items: center; gap: 6px; }
 .dice-resize {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 18px;
-  height: 18px;
+  right: 0; bottom: 0;
+  width: 18px; height: 18px;
   cursor: nwse-resize;
   background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.45) 50%);
 }
-
 .die-result {
   display: inline-flex;
   align-items: center;

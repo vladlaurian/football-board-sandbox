@@ -412,6 +412,11 @@ function App() {
   const [historyDragging, setHistoryDragging] = useState(null);
   const [historyResizing, setHistoryResizing] = useState(null);
   const [historyVisible, setHistoryVisible] = useState(false);
+  const [dicePanelVisible, setDicePanelVisible] = useState(false);
+  const [dicePanelPosition, setDicePanelPosition] = useState({ x: 420, y: 180 });
+  const [dicePanelSize, setDicePanelSize] = useState({ w: 300, h: 150 });
+  const [dicePanelDragging, setDicePanelDragging] = useState(null);
+  const [dicePanelResizing, setDicePanelResizing] = useState(null);
   const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
   const [lockUI, setLockUI] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -1414,7 +1419,7 @@ function App() {
   return (
     <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
-        <strong>Football Board Sandbox <span>Multiplayer 0.3</span></strong>
+        <strong>Football Board Sandbox <span>Multiplayer 0.3.1</span></strong>
         <div className="authbox">
           {!authReady ? (
             <span>Auth...</span>
