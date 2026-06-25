@@ -1,8 +1,10 @@
-# Football Board Sandbox - Multiplayer 0.2
+# Football Board Sandbox - Multiplayer 0.2.1
 
-## Multiplayer 0.2
-- Zoom-ul este local pentru fiecare dispozitiv.
-- Pan-ul este local pentru fiecare dispozitiv.
-- Lock UI este local și nu mai afectează zoom-ul celuilalt jucător.
-- Se sincronizează în continuare piesele, mingea, zarul, formațiile active și history.
-- Pornește de la Multiplayer 0.1.
+## Fix
+- Eliminat package-lock.json generat în mediu local.
+- Vercel va instala dependențele din npm public.
+- Păstrează fixul din Multiplayer 0.2:
+  - zoom local per device
+  - pan local per device
+  - Lock UI local
+  - piesele/mingea/zarul rămân sincronizate
