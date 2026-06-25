@@ -272,17 +272,22 @@ function App() {
   const autosaveTimerRef = useRef(null);
   const touchGestureRef = useRef(null);
   const lastTapRef = useRef({ time: 0, x: 0, y: 0 });
+  const boardPanRef = useRef(null);
 
   const pitchStyle = useMemo(() => ({
     "--cols": settings.cols,
     "--rows": settings.rows,
     "--cell": `${settings.cellSize}px`,
-    transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-  }), [settings, zoom, panOffset]);
+    transform: `scale(${zoom})`,
+  }), [settings, zoom]);
+
+  const pitchShellStyle = useMemo(() => ({
+    transform: `translate(calc(-50% + ${panOffset.x}px), calc(-50% + ${panOffset.y}px))`,
+  }), [panOffset]);
 
   function buildCloudState(overrides = {}) {
     return {
-      version: "3.2",
+      version: "3.4",
       settings,
       formations,
       gameSituations,
@@ -295,7 +300,6 @@ function App() {
       dieType,
       dieResult,
       touchMode,
-      panOffset,
       snapToGrid,
       showCoordinates,
       ...overrides,
@@ -316,7 +320,7 @@ function App() {
     if (typeof data.dieType === "number") setDieType(data.dieType);
     if (data.dieResult !== undefined) setDieResult(data.dieResult);
     if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
-    if (data.panOffset) setPanOffset(data.panOffset);
+    setPanOffset({ x: 0, y: 0 });
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
   }
@@ -571,7 +575,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v33", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v34", JSON.stringify({ settings, pieces, zoom }));
     alert("Salvat în browser.");
   }
 
@@ -589,7 +593,7 @@ function App() {
 
   function loadBoard() {
     const raw =
-      localStorage.getItem("football-board-sandbox-v33") ||
+      localStorage.getItem("football-board-sandbox-v34") ||
       localStorage.getItem("football-board-sandbox-v22") ||
       localStorage.getItem("football-board-sandbox-v21") ||
       localStorage.getItem("football-board-sandbox-v20") ||
@@ -830,6 +834,44 @@ function App() {
     }
   }
 
+  function canStartBoardPan(e) {
+    if (measureMode || editingPiece) return false;
+    if (e.pointerType === "touch") return false;
+    const target = e.target;
+    if (!target) return false;
+    if (target.closest && target.closest(".piece")) return false;
+    return target === boardWrapRef.current || target === pitchRef.current || (target.closest && target.closest(".pitch-shell"));
+  }
+
+  function startBoardPan(e) {
+    if (!canStartBoardPan(e)) return;
+    e.preventDefault();
+    boardWrapRef.current?.setPointerCapture?.(e.pointerId);
+    boardPanRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: panOffset.x,
+      originY: panOffset.y,
+    };
+  }
+
+  function moveBoardPan(e) {
+    const pan = boardPanRef.current;
+    if (!pan || pan.pointerId !== e.pointerId) return;
+    e.preventDefault();
+    setPanOffset({
+      x: pan.originX + (e.clientX - pan.startX),
+      y: pan.originY + (e.clientY - pan.startY),
+    });
+  }
+
+  function endBoardPan(e) {
+    if (boardPanRef.current && boardPanRef.current.pointerId === e.pointerId) {
+      boardPanRef.current = null;
+    }
+  }
+
   function onHistoryPointerDown(e) {
     e.preventDefault();
     setHistoryDragging({
@@ -962,7 +1004,7 @@ function App() {
   return (
     <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
-        <strong>Football Board Sandbox <span>v3.3</span></strong>
+        <strong>Football Board Sandbox <span>v3.4</span></strong>
         <div className="authbox">
           {!authReady ? (
             <span>Auth...</span>
@@ -1088,12 +1130,16 @@ function App() {
       <div
         className="board-wrap"
         ref={boardWrapRef}
+        onPointerDown={startBoardPan}
+        onPointerMove={moveBoardPan}
+        onPointerUp={endBoardPan}
+        onPointerCancel={endBoardPan}
         onTouchStart={onBoardTouchStart}
         onTouchMove={onBoardTouchMove}
         onTouchEnd={onBoardTouchEnd}
         onTouchCancel={onBoardTouchEnd}
       >
-        <div className="pitch-shell">
+        <div className="pitch-shell" style={pitchShellStyle}>
           <div className="pitch" ref={pitchRef} style={pitchStyle} onPointerDown={onPitchPointerDown}>
             <div className="half-line" />
             <div className="center-circle" style={{
