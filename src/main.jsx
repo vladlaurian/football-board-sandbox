@@ -89,6 +89,7 @@ const DEFAULT_SETTINGS = {
   cols: 44,
   rows: 29,
   cellSize: 28,
+  invisiblePadding: 2,
   goalDepth: 2,
   goalWidth: 5,
   boxDepth: 7,
@@ -194,30 +195,38 @@ function isInsideGoalMouthY(y, settingsLike = DEFAULT_SETTINGS) {
   return y >= top && y <= bottom;
 }
 
+function invisiblePaddingForSettings(settingsLike = DEFAULT_SETTINGS) {
+  return Number(settingsLike.invisiblePadding ?? DEFAULT_SETTINGS.invisiblePadding ?? 2);
+}
+
 function clampBoardXForY(x, y, settingsLike = DEFAULT_SETTINGS) {
   const cols = settingsLike.cols ?? DEFAULT_SETTINGS.cols;
-  const goalDepth = settingsLike.goalDepth ?? DEFAULT_SETTINGS.goalDepth;
-  if (isInsideGoalMouthY(Math.round(y), settingsLike)) {
-    return clamp(x, -goalDepth, cols + goalDepth - 1);
-  }
-  return clamp(x, 0, cols - 1);
+  const pad = invisiblePaddingForSettings(settingsLike);
+  return clamp(x, -pad, cols + pad - 1);
+}
+
+function clampBoardY(y, settingsLike = DEFAULT_SETTINGS) {
+  const rows = settingsLike.rows ?? DEFAULT_SETTINGS.rows;
+  const pad = invisiblePaddingForSettings(settingsLike);
+  return clamp(y, -pad, rows + pad - 1);
 }
 
 function normalizeGridPosition(x, y, settingsLike = DEFAULT_SETTINGS) {
-  const safeY = clamp(Math.round(Number(y) || 0), 0, (settingsLike.rows ?? DEFAULT_SETTINGS.rows) - 1);
+  const safeY = clampBoardY(Math.round(Number(y) || 0), settingsLike);
   const safeX = clampBoardXForY(Math.round(Number(x) || 0), safeY, settingsLike);
   const fieldX = clamp(safeX, 0, (settingsLike.cols ?? DEFAULT_SETTINGS.cols) - 1);
+  const fieldY = clamp(safeY, 0, (settingsLike.rows ?? DEFAULT_SETTINGS.rows) - 1);
   return {
     x: safeX,
     y: safeY,
-    coord: toCoord(fieldX, safeY),
+    coord: toCoord(fieldX, fieldY),
     square: {
-      id: toCoord(fieldX, safeY),
-      coord: toCoord(fieldX, safeY),
+      id: toCoord(fieldX, fieldY),
+      coord: toCoord(fieldX, fieldY),
       x: safeX,
       y: safeY,
       lengthIndex: safeX + 1,
-      widthLetter: rowLetter(safeY),
+      widthLetter: rowLetter(fieldY),
     },
   };
 }
@@ -225,7 +234,7 @@ function normalizeGridPosition(x, y, settingsLike = DEFAULT_SETTINGS) {
 function withBoardPosition(piece, settingsLike = DEFAULT_SETTINGS) {
   // x/y rămân poziția vizuală reală, inclusiv fracționară când Snap este OFF.
   // coord/position reprezintă pătrățica logică, rotunjită la celula cea mai apropiată.
-  const rawY = clamp(Number(piece.y) || 0, 0, (settingsLike.rows ?? DEFAULT_SETTINGS.rows) - 1);
+  const rawY = clampBoardY(Number(piece.y) || 0, settingsLike);
   const rawX = clampBoardXForY(Number(piece.x) || 0, rawY, settingsLike);
   const grid = normalizeGridPosition(rawX, rawY, settingsLike);
   return {
@@ -398,6 +407,8 @@ function loadStoredGameSituations() {
 function createInitialPieces(cols, rows, blueFormation = FORMATION_SLOTS[0], redFormation = FORMATION_SLOTS[1]) {
   const pieces = [];
   const midY = Math.floor(rows / 2);
+  const localSettings = { ...DEFAULT_SETTINGS, cols, rows };
+  const pad = invisiblePaddingForSettings(localSettings);
 
   function addFormation(team, formation) {
     const isBlue = team === "A";
@@ -408,17 +419,36 @@ function createInitialPieces(cols, rows, blueFormation = FORMATION_SLOTS[0], red
         id: `${team}-${i}`,
         team,
         label,
-        x: clamp(x, 0, cols - 1),
-        y: clamp(pos.y, 0, rows - 1),
+        x: clampBoardXForY(x, pos.y, localSettings),
+        y: clampBoardY(pos.y, localSettings),
       });
     });
   }
 
+  function addBench(team) {
+    const isBlue = team === "A";
+    const benchX = isBlue ? -pad : cols + pad - 1;
+    const benchX2 = isBlue ? -pad + 1 : cols + pad - 2;
+    const startY = Math.max(1, midY - 4);
+    pieces.push({ id: `${team}-R-GK`, team, label: "GK", x: benchX, y: startY });
+    for (let i = 0; i < 6; i++) {
+      pieces.push({
+        id: `${team}-R-${i + 1}`,
+        team,
+        label: "",
+        x: i % 2 === 0 ? benchX : benchX2,
+        y: startY + 2 + Math.floor(i / 2) * 2,
+      });
+    }
+  }
+
   addFormation("A", blueFormation);
   addFormation("B", redFormation);
+  addBench("A");
+  addBench("B");
 
   pieces.push({ id: "BALL", team: "BALL", label: "●", x: Math.floor(cols / 2), y: midY });
-  return normalizePiecesForBoard(pieces, { ...DEFAULT_SETTINGS, cols, rows });
+  return normalizePiecesForBoard(pieces, localSettings);
 }
 
 function App() {
@@ -1070,10 +1100,10 @@ function App() {
     let y;
 
     if (snapToGrid) {
-      y = clamp(Math.floor(localY / settings.cellSize), 0, settings.rows - 1);
+      y = clampBoardY(Math.floor(localY / settings.cellSize), settings);
       x = clampBoardXForY(Math.floor(localX / settings.cellSize), y, settings);
     } else {
-      y = clamp(localY / settings.cellSize - 0.5, 0, settings.rows - 1);
+      y = clampBoardY(localY / settings.cellSize - 0.5, settings);
       x = clampBoardXForY(localX / settings.cellSize - 0.5, y, settings);
     }
 
@@ -1183,6 +1213,7 @@ function App() {
 
   function goalGrid(side) {
     const verticalLines = Array.from({ length: settings.goalDepth + 1 }, (_, i) => i)
+      // Nu redesenăm linia porții: pentru stânga excludem x=goalDepth, pentru dreapta excludem x=0.
       .filter(i => side === "left" ? i < settings.goalDepth : i > 0);
     const horizontalLines = Array.from({ length: settings.goalWidth + 1 }, (_, i) => i);
 
@@ -1231,7 +1262,7 @@ function App() {
     const rect = pitch.getBoundingClientRect();
     const localX = (e.clientX - rect.left) / zoom;
     const localY = (e.clientY - rect.top) / zoom;
-    const y = clamp(Math.floor(localY / settings.cellSize), 0, settings.rows - 1);
+    const y = clampBoardY(Math.floor(localY / settings.cellSize), settings);
     return {
       x: clampBoardXForY(Math.floor(localX / settings.cellSize), y, settings),
       y,
@@ -1668,7 +1699,7 @@ function App() {
               }} />
             )}
             {measureStart && measureEnd && (
-              <svg className="measure-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
+              <svg className="measure-svg" viewBox={`${-invisiblePaddingForSettings(settings)} ${-invisiblePaddingForSettings(settings)} ${settings.cols + invisiblePaddingForSettings(settings) * 2} ${settings.rows + invisiblePaddingForSettings(settings) * 2}`} preserveAspectRatio="none">
                 <line
                   x1={measureStart.x + .5}
                   y1={measureStart.y + .5}

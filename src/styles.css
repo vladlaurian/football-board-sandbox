@@ -369,19 +369,19 @@
     linear-gradient(to bottom,var(--grid) 1px,transparent 1px),
     linear-gradient(90deg,
       #238a45 0 calc(var(--cell)*3),
-      #1b743a calc(var(--cell)*3) calc(var(--cell)*7),
+      #1f7d3e calc(var(--cell)*3) calc(var(--cell)*7),
       #238a45 calc(var(--cell)*7) calc(var(--cell)*10),
-      #1b743a calc(var(--cell)*10) calc(var(--cell)*13),
+      #1f7d3e calc(var(--cell)*10) calc(var(--cell)*13),
       #238a45 calc(var(--cell)*13) calc(var(--cell)*16),
-      #1b743a calc(var(--cell)*16) calc(var(--cell)*19),
+      #1f7d3e calc(var(--cell)*16) calc(var(--cell)*19),
       #238a45 calc(var(--cell)*19) calc(var(--cell)*22),
-      #1b743a calc(var(--cell)*22) calc(var(--cell)*25),
+      #1f7d3e calc(var(--cell)*22) calc(var(--cell)*25),
       #238a45 calc(var(--cell)*25) calc(var(--cell)*28),
-      #1b743a calc(var(--cell)*28) calc(var(--cell)*31),
+      #1f7d3e calc(var(--cell)*28) calc(var(--cell)*31),
       #238a45 calc(var(--cell)*31) calc(var(--cell)*34),
-      #1b743a calc(var(--cell)*34) calc(var(--cell)*37),
+      #1f7d3e calc(var(--cell)*34) calc(var(--cell)*37),
       #238a45 calc(var(--cell)*37) calc(var(--cell)*41),
-      #1b743a calc(var(--cell)*41) calc(var(--cell)*44)
+      #1f7d3e calc(var(--cell)*41) calc(var(--cell)*44)
     ) !important;
   background-size:var(--cell) var(--cell),var(--cell) var(--cell),auto !important;
 }
@@ -401,4 +401,30 @@
 }
 .left-goal,.right-goal{
   background-position:left top,left top,0 0 !important;
+}
+
+
+/* goal-grid-fix: goals use the same logical cell grid as the pitch; the pitch border is the goal line */
+.goal{
+  box-sizing:border-box !important;
+  border:0 !important;
+  outline:0 !important;
+  background:rgba(255,255,255,.12) !important;
+  overflow:visible !important;
+}
+.left-goal{right:100% !important; left:auto !important;}
+.right-goal{left:100% !important; right:auto !important;}
+.goal-grid{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  overflow:visible;
+  pointer-events:none;
+}
+.goal-grid line{
+  stroke:var(--line);
+  stroke-width:.075;
+  vector-effect:non-scaling-stroke;
+  shape-rendering:crispEdges;
 }
