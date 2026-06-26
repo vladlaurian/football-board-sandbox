@@ -1257,23 +1257,26 @@ function App() {
     const dySigned = measureEnd.y - measureStart.y;
     const dx = Math.abs(dxSigned);
     const dy = Math.abs(dySigned);
-    const cells = Math.sqrt(dx * dx + dy * dy);
+    const rawCells = Math.sqrt(dx * dx + dy * dy);
+    const cells = Math.max(0, rawCells - 1);
     return {
       mode: measureType,
       dx,
       dy,
+      rawCells,
       cells,
       cellsLabel: cells.toFixed(2),
     };
   }, [measureStart, measureEnd, measureType]);
 
   const rulerMarkers = useMemo(() => {
-    if (!measureStart || !measureEnd || !measureInfo || measureInfo.cells <= 0) return [];
+    if (!measureStart || !measureEnd || !measureInfo || measureInfo.rawCells <= 0) return [];
     const dx = measureEnd.x - measureStart.x;
     const dy = measureEnd.y - measureStart.y;
-    const length = measureInfo.cells;
-    const ux = dx / length;
-    const uy = dy / length;
+    const rawLength = measureInfo.rawCells;
+    const measuredLength = measureInfo.cells;
+    const ux = dx / rawLength;
+    const uy = dy / rawLength;
     const tick = 0.45;
     const raw = [
       { type: "pass", label: String(passMark), value: Number(passMark) },
@@ -1283,10 +1286,11 @@ function App() {
     ];
 
     return raw
-      .filter(mark => Number.isFinite(mark.value) && mark.value > 0 && mark.value <= length)
+      .filter(mark => Number.isFinite(mark.value) && mark.value > 0 && mark.value <= measuredLength)
       .map((mark, index) => {
-        const x = measureStart.x + ux * mark.value;
-        const y = measureStart.y + uy * mark.value;
+        const visualDistance = mark.value + 1;
+        const x = measureStart.x + ux * visualDistance;
+        const y = measureStart.y + uy * visualDistance;
         return {
           ...mark,
           key: `${mark.type}-${mark.value}-${index}`,
