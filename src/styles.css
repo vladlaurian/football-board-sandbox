@@ -839,3 +839,52 @@ input[type="number"] {
     overflow: auto;
   }
 }
+
+/* v4.0 compact one-row toolbar viewport on tablets
+   Keep all controls available, but show only one toolbar row at a time.
+   The user can scroll inside the top toolbar to reach rows 2/3. */
+.topbar {
+  max-height: 44px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-width: thin;
+}
+.topbar::-webkit-scrollbar { width: 5px; height: 5px; }
+.topbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,.28); border-radius: 999px; }
+
+@media (pointer: coarse) {
+  .topbar {
+    max-height: 40px !important;
+    padding: 3px 5px !important;
+    gap: 3px !important;
+  }
+  .topbar button,
+  .topbar select,
+  .topbar input {
+    min-height: 30px !important;
+    font-size: 11px !important;
+  }
+  .topbar button {
+    padding: 3px 6px !important;
+  }
+  .number-control {
+    gap: 2px !important;
+  }
+  .number-control > span,
+  .topbar label {
+    font-size: 9px !important;
+  }
+  .topbar .number-stepper input {
+    width: 30px !important;
+    min-width: 30px !important;
+    min-height: 30px !important;
+    font-size: 11px !important;
+    padding: 2px 1px !important;
+  }
+  .topbar .number-stepper .step-btn {
+    min-width: 24px !important;
+    min-height: 30px !important;
+    font-size: 14px !important;
+    padding: 0 4px !important;
+  }
+}
