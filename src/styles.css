@@ -493,13 +493,13 @@
 }
 .measure-svg .ruler-shadow-line{
   stroke:rgba(0,0,0,.55);
-  stroke-width:.24;
+  stroke-width:.45;
   vector-effect:non-scaling-stroke;
   stroke-linecap:round;
 }
 .measure-svg .ruler-main-line{
   stroke:#4da3ff;
-  stroke-width:.12;
+  stroke-width:.35;
   vector-effect:non-scaling-stroke;
   stroke-linecap:round;
 }
