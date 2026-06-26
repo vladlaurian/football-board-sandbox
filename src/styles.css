@@ -351,3 +351,13 @@
   line-height: 1;
   box-sizing: border-box;
 }
+
+/* pitch-44-goal-5x2: goal cells are visible as active 5x2 grid zones */
+.goal {
+  background:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px),
+    rgba(255,255,255,.12);
+  background-size: var(--cell) var(--cell), var(--cell) var(--cell), auto;
+  overflow: visible;
+}

@@ -86,14 +86,14 @@ function decodeFromFirestore(value) {
 }
 
 const DEFAULT_SETTINGS = {
-  cols: 40,
+  cols: 44,
   rows: 29,
   cellSize: 28,
   goalDepth: 2,
   goalWidth: 5,
-  boxDepth: 6,
+  boxDepth: 7,
   boxWidth: 17,
-  smallDepth: 2,
+  smallDepth: 3,
   smallWidth: 9,
   penaltyDistance: 5,
   penaltyY: 14,
@@ -102,8 +102,24 @@ const DEFAULT_SETTINGS = {
   cornerArcRadius: 1,
 };
 
+function isLegacyDefaultPitch(rawSettings = {}) {
+  return (
+    Number(rawSettings.cols) === 40 &&
+    Number(rawSettings.rows) === 29 &&
+    Number(rawSettings.goalDepth ?? 2) === 2 &&
+    Number(rawSettings.goalWidth ?? 5) === 5 &&
+    Number(rawSettings.boxDepth ?? 6) === 6 &&
+    Number(rawSettings.boxWidth ?? 17) === 17 &&
+    Number(rawSettings.smallDepth ?? 2) === 2 &&
+    Number(rawSettings.smallWidth ?? 9) === 9
+  );
+}
+
 function normalizeSettingsForApp(rawSettings = {}) {
-  const next = { ...DEFAULT_SETTINGS, ...rawSettings };
+  const shouldUpgradeLegacyDefault = isLegacyDefaultPitch(rawSettings);
+  const next = shouldUpgradeLegacyDefault
+    ? { ...rawSettings, cols: 44, boxDepth: 7, smallDepth: 3, goalDepth: 2, goalWidth: 5, penaltyDistance: 5, penaltyY: 14 }
+    : { ...DEFAULT_SETTINGS, ...rawSettings };
 
   // v3.4 a putut salva accidental Pătrățel = 50 în cloud.
   // Revenim la default-ul stabil 28 fără să afectăm proporțiile logice ale terenului.
@@ -168,16 +184,36 @@ function fromCoord(coord) {
   return { x: number - 1, y: y - 1 };
 }
 
+function goalTopForSettings(settingsLike = DEFAULT_SETTINGS) {
+  return Math.floor(((settingsLike.rows ?? DEFAULT_SETTINGS.rows) - (settingsLike.goalWidth ?? DEFAULT_SETTINGS.goalWidth)) / 2);
+}
+
+function isInsideGoalMouthY(y, settingsLike = DEFAULT_SETTINGS) {
+  const top = goalTopForSettings(settingsLike);
+  const bottom = top + (settingsLike.goalWidth ?? DEFAULT_SETTINGS.goalWidth) - 1;
+  return y >= top && y <= bottom;
+}
+
+function clampBoardXForY(x, y, settingsLike = DEFAULT_SETTINGS) {
+  const cols = settingsLike.cols ?? DEFAULT_SETTINGS.cols;
+  const goalDepth = settingsLike.goalDepth ?? DEFAULT_SETTINGS.goalDepth;
+  if (isInsideGoalMouthY(Math.round(y), settingsLike)) {
+    return clamp(x, -goalDepth, cols + goalDepth - 1);
+  }
+  return clamp(x, 0, cols - 1);
+}
+
 function normalizeGridPosition(x, y, settingsLike = DEFAULT_SETTINGS) {
-  const safeX = clamp(Math.round(Number(x) || 0), 0, (settingsLike.cols ?? DEFAULT_SETTINGS.cols) - 1);
   const safeY = clamp(Math.round(Number(y) || 0), 0, (settingsLike.rows ?? DEFAULT_SETTINGS.rows) - 1);
+  const safeX = clampBoardXForY(Math.round(Number(x) || 0), safeY, settingsLike);
+  const fieldX = clamp(safeX, 0, (settingsLike.cols ?? DEFAULT_SETTINGS.cols) - 1);
   return {
     x: safeX,
     y: safeY,
-    coord: toCoord(safeX, safeY),
+    coord: toCoord(fieldX, safeY),
     square: {
-      id: toCoord(safeX, safeY),
-      coord: toCoord(safeX, safeY),
+      id: toCoord(fieldX, safeY),
+      coord: toCoord(fieldX, safeY),
       x: safeX,
       y: safeY,
       lengthIndex: safeX + 1,
@@ -189,8 +225,8 @@ function normalizeGridPosition(x, y, settingsLike = DEFAULT_SETTINGS) {
 function withBoardPosition(piece, settingsLike = DEFAULT_SETTINGS) {
   // x/y rămân poziția vizuală reală, inclusiv fracționară când Snap este OFF.
   // coord/position reprezintă pătrățica logică, rotunjită la celula cea mai apropiată.
-  const rawX = clamp(Number(piece.x) || 0, 0, (settingsLike.cols ?? DEFAULT_SETTINGS.cols) - 1);
   const rawY = clamp(Number(piece.y) || 0, 0, (settingsLike.rows ?? DEFAULT_SETTINGS.rows) - 1);
+  const rawX = clampBoardXForY(Number(piece.x) || 0, rawY, settingsLike);
   const grid = normalizeGridPosition(rawX, rawY, settingsLike);
   return {
     ...piece,
@@ -467,7 +503,7 @@ function App() {
 
   function buildCloudState(overrides = {}) {
     return {
-      version: "multiplayer-0.2",
+      version: "pitch-44-goal-5x2",
       settings,
       formations,
       gameSituations,
@@ -504,7 +540,7 @@ function App() {
 
   function buildLiveBoardState(overrides = {}) {
     return {
-      version: "multiplayer-0.2",
+      version: "pitch-44-goal-5x2",
       settings,
       pieces: normalizePiecesForBoard(pieces, settings),
       dieType,
@@ -826,8 +862,8 @@ function App() {
     setSettings(next);
     setPieces(prev => normalizePiecesForBoard(prev.map(p => ({
       ...p,
-      x: clamp(p.x, 0, next.cols - 1),
       y: clamp(p.y, 0, next.rows - 1),
+      x: clampBoardXForY(p.x, clamp(p.y, 0, next.rows - 1), next),
     })), next));
   }
 
@@ -864,7 +900,7 @@ function App() {
       .map(p => {
         const x = team === "A" ? Math.round(p.x) : settings.cols - 1 - Math.round(p.x);
         const y = Math.round(p.y);
-        return [p.label, toCoord(clamp(x, 0, settings.cols - 1), clamp(y, 0, settings.rows - 1))];
+        return [p.label, normalizeGridPosition(x, y, settings).coord];
       });
 
     const nextFormations = formations.map(f =>
@@ -939,15 +975,15 @@ function App() {
   }
 
   function normalizeLoadedSettings(s) {
-    if ("penaltyDistance" in s) return s;
+    if ("penaltyDistance" in s) return normalizeSettingsForApp(s);
     const penaltyDistance = s.penaltyLeftX ?? DEFAULT_SETTINGS.penaltyDistance;
     const penaltyY = s.penaltyLeftY ?? Math.floor((s.rows ?? DEFAULT_SETTINGS.rows) / 2);
-    return {
+    return normalizeSettingsForApp({
       ...DEFAULT_SETTINGS,
       ...s,
       penaltyDistance,
       penaltyY,
-    };
+    });
   }
 
   function loadBoard() {
@@ -998,7 +1034,7 @@ function App() {
   }
 
   function restoreSnapshot(entry) {
-    const restoredSettings = JSON.parse(entry.settings);
+    const restoredSettings = normalizeSettingsForApp(JSON.parse(entry.settings));
     setPieces(normalizePiecesForBoard(JSON.parse(entry.pieces), restoredSettings));
     setSettings(restoredSettings);
     setZoom(entry.zoom ?? 1);
@@ -1034,11 +1070,11 @@ function App() {
     let y;
 
     if (snapToGrid) {
-      x = clamp(Math.floor(localX / settings.cellSize), 0, settings.cols - 1);
       y = clamp(Math.floor(localY / settings.cellSize), 0, settings.rows - 1);
+      x = clampBoardXForY(Math.floor(localX / settings.cellSize), y, settings);
     } else {
-      x = clamp(localX / settings.cellSize - 0.5, 0, settings.cols - 1);
       y = clamp(localY / settings.cellSize - 0.5, 0, settings.rows - 1);
+      x = clampBoardXForY(localX / settings.cellSize - 0.5, y, settings);
     }
 
     setPieces(prev => normalizePiecesForBoard(prev.map(p => p.id === pieceId ? { ...p, x, y } : p), settings));
@@ -1091,13 +1127,13 @@ function App() {
   const centerDotX = Math.floor(settings.cols / 2);
   const centerDotY = Math.floor(settings.rows / 2);
 
-  const leftPenaltyX = settings.penaltyDistance - 1;
+  const leftPenaltyX = settings.penaltyDistance;
   const rightPenaltyX = settings.cols - settings.penaltyDistance;
   const penaltyY = settings.penaltyY;
 
   function arcMask(side) {
     const r = settings.arcRadius;
-    const cx = (side === "left" ? leftPenaltyX : rightPenaltyX) + 0.5;
+    const cx = side === "left" ? leftPenaltyX : rightPenaltyX;
     const cy = penaltyY + 0.5;
     const boxEdgeX = side === "left" ? settings.boxDepth : settings.cols - settings.boxDepth;
 
@@ -1177,9 +1213,10 @@ function App() {
     const rect = pitch.getBoundingClientRect();
     const localX = (e.clientX - rect.left) / zoom;
     const localY = (e.clientY - rect.top) / zoom;
+    const y = clamp(Math.floor(localY / settings.cellSize), 0, settings.rows - 1);
     return {
-      x: clamp(Math.floor(localX / settings.cellSize), 0, settings.cols - 1),
-      y: clamp(Math.floor(localY / settings.cellSize), 0, settings.rows - 1),
+      x: clampBoardXForY(Math.floor(localX / settings.cellSize), y, settings),
+      y,
     };
   }
 
@@ -1632,8 +1669,8 @@ function App() {
             <div className="goal left-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }} />
             <div className="goal right-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }} />
 
-            <div className="penalty-dot" style={{ left: `calc((${leftPenaltyX} + .5) * var(--cell) - var(--cell) * .08)`, top: `calc((${penaltyY} + .5) * var(--cell) - var(--cell) * .08)` }} />
-            <div className="penalty-dot" style={{ left: `calc((${rightPenaltyX} + .5) * var(--cell) - var(--cell) * .08)`, top: `calc((${penaltyY} + .5) * var(--cell) - var(--cell) * .08)` }} />
+            <div className="penalty-dot penalty-dot-line" style={{ left: `calc(${leftPenaltyX} * var(--cell) - var(--cell) * .08)`, top: `calc((${penaltyY} + .5) * var(--cell) - var(--cell) * .08)` }} />
+            <div className="penalty-dot penalty-dot-line" style={{ left: `calc(${rightPenaltyX} * var(--cell) - var(--cell) * .08)`, top: `calc((${penaltyY} + .5) * var(--cell) - var(--cell) * .08)` }} />
 
             <div className="arc-mask" style={leftArc.mask}><div className="arc-circle" style={leftArc.circle} /></div>
             <div className="arc-mask" style={rightArc.mask}><div className="arc-circle" style={rightArc.circle} /></div>
