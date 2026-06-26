@@ -434,3 +434,46 @@
   vector-effect:non-scaling-stroke;
   shape-rendering:crispEdges;
 }
+
+
+/* ruler center/corner modes */
+.ruler-mode-toggle{
+  display:flex;
+  gap:4px;
+  align-items:center;
+  padding:2px;
+  border:1px solid rgba(255,255,255,.16);
+  border-radius:10px;
+  background:rgba(255,255,255,.06);
+}
+.ruler-mode-toggle button{
+  padding:6px 8px;
+}
+.ruler-mode-toggle .ruler-center{
+  background:#185ee8 !important;
+  border-color:rgba(120,170,255,.85) !important;
+}
+.ruler-mode-toggle .ruler-corner{
+  background:#7a2be8 !important;
+  border-color:rgba(210,160,255,.9) !important;
+}
+.measure-svg.center line{
+  stroke:#4da3ff;
+}
+.measure-svg.corner line{
+  stroke:#b56cff;
+}
+.measure-point.center{
+  background:#4da3ff;
+  border-color:white;
+}
+.measure-point.corner{
+  background:#b56cff;
+  border-color:white;
+}
+.measure-panel.center{
+  border-color:rgba(77,163,255,.55);
+}
+.measure-panel.corner{
+  border-color:rgba(181,108,255,.65);
+}

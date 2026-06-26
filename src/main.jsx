@@ -469,6 +469,7 @@ function App() {
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [showCoordinates, setShowCoordinates] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
+  const [measureType, setMeasureType] = useState("center");
   const [measureStart, setMeasureStart] = useState(null);
   const [measureEnd, setMeasureEnd] = useState(null);
   const [actionLog, setActionLog] = useState([]);
@@ -1251,35 +1252,47 @@ function App() {
     const dx = Math.abs(measureEnd.x - measureStart.x);
     const dy = Math.abs(measureEnd.y - measureStart.y);
     return {
+      mode: measureType,
       dx,
       dy,
       manhattan: dx + dy,
       chess: Math.max(dx, dy),
       straight: Math.sqrt(dx * dx + dy * dy).toFixed(2),
     };
-  }, [measureStart, measureEnd]);
+  }, [measureStart, measureEnd, measureType]);
 
-  function getGridCellFromPointer(e) {
+  function getRulerPointFromPointer(e) {
     const pitch = pitchRef.current;
     const rect = pitch.getBoundingClientRect();
     const localX = (e.clientX - rect.left) / zoom;
     const localY = (e.clientY - rect.top) / zoom;
-    const y = clampBoardY(Math.floor(localY / settings.cellSize), settings);
+    const rawX = localX / settings.cellSize;
+    const rawY = localY / settings.cellSize;
+
+    if (measureType === "corner") {
+      return {
+        x: clampBoardXForY(Math.round(rawX), Math.round(rawY), settings),
+        y: clampBoardY(Math.round(rawY), settings),
+      };
+    }
+
+    const y = clampBoardY(Math.floor(rawY), settings);
+    const x = clampBoardXForY(Math.floor(rawX), y, settings);
     return {
-      x: clampBoardXForY(Math.floor(localX / settings.cellSize), y, settings),
-      y,
+      x: x + 0.5,
+      y: y + 0.5,
     };
   }
 
   function onPitchPointerDown(e) {
     if (!measureMode) return;
     if (e.target !== pitchRef.current) return;
-    const cell = getGridCellFromPointer(e);
+    const point = getRulerPointFromPointer(e);
     if (!measureStart || (measureStart && measureEnd)) {
-      setMeasureStart(cell);
+      setMeasureStart(point);
       setMeasureEnd(null);
     } else {
-      setMeasureEnd(cell);
+      setMeasureEnd(point);
     }
   }
 
@@ -1594,6 +1607,16 @@ function App() {
         }}>
           Riglă
         </button>
+        {measureMode && (
+          <div className="ruler-mode-toggle">
+            <button className={measureType === "center" ? "toggle-on ruler-center" : ""} onClick={() => { setMeasureType("center"); setMeasureStart(null); setMeasureEnd(null); }}>
+              Center
+            </button>
+            <button className={measureType === "corner" ? "toggle-on ruler-corner" : ""} onClick={() => { setMeasureType("corner"); setMeasureStart(null); setMeasureEnd(null); }}>
+              Corner
+            </button>
+          </div>
+        )}
 
       </div>
       <div className="controlbar">
@@ -1689,24 +1712,24 @@ function App() {
             ))}
 
             {measureStart && (
-              <div className="measure-point start" style={{
-                left: `calc((${measureStart.x} + .5) * var(--cell) - var(--cell) * .13)`,
-                top: `calc((${measureStart.y} + .5) * var(--cell) - var(--cell) * .13)`,
+              <div className={`measure-point start ${measureType === "corner" ? "corner" : "center"}`} style={{
+                left: `calc(${measureStart.x} * var(--cell) - var(--cell) * .13)`,
+                top: `calc(${measureStart.y} * var(--cell) - var(--cell) * .13)`,
               }} />
             )}
             {measureEnd && (
-              <div className="measure-point end" style={{
-                left: `calc((${measureEnd.x} + .5) * var(--cell) - var(--cell) * .13)`,
-                top: `calc((${measureEnd.y} + .5) * var(--cell) - var(--cell) * .13)`,
+              <div className={`measure-point end ${measureType === "corner" ? "corner" : "center"}`} style={{
+                left: `calc(${measureEnd.x} * var(--cell) - var(--cell) * .13)`,
+                top: `calc(${measureEnd.y} * var(--cell) - var(--cell) * .13)`,
               }} />
             )}
             {measureStart && measureEnd && (
-              <svg className="measure-svg" viewBox={`${-invisiblePaddingForSettings(settings)} ${-invisiblePaddingForSettings(settings)} ${settings.cols + invisiblePaddingForSettings(settings) * 2} ${settings.rows + invisiblePaddingForSettings(settings) * 2}`} preserveAspectRatio="none">
+              <svg className={`measure-svg ${measureType === "corner" ? "corner" : "center"}`} viewBox={`${-invisiblePaddingForSettings(settings)} ${-invisiblePaddingForSettings(settings)} ${settings.cols + invisiblePaddingForSettings(settings) * 2} ${settings.rows + invisiblePaddingForSettings(settings) * 2}`} preserveAspectRatio="none">
                 <line
-                  x1={measureStart.x + .5}
-                  y1={measureStart.y + .5}
-                  x2={measureEnd.x + .5}
-                  y2={measureEnd.y + .5}
+                  x1={measureStart.x}
+                  y1={measureStart.y}
+                  x2={measureEnd.x}
+                  y2={measureEnd.y}
                 />
               </svg>
             )}
@@ -1826,8 +1849,8 @@ function App() {
       )}
 
       {measureInfo && (
-        <div className="measure-panel">
-          Riglă: ΔX {measureInfo.dx} · ΔY {measureInfo.dy} · ortogonal {measureInfo.manhattan} · diagonal {measureInfo.chess} · drept {measureInfo.straight}
+        <div className={`measure-panel ${measureType === "corner" ? "corner" : "center"}`}>
+          Riglă {measureType === "corner" ? "Corner-to-Corner" : "Center-to-Center"}: ΔX {measureInfo.dx} · ΔY {measureInfo.dy} · ortogonal {measureInfo.manhattan} · diagonal {measureInfo.chess} · drept {measureInfo.straight}
         </div>
       )}
 
