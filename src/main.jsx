@@ -487,6 +487,10 @@ function App() {
   const [dicePanelSize, setDicePanelSize] = useState({ w: 300, h: 150 });
   const [dicePanelDragging, setDicePanelDragging] = useState(null);
   const [dicePanelResizing, setDicePanelResizing] = useState(null);
+  const [rulerPanelPosition, setRulerPanelPosition] = useState({ x: 20, y: 150 });
+  const [rulerPanelSize, setRulerPanelSize] = useState({ w: 280, h: 230 });
+  const [rulerPanelDragging, setRulerPanelDragging] = useState(null);
+  const [rulerPanelResizing, setRulerPanelResizing] = useState(null);
   const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
   const [lockUI, setLockUI] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -1544,6 +1548,50 @@ function App() {
     });
   }
 
+  function onRulerPanelPointerDown(e) {
+    e.preventDefault();
+    setRulerPanelDragging({
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: rulerPanelPosition.x,
+      originY: rulerPanelPosition.y,
+    });
+  }
+
+  function onRulerPanelPointerMove(e) {
+    if (!rulerPanelDragging) return;
+    const nextX = rulerPanelDragging.originX + (e.clientX - rulerPanelDragging.startX);
+    const nextY = rulerPanelDragging.originY + (e.clientY - rulerPanelDragging.startY);
+    setRulerPanelPosition({
+      x: clamp(nextX, 0, window.innerWidth - 80),
+      y: clamp(nextY, 0, window.innerHeight - 50),
+    });
+  }
+
+  function onRulerPanelResizeDown(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setRulerPanelResizing({
+      startX: e.clientX,
+      startY: e.clientY,
+      originW: rulerPanelSize.w,
+      originH: rulerPanelSize.h,
+    });
+  }
+
+  function onRulerPanelResizeMove(e) {
+    if (!rulerPanelResizing) return;
+    setRulerPanelSize({
+      w: clamp(rulerPanelResizing.originW + (e.clientX - rulerPanelResizing.startX), 220, 560),
+      h: clamp(rulerPanelResizing.originH + (e.clientY - rulerPanelResizing.startY), 170, 520),
+    });
+  }
+
+  function onRulerPanelPointerUp() {
+    setRulerPanelDragging(null);
+    setRulerPanelResizing(null);
+  }
+
   function fitWidth() {
     const wrap = boardWrapRef.current;
     if (!wrap) return;
@@ -1777,36 +1825,6 @@ function App() {
         <button className={showCoordinates ? "toggle-on" : ""} onClick={() => setShowCoordinates(v => !v)}>
           Coordonate
         </button>
-        <button className={measureMode ? "toggle-on" : ""} onClick={() => {
-          setMeasureMode(v => !v);
-          setMeasureStart(null);
-          setMeasureEnd(null);
-        }}>
-          Riglă
-        </button>
-        {measureMode && (
-          <div className="ruler-mode-toggle">
-            <button className={measureType === "center" ? "toggle-on ruler-center" : ""} onClick={() => { setMeasureType("center"); setMeasureStart(null); setMeasureEnd(null); }}>
-              Center
-            </button>
-            <button className={measureType === "corner" ? "toggle-on ruler-corner" : ""} onClick={() => { setMeasureType("corner"); setMeasureStart(null); setMeasureEnd(null); }}>
-              Corner
-            </button>
-            <label className="ruler-mark-input pass">P
-              <input type="number" min="1" step="1" value={passMark} onChange={e => setPassMark(Number(e.target.value) || 1)} />
-            </label>
-            <label className="ruler-mark-input shot">S
-              <input type="number" min="1" step="1" value={shotMark1} onChange={e => setShotMark1(Number(e.target.value) || 1)} />
-            </label>
-            <label className="ruler-mark-input shot">
-              <input type="number" min="1" step="1" value={shotMark2} onChange={e => setShotMark2(Number(e.target.value) || 1)} />
-            </label>
-            <label className="ruler-mark-input shot">
-              <input type="number" min="1" step="1" value={shotMark3} onChange={e => setShotMark3(Number(e.target.value) || 1)} />
-            </label>
-          </div>
-        )}
-
       </div>
       <div className="controlbar">
         <div className="formation-control blue">
@@ -1849,6 +1867,13 @@ function App() {
           <button onClick={saveActiveGameSituation}>Save</button>
         </div>
 
+        <button className={measureMode ? "toggle-on" : ""} onClick={() => {
+          setMeasureMode(v => !v);
+          setMeasureStart(null);
+          setMeasureEnd(null);
+        }}>
+          Riglă {measureMode ? "ON" : "OFF"}
+        </button>
         <button className={historyVisible ? "toggle-on" : ""} onClick={() => setHistoryVisible(v => !v)}>
           History {historyVisible ? "ON" : "OFF"}
         </button>
@@ -2068,6 +2093,47 @@ function App() {
       {measureInfo && (
         <div className={`measure-panel ${measureType === "corner" ? "corner" : "center"}`}>
           Riglă {measureType === "corner" ? "Corner-to-Corner" : "Center-to-Center"}: {measureInfo.cellsLabel} căsuțe
+        </div>
+      )}
+
+      {measureMode && !lockUI && (
+        <div
+          className="ruler-panel"
+          style={{ left: rulerPanelPosition.x, top: rulerPanelPosition.y, width: rulerPanelSize.w, height: rulerPanelSize.h }}
+          onPointerMove={(e) => {
+            onRulerPanelPointerMove(e);
+            onRulerPanelResizeMove(e);
+          }}
+          onPointerUp={onRulerPanelPointerUp}
+          onPointerCancel={onRulerPanelPointerUp}
+        >
+          <div className="ruler-panel-title" onPointerDown={onRulerPanelPointerDown}>
+            <strong>Riglă</strong>
+            <div className="ruler-actions">
+              <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setMeasureMode(false)}>_</button>
+            </div>
+          </div>
+          <div className="ruler-panel-body">
+            <div className="ruler-floating-row mode-row">
+              <button className={measureType === "center" ? "toggle-on ruler-center" : ""} onClick={() => { setMeasureType("center"); setMeasureStart(null); setMeasureEnd(null); }}>Center</button>
+              <button className={measureType === "corner" ? "toggle-on ruler-corner" : ""} onClick={() => { setMeasureType("corner"); setMeasureStart(null); setMeasureEnd(null); }}>Corner</button>
+            </div>
+            <div className="ruler-floating-grid">
+              <label className="ruler-mark-input pass">P
+                <input type="number" min="1" step="1" value={passMark} onChange={e => setPassMark(Number(e.target.value) || 1)} />
+              </label>
+              <label className="ruler-mark-input shot">Șut scurt
+                <input type="number" min="1" step="1" value={shotMark1} onChange={e => setShotMark1(Number(e.target.value) || 1)} />
+              </label>
+              <label className="ruler-mark-input shot">Șut mediu
+                <input type="number" min="1" step="1" value={shotMark2} onChange={e => setShotMark2(Number(e.target.value) || 1)} />
+              </label>
+              <label className="ruler-mark-input shot">Șut lung
+                <input type="number" min="1" step="1" value={shotMark3} onChange={e => setShotMark3(Number(e.target.value) || 1)} />
+              </label>
+            </div>
+          </div>
+          <div className="ruler-resize" onPointerDown={onRulerPanelResizeDown} />
         </div>
       )}
 
