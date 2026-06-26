@@ -1788,7 +1788,7 @@ function App() {
               }} />
             )}
             {measureStart && measureEnd && (
-              <svg className={`measure-svg ${measureType === "corner" ? "corner" : "center"}`} viewBox={`${-invisiblePaddingForSettings(settings)} ${-invisiblePaddingForSettings(settings)} ${settings.cols + invisiblePaddingForSettings(settings) * 2} ${settings.rows + invisiblePaddingForSettings(settings) * 2}`} preserveAspectRatio="none">
+              <svg className={`measure-svg ${measureType === "corner" ? "corner" : "center"}`} viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
                 <line
                   className="ruler-shadow-line"
                   x1={measureStart.x}
