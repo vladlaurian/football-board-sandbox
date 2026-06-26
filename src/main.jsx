@@ -1743,7 +1743,7 @@ function App() {
   return (
     <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
-        <strong>Football Board Sandbox <span>Multiplayer 0.3.1</span></strong>
+        <strong>Sandbox</strong>
         <div className="authbox">
           {!authReady ? (
             <span>Auth...</span>
@@ -1937,19 +1937,19 @@ function App() {
               </div>
             ))}
 
-            {measureStart && (
+            {measureMode && measureStart && (
               <div className={`measure-point start ${measureType === "corner" ? "corner" : "center"}`} style={{
                 left: `calc(${measureStart.x} * var(--cell) - var(--cell) * .13)`,
                 top: `calc(${measureStart.y} * var(--cell) - var(--cell) * .13)`,
               }} />
             )}
-            {measureEnd && (
+            {measureMode && measureEnd && (
               <div className={`measure-point end ${measureType === "corner" ? "corner" : "center"}`} style={{
                 left: `calc(${measureEnd.x} * var(--cell) - var(--cell) * .13)`,
                 top: `calc(${measureEnd.y} * var(--cell) - var(--cell) * .13)`,
               }} />
             )}
-            {measureStart && measureEnd && (
+            {measureMode && measureStart && measureEnd && (
               <svg className={`measure-svg ${measureType === "corner" ? "corner" : "center"}`} viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
                 <line
                   className="ruler-shadow-line"
@@ -2088,7 +2088,7 @@ function App() {
         </div>
       )}
 
-      {measureInfo && (
+      {measureMode && measureInfo && (
         <div className={`measure-panel ${measureType === "corner" ? "corner" : "center"}`}>
           Riglă {measureType === "corner" ? "Corner-to-Corner" : "Center-to-Center"}: {measureInfo.cellsLabel} căsuțe
         </div>
@@ -2108,7 +2108,7 @@ function App() {
           <div className="ruler-panel-title" onPointerDown={onRulerPanelPointerDown}>
             <strong>Riglă</strong>
             <div className="ruler-actions">
-              <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setMeasureMode(false)}>_</button>
+              <button onPointerDown={(e) => e.stopPropagation()} onClick={() => { setMeasureMode(false); setMeasureStart(null); setMeasureEnd(null); }}>_</button>
             </div>
           </div>
           <div className="ruler-panel-body">
