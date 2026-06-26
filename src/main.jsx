@@ -1180,6 +1180,24 @@ function App() {
     };
   }
 
+
+  function goalGrid(side) {
+    const verticalLines = Array.from({ length: settings.goalDepth + 1 }, (_, i) => i)
+      .filter(i => side === "left" ? i < settings.goalDepth : i > 0);
+    const horizontalLines = Array.from({ length: settings.goalWidth + 1 }, (_, i) => i);
+
+    return (
+      <svg className="goal-grid" viewBox={`0 0 ${settings.goalDepth} ${settings.goalWidth}`} preserveAspectRatio="none" aria-hidden="true">
+        {verticalLines.map(i => (
+          <line key={`v-${i}`} x1={i} y1={0} x2={i} y2={settings.goalWidth} />
+        ))}
+        {horizontalLines.map(i => (
+          <line key={`h-${i}`} x1={0} y1={i} x2={settings.goalDepth} y2={i} />
+        ))}
+      </svg>
+    );
+  }
+
   const leftArc = arcMask("left");
   const rightArc = arcMask("right");
 
@@ -1666,8 +1684,12 @@ function App() {
             {line({ left: 0, top: `calc(${smallTop} * var(--cell))`, width: `calc(${settings.smallDepth} * var(--cell))`, height: `calc(${settings.smallWidth} * var(--cell))` }, "left-box")}
             {line({ right: 0, top: `calc(${smallTop} * var(--cell))`, width: `calc(${settings.smallDepth} * var(--cell))`, height: `calc(${settings.smallWidth} * var(--cell))` }, "right-box")}
 
-            <div className="goal left-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }} />
-            <div className="goal right-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }} />
+            <div className="goal left-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }}>
+              {goalGrid("left")}
+            </div>
+            <div className="goal right-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }}>
+              {goalGrid("right")}
+            </div>
 
             <div className="penalty-dot penalty-dot-line" style={{ left: `calc(${leftPenaltyX} * var(--cell) - var(--cell) * .08)`, top: `calc((${penaltyY} + .5) * var(--cell) - var(--cell) * .08)` }} />
             <div className="penalty-dot penalty-dot-line" style={{ left: `calc(${rightPenaltyX} * var(--cell) - var(--cell) * .08)`, top: `calc((${penaltyY} + .5) * var(--cell) - var(--cell) * .08)` }} />
