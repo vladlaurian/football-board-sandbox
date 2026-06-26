@@ -902,6 +902,31 @@ function App() {
     })), next));
   }
 
+
+  function SettingNumber({ label, name, min, max, step = 1 }) {
+    const value = settings[name];
+    const numericMin = min === undefined ? -Infinity : Number(min);
+    const numericMax = max === undefined ? Infinity : Number(max);
+    const safeStep = Number(step) || 1;
+
+    function stepValue(delta) {
+      const current = Number(settings[name]) || 0;
+      const nextValue = clamp(current + delta * safeStep, numericMin, numericMax);
+      updateSetting(name, nextValue);
+    }
+
+    return (
+      <label className="number-control">
+        <span>{label}</span>
+        <div className="number-stepper">
+          <button type="button" className="step-btn" onClick={() => stepValue(-1)} aria-label={`${label} minus`}>−</button>
+          <input type="number" value={value} min={min} max={max} step={step} onChange={e => updateSetting(name, e.target.value)} />
+          <button type="button" className="step-btn" onClick={() => stepValue(1)} aria-label={`${label} plus`}>+</button>
+        </div>
+      </label>
+    );
+  }
+
   function getFormationById(id) {
     return formations.find(f => f.id === Number(id)) || formations[0];
   }
@@ -1716,25 +1741,25 @@ function App() {
           )}
         </div>
 
-        <label>Teren L<input type="number" value={settings.cols} min="12" max="100" onChange={e => updateSetting("cols", e.target.value)} /></label>
-        <label>Teren l impar<input type="number" value={settings.rows} min="8" max="70" onChange={e => updateSetting("rows", e.target.value)} /></label>
-        <label>Pătrățel<input type="number" value={settings.cellSize} min="16" max="70" onChange={e => updateSetting("cellSize", e.target.value)} /></label>
+        <SettingNumber label="Teren L" name="cols" min={12} max={100} />
+        <SettingNumber label="Teren l impar" name="rows" min={8} max={70} step={2} />
+        <SettingNumber label="Pătrățel" name="cellSize" min={16} max={70} />
 
-        <label>Poartă X<input type="number" value={settings.goalDepth} min="1" max="12" onChange={e => updateSetting("goalDepth", e.target.value)} /></label>
-        <label>Poartă Y impar<input type="number" value={settings.goalWidth} min="2" max="30" onChange={e => updateSetting("goalWidth", e.target.value)} /></label>
+        <SettingNumber label="Poartă X" name="goalDepth" min={1} max={12} />
+        <SettingNumber label="Poartă Y impar" name="goalWidth" min={2} max={30} step={2} />
 
-        <label>Careu mare X<input type="number" value={settings.boxDepth} min="2" max="36" onChange={e => updateSetting("boxDepth", e.target.value)} /></label>
-        <label>Careu mare Y<input type="number" value={settings.boxWidth} min="4" max="60" onChange={e => updateSetting("boxWidth", e.target.value)} /></label>
+        <SettingNumber label="Careu mare X" name="boxDepth" min={2} max={36} />
+        <SettingNumber label="Careu mare Y" name="boxWidth" min={4} max={60} />
 
-        <label>Careu mic X<input type="number" value={settings.smallDepth} min="1" max="24" onChange={e => updateSetting("smallDepth", e.target.value)} /></label>
-        <label>Careu mic Y<input type="number" value={settings.smallWidth} min="2" max="40" onChange={e => updateSetting("smallWidth", e.target.value)} /></label>
+        <SettingNumber label="Careu mic X" name="smallDepth" min={1} max={24} />
+        <SettingNumber label="Careu mic Y" name="smallWidth" min={2} max={40} />
 
-        <label>11m dist<input type="number" value={settings.penaltyDistance} min="1" max={Math.floor(settings.cols/2)} onChange={e => updateSetting("penaltyDistance", e.target.value)} /></label>
-        <label>11m Y<input type="number" value={settings.penaltyY} min="0" max={settings.rows} onChange={e => updateSetting("penaltyY", e.target.value)} /></label>
+        <SettingNumber label="11m dist" name="penaltyDistance" min={1} max={Math.floor(settings.cols/2)} />
+        <SettingNumber label="11m Y" name="penaltyY" min={0} max={settings.rows} />
 
-        <label>Cerc centru<input type="number" value={settings.centerCircleRadius} min="1" max="20" onChange={e => updateSetting("centerCircleRadius", e.target.value)} /></label>
-        <label>Semicerc<input type="number" value={settings.arcRadius} min="1" max="20" onChange={e => updateSetting("arcRadius", e.target.value)} /></label>
-        <label>Arc colț<input type="number" value={settings.cornerArcRadius} min="1" max="5" onChange={e => updateSetting("cornerArcRadius", e.target.value)} /></label>
+        <SettingNumber label="Cerc centru" name="centerCircleRadius" min={1} max={20} />
+        <SettingNumber label="Semicerc" name="arcRadius" min={1} max={20} />
+        <SettingNumber label="Arc colț" name="cornerArcRadius" min={1} max={5} />
 
         <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.2, 3))}><Minus size={16} /></button>
         <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>

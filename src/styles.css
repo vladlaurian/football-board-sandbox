@@ -581,3 +581,67 @@
   vector-effect:non-scaling-stroke;
   stroke-linecap:round;
 }
+
+/* v3.7 visible numeric controls for touch devices */
+.number-control {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.number-control > span {
+  white-space: nowrap;
+}
+
+.number-stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 9px;
+  overflow: hidden;
+  background: #222;
+}
+
+.topbar .number-stepper input {
+  width: 48px;
+  min-width: 48px;
+  border: 0;
+  border-left: 1px solid rgba(255,255,255,.16);
+  border-right: 1px solid rgba(255,255,255,.16);
+  border-radius: 0;
+  background: #222;
+  color: white;
+  text-align: center;
+  padding: 6px 3px;
+}
+
+.topbar .number-stepper .step-btn {
+  min-width: 30px;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 0;
+  background: #252525;
+  color: white;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.topbar .number-stepper .step-btn:active {
+  background: #333;
+  transform: none;
+}
+
+@media (pointer: coarse) {
+  .topbar .number-stepper input {
+    width: 54px;
+    min-width: 54px;
+    min-height: 42px;
+  }
+
+  .topbar .number-stepper .step-btn {
+    min-width: 42px;
+    min-height: 42px;
+    font-size: 20px;
+  }
+}
