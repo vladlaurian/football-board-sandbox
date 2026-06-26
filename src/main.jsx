@@ -502,6 +502,7 @@ function App() {
   const touchGestureRef = useRef(null);
   const lastTapRef = useRef({ time: 0, x: 0, y: 0 });
   const boardPanRef = useRef(null);
+  const measureInteractionRef = useRef(null);
   const beforeLockViewRef = useRef(null);
   const clientIdRef = useRef(`client_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
   const sessionSaveTimerRef = useRef(null);
@@ -1306,11 +1307,11 @@ function App() {
       });
   }, [measureStart, measureEnd, measureInfo, passMark, shotMark1, shotMark2, shotMark3]);
 
-  function getRulerPointFromPointer(e) {
+  function getRulerPointFromClient(clientX, clientY) {
     const pitch = pitchRef.current;
     const rect = pitch.getBoundingClientRect();
-    const localX = (e.clientX - rect.left) / zoom;
-    const localY = (e.clientY - rect.top) / zoom;
+    const localX = (clientX - rect.left) / zoom;
+    const localY = (clientY - rect.top) / zoom;
     const rawX = localX / settings.cellSize;
     const rawY = localY / settings.cellSize;
 
@@ -1329,11 +1330,11 @@ function App() {
     };
   }
 
-  function onPitchPointerDown(e) {
-    if (!measureMode) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const point = getRulerPointFromPointer(e);
+  function getRulerPointFromPointer(e) {
+    return getRulerPointFromClient(e.clientX, e.clientY);
+  }
+
+  function applyRulerPoint(point) {
     if (!measureStart || (measureStart && measureEnd)) {
       setMeasureStart(point);
       setMeasureEnd(null);
@@ -1342,8 +1343,68 @@ function App() {
     }
   }
 
+  function onPitchPointerDown(e) {
+    if (!measureMode) return;
+
+    // Pe touch nu schimbăm rigla la începutul unui gest de zoom/pan.
+    // Tap-ul real este tratat în onBoardTouchEnd; drag/zoom lasă rigla fixată.
+    if (e.pointerType === "touch") return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    pitchRef.current?.setPointerCapture?.(e.pointerId);
+    measureInteractionRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      originPanX: panOffset.x,
+      originPanY: panOffset.y,
+      point: getRulerPointFromPointer(e),
+      panning: false,
+    };
+  }
+
+  function onPitchPointerMove(e) {
+    const interaction = measureInteractionRef.current;
+    if (!interaction || interaction.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - interaction.startX;
+    const dy = e.clientY - interaction.startY;
+    if (!interaction.panning && Math.sqrt(dx * dx + dy * dy) > 4) {
+      interaction.panning = true;
+    }
+
+    if (interaction.panning) {
+      e.preventDefault();
+      e.stopPropagation();
+      setPanOffset({
+        x: interaction.originPanX + dx,
+        y: interaction.originPanY + dy,
+      });
+    }
+  }
+
+  function onPitchPointerUp(e) {
+    const interaction = measureInteractionRef.current;
+    if (!interaction || interaction.pointerId !== e.pointerId) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    if (!interaction.panning) {
+      applyRulerPoint(interaction.point);
+    }
+    measureInteractionRef.current = null;
+    pitchRef.current?.releasePointerCapture?.(e.pointerId);
+  }
+
+  function onPitchPointerCancel(e) {
+    if (measureInteractionRef.current?.pointerId === e.pointerId) {
+      measureInteractionRef.current = null;
+    }
+  }
+
   function canStartBoardPan(e) {
-    if (measureMode || editingPiece) return false;
+    if (editingPiece) return false;
     if (e.pointerType === "touch") return false;
     const target = e.target;
     if (!target) return false;
@@ -1488,6 +1549,12 @@ function App() {
     return { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
   }
 
+  function isPitchTouchTarget(target) {
+    if (!target || !pitchRef.current) return false;
+    if (target.closest && target.closest(".piece")) return false;
+    return target === pitchRef.current || pitchRef.current.contains(target);
+  }
+
   function onBoardTouchStart(e) {
     if (e.touches.length === 2) {
       e.preventDefault();
@@ -1502,7 +1569,7 @@ function App() {
       return;
     }
 
-    if (e.touches.length === 1 && e.target === pitchRef.current) {
+    if (e.touches.length === 1 && isPitchTouchTarget(e.target)) {
       const touch = e.touches[0];
       const now = Date.now();
       const last = lastTapRef.current;
@@ -1513,27 +1580,57 @@ function App() {
         e.preventDefault();
         resetView();
         lastTapRef.current = { time: 0, x: 0, y: 0 };
+        touchGestureRef.current = null;
       } else {
         lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
+        touchGestureRef.current = {
+          mode: "one-finger",
+          startX: touch.clientX,
+          startY: touch.clientY,
+          originPanX: panOffset.x,
+          originPanY: panOffset.y,
+          point: measureMode ? getRulerPointFromClient(touch.clientX, touch.clientY) : null,
+          moved: false,
+        };
       }
     }
   }
 
   function onBoardTouchMove(e) {
     const gesture = touchGestureRef.current;
-    if (!gesture || gesture.mode !== "two-finger" || e.touches.length !== 2) return;
-    e.preventDefault();
-    const [t1, t2] = e.touches;
-    const currentDistance = touchDistance(t1, t2);
-    const currentMid = touchMidpoint(t1, t2);
-    const ratio = currentDistance / Math.max(1, gesture.startDistance);
-    const nextZoom = clamp(Number((gesture.startZoom * ratio).toFixed(3)), 0.2, 3);
-    const nextPan = {
-      x: gesture.startPan.x + (currentMid.x - gesture.startMid.x),
-      y: gesture.startPan.y + (currentMid.y - gesture.startMid.y),
-    };
-    setZoom(nextZoom);
-    setPanOffset(nextPan);
+    if (!gesture) return;
+
+    if (gesture.mode === "two-finger" && e.touches.length === 2) {
+      e.preventDefault();
+      const [t1, t2] = e.touches;
+      const currentDistance = touchDistance(t1, t2);
+      const currentMid = touchMidpoint(t1, t2);
+      const ratio = currentDistance / Math.max(1, gesture.startDistance);
+      const nextZoom = clamp(Number((gesture.startZoom * ratio).toFixed(3)), 0.2, 3);
+      const nextPan = {
+        x: gesture.startPan.x + (currentMid.x - gesture.startMid.x),
+        y: gesture.startPan.y + (currentMid.y - gesture.startMid.y),
+      };
+      setZoom(nextZoom);
+      setPanOffset(nextPan);
+      return;
+    }
+
+    if (gesture.mode === "one-finger" && e.touches.length === 1) {
+      const touch = e.touches[0];
+      const dx = touch.clientX - gesture.startX;
+      const dy = touch.clientY - gesture.startY;
+      if (!gesture.moved && Math.sqrt(dx * dx + dy * dy) > 6) {
+        gesture.moved = true;
+      }
+      if (gesture.moved) {
+        e.preventDefault();
+        setPanOffset({
+          x: gesture.originPanX + dx,
+          y: gesture.originPanY + dy,
+        });
+      }
+    }
   }
 
   function onBoardWheel(e) {
@@ -1548,6 +1645,15 @@ function App() {
   }
 
   function onBoardTouchEnd(e) {
+    const gesture = touchGestureRef.current;
+    if (gesture?.mode === "one-finger" && e.touches.length === 0) {
+      if (measureMode && !gesture.moved && gesture.point) {
+        applyRulerPoint(gesture.point);
+      }
+      touchGestureRef.current = null;
+      return;
+    }
+
     if (e.touches.length < 2) {
       touchGestureRef.current = null;
     }
@@ -1740,7 +1846,15 @@ function App() {
         onTouchCancel={onBoardTouchEnd}
       >
         <div className="pitch-shell" style={pitchShellStyle}>
-          <div className="pitch" ref={pitchRef} style={pitchStyle} onPointerDown={onPitchPointerDown}>
+          <div
+            className="pitch"
+            ref={pitchRef}
+            style={pitchStyle}
+            onPointerDown={onPitchPointerDown}
+            onPointerMove={onPitchPointerMove}
+            onPointerUp={onPitchPointerUp}
+            onPointerCancel={onPitchPointerCancel}
+          >
             <div className="extended-hit-area" style={{
               left: `calc(${-invisiblePaddingForSettings(settings)} * var(--cell))`,
               top: `calc(${-invisiblePaddingForSettings(settings)} * var(--cell))`,
@@ -1788,7 +1902,7 @@ function App() {
               }} />
             )}
             {measureStart && measureEnd && (
-              <svg className={`measure-svg ${measureType === "corner" ? "corner" : "center"}`} viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
+              <svg className={`measure-svg ${measureType === "corner" ? "corner" : "center"}`} viewBox={`${-invisiblePaddingForSettings(settings)} ${-invisiblePaddingForSettings(settings)} ${settings.cols + invisiblePaddingForSettings(settings) * 2} ${settings.rows + invisiblePaddingForSettings(settings) * 2}`} preserveAspectRatio="none">
                 <line
                   className="ruler-shadow-line"
                   x1={measureStart.x}
