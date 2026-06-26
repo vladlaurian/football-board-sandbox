@@ -428,16 +428,15 @@ function createInitialPieces(cols, rows, blueFormation = FORMATION_SLOTS[0], red
   function addBench(team) {
     const isBlue = team === "A";
     const benchX = isBlue ? -pad : cols + pad - 1;
-    const benchX2 = isBlue ? -pad + 1 : cols + pad - 2;
-    const startY = Math.max(1, midY - 4);
-    pieces.push({ id: `${team}-R-GK`, team, label: "GK", x: benchX, y: startY });
-    for (let i = 0; i < 6; i++) {
+    const startY = Math.max(1, goalTopForSettings(localSettings) - 8);
+
+    for (let i = 0; i < 5; i++) {
       pieces.push({
         id: `${team}-R-${i + 1}`,
         team,
         label: "",
-        x: i % 2 === 0 ? benchX : benchX2,
-        y: startY + 2 + Math.floor(i / 2) * 2,
+        x: benchX,
+        y: startY + i,
       });
     }
   }
@@ -1212,19 +1211,22 @@ function App() {
 
 
   function goalGrid(side) {
-    const verticalLines = Array.from({ length: settings.goalDepth + 1 }, (_, i) => i)
-      // Nu redesenăm linia porții: pentru stânga excludem x=goalDepth, pentru dreapta excludem x=0.
-      .filter(i => side === "left" ? i < settings.goalDepth : i > 0);
-    const horizontalLines = Array.from({ length: settings.goalWidth + 1 }, (_, i) => i);
+    const mouthX = side === "left" ? settings.goalDepth : 0;
+    const backPostX = side === "left" ? 0 : settings.goalDepth;
+    const internalVerticalLines = Array.from({ length: Math.max(0, settings.goalDepth - 1) }, (_, i) => i + 1);
+    const internalHorizontalLines = Array.from({ length: Math.max(0, settings.goalWidth - 1) }, (_, i) => i + 1);
 
     return (
       <svg className="goal-grid" viewBox={`0 0 ${settings.goalDepth} ${settings.goalWidth}`} preserveAspectRatio="none" aria-hidden="true">
-        {verticalLines.map(i => (
-          <line key={`v-${i}`} x1={i} y1={0} x2={i} y2={settings.goalWidth} />
+        {internalVerticalLines.map(i => (
+          <line className="goal-grid-line" key={`v-${i}`} x1={i} y1={0} x2={i} y2={settings.goalWidth} />
         ))}
-        {horizontalLines.map(i => (
-          <line key={`h-${i}`} x1={0} y1={i} x2={settings.goalDepth} y2={i} />
+        {internalHorizontalLines.map(i => (
+          <line className="goal-grid-line" key={`h-${i}`} x1={0} y1={i} x2={settings.goalDepth} y2={i} />
         ))}
+        <line className="goal-frame-line" x1={backPostX} y1={0} x2={backPostX} y2={settings.goalWidth} />
+        <line className="goal-frame-line" x1={backPostX} y1={0} x2={mouthX} y2={0} />
+        <line className="goal-frame-line" x1={backPostX} y1={settings.goalWidth} x2={mouthX} y2={settings.goalWidth} />
       </svg>
     );
   }
