@@ -1696,12 +1696,10 @@ function App() {
       if (!gesture.moved && Math.sqrt(dx * dx + dy * dy) > 6) {
         gesture.moved = true;
       }
+      // Pe touch, un singur deget NU mută tabla.
+      // Un deget rămâne doar pentru tap pe riglă / pucuri; tabla se mută doar cu două degete.
       if (gesture.moved) {
         e.preventDefault();
-        setPanOffset({
-          x: gesture.originPanX + dx,
-          y: gesture.originPanY + dy,
-        });
       }
     }
   }

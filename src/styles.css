@@ -754,3 +754,88 @@
   .controlbar .situation-control select { max-width: 118px; }
   .controlbar .situation-name { width: 105px; }
 }
+
+/* v3.9 final touch/toolbar cleanup */
+/* Hide browser-native number spinners; we use our own permanent -/+ controls. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Make the top controls take less vertical/horizontal space, especially on tablets. */
+.topbar {
+  gap: 5px;
+  padding: 6px 7px;
+  align-items: center;
+  align-content: flex-start;
+  max-height: 118px;
+  overflow: auto;
+}
+.topbar label {
+  gap: 3px;
+  font-size: 11px;
+}
+.topbar button {
+  padding: 5px 7px;
+  border-radius: 8px;
+}
+.number-control {
+  gap: 3px;
+}
+.number-stepper {
+  border-radius: 8px;
+}
+.topbar .number-stepper input {
+  width: 38px;
+  min-width: 38px;
+  padding: 4px 2px;
+}
+.topbar .number-stepper .step-btn {
+  min-width: 24px;
+  min-height: 28px;
+  padding: 0 6px;
+}
+.authbox,
+.sessionbox,
+.dice-box {
+  gap: 4px;
+}
+
+@media (pointer: coarse) {
+  .topbar {
+    gap: 4px;
+    padding: 5px 6px;
+    max-height: 104px;
+  }
+  .topbar label,
+  .number-control > span {
+    font-size: 10px;
+  }
+  .topbar button {
+    padding: 5px 7px;
+    min-height: 32px;
+  }
+  .topbar .number-stepper input {
+    width: 34px;
+    min-width: 34px;
+    min-height: 32px;
+    font-size: 12px;
+  }
+  .topbar .number-stepper .step-btn {
+    min-width: 28px;
+    min-height: 32px;
+    font-size: 16px;
+    padding: 0 5px;
+  }
+  .controlbar {
+    padding: 5px 7px;
+    gap: 5px;
+    max-height: 80px;
+    overflow: auto;
+  }
+}
