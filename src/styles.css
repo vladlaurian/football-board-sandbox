@@ -555,3 +555,27 @@
 .goal{
   pointer-events:auto !important;
 }
+
+/* FIX: line-of-sight ruler line aligned to the actual start/end points and made clearly visible */
+.measure-svg{
+  z-index:12;
+  overflow:visible;
+}
+.measure-svg .ruler-shadow-line{
+  stroke:rgba(0,0,0,.9) !important;
+  stroke-width:10px !important;
+  vector-effect:non-scaling-stroke;
+  stroke-linecap:round;
+  stroke-dasharray:none !important;
+}
+.measure-svg .ruler-main-line{
+  stroke:#ffe100 !important;
+  stroke-width:6px !important;
+  vector-effect:non-scaling-stroke;
+  stroke-linecap:round;
+  stroke-dasharray:none !important;
+}
+.measure-svg.center .ruler-main-line,
+.measure-svg.corner .ruler-main-line{
+  stroke:#ffe100 !important;
+}
