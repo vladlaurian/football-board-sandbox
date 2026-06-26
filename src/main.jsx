@@ -470,6 +470,10 @@ function App() {
   const [showCoordinates, setShowCoordinates] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
   const [measureType, setMeasureType] = useState("center");
+  const [passMark, setPassMark] = useState(8);
+  const [shotMark1, setShotMark1] = useState(6);
+  const [shotMark2, setShotMark2] = useState(9);
+  const [shotMark3, setShotMark3] = useState(13);
   const [measureStart, setMeasureStart] = useState(null);
   const [measureEnd, setMeasureEnd] = useState(null);
   const [actionLog, setActionLog] = useState([]);
@@ -1249,17 +1253,54 @@ function App() {
 
   const measureInfo = useMemo(() => {
     if (!measureStart || !measureEnd) return null;
-    const dx = Math.abs(measureEnd.x - measureStart.x);
-    const dy = Math.abs(measureEnd.y - measureStart.y);
+    const dxSigned = measureEnd.x - measureStart.x;
+    const dySigned = measureEnd.y - measureStart.y;
+    const dx = Math.abs(dxSigned);
+    const dy = Math.abs(dySigned);
+    const cells = Math.sqrt(dx * dx + dy * dy);
     return {
       mode: measureType,
       dx,
       dy,
-      manhattan: dx + dy,
-      chess: Math.max(dx, dy),
-      straight: Math.sqrt(dx * dx + dy * dy).toFixed(2),
+      cells,
+      cellsLabel: cells.toFixed(2),
     };
   }, [measureStart, measureEnd, measureType]);
+
+  const rulerMarkers = useMemo(() => {
+    if (!measureStart || !measureEnd || !measureInfo || measureInfo.cells <= 0) return [];
+    const dx = measureEnd.x - measureStart.x;
+    const dy = measureEnd.y - measureStart.y;
+    const length = measureInfo.cells;
+    const ux = dx / length;
+    const uy = dy / length;
+    const tick = 0.45;
+    const raw = [
+      { type: "pass", label: String(passMark), value: Number(passMark) },
+      { type: "shot", label: String(shotMark1), value: Number(shotMark1) },
+      { type: "shot", label: String(shotMark2), value: Number(shotMark2) },
+      { type: "shot", label: String(shotMark3), value: Number(shotMark3) },
+    ];
+
+    return raw
+      .filter(mark => Number.isFinite(mark.value) && mark.value > 0 && mark.value <= length)
+      .map((mark, index) => {
+        const x = measureStart.x + ux * mark.value;
+        const y = measureStart.y + uy * mark.value;
+        return {
+          ...mark,
+          key: `${mark.type}-${mark.value}-${index}`,
+          x,
+          y,
+          x1: x - uy * tick,
+          y1: y + ux * tick,
+          x2: x + uy * tick,
+          y2: y - ux * tick,
+          labelX: x + uy * (tick + 0.22),
+          labelY: y - ux * (tick + 0.22),
+        };
+      });
+  }, [measureStart, measureEnd, measureInfo, passMark, shotMark1, shotMark2, shotMark3]);
 
   function getRulerPointFromPointer(e) {
     const pitch = pitchRef.current;
@@ -1286,7 +1327,8 @@ function App() {
 
   function onPitchPointerDown(e) {
     if (!measureMode) return;
-    if (e.target !== pitchRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
     const point = getRulerPointFromPointer(e);
     if (!measureStart || (measureStart && measureEnd)) {
       setMeasureStart(point);
@@ -1615,6 +1657,18 @@ function App() {
             <button className={measureType === "corner" ? "toggle-on ruler-corner" : ""} onClick={() => { setMeasureType("corner"); setMeasureStart(null); setMeasureEnd(null); }}>
               Corner
             </button>
+            <label className="ruler-mark-input pass">P
+              <input type="number" min="1" step="1" value={passMark} onChange={e => setPassMark(Number(e.target.value) || 1)} />
+            </label>
+            <label className="ruler-mark-input shot">S
+              <input type="number" min="1" step="1" value={shotMark1} onChange={e => setShotMark1(Number(e.target.value) || 1)} />
+            </label>
+            <label className="ruler-mark-input shot">
+              <input type="number" min="1" step="1" value={shotMark2} onChange={e => setShotMark2(Number(e.target.value) || 1)} />
+            </label>
+            <label className="ruler-mark-input shot">
+              <input type="number" min="1" step="1" value={shotMark3} onChange={e => setShotMark3(Number(e.target.value) || 1)} />
+            </label>
           </div>
         )}
 
@@ -1683,6 +1737,12 @@ function App() {
       >
         <div className="pitch-shell" style={pitchShellStyle}>
           <div className="pitch" ref={pitchRef} style={pitchStyle} onPointerDown={onPitchPointerDown}>
+            <div className="extended-hit-area" style={{
+              left: `calc(${-invisiblePaddingForSettings(settings)} * var(--cell))`,
+              top: `calc(${-invisiblePaddingForSettings(settings)} * var(--cell))`,
+              width: `calc((${settings.cols} + ${invisiblePaddingForSettings(settings) * 2}) * var(--cell))`,
+              height: `calc((${settings.rows} + ${invisiblePaddingForSettings(settings) * 2}) * var(--cell))`,
+            }} />
             <div className="half-line" />
             <div className="center-circle" style={{
               width: `calc(${settings.centerCircleRadius * 2} * var(--cell))`,
@@ -1726,11 +1786,25 @@ function App() {
             {measureStart && measureEnd && (
               <svg className={`measure-svg ${measureType === "corner" ? "corner" : "center"}`} viewBox={`${-invisiblePaddingForSettings(settings)} ${-invisiblePaddingForSettings(settings)} ${settings.cols + invisiblePaddingForSettings(settings) * 2} ${settings.rows + invisiblePaddingForSettings(settings) * 2}`} preserveAspectRatio="none">
                 <line
+                  className="ruler-shadow-line"
                   x1={measureStart.x}
                   y1={measureStart.y}
                   x2={measureEnd.x}
                   y2={measureEnd.y}
                 />
+                <line
+                  className="ruler-main-line"
+                  x1={measureStart.x}
+                  y1={measureStart.y}
+                  x2={measureEnd.x}
+                  y2={measureEnd.y}
+                />
+                {rulerMarkers.map(mark => (
+                  <g key={mark.key} className={`ruler-marker ${mark.type}`}>
+                    <line x1={mark.x1} y1={mark.y1} x2={mark.x2} y2={mark.y2} />
+                    <text x={mark.labelX} y={mark.labelY}>{mark.label}</text>
+                  </g>
+                ))}
               </svg>
             )}
 
@@ -1850,7 +1924,7 @@ function App() {
 
       {measureInfo && (
         <div className={`measure-panel ${measureType === "corner" ? "corner" : "center"}`}>
-          Riglă {measureType === "corner" ? "Corner-to-Corner" : "Center-to-Center"}: ΔX {measureInfo.dx} · ΔY {measureInfo.dy} · ortogonal {measureInfo.manhattan} · diagonal {measureInfo.chess} · drept {measureInfo.straight}
+          Riglă {measureType === "corner" ? "Corner-to-Corner" : "Center-to-Center"}: {measureInfo.cellsLabel} căsuțe
         </div>
       )}
 

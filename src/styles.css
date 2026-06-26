@@ -477,3 +477,81 @@
 .measure-panel.corner{
   border-color:rgba(181,108,255,.65);
 }
+
+
+/* extended invisible measurement/click area around the visible pitch */
+.extended-hit-area{
+  position:absolute;
+  z-index:0;
+  pointer-events:auto;
+  background:transparent;
+}
+
+/* clearer physical ruler with editable pass/shot marks */
+.measure-svg{
+  z-index:12;
+}
+.measure-svg .ruler-shadow-line{
+  stroke:rgba(0,0,0,.55);
+  stroke-width:.24;
+  vector-effect:non-scaling-stroke;
+  stroke-linecap:round;
+}
+.measure-svg .ruler-main-line{
+  stroke:#4da3ff;
+  stroke-width:.12;
+  vector-effect:non-scaling-stroke;
+  stroke-linecap:round;
+}
+.measure-svg.corner .ruler-main-line{
+  stroke:#b56cff;
+}
+.measure-svg .ruler-marker line{
+  stroke-width:.14;
+  vector-effect:non-scaling-stroke;
+  stroke-linecap:round;
+}
+.measure-svg .ruler-marker.pass line{
+  stroke:#31e66f;
+}
+.measure-svg .ruler-marker.shot line{
+  stroke:#ff4545;
+}
+.measure-svg .ruler-marker text{
+  font-size:.62px;
+  font-weight:900;
+  dominant-baseline:middle;
+  text-anchor:middle;
+  paint-order:stroke;
+  stroke:rgba(0,0,0,.86);
+  stroke-width:.16px;
+}
+.measure-svg .ruler-marker.pass text{
+  fill:#31e66f;
+}
+.measure-svg .ruler-marker.shot text{
+  fill:#ff4545;
+}
+.ruler-mark-input{
+  display:flex;
+  align-items:center;
+  gap:3px;
+  font-size:11px;
+  font-weight:800;
+  opacity:1;
+}
+.ruler-mark-input.pass{
+  color:#31e66f;
+}
+.ruler-mark-input.shot{
+  color:#ff5959;
+}
+.topbar .ruler-mark-input input{
+  width:42px;
+  padding:5px 4px;
+  text-align:center;
+}
+
+.goal{
+  pointer-events:auto !important;
+}
