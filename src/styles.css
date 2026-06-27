@@ -888,3 +888,25 @@ input[type="number"] {
     padding: 0 4px !important;
   }
 }
+
+
+/* v4.2 ruler simplification: single shot mark + Corner-to-Center mode */
+.measure-svg.mixed .ruler-main-line{
+  stroke:#ffe100 !important;
+}
+.measure-point.start.corner{
+  background:#b56cff;
+  border-color:white;
+}
+.ruler-floating-row.mode-row{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:6px;
+}
+.ruler-floating-row .ruler-corner-center{
+  background:#0f9f7a !important;
+  border-color:rgba(120,255,220,.85) !important;
+}
+.ruler-panel .ruler-mark-input.shot{
+  color:#ff5959;
+}

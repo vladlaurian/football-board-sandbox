@@ -471,9 +471,7 @@ function App() {
   const [measureMode, setMeasureMode] = useState(false);
   const [measureType, setMeasureType] = useState("center");
   const [passMark, setPassMark] = useState(8);
-  const [shotMark1, setShotMark1] = useState(6);
-  const [shotMark2, setShotMark2] = useState(9);
-  const [shotMark3, setShotMark3] = useState(13);
+  const [shotMark, setShotMark] = useState(12);
   const [measureStart, setMeasureStart] = useState(null);
   const [measureEnd, setMeasureEnd] = useState(null);
   const [actionLog, setActionLog] = useState([]);
@@ -1310,9 +1308,7 @@ function App() {
     const tick = 0.45;
     const raw = [
       { type: "pass", label: String(passMark), value: Number(passMark) },
-      { type: "shot", label: String(shotMark1), value: Number(shotMark1) },
-      { type: "shot", label: String(shotMark2), value: Number(shotMark2) },
-      { type: "shot", label: String(shotMark3), value: Number(shotMark3) },
+      { type: "shot", label: String(shotMark), value: Number(shotMark) },
     ];
 
     return raw
@@ -1334,7 +1330,7 @@ function App() {
           labelY: y - ux * (tick + 0.22),
         };
       });
-  }, [measureStart, measureEnd, measureInfo, passMark, shotMark1, shotMark2, shotMark3]);
+  }, [measureStart, measureEnd, measureInfo, passMark, shotMark]);
 
   function getRulerPointFromClient(clientX, clientY) {
     const pitch = pitchRef.current;
@@ -1344,7 +1340,10 @@ function App() {
     const rawX = localX / settings.cellSize;
     const rawY = localY / settings.cellSize;
 
-    if (measureType === "corner") {
+    const isFirstPoint = !measureStart || measureEnd;
+    const snapCorner = measureType === "corner" || (measureType === "cornerCenter" && isFirstPoint);
+
+    if (snapCorner) {
       return {
         x: clampBoardXForY(Math.round(rawX), Math.round(rawY), settings),
         y: clampBoardY(Math.round(rawY), settings),
@@ -1938,7 +1937,7 @@ function App() {
             ))}
 
             {measureMode && measureStart && (
-              <div className={`measure-point start ${measureType === "corner" ? "corner" : "center"}`} style={{
+              <div className={`measure-point start ${(measureType === "corner" || measureType === "cornerCenter") ? "corner" : "center"}`} style={{
                 left: `calc(${measureStart.x} * var(--cell) - var(--cell) * .13)`,
                 top: `calc(${measureStart.y} * var(--cell) - var(--cell) * .13)`,
               }} />
@@ -1950,7 +1949,7 @@ function App() {
               }} />
             )}
             {measureMode && measureStart && measureEnd && (
-              <svg className={`measure-svg ${measureType === "corner" ? "corner" : "center"}`} viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
+              <svg className={`measure-svg ${measureType === "corner" ? "corner" : measureType === "cornerCenter" ? "mixed" : "center"}`} viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
                 <line
                   className="ruler-shadow-line"
                   x1={measureStart.x}
@@ -2090,7 +2089,7 @@ function App() {
 
       {measureMode && measureInfo && (
         <div className={`measure-panel ${measureType === "corner" ? "corner" : "center"}`}>
-          Riglă {measureType === "corner" ? "Corner-to-Corner" : "Center-to-Center"}: {measureInfo.cellsLabel} căsuțe
+          Riglă {measureType === "corner" ? "Corner-to-Corner" : measureType === "cornerCenter" ? "Corner-to-Center" : "Center-to-Center"}: {measureInfo.cellsLabel} căsuțe
         </div>
       )}
 
@@ -2115,19 +2114,14 @@ function App() {
             <div className="ruler-floating-row mode-row">
               <button className={measureType === "center" ? "toggle-on ruler-center" : ""} onClick={() => { setMeasureType("center"); setMeasureStart(null); setMeasureEnd(null); }}>Center</button>
               <button className={measureType === "corner" ? "toggle-on ruler-corner" : ""} onClick={() => { setMeasureType("corner"); setMeasureStart(null); setMeasureEnd(null); }}>Corner</button>
+              <button className={measureType === "cornerCenter" ? "toggle-on ruler-corner-center" : ""} onClick={() => { setMeasureType("cornerCenter"); setMeasureStart(null); setMeasureEnd(null); }}>Corner→Center</button>
             </div>
             <div className="ruler-floating-grid">
               <label className="ruler-mark-input pass">P
                 <input type="number" min="1" step="1" value={passMark} onChange={e => setPassMark(Number(e.target.value) || 1)} />
               </label>
-              <label className="ruler-mark-input shot">Șut scurt
-                <input type="number" min="1" step="1" value={shotMark1} onChange={e => setShotMark1(Number(e.target.value) || 1)} />
-              </label>
-              <label className="ruler-mark-input shot">Șut mediu
-                <input type="number" min="1" step="1" value={shotMark2} onChange={e => setShotMark2(Number(e.target.value) || 1)} />
-              </label>
-              <label className="ruler-mark-input shot">Șut lung
-                <input type="number" min="1" step="1" value={shotMark3} onChange={e => setShotMark3(Number(e.target.value) || 1)} />
+              <label className="ruler-mark-input shot">Șut
+                <input type="number" min="1" step="1" value={shotMark} onChange={e => setShotMark(Number(e.target.value) || 1)} />
               </label>
             </div>
           </div>
