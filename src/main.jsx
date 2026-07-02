@@ -601,6 +601,9 @@ function App() {
     }
   });
   const [cardsPanelOpen, setCardsPanelOpen] = useState(false);
+  const [inspectorVisible, setInspectorVisible] = useState(true);
+  const [inspectorMinimized, setInspectorMinimized] = useState(false);
+  const [defAreaMode, setDefAreaMode] = useState(0);
   const [cardsView, setCardsView] = useState("library");
   const [editingCardId, setEditingCardId] = useState(null);
   const [exportCardId, setExportCardId] = useState("");
@@ -1381,6 +1384,33 @@ function App() {
   const inspectedPiece = pieces.find(p => p.id === inspectedPieceId);
   const inspectedCardId = inspectedPiece ? cardState.assignments[inspectedPiece.id] : null;
   const inspectedCard = inspectedCardId ? cardById[inspectedCardId] : null;
+
+  const defensiveAreaOverlays = useMemo(() => {
+    if (defAreaMode === 0) return [];
+    const sourcePieces = defAreaMode === 1
+      ? (inspectedPiece && inspectedPiece.team !== "BALL" ? [inspectedPiece] : [])
+      : pieces.filter(piece => piece.team !== "BALL");
+    return sourcePieces.flatMap(piece => {
+      const card = cardById[cardState.assignments[piece.id]];
+      if (!card || !Array.isArray(card.defensiveArea)) return [];
+      return card.defensiveArea.map((cell, index) => {
+        const dx = Number(cell.dx);
+        const dy = Number(cell.dy);
+        if (!Number.isFinite(dx) || !Number.isFinite(dy)) return null;
+        const x = piece.x + dx;
+        const y = piece.y + dy;
+        if (x < 0 || y < 0 || x >= settings.cols || y >= settings.rows) return null;
+        return {
+          id: `${piece.id}-${index}-${dx}-${dy}`,
+          x,
+          y,
+          team: piece.team,
+        };
+      }).filter(Boolean);
+    });
+  }, [defAreaMode, inspectedPiece, pieces, cardState.assignments, cardById, settings.cols, settings.rows]);
+
+  const defAreaButtonLabel = defAreaMode === 0 ? "D.A OFF" : defAreaMode === 1 ? "D.A.1" : "D.A.2";
   useEffect(() => {
     if (!cardState.cards.length) {
       if (exportCardId) setExportCardId("");
@@ -2406,6 +2436,12 @@ function App() {
         <button className={cardsPanelOpen ? "toggle-on" : ""} onClick={() => setCardsPanelOpen(v => !v)}>
           Cards
         </button>
+        <button className={inspectorVisible ? "toggle-on" : ""} onClick={() => { setInspectorVisible(v => !v); if (!inspectorVisible) setInspectorMinimized(false); }}>
+          Insp
+        </button>
+        <button className={defAreaMode ? "toggle-on" : ""} onClick={() => setDefAreaMode(v => (v + 1) % 3)}>
+          {defAreaButtonLabel}
+        </button>
       </div>
 
       {cardsPanelOpen && !lockUI && CardsPanel()}
@@ -2570,6 +2606,17 @@ function App() {
             </div>
 
 
+            {defensiveAreaOverlays.map(cell => (
+              <div
+                key={cell.id}
+                className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"}`}
+                style={{
+                  left: `calc(${cell.x} * var(--cell))`,
+                  top: `calc(${cell.y} * var(--cell))`,
+                }}
+              />
+            ))}
+
             {pieces.map(p => (
               <div
                 key={p.id}
@@ -2593,29 +2640,42 @@ function App() {
         </div>
       </div>
 
+      {inspectorVisible && !lockUI && (
       <aside
-        className="card-inspector"
+        className={`card-inspector ${inspectorMinimized ? "minimized" : ""}`}
         style={{ "--inspector-x": `${inspectorPosition.x}px`, "--inspector-y": `${inspectorPosition.y}px`, "--inspector-w": `${inspectorSize.w}px`, "--inspector-h": `${inspectorSize.h}px` }}
         onPointerMove={onInspectorPointerMove}
         onPointerUp={stopInspectorPointerWork}
         onPointerCancel={stopInspectorPointerWork}
       >
-        <div className="inspector-head inspector-drag-handle" onPointerDown={onInspectorDragDown}><strong>Inspector</strong>{inspectedPiece && <span>{inspectedPiece.team === "A" ? "Blue" : inspectedPiece.team === "B" ? "Red" : "Ball"} · {inspectedPiece.team === "BALL" ? inspectedPiece.label : getPieceDisplayLabel(inspectedPiece)}</span>}</div>
-        {!inspectedPiece || inspectedPiece.team === "BALL" ? (
-          <p className="muted">Click/tap pe un puc ca să vezi cardul atașat.</p>
-        ) : (
-          <>
-            <div className="inspector-piece-line"><b>Post puc:</b> {inspectedPiece.label || "—"}</div>
-            {inspectedCard ? CardPreview({ card: inspectedCard, team: inspectedPiece.team === "A" ? "blue" : "red" }) : <div className="card-preview empty">Niciun card atașat</div>}
-            <div className="inspector-actions">
-              <button onClick={() => setAssignTarget({ type: "piece", pieceId: inspectedPiece.id })}>Assign Card</button>
-              {inspectedCard && <button onClick={() => { setCardsPanelOpen(true); setCardsView("library"); setEditingCardId(inspectedCard.id); }}>Edit Card</button>}
-              {inspectedCard && <button onClick={() => removePieceCard(inspectedPiece.id)}>Remove Card</button>}
-            </div>
-          </>
+        <div className="inspector-head inspector-drag-handle" onPointerDown={onInspectorDragDown}>
+          <strong>Inspector</strong>
+          <div className="inspector-head-right">
+            {inspectedPiece && <span>{inspectedPiece.team === "A" ? "Blue" : inspectedPiece.team === "B" ? "Red" : "Ball"} · {inspectedPiece.team === "BALL" ? inspectedPiece.label : getPieceDisplayLabel(inspectedPiece)}</span>}
+            <button className="inspector-window-btn" title="Minimize" onPointerDown={e => e.stopPropagation()} onClick={() => setInspectorMinimized(v => !v)}>{inspectorMinimized ? "□" : "—"}</button>
+            <button className="inspector-window-btn" title="Close" onPointerDown={e => e.stopPropagation()} onClick={() => setInspectorVisible(false)}>×</button>
+          </div>
+        </div>
+        {!inspectorMinimized && (
+          <div className="inspector-body">
+            {!inspectedPiece || inspectedPiece.team === "BALL" ? (
+              <p className="muted">Click/tap pe un puc ca să vezi cardul atașat.</p>
+            ) : (
+              <>
+                <div className="inspector-piece-line"><b>Post puc:</b> {inspectedPiece.label || "—"}</div>
+                {inspectedCard ? CardPreview({ card: inspectedCard, team: inspectedPiece.team === "A" ? "blue" : "red" }) : <div className="card-preview empty">Niciun card atașat</div>}
+                <div className="inspector-actions">
+                  <button onClick={() => setAssignTarget({ type: "piece", pieceId: inspectedPiece.id })}>Assign Card</button>
+                  {inspectedCard && <button onClick={() => { setCardsPanelOpen(true); setCardsView("library"); setEditingCardId(inspectedCard.id); }}>Edit Card</button>}
+                  {inspectedCard && <button onClick={() => removePieceCard(inspectedPiece.id)}>Remove Card</button>}
+                </div>
+              </>
+            )}
+          </div>
         )}
         <div className="inspector-resize" onPointerDown={onInspectorResizeDown} />
       </aside>
+      )}
       </div>
 
       <div className="status">
