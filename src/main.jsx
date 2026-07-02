@@ -1357,6 +1357,11 @@ function App() {
   const inspectedPiece = pieces.find(p => p.id === inspectedPieceId);
   const inspectedCardId = inspectedPiece ? cardState.assignments[inspectedPiece.id] : null;
   const inspectedCard = inspectedCardId ? cardById[inspectedCardId] : null;
+  const getPieceDisplayLabel = (piece) => {
+    if (!piece) return "";
+    const assignedCard = cardById[cardState.assignments[piece.id]];
+    return (assignedCard?.position || piece.label || "SUB").trim();
+  };
   const rosterSlots = useMemo(() => {
     const orderIndex = (label) => {
       const clean = String(label || "").trim().toUpperCase();
@@ -1369,7 +1374,7 @@ function App() {
         .map((piece, index) => ({
           id: piece.id,
           pieceId: piece.id,
-          position: piece.label || `P${index + 1}`,
+          position: (cardById[cardState.assignments[piece.id]]?.position || piece.label || `SUB ${index + 1}`),
           cardId: cardState.assignments[piece.id] || null,
           isSub: String(piece.id).includes("-R-"),
           y: piece.y,
@@ -1389,7 +1394,7 @@ function App() {
       };
     };
     return { blue: build("A"), red: build("B") };
-  }, [pieces, cardState.assignments]);
+  }, [pieces, cardState.assignments, cardById]);
 
   function updateCardState(updater) {
     setCardState(prev => normalizeCardState(typeof updater === "function" ? updater(prev) : updater));
@@ -1434,14 +1439,28 @@ function App() {
 
   function assignCard(cardId) {
     if (!assignTarget) return;
+    const targetPieceId = assignTarget.pieceId || null;
+    const existingPieceIds = Object.entries(cardState.assignments || {})
+      .filter(([pieceId, assignedCardId]) => assignedCardId === cardId && pieceId !== targetPieceId)
+      .map(([pieceId]) => pieceId);
+
+    if (existingPieceIds.length > 0) {
+      const shouldReassign = window.confirm("This card is already assigned to another puck. Do you want to reassign it?");
+      if (!shouldReassign) return;
+    }
+
     updateCardState(prev => {
+      const cleanAssignments = Object.fromEntries(
+        Object.entries(prev.assignments || {}).filter(([pieceId, assignedCardId]) => assignedCardId !== cardId || pieceId === targetPieceId)
+      );
+
       if (assignTarget.type === "piece") {
-        return { ...prev, assignments: { ...prev.assignments, [assignTarget.pieceId]: cardId } };
+        return { ...prev, assignments: { ...cleanAssignments, [assignTarget.pieceId]: cardId } };
       }
       if (assignTarget.type === "team") {
         const nextAssignments = assignTarget.pieceId
-          ? { ...prev.assignments, [assignTarget.pieceId]: cardId }
-          : prev.assignments;
+          ? { ...cleanAssignments, [assignTarget.pieceId]: cardId }
+          : cleanAssignments;
         const nextTeams = prev.teams?.[assignTarget.team]
           ? {
               ...prev.teams,
@@ -2487,7 +2506,7 @@ function App() {
               <div
                 key={p.id}
                 data-coord={withBoardPosition(p, settings).coord}
-                title={`${p.label} ${withBoardPosition(p, settings).coord}${cardState.assignments[p.id] ? " · Card attached" : ""}`}
+                title={`${getPieceDisplayLabel(p)} ${withBoardPosition(p, settings).coord}${cardState.assignments[p.id] ? " · Card attached" : ""}`}
                 className={`piece ${p.team === "A" ? "team-a" : p.team === "B" ? "team-b" : "ball"} ${selectedId === p.id ? "selected" : ""} ${cardState.assignments[p.id] ? "has-card" : ""}`}
                 style={{
                   left: `calc(${p.x} * var(--cell) + var(--cell) * ${p.team === "BALL" ? 0.2 : 0.08})`,
@@ -2499,7 +2518,7 @@ function App() {
                 onPointerCancel={onPointerUp}
                 onDoubleClick={() => openEdit(p)}
               >
-                <span className="piece-label">{p.label}</span>{p.team !== "BALL" && cardState.assignments[p.id] && <span className="piece-card-icon">▣</span>}
+                <span className="piece-label">{p.team === "BALL" ? p.label : getPieceDisplayLabel(p)}</span>{p.team !== "BALL" && cardState.assignments[p.id] && <span className="piece-card-icon">▣</span>}
               </div>
             ))}
           </div>
@@ -2513,7 +2532,7 @@ function App() {
         onPointerUp={stopInspectorPointerWork}
         onPointerCancel={stopInspectorPointerWork}
       >
-        <div className="inspector-head inspector-drag-handle" onPointerDown={onInspectorDragDown}><strong>Inspector</strong>{inspectedPiece && <span>{inspectedPiece.team === "A" ? "Blue" : inspectedPiece.team === "B" ? "Red" : "Ball"} · {inspectedPiece.label || inspectedPiece.id}</span>}</div>
+        <div className="inspector-head inspector-drag-handle" onPointerDown={onInspectorDragDown}><strong>Inspector</strong>{inspectedPiece && <span>{inspectedPiece.team === "A" ? "Blue" : inspectedPiece.team === "B" ? "Red" : "Ball"} · {inspectedPiece.team === "BALL" ? inspectedPiece.label : getPieceDisplayLabel(inspectedPiece)}</span>}</div>
         {!inspectedPiece || inspectedPiece.team === "BALL" ? (
           <p className="muted">Click/tap pe un puc ca să vezi cardul atașat.</p>
         ) : (
