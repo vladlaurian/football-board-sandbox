@@ -334,6 +334,34 @@ function normalizePiecesForBoard(pieces, settingsLike = DEFAULT_SETTINGS) {
   return (pieces || []).map(piece => withBoardPosition(piece, settingsLike));
 }
 
+function ensureBenchReserveCount(pieces, settingsLike = DEFAULT_SETTINGS, reserveCount = 7) {
+  const localSettings = normalizeSettingsForApp(settingsLike);
+  const normalized = normalizePiecesForBoard(pieces || [], localSettings);
+  const existingIds = new Set(normalized.map(piece => piece.id));
+  const pad = invisiblePaddingForSettings(localSettings);
+  const startY = Math.max(1, goalTopForSettings(localSettings) - 8);
+  const additions = [];
+
+  ["A", "B"].forEach(team => {
+    const isBlue = team === "A";
+    const benchX = isBlue ? -pad : localSettings.cols + pad - 1;
+    for (let i = 0; i < reserveCount; i++) {
+      const id = `${team}-R-${i + 1}`;
+      if (!existingIds.has(id)) {
+        additions.push({
+          id,
+          team,
+          label: "",
+          x: benchX,
+          y: startY + i,
+        });
+      }
+    }
+  });
+
+  return normalizePiecesForBoard([...normalized, ...additions], localSettings);
+}
+
 function createSquareObject(x, y, pieces = [], settingsLike = DEFAULT_SETTINGS) {
   const grid = normalizeGridPosition(x, y, settingsLike);
   const occupants = normalizePiecesForBoard(pieces, settingsLike).filter(piece => piece.coord === grid.coord);
@@ -527,7 +555,7 @@ function createInitialPieces(cols, rows, blueFormation = FORMATION_SLOTS[0], red
   addBench("B");
 
   pieces.push({ id: "BALL", team: "BALL", label: "●", x: Math.floor(cols / 2), y: midY });
-  return normalizePiecesForBoard(pieces, localSettings);
+  return ensureBenchReserveCount(pieces, localSettings, 7);
 }
 
 function App() {
@@ -553,6 +581,10 @@ function App() {
   const [cardsView, setCardsView] = useState("library");
   const [editingCardId, setEditingCardId] = useState(null);
   const [assignTarget, setAssignTarget] = useState(null);
+  const [inspectorPosition, setInspectorPosition] = useState({ x: Math.max(12, window.innerWidth - 350), y: 150 });
+  const [inspectorSize, setInspectorSize] = useState({ w: 320, h: 520 });
+  const [inspectorDragging, setInspectorDragging] = useState(null);
+  const [inspectorResizing, setInspectorResizing] = useState(null);
   const [editingPiece, setEditingPiece] = useState(null);
   const [editLabel, setEditLabel] = useState("");
   const [zoom, setZoom] = useState(0.8);
@@ -665,7 +697,7 @@ function App() {
     if (data.activeSituationName) setActiveSituationName(data.activeSituationName);
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
-    if (data.pieces) setPieces(normalizePiecesForBoard(data.pieces, data.settings ? normalizeSettingsForApp(data.settings) : settings));
+    if (data.pieces) setPieces(ensureBenchReserveCount(data.pieces, data.settings ? normalizeSettingsForApp(data.settings) : settings));
     if (typeof data.dieType === "number") setDieType(data.dieType);
     if (data.dieResult !== undefined) setDieResult(data.dieResult);
     if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
@@ -695,7 +727,7 @@ function App() {
     if (!data) return;
     const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settings;
     if (data.settings) setSettings(nextSettings);
-    if (data.pieces) setPieces(normalizePiecesForBoard(data.pieces, nextSettings));
+    if (data.pieces) setPieces(ensureBenchReserveCount(data.pieces, nextSettings));
     if (typeof data.dieType === "number") setDieType(data.dieType);
     if (data.dieResult !== undefined) setDieResult(data.dieResult);
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
@@ -1000,7 +1032,7 @@ function App() {
     }
 
     setSettings(next);
-    setPieces(prev => normalizePiecesForBoard(prev.map(p => ({
+    setPieces(prev => ensureBenchReserveCount(prev.map(p => ({
       ...p,
       y: clamp(p.y, 0, next.rows - 1),
       x: clampBoardXForY(p.x, clamp(p.y, 0, next.rows - 1), next),
@@ -1104,7 +1136,7 @@ function App() {
 
     pushHistory();
     setSettings(situation.snapshot.settings);
-    setPieces(normalizePiecesForBoard(situation.snapshot.pieces, situation.snapshot.settings || settings));
+    setPieces(ensureBenchReserveCount(situation.snapshot.pieces, situation.snapshot.settings || settings));
     setZoom(situation.snapshot.zoom ?? 0.9);
     setBlueFormationId(situation.snapshot.blueFormationId ?? 1);
     setRedFormationId(situation.snapshot.redFormationId ?? 2);
@@ -1181,7 +1213,7 @@ function App() {
     const saved = JSON.parse(raw);
     setSettings(normalizeLoadedSettings(saved.settings));
     const loadedSettings = normalizeLoadedSettings(saved.settings);
-    setPieces(normalizePiecesForBoard(saved.pieces, loadedSettings));
+    setPieces(ensureBenchReserveCount(saved.pieces, loadedSettings));
     if (saved.cardState) setCardState(normalizeCardState(saved.cardState));
     setZoom(saved.zoom ?? 1);
   }
@@ -1204,7 +1236,7 @@ function App() {
 
   function restoreSnapshot(entry) {
     const restoredSettings = normalizeSettingsForApp(JSON.parse(entry.settings));
-    setPieces(normalizePiecesForBoard(JSON.parse(entry.pieces), restoredSettings));
+    setPieces(ensureBenchReserveCount(JSON.parse(entry.pieces), restoredSettings));
     setSettings(restoredSettings);
     setZoom(entry.zoom ?? 1);
     setDieType(entry.dieType ?? 20);
@@ -1246,7 +1278,41 @@ function App() {
       x = clampBoardXForY(localX / settings.cellSize - 0.5, y, settings);
     }
 
-    setPieces(prev => normalizePiecesForBoard(prev.map(p => p.id === pieceId ? { ...p, x, y } : p), settings));
+    setPieces(prev => ensureBenchReserveCount(prev.map(p => p.id === pieceId ? { ...p, x, y } : p), settings));
+  }
+
+  function onInspectorDragDown(e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    const rect = e.currentTarget.closest(".card-inspector").getBoundingClientRect();
+    setInspectorDragging({ pointerId: e.pointerId, dx: e.clientX - rect.left, dy: e.clientY - rect.top });
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+
+  function onInspectorResizeDown(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setInspectorResizing({ pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, startW: inspectorSize.w, startH: inspectorSize.h });
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+
+  function onInspectorPointerMove(e) {
+    if (inspectorDragging) {
+      setInspectorPosition({
+        x: clamp(e.clientX - inspectorDragging.dx, 0, Math.max(0, window.innerWidth - inspectorSize.w)),
+        y: clamp(e.clientY - inspectorDragging.dy, 0, Math.max(0, window.innerHeight - 80)),
+      });
+    }
+    if (inspectorResizing) {
+      setInspectorSize({
+        w: clamp(inspectorResizing.startW + e.clientX - inspectorResizing.startX, 250, Math.max(260, window.innerWidth - 20)),
+        h: clamp(inspectorResizing.startH + e.clientY - inspectorResizing.startY, 220, Math.max(260, window.innerHeight - 20)),
+      });
+    }
+  }
+
+  function stopInspectorPointerWork() {
+    setInspectorDragging(null);
+    setInspectorResizing(null);
   }
 
   function onPointerDown(pieceId, e) {
@@ -1282,7 +1348,7 @@ function App() {
   function saveEdit() {
     if (!editingPiece) return;
     const clean = editLabel.trim().slice(0, 5) || "?";
-    setPieces(prev => normalizePiecesForBoard(prev.map(p => p.id === editingPiece.id ? { ...p, label: clean } : p), settings));
+    setPieces(prev => ensureBenchReserveCount(prev.map(p => p.id === editingPiece.id ? { ...p, label: clean } : p), settings));
     setEditingPiece(null);
     setEditLabel("");
   }
@@ -1414,11 +1480,19 @@ function App() {
     reader.onload = () => {
       try {
         const parsed = JSON.parse(reader.result);
-        const incoming = parsed.cardState || parsed;
-        setCardState(normalizeCardState(incoming));
-        if (parsed.pieces) setPieces(normalizePiecesForBoard(parsed.pieces, parsed.settings ? normalizeSettingsForApp(parsed.settings) : settings));
-        if (parsed.settings) setSettings(normalizeSettingsForApp(parsed.settings));
-        alert("Import reușit.");
+        const incoming = normalizeCardState(parsed.cardState || parsed);
+        const idMap = {};
+        const importedCards = incoming.cards.map(card => {
+          const newId = `card_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+          idMap[card.id] = newId;
+          return { ...card, id: newId, name: card.name, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        });
+        setCardState(prev => normalizeCardState({
+          ...prev,
+          theme: incoming.theme || prev.theme,
+          cards: [...prev.cards, ...importedCards],
+        }));
+        alert(`Import reușit. Am adăugat ${importedCards.length} carduri noi.`);
       } catch (error) {
         alert("JSON invalid.");
       }
@@ -2432,8 +2506,14 @@ function App() {
         </div>
       </div>
 
-      <aside className="card-inspector">
-        <div className="inspector-head"><strong>Inspector</strong>{inspectedPiece && <span>{inspectedPiece.team === "A" ? "Blue" : inspectedPiece.team === "B" ? "Red" : "Ball"} · {inspectedPiece.label || inspectedPiece.id}</span>}</div>
+      <aside
+        className="card-inspector"
+        style={{ "--inspector-x": `${inspectorPosition.x}px`, "--inspector-y": `${inspectorPosition.y}px`, "--inspector-w": `${inspectorSize.w}px`, "--inspector-h": `${inspectorSize.h}px` }}
+        onPointerMove={onInspectorPointerMove}
+        onPointerUp={stopInspectorPointerWork}
+        onPointerCancel={stopInspectorPointerWork}
+      >
+        <div className="inspector-head inspector-drag-handle" onPointerDown={onInspectorDragDown}><strong>Inspector</strong>{inspectedPiece && <span>{inspectedPiece.team === "A" ? "Blue" : inspectedPiece.team === "B" ? "Red" : "Ball"} · {inspectedPiece.label || inspectedPiece.id}</span>}</div>
         {!inspectedPiece || inspectedPiece.team === "BALL" ? (
           <p className="muted">Click/tap pe un puc ca să vezi cardul atașat.</p>
         ) : (
@@ -2447,6 +2527,7 @@ function App() {
             </div>
           </>
         )}
+        <div className="inspector-resize" onPointerDown={onInspectorResizeDown} />
       </aside>
       </div>
 

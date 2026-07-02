@@ -1111,3 +1111,54 @@ select option {
     width: min(100%, 330px) !important;
   }
 }
+
+/* Inspector movable/resizable pass */
+.card-inspector {
+  position: fixed !important;
+  right: auto !important;
+  bottom: auto !important;
+  max-width: none !important;
+  max-height: none !important;
+  overflow: auto !important;
+  resize: none !important;
+  touch-action: none;
+}
+.inspector-drag-handle {
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(9,14,25,.88);
+  padding-bottom: 6px;
+}
+.inspector-resize {
+  position: sticky;
+  float: right;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  touch-action: none;
+  margin-top: -18px;
+}
+.inspector-resize:after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(255,255,255,.65);
+  border-bottom: 2px solid rgba(255,255,255,.65);
+}
+.card-inspector {
+  left: var(--inspector-x, auto) !important;
+  top: var(--inspector-y, auto) !important;
+  width: var(--inspector-w, 320px) !important;
+  height: var(--inspector-h, 520px) !important;
+  right: auto !important;
+  bottom: auto !important;
+}
