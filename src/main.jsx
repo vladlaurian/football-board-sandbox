@@ -136,11 +136,91 @@ function normalizeSettingsForApp(rawSettings = {}) {
 }
 
 const POSITION_OPTIONS = [
-  "GK", "LB", "LWB", "CB", "RB", "RWB",
-  "CDM", "CM", "CAM", "AM",
-  "LM", "RM", "LW", "RW",
-  "LF", "RF", "CF", "ST"
+  "GK", "LWB", "LB", "CB", "RB", "RWB",
+  "LW", "LM", "CDM", "CAM", "CM", "RM", "RW", "ST"
 ];
+
+const CARD_POSITION_OPTIONS = [
+  "GK", "LWB", "LB", "CB", "RB", "RWB", "LW", "LM", "CDM", "CAM", "CM", "RM", "RW", "ST"
+];
+
+const TEAM_LAYOUT_POSITIONS = ["GK", "LWB", "LB", "CB", "CB", "RB", "RWB", "CDM", "CM", "CAM", "LW", "RW", "ST"];
+const TEAM_SLOT_POSITIONS = ["GK", "LB", "CB", "CB", "RB", "CDM", "CM", "CAM", "LW", "RW", "ST"];
+const CARD_THEMES = ["Realistic", "GOALS Style", "Fortnite Style", "Anime Style", "Comic Style", "Minimal"];
+
+function defaultAttributesForPosition(position, section) {
+  const isGk = position === "GK";
+  const names = section === "passive"
+    ? (isGk ? ["Reflexes", "Diving Saves", "GK Penalty"] : ["Speed", "1vs1 Defending", "Aerial", "Passing", "Ball Control"])
+    : (isGk ? ["Long Pass", "Cross Claiming", "Penalty"] : ["Tackling", "Interception", "Long Pass", "Crossing", "Dribbling", "Accuracy", "Long Shot", "Finishing", "Heading", "Penalty"]);
+  return names.map((name, index) => ({ id: `${section}_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`, name, value: 0 }));
+}
+
+function emptyDefensiveArea() {
+  return [];
+}
+
+function createPlayerCard(position = "ST") {
+  const safePosition = CARD_POSITION_OPTIONS.includes(position) ? position : "ST";
+  return {
+    id: `card_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    name: "New Player",
+    position: safePosition,
+    passiveAttributes: defaultAttributesForPosition(safePosition, "passive"),
+    bonuses: defaultAttributesForPosition(safePosition, "bonus"),
+    defensiveArea: emptyDefensiveArea(),
+    artwork: { mode: "default", customDataUrl: "" },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function createDefaultCardState() {
+  return {
+    cards: [],
+    teams: {
+      blue: TEAM_SLOT_POSITIONS.map((position, index) => ({ id: `blue-${index + 1}`, position, cardId: null })),
+      red: TEAM_SLOT_POSITIONS.map((position, index) => ({ id: `red-${index + 1}`, position, cardId: null })),
+    },
+    assignments: {},
+    theme: "Realistic",
+  };
+}
+
+function normalizeCardState(raw) {
+  const base = createDefaultCardState();
+  if (!raw || typeof raw !== "object") return base;
+  const normalizeTeam = (team, fallback) => {
+    const source = Array.isArray(team) ? team : [];
+    return fallback.map((slot, index) => ({ ...slot, ...(source[index] || {}), id: slot.id, position: (source[index]?.position || slot.position), cardId: source[index]?.cardId || null }));
+  };
+  return {
+    cards: Array.isArray(raw.cards) ? raw.cards.map(card => ({
+      ...createPlayerCard(card.position || "ST"),
+      ...card,
+      passiveAttributes: Array.isArray(card.passiveAttributes) ? card.passiveAttributes : [],
+      bonuses: Array.isArray(card.bonuses) ? card.bonuses : [],
+      defensiveArea: Array.isArray(card.defensiveArea) ? card.defensiveArea : [],
+      artwork: card.artwork || { mode: "default", customDataUrl: "" },
+    })) : [],
+    teams: {
+      blue: normalizeTeam(raw.teams?.blue, base.teams.blue),
+      red: normalizeTeam(raw.teams?.red, base.teams.red),
+    },
+    assignments: raw.assignments && typeof raw.assignments === "object" ? raw.assignments : {},
+    theme: CARD_THEMES.includes(raw.theme) ? raw.theme : base.theme,
+  };
+}
+
+function cleanTwoDigitValue(value) {
+  const text = String(value ?? "").replace(/\D/g, "").slice(0, 2);
+  if (text === "") return 0;
+  return clamp(Number(text), 0, 99);
+}
+
+function areaHasCell(area, dx, dy) {
+  return (area || []).some(cell => Number(cell.dx) === dx && Number(cell.dy) === dy);
+}
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -460,6 +540,19 @@ function App() {
   const [activeSituationName, setActiveSituationName] = useState("Situația 1");
   const [pieces, setPieces] = useState(() => normalizePiecesForBoard(createInitialPieces(DEFAULT_SETTINGS.cols, DEFAULT_SETTINGS.rows, FORMATION_SLOTS[0], FORMATION_SLOTS[1]), DEFAULT_SETTINGS));
   const [selectedId, setSelectedId] = useState(null);
+  const [inspectedPieceId, setInspectedPieceId] = useState(null);
+  const [cardState, setCardState] = useState(() => {
+    try {
+      const raw = localStorage.getItem("football-board-player-cards-v1");
+      return raw ? normalizeCardState(JSON.parse(raw)) : normalizeCardState();
+    } catch {
+      return normalizeCardState();
+    }
+  });
+  const [cardsPanelOpen, setCardsPanelOpen] = useState(false);
+  const [cardsView, setCardsView] = useState("library");
+  const [editingCardId, setEditingCardId] = useState(null);
+  const [assignTarget, setAssignTarget] = useState(null);
   const [editingPiece, setEditingPiece] = useState(null);
   const [editLabel, setEditLabel] = useState("");
   const [zoom, setZoom] = useState(0.8);
@@ -538,6 +631,10 @@ function App() {
     };
   }, [boardApi]);
 
+  useEffect(() => {
+    localStorage.setItem("football-board-player-cards-v1", JSON.stringify(cardState));
+  }, [cardState]);
+
   function buildCloudState(overrides = {}) {
     return {
       version: "pitch-44-goal-5x2",
@@ -554,6 +651,7 @@ function App() {
       touchMode,
       snapToGrid,
       showCoordinates,
+      cardState,
       ...overrides,
     };
   }
@@ -573,6 +671,7 @@ function App() {
     if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
+    if (data.cardState) setCardState(normalizeCardState(data.cardState));
   }
 
   function buildLiveBoardState(overrides = {}) {
@@ -587,6 +686,7 @@ function App() {
       blueFormationId,
       redFormationId,
       actionLog,
+      cardState,
       ...overrides,
     };
   }
@@ -603,6 +703,7 @@ function App() {
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
     if (data.actionLog) setActionLog(data.actionLog);
+    if (data.cardState) setCardState(normalizeCardState(data.cardState));
   }
 
   async function saveSessionState(overrides = {}) {
@@ -833,6 +934,7 @@ function App() {
     dieResult,
     snapToGrid,
     showCoordinates,
+    cardState,
     blueFormationId,
     redFormationId,
     actionLog,
@@ -872,6 +974,7 @@ function App() {
     touchMode,
     snapToGrid,
     showCoordinates,
+    cardState,
   ]);
 
   function pushHistory(nextPieces = pieces) {
@@ -986,6 +1089,7 @@ function App() {
       redFormationId,
       dieType,
       dieResult,
+      cardState,
     };
   }
 
@@ -1006,6 +1110,7 @@ function App() {
     setRedFormationId(situation.snapshot.redFormationId ?? 2);
     setDieType(situation.snapshot.dieType ?? 20);
     setDieResult(situation.snapshot.dieResult ?? null);
+    if (situation.snapshot.cardState) setCardState(normalizeCardState(situation.snapshot.cardState));
     logSnapshot(`Load situație: ${situation.name}`, situation.snapshot.pieces);
   }
 
@@ -1032,7 +1137,7 @@ function App() {
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v34", JSON.stringify({ settings, pieces, zoom }));
+    localStorage.setItem("football-board-sandbox-v35", JSON.stringify({ settings, pieces, zoom, cardState }));
     alert("Salvat în browser.");
   }
 
@@ -1050,6 +1155,7 @@ function App() {
 
   function loadBoard() {
     const raw =
+      localStorage.getItem("football-board-sandbox-v35") ||
       localStorage.getItem("football-board-sandbox-v34") ||
       localStorage.getItem("football-board-sandbox-v22") ||
       localStorage.getItem("football-board-sandbox-v21") ||
@@ -1076,6 +1182,7 @@ function App() {
     setSettings(normalizeLoadedSettings(saved.settings));
     const loadedSettings = normalizeLoadedSettings(saved.settings);
     setPieces(normalizePiecesForBoard(saved.pieces, loadedSettings));
+    if (saved.cardState) setCardState(normalizeCardState(saved.cardState));
     setZoom(saved.zoom ?? 1);
   }
 
@@ -1148,6 +1255,7 @@ function App() {
     if (editingPiece) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     setSelectedId(pieceId);
+    setInspectedPieceId(pieceId);
     pushHistory();
     movePieceFromPointer(pieceId, e);
   }
@@ -1177,6 +1285,217 @@ function App() {
     setPieces(prev => normalizePiecesForBoard(prev.map(p => p.id === editingPiece.id ? { ...p, label: clean } : p), settings));
     setEditingPiece(null);
     setEditLabel("");
+  }
+
+  const cardById = useMemo(() => Object.fromEntries(cardState.cards.map(card => [card.id, card])), [cardState.cards]);
+  const inspectedPiece = pieces.find(p => p.id === inspectedPieceId);
+  const inspectedCardId = inspectedPiece ? cardState.assignments[inspectedPiece.id] : null;
+  const inspectedCard = inspectedCardId ? cardById[inspectedCardId] : null;
+
+  function updateCardState(updater) {
+    setCardState(prev => normalizeCardState(typeof updater === "function" ? updater(prev) : updater));
+  }
+
+  function saveCard(card) {
+    const nextCard = { ...card, updatedAt: new Date().toISOString() };
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.some(c => c.id === nextCard.id) ? prev.cards.map(c => c.id === nextCard.id ? nextCard : c) : [...prev.cards, nextCard],
+    }));
+  }
+
+  function createCardFromPosition(position = "ST") {
+    const card = createPlayerCard(position);
+    saveCard(card);
+    setEditingCardId(card.id);
+    setCardsPanelOpen(true);
+    setCardsView("library");
+  }
+
+  function cloneCard(cardId) {
+    const source = cardById[cardId];
+    if (!source) return;
+    const clone = { ...source, id: `card_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, name: `${source.name} Copy`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    updateCardState(prev => ({ ...prev, cards: [...prev.cards, clone] }));
+  }
+
+  function deleteCard(cardId) {
+    if (!window.confirm("Ștergi cardul? Va fi scos și din echipe/pucuri.")) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.filter(c => c.id !== cardId),
+      teams: {
+        blue: prev.teams.blue.map(slot => slot.cardId === cardId ? { ...slot, cardId: null } : slot),
+        red: prev.teams.red.map(slot => slot.cardId === cardId ? { ...slot, cardId: null } : slot),
+      },
+      assignments: Object.fromEntries(Object.entries(prev.assignments).filter(([, value]) => value !== cardId)),
+    }));
+    if (editingCardId === cardId) setEditingCardId(null);
+  }
+
+  function assignCard(cardId) {
+    if (!assignTarget) return;
+    updateCardState(prev => {
+      if (assignTarget.type === "piece") {
+        return { ...prev, assignments: { ...prev.assignments, [assignTarget.pieceId]: cardId } };
+      }
+      if (assignTarget.type === "team") {
+        return {
+          ...prev,
+          teams: {
+            ...prev.teams,
+            [assignTarget.team]: prev.teams[assignTarget.team].map((slot, index) => index === assignTarget.index ? { ...slot, cardId } : slot),
+          },
+        };
+      }
+      return prev;
+    });
+    setAssignTarget(null);
+  }
+
+  function removePieceCard(pieceId) {
+    updateCardState(prev => {
+      const nextAssignments = { ...prev.assignments };
+      delete nextAssignments[pieceId];
+      return { ...prev, assignments: nextAssignments };
+    });
+  }
+
+  function exportCardBackup() {
+    const payload = { exportedAt: new Date().toISOString(), version: "player-cards-v1", cardState, pieces: normalizePiecesForBoard(pieces, settings), settings, zoom };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `football-card-backup-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importCardBackup(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        const incoming = parsed.cardState || parsed;
+        setCardState(normalizeCardState(incoming));
+        if (parsed.pieces) setPieces(normalizePiecesForBoard(parsed.pieces, parsed.settings ? normalizeSettingsForApp(parsed.settings) : settings));
+        if (parsed.settings) setSettings(normalizeSettingsForApp(parsed.settings));
+        alert("Import reușit.");
+      } catch (error) {
+        alert("JSON invalid.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function updateCardField(cardId, key, value) {
+    updateCardState(prev => ({ ...prev, cards: prev.cards.map(card => card.id === cardId ? { ...card, [key]: value, updatedAt: new Date().toISOString() } : card) }));
+  }
+
+  function updateCardList(cardId, section, updater) {
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? { ...card, [section]: updater(card[section] || []), updatedAt: new Date().toISOString() } : card),
+    }));
+  }
+
+  function CardPreview({ card, compact = false, team = "neutral" }) {
+    if (!card) return <div className="card-preview empty">No card</div>;
+    return (
+      <div className={`card-preview theme-${cardState.theme.toLowerCase().replace(/\s+/g, "-")} ${team}`}>
+        <div className="card-artwork">{card.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : <span>{card.position}</span>}</div>
+        <div className="card-head"><strong>{card.name}</strong><span>{card.position}</span></div>
+        {!compact && (
+          <>
+            <div className="card-section"><b>Passive</b>{(card.passiveAttributes || []).slice(0, 5).map(a => <small key={a.id}>{a.name}: {a.value}</small>)}</div>
+            <div className="card-section"><b>Bonuses</b>{(card.bonuses || []).slice(0, 6).map(a => <small key={a.id}>{a.name}: {a.value}</small>)}</div>
+            <AreaMiniPreview area={card.defensiveArea} />
+          </>
+        )}
+      </div>
+    );
+  }
+
+  function AreaMiniPreview({ area = [] }) {
+    return <div className="area-mini">{Array.from({ length: 25 }, (_, i) => { const dx = (i % 5) - 2; const dy = Math.floor(i / 5) - 2; const center = dx === 0 && dy === 0; return <span key={i} className={`${center ? "player" : ""} ${areaHasCell(area, dx, dy) ? "active" : ""}`}>{center ? "•" : ""}</span>; })}</div>;
+  }
+
+  function AttributeListEditor({ card, section, title }) {
+    const items = card[section] || [];
+    const moveItem = (index, dir) => updateCardList(card.id, section, list => { const next = [...list]; const to = index + dir; if (to < 0 || to >= next.length) return next; [next[index], next[to]] = [next[to], next[index]]; return next; });
+    return (
+      <div className="card-edit-section">
+        <div className="card-edit-section-title"><strong>{title}</strong><button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0 }])}>+ Add</button></div>
+        {items.map((item, index) => (
+          <div className="attribute-row" key={item.id}>
+            <input value={item.name} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, name: e.target.value } : x))} />
+            <input className="attr-value" inputMode="numeric" value={item.value} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, value: cleanTwoDigitValue(e.target.value) } : x))} />
+            <button onClick={() => moveItem(index, -1)}>↑</button><button onClick={() => moveItem(index, 1)}>↓</button>
+            <button onClick={() => updateCardList(card.id, section, list => list.filter(x => x.id !== item.id))}>×</button>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  function DefensiveAreaEditor({ card }) {
+    const area = card.defensiveArea || [];
+    const setArea = nextArea => updateCardField(card.id, "defensiveArea", nextArea);
+    const toggle = (dx, dy) => { if (dx === 0 && dy === 0) return; setArea(areaHasCell(area, dx, dy) ? area.filter(c => !(Number(c.dx) === dx && Number(c.dy) === dy)) : [...area, { dx, dy }]); };
+    return (
+      <div className="def-area-editor">
+        <div className="area-actions"><button onClick={() => setArea([])}>Clear Area</button><button onClick={() => setArea(Array.from({ length: 121 }, (_, i) => ({ dx: (i % 11) - 5, dy: Math.floor(i / 11) - 5 })).filter(c => !(c.dx === 0 && c.dy === 0)))}>Fill Area</button><button onClick={() => setArea(area.map(c => ({ dx: -Number(c.dx), dy: Number(c.dy) })))}>Mirror Left/Right</button><button onClick={() => setArea(area.map(c => ({ dx: Number(c.dx), dy: -Number(c.dy) })))}>Mirror Up/Down</button></div>
+        <div className="def-grid">{Array.from({ length: 121 }, (_, i) => { const dx = (i % 11) - 5; const dy = Math.floor(i / 11) - 5; const center = dx === 0 && dy === 0; return <button key={i} className={`${center ? "player" : ""} ${areaHasCell(area, dx, dy) ? "active" : ""}`} onClick={() => toggle(dx, dy)}>{center ? "P" : ""}</button>; })}</div>
+      </div>
+    );
+  }
+
+  function CardEditor({ card }) {
+    if (!card) return <div className="empty-panel">Alege sau creează un card.</div>;
+    return (
+      <div className="card-editor">
+        <CardPreview card={card} team="neutral" />
+        <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
+        <label>Position<select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
+        <AttributeListEditor card={card} section="passiveAttributes" title="Passive Attributes" />
+        <AttributeListEditor card={card} section="bonuses" title="Bonuses" />
+        <div className="card-edit-section"><strong>Defensive Area</strong><DefensiveAreaEditor card={card} /></div>
+      </div>
+    );
+  }
+
+  function CardsPanel() {
+    const editingCard = editingCardId ? cardById[editingCardId] : null;
+    const teamKey = cardsView === "red" ? "red" : "blue";
+    return (
+      <div className="cards-panel">
+        <div className="cards-panel-head"><strong>Player Cards</strong><div><select value={cardState.theme} onChange={e => updateCardState(prev => ({ ...prev, theme: e.target.value }))}>{CARD_THEMES.map(theme => <option key={theme}>{theme}</option>)}</select><button onClick={exportCardBackup}>Export JSON</button><label className="import-btn">Import JSON<input type="file" accept="application/json" onChange={e => importCardBackup(e.target.files?.[0])} /></label><button onClick={() => setCardsPanelOpen(false)}>×</button></div></div>
+        <div className="cards-tabs"><button className={cardsView === "library" ? "toggle-on" : ""} onClick={() => setCardsView("library")}>Card Library</button><button className={cardsView === "blue" ? "toggle-on" : ""} onClick={() => setCardsView("blue")}>Blue Team</button><button className={cardsView === "red" ? "toggle-on" : ""} onClick={() => setCardsView("red")}>Red Team</button></div>
+        {cardsView === "library" ? (
+          <div className="cards-layout">
+            <div className="card-library-list"><button className="create-card-btn" onClick={() => createCardFromPosition("ST")}>+ Create Card</button>{cardState.cards.map(card => <div key={card.id} className={`library-row ${editingCardId === card.id ? "selected" : ""}`} onClick={() => setEditingCardId(card.id)}><span><b>{card.name}</b><small>{card.position}</small></span><div><button onClick={(e) => { e.stopPropagation(); cloneCard(card.id); }}>Clone</button><button onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }}>Delete</button></div></div>)}</div>
+            <CardEditor card={editingCard} />
+          </div>
+        ) : (
+          <div className={`team-layout ${teamKey}`}>{cardState.teams[teamKey].map((slot, index) => <div key={slot.id} className="team-slot"><div><strong>{slot.position}</strong>{slot.cardId && <small>{cardById[slot.cardId]?.name || "Missing card"}</small>}</div><div className="slot-actions"><button onClick={() => setAssignTarget({ type: "team", team: teamKey, index })}>Assign</button>{slot.cardId && <><button onClick={() => setEditingCardId(slot.cardId) || setCardsView("library")}>Edit</button><button onClick={() => updateCardState(prev => ({ ...prev, teams: { ...prev.teams, [teamKey]: prev.teams[teamKey].map((s, i) => i === index ? { ...s, cardId: null } : s) } }))}>Remove</button></>}</div></div>)}</div>
+        )}
+      </div>
+    );
+  }
+
+  function AssignCardModal() {
+    if (!assignTarget) return null;
+    return (
+      <div className="modal-backdrop" onPointerDown={() => setAssignTarget(null)}>
+        <div className="assign-modal" onPointerDown={e => e.stopPropagation()}>
+          <div className="modal-title"><strong>Assign Card</strong><button className="icon-btn" onClick={() => setAssignTarget(null)}><X size={18} /></button></div>
+          <div className="assign-list">{cardState.cards.map(card => <button key={card.id} onClick={() => assignCard(card.id)}><b>{card.name}</b><span>{card.position}</span></button>)}</div>
+          {cardState.cards.length === 0 && <p>Nu există carduri încă. Creează unul în Card Library.</p>}
+        </div>
+      </div>
+    );
   }
 
   const line = (style, extraClass = "") => <div className={`pitch-line ${extraClass}`} style={style} />;
@@ -1822,6 +2141,11 @@ function App() {
         <button className={showCoordinates ? "toggle-on" : ""} onClick={() => setShowCoordinates(v => !v)}>
           Coordonate
         </button>
+        <button className={cardsPanelOpen ? "toggle-on" : ""} onClick={() => setCardsPanelOpen(v => !v)}>
+          Cards
+        </button>
+        <button onClick={saveBoard}>Local Save</button>
+        <button onClick={loadBoard}>Local Load</button>
       </div>
       <div className="controlbar">
         <div className="formation-control blue">
@@ -1879,6 +2203,9 @@ function App() {
         </button>
       </div>
 
+      {cardsPanelOpen && !lockUI && <CardsPanel />}
+
+      <div className="board-and-inspector">
       <div
         className="board-wrap"
         ref={boardWrapRef}
@@ -2042,8 +2369,8 @@ function App() {
               <div
                 key={p.id}
                 data-coord={withBoardPosition(p, settings).coord}
-                title={`${p.label} ${withBoardPosition(p, settings).coord}`}
-                className={`piece ${p.team === "A" ? "team-a" : p.team === "B" ? "team-b" : "ball"} ${selectedId === p.id ? "selected" : ""}`}
+                title={`${p.label} ${withBoardPosition(p, settings).coord}${cardState.assignments[p.id] ? " · Card attached" : ""}`}
+                className={`piece ${p.team === "A" ? "team-a" : p.team === "B" ? "team-b" : "ball"} ${selectedId === p.id ? "selected" : ""} ${cardState.assignments[p.id] ? "has-card" : ""}`}
                 style={{
                   left: `calc(${p.x} * var(--cell) + var(--cell) * ${p.team === "BALL" ? 0.2 : 0.08})`,
                   top: `calc(${p.y} * var(--cell) + var(--cell) * ${p.team === "BALL" ? 0.2 : 0.08})`,
@@ -2054,11 +2381,29 @@ function App() {
                 onPointerCancel={onPointerUp}
                 onDoubleClick={() => openEdit(p)}
               >
-                {p.label}
+                <span className="piece-label">{p.label}</span>{p.team !== "BALL" && cardState.assignments[p.id] && <span className="piece-card-icon">▣</span>}
               </div>
             ))}
           </div>
         </div>
+      </div>
+
+      <aside className="card-inspector">
+        <div className="inspector-head"><strong>Inspector</strong>{inspectedPiece && <span>{inspectedPiece.team === "A" ? "Blue" : inspectedPiece.team === "B" ? "Red" : "Ball"} · {inspectedPiece.label || inspectedPiece.id}</span>}</div>
+        {!inspectedPiece || inspectedPiece.team === "BALL" ? (
+          <p className="muted">Click/tap pe un puc ca să vezi cardul atașat.</p>
+        ) : (
+          <>
+            <div className="inspector-piece-line"><b>Post puc:</b> {inspectedPiece.label || "—"}</div>
+            {inspectedCard ? <CardPreview card={inspectedCard} team={inspectedPiece.team === "A" ? "blue" : "red"} /> : <div className="card-preview empty">Niciun card atașat</div>}
+            <div className="inspector-actions">
+              <button onClick={() => setAssignTarget({ type: "piece", pieceId: inspectedPiece.id })}>Assign Card</button>
+              {inspectedCard && <button onClick={() => { setCardsPanelOpen(true); setCardsView("library"); setEditingCardId(inspectedCard.id); }}>Edit Card</button>}
+              {inspectedCard && <button onClick={() => removePieceCard(inspectedPiece.id)}>Remove Card</button>}
+            </div>
+          </>
+        )}
+      </aside>
       </div>
 
       <div className="status">
@@ -2195,6 +2540,8 @@ function App() {
           <div className="dice-resize" onPointerDown={onDicePanelResizeDown} />
         </div>
       )}
+
+      <AssignCardModal />
 
       {editingPiece && (
         <div className="modal-backdrop" onPointerDown={() => setEditingPiece(null)}>
