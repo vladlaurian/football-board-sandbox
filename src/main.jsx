@@ -175,6 +175,28 @@ function createPlayerCard(position = "ST") {
   };
 }
 
+
+function normalizeCardPosition(rawPosition) {
+  const clean = String(rawPosition || "").trim().toUpperCase();
+  return CARD_POSITION_OPTIONS.includes(clean) ? clean : "ST";
+}
+
+function normalizeImportedCard(card) {
+  const rawPosition = card?.position ?? card?.Position ?? card?.POSITION ?? card?.pos ?? card?.Post ?? card?.post;
+  const safePosition = normalizeCardPosition(rawPosition);
+  const base = createPlayerCard(safePosition);
+  const normalized = {
+    ...base,
+    ...(card || {}),
+    position: safePosition,
+    passiveAttributes: Array.isArray(card?.passiveAttributes) ? card.passiveAttributes : (Array.isArray(card?.attributes) ? card.attributes : []),
+    bonuses: Array.isArray(card?.bonuses) ? card.bonuses : [],
+    defensiveArea: Array.isArray(card?.defensiveArea) ? card.defensiveArea : [],
+    artwork: card?.artwork || { mode: "default", customDataUrl: "" },
+  };
+  return normalized;
+}
+
 function createDefaultCardState() {
   return {
     cards: [],
@@ -195,14 +217,7 @@ function normalizeCardState(raw) {
     return fallback.map((slot, index) => ({ ...slot, ...(source[index] || {}), id: slot.id, position: (source[index]?.position || slot.position), cardId: source[index]?.cardId || null }));
   };
   return {
-    cards: Array.isArray(raw.cards) ? raw.cards.map(card => ({
-      ...createPlayerCard(card.position || "ST"),
-      ...card,
-      passiveAttributes: Array.isArray(card.passiveAttributes) ? card.passiveAttributes : [],
-      bonuses: Array.isArray(card.bonuses) ? card.bonuses : [],
-      defensiveArea: Array.isArray(card.defensiveArea) ? card.defensiveArea : [],
-      artwork: card.artwork || { mode: "default", customDataUrl: "" },
-    })) : [],
+    cards: Array.isArray(raw.cards) ? raw.cards.map(card => normalizeImportedCard(card)) : [],
     teams: {
       blue: normalizeTeam(raw.teams?.blue, base.teams.blue),
       red: normalizeTeam(raw.teams?.red, base.teams.red),
@@ -580,6 +595,7 @@ function App() {
   const [cardsPanelOpen, setCardsPanelOpen] = useState(false);
   const [cardsView, setCardsView] = useState("library");
   const [editingCardId, setEditingCardId] = useState(null);
+  const [exportCardId, setExportCardId] = useState("");
   const [assignTarget, setAssignTarget] = useState(null);
   const [inspectorPosition, setInspectorPosition] = useState({ x: Math.max(12, window.innerWidth - 350), y: 150 });
   const [inspectorSize, setInspectorSize] = useState({ w: 320, h: 520 });
@@ -1357,6 +1373,13 @@ function App() {
   const inspectedPiece = pieces.find(p => p.id === inspectedPieceId);
   const inspectedCardId = inspectedPiece ? cardState.assignments[inspectedPiece.id] : null;
   const inspectedCard = inspectedCardId ? cardById[inspectedCardId] : null;
+  useEffect(() => {
+    if (!cardState.cards.length) {
+      if (exportCardId) setExportCardId("");
+      return;
+    }
+    if (!exportCardId || !cardById[exportCardId]) setExportCardId(cardState.cards[0].id);
+  }, [cardState.cards, cardById, exportCardId]);
   const getPieceDisplayLabel = (piece) => {
     if (!piece) return "";
     const assignedCard = cardById[cardState.assignments[piece.id]];
@@ -1482,13 +1505,27 @@ function App() {
     });
   }
 
-  function exportCardBackup() {
-    const payload = { exportedAt: new Date().toISOString(), version: "player-cards-v1", cardState, pieces: normalizePiecesForBoard(pieces, settings), settings, zoom };
+  function exportSelectedCard() {
+    const selectedCard = cardById[exportCardId] || cardState.cards[0];
+    if (!selectedCard) {
+      alert("No card selected for export.");
+      return;
+    }
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      version: "player-card-single-v1",
+      cardState: {
+        ...createDefaultCardState(),
+        theme: cardState.theme,
+        cards: [selectedCard],
+      },
+    };
+    const safeName = String(selectedCard.name || "player-card").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "player-card";
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `football-card-backup-${new Date().toISOString().slice(0,10)}.json`;
+    a.download = `${safeName}-${selectedCard.position || "card"}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -1499,21 +1536,46 @@ function App() {
     reader.onload = () => {
       try {
         const parsed = JSON.parse(reader.result);
-        const incoming = normalizeCardState(parsed.cardState || parsed);
-        const idMap = {};
-        const importedCards = incoming.cards.map(card => {
-          const newId = `card_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-          idMap[card.id] = newId;
-          return { ...card, id: newId, name: card.name, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        const rawCards = Array.isArray(parsed?.cardState?.cards)
+          ? parsed.cardState.cards
+          : (Array.isArray(parsed?.cards) ? parsed.cards : (parsed?.id || parsed?.name ? [parsed] : []));
+        const incomingCards = rawCards.map(card => normalizeImportedCard(card));
+        if (!incomingCards.length) {
+          alert("No player cards found in this JSON file.");
+          return;
+        }
+
+        setCardState(prev => {
+          const existingSourceIds = new Set(prev.cards.map(card => String(card.importSourceId || card.id)));
+          const now = new Date().toISOString();
+          const importedCards = incomingCards
+            .filter(card => !existingSourceIds.has(String(card.importSourceId || card.id)))
+            .map(card => {
+              const sourceId = String(card.importSourceId || card.id);
+              return {
+                ...card,
+                id: `card_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+                importSourceId: sourceId,
+                position: normalizeCardPosition(card.position ?? card.Position),
+                createdAt: now,
+                updatedAt: now,
+              };
+            });
+
+          if (!importedCards.length) {
+            alert("This player card has already been imported.");
+            return prev;
+          }
+
+          alert(`Import successful. Added ${importedCards.length} new player card${importedCards.length === 1 ? "" : "s"}.`);
+          return normalizeCardState({
+            ...prev,
+            theme: parsed?.cardState?.theme || parsed?.theme || prev.theme,
+            cards: [...prev.cards, ...importedCards],
+          });
         });
-        setCardState(prev => normalizeCardState({
-          ...prev,
-          theme: incoming.theme || prev.theme,
-          cards: [...prev.cards, ...importedCards],
-        }));
-        alert(`Import reușit. Am adăugat ${importedCards.length} carduri noi.`);
       } catch (error) {
-        alert("JSON invalid.");
+        alert("Invalid JSON file.");
       }
     };
     reader.readAsText(file);
@@ -1603,7 +1665,7 @@ function App() {
     const teamKey = cardsView === "red" ? "red" : "blue";
     return (
       <div className="cards-panel">
-        <div className="cards-panel-head"><strong>Player Cards</strong><div><select value={cardState.theme} onChange={e => updateCardState(prev => ({ ...prev, theme: e.target.value }))}>{CARD_THEMES.map(theme => <option key={theme}>{theme}</option>)}</select><button onClick={exportCardBackup}>Export JSON</button><label className="import-btn">Import JSON<input type="file" accept="application/json" onChange={e => importCardBackup(e.target.files?.[0])} /></label><button onClick={() => setCardsPanelOpen(false)}>×</button></div></div>
+        <div className="cards-panel-head"><strong>Player Cards</strong><div><select value={cardState.theme} onChange={e => updateCardState(prev => ({ ...prev, theme: e.target.value }))}>{CARD_THEMES.map(theme => <option key={theme}>{theme}</option>)}</select><select value={exportCardId} onChange={e => setExportCardId(e.target.value)} disabled={!cardState.cards.length}>{cardState.cards.length === 0 ? <option value="">No cards</option> : cardState.cards.map(card => <option key={card.id} value={card.id}>{card.name} ({card.position})</option>)}</select><button onClick={exportSelectedCard}>Export Selected JSON</button><label className="import-btn">Import JSON<input type="file" accept="application/json" onChange={e => { importCardBackup(e.target.files?.[0]); e.target.value = ""; }} /></label><button onClick={() => setCardsPanelOpen(false)}>×</button></div></div>
         <div className="cards-tabs"><button className={cardsView === "library" ? "toggle-on" : ""} onClick={() => setCardsView("library")}>Card Library</button><button className={cardsView === "blue" ? "toggle-on" : ""} onClick={() => setCardsView("blue")}>Blue Team</button><button className={cardsView === "red" ? "toggle-on" : ""} onClick={() => setCardsView("red")}>Red Team</button></div>
         {cardsView === "library" ? (
           <div className="cards-layout">
