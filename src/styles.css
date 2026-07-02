@@ -972,7 +972,7 @@ input[type="number"] {
 .attribute-row { display:grid; grid-template-columns: minmax(120px, 1fr) 54px 34px 34px 34px; gap:6px; margin-top:6px; }
 .attribute-row .attr-value { text-align:center; }
 
-.card-preview { border-radius:18px; border:1px solid rgba(255,255,255,.22); background:linear-gradient(145deg, rgba(34,48,72,.95), rgba(12,18,30,.98)); padding:10px; min-height:160px; color:#fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+.card-preview { border-radius:18px; border:1px solid rgba(255,255,255,.22); background:linear-gradient(145deg, rgba(34,48,72,.95), rgba(12,18,30,.98)); padding:10px; min-height:160px; color:#fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); overflow:hidden; }
 .card-preview.blue { background:linear-gradient(145deg, rgba(23,70,145,.95), rgba(11,22,42,.98)); }
 .card-preview.red { background:linear-gradient(145deg, rgba(150,36,42,.95), rgba(42,11,16,.98)); }
 .card-preview.empty { display:flex; align-items:center; justify-content:center; min-height:90px; color:rgba(255,255,255,.6); }
@@ -980,21 +980,23 @@ input[type="number"] {
 .card-artwork img { width:100%; height:100%; object-fit:cover; }
 .card-head { display:flex; justify-content:space-between; align-items:center; margin:8px 0; }
 .card-head span { border:1px solid rgba(255,255,255,.35); border-radius:8px; padding:2px 7px; font-size:12px; }
-.card-stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:start; }
-.card-section { display:grid; gap:2px; margin-top:5px; min-width:0; }
-.card-section b { font-size:12px; color:rgba(255,255,255,.86); margin-bottom:1px; }
-.card-section small { display:flex; justify-content:space-between; gap:5px; font-size:10px; line-height:1.18; color:rgba(255,255,255,.86); min-width:0; }
-.card-section small span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.card-section small em { font-style:normal; font-weight:800; color:#fff; flex:0 0 auto; }
-.area-mini-title { margin-top:8px; font-size:12px; font-weight:800; color:rgba(255,255,255,.86); }
+.card-stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; margin-top:8px; }
+.card-section { min-width:0; }
+.card-section b { display:block; font-size:12px; line-height:1.35; margin-bottom:3px; padding-bottom:1px; }
+.card-section-list { display:grid; grid-template-columns:1fr; gap:1px; }
+.card-section small { display:grid; grid-template-columns:minmax(0, 1fr) 18px; gap:3px; align-items:baseline; font-size:10px; line-height:1.25; min-height:13px; }
+.card-section small span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-bottom:1px; }
+.card-section small em { font-style:normal; font-weight:900; text-align:right; line-height:1.25; padding-bottom:1px; }
+
+.area-mini-title { margin-top:8px; font-size:12px; font-weight:800; line-height:1.35; padding-bottom:1px; color:rgba(255,255,255,.86); }
 .theme-minimal { background:#111827; }
 .theme-comic-style { background:linear-gradient(145deg,#2d2048,#111827); }
 .theme-anime-style { background:linear-gradient(145deg,#273b65,#1c112b); }
 .theme-fortnite-style { background:linear-gradient(145deg,#523ca6,#13243a); }
 .theme-goals-style { background:linear-gradient(145deg,#193b2e,#111827); }
 
-.area-mini { display:grid; grid-template-columns:repeat(5, 1fr); gap:2px; margin-top:4px; }
-.area-mini span { aspect-ratio:1; border-radius:3px; background:rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center; font-size:9px; }
+.area-mini { display:grid; grid-template-columns:repeat(5, 18px); grid-auto-rows:18px; gap:2px; margin-top:4px; width:max-content; max-width:100%; }
+.area-mini span { width:18px; height:18px; border-radius:3px; background:rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center; font-size:8px; }
 .area-mini span.active { background:rgba(80,190,120,.95); }
 .area-mini span.player { background:rgba(255,255,255,.9); color:#111827; }
 .def-area-editor { margin-top:8px; }
