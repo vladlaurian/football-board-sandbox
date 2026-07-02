@@ -1304,3 +1304,26 @@ select option {
   border-bottom: 9px solid rgba(255,255,255,0.96);
 }
 .card-preview.compact .attack-direction-hint { display: none; }
+
+.def-area-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  max-width: 100%;
+}
+.def-area-editor-row .def-grid {
+  flex: 0 1 374px;
+}
+.editor-attack-direction {
+  margin-top: 0 !important;
+  flex: 0 0 auto;
+}
+@media (max-width: 700px) {
+  .def-area-editor-row {
+    gap: 10px;
+  }
+  .editor-attack-direction {
+    transform: scale(.86);
+    transform-origin: left center;
+  }
+}
