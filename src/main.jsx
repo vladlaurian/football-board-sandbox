@@ -146,7 +146,15 @@ const CARD_POSITION_OPTIONS = [
 
 const TEAM_LAYOUT_POSITIONS = ["GK", "LWB", "LB", "CB", "RB", "RWB", "LM", "CDM", "CM", "CAM", "RM", "LW", "ST", "RW"];
 const TEAM_SLOT_POSITIONS = ["GK", "LB", "CB", "CB", "RB", "CDM", "CM", "CAM", "LW", "RW", "ST"];
-const CARD_THEMES = ["Realistic", "GOALS Style", "Fortnite Style", "Anime Style", "Comic Style", "Minimal"];
+const CARD_THEMES = ["Style 1", "Style 2", "Style 3", "Style 4", "Style 5", "Style 6", "Style 7"];
+const LEGACY_THEME_MAP = {
+  "Realistic": "Style 1",
+  "GOALS Style": "Style 2",
+  "Fortnite Style": "Style 3",
+  "Anime Style": "Style 4",
+  "Comic Style": "Style 5",
+  "Minimal": "Style 6",
+};
 
 function defaultAttributesForPosition(position, section) {
   const isGk = position === "GK";
@@ -205,7 +213,7 @@ function createDefaultCardState() {
       red: TEAM_SLOT_POSITIONS.map((position, index) => ({ id: `red-${index + 1}`, position, cardId: null })),
     },
     assignments: {},
-    theme: "Realistic",
+    theme: "Style 1",
   };
 }
 
@@ -223,7 +231,7 @@ function normalizeCardState(raw) {
       red: normalizeTeam(raw.teams?.red, base.teams.red),
     },
     assignments: raw.assignments && typeof raw.assignments === "object" ? raw.assignments : {},
-    theme: CARD_THEMES.includes(raw.theme) ? raw.theme : base.theme,
+    theme: CARD_THEMES.includes(raw.theme) ? raw.theme : (LEGACY_THEME_MAP[raw.theme] || base.theme),
   };
 }
 
@@ -1613,7 +1621,7 @@ function App() {
   }
 
   function AreaMiniPreview({ area = [] }) {
-    return <div className="area-mini">{Array.from({ length: 25 }, (_, i) => { const dx = (i % 5) - 2; const dy = Math.floor(i / 5) - 2; const center = dx === 0 && dy === 0; return <span key={i} className={`${center ? "player" : ""} ${areaHasCell(area, dx, dy) ? "active" : ""}`}>{center ? "•" : ""}</span>; })}</div>;
+    return <div className="area-mini">{Array.from({ length: 121 }, (_, i) => { const dx = (i % 11) - 5; const dy = Math.floor(i / 11) - 5; const center = dx === 0 && dy === 0; return <span key={i} className={`${center ? "player" : ""} ${areaHasCell(area, dx, dy) ? "active" : ""}`}>{center ? "•" : ""}</span>; })}</div>;
   }
 
   function AttributeListEditor({ card, section, title }) {
@@ -2340,11 +2348,6 @@ function App() {
         <button className={showCoordinates ? "toggle-on" : ""} onClick={() => setShowCoordinates(v => !v)}>
           Coordonate
         </button>
-        <button className={cardsPanelOpen ? "toggle-on" : ""} onClick={() => setCardsPanelOpen(v => !v)}>
-          Cards
-        </button>
-        <button onClick={saveBoard}>Local Save</button>
-        <button onClick={loadBoard}>Local Load</button>
       </div>
       <div className="controlbar">
         <div className="formation-control blue">
@@ -2399,6 +2402,9 @@ function App() {
         </button>
         <button className={dicePanelVisible ? "toggle-on" : ""} onClick={() => setDicePanelVisible(v => !v)}>
           Zaruri {dicePanelVisible ? "ON" : "OFF"}
+        </button>
+        <button className={cardsPanelOpen ? "toggle-on" : ""} onClick={() => setCardsPanelOpen(v => !v)}>
+          Cards
         </button>
       </div>
 
@@ -2580,7 +2586,7 @@ function App() {
                 onPointerCancel={onPointerUp}
                 onDoubleClick={() => openEdit(p)}
               >
-                <span className="piece-label">{p.team === "BALL" ? p.label : getPieceDisplayLabel(p)}</span>{p.team !== "BALL" && cardState.assignments[p.id] && <span className="piece-card-icon">▣</span>}
+                <span className="piece-label">{p.team === "BALL" ? p.label : getPieceDisplayLabel(p)}</span>
               </div>
             ))}
           </div>

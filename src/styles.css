@@ -938,7 +938,7 @@ input[type="number"] {
 .piece { display:flex; align-items:center; justify-content:center; position:absolute; }
 .piece-label { line-height: 1; }
 .piece.has-card { box-shadow: 0 0 0 2px rgba(255,255,255,.72), 0 0 12px rgba(255,255,255,.45); }
-.piece-card-icon { position:absolute; right:-5px; top:-7px; font-size:11px; background:#111827; color:#fff; border:1px solid rgba(255,255,255,.8); border-radius:5px; padding:0 2px; line-height:1.2; }
+.piece-card-icon { display:none; }
 
 .cards-panel {
   margin: 8px;
@@ -989,14 +989,16 @@ input[type="number"] {
 .card-section small em { font-style:normal; font-weight:900; text-align:right; line-height:1.25; padding-bottom:1px; }
 
 .area-mini-title { margin-top:8px; font-size:12px; font-weight:800; line-height:1.35; padding-bottom:1px; color:rgba(255,255,255,.86); }
-.theme-minimal { background:#111827; }
-.theme-comic-style { background:linear-gradient(145deg,#2d2048,#111827); }
-.theme-anime-style { background:linear-gradient(145deg,#273b65,#1c112b); }
-.theme-fortnite-style { background:linear-gradient(145deg,#523ca6,#13243a); }
-.theme-goals-style { background:linear-gradient(145deg,#193b2e,#111827); }
+.theme-style-1 { background:linear-gradient(145deg, rgba(34,48,72,.95), rgba(12,18,30,.98)); }
+.theme-style-2 { background:linear-gradient(145deg,#0f5f4c,#103b2e 45%,#111827); }
+.theme-style-3 { background:linear-gradient(145deg,#7c3aed,#2563eb 48%,#111827); }
+.theme-style-4 { background:linear-gradient(145deg,#ff4fb8,#6d28d9 48%,#101827); }
+.theme-style-5 { background:linear-gradient(145deg,#ffb703,#fb5607 42%,#1f2937); }
+.theme-style-6 { background:linear-gradient(145deg,#111827,#374151 55%,#030712); }
+.theme-style-7 { background:linear-gradient(145deg,#14b8a6,#f97316 50%,#7c2d12); }
 
-.area-mini { display:grid; grid-template-columns:repeat(5, 18px); grid-auto-rows:18px; gap:2px; margin-top:4px; width:max-content; max-width:100%; }
-.area-mini span { width:18px; height:18px; border-radius:3px; background:rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center; font-size:8px; }
+.area-mini { display:grid; grid-template-columns:repeat(11, 8px); grid-auto-rows:8px; gap:1px; margin-top:4px; width:max-content; max-width:100%; }
+.area-mini span { width:8px; height:8px; border-radius:2px; background:rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center; font-size:5px; }
 .area-mini span.active { background:rgba(80,190,120,.95); }
 .area-mini span.player { background:rgba(255,255,255,.9); color:#111827; }
 .def-area-editor { margin-top:8px; }
@@ -1162,3 +1164,15 @@ select option {
   right: auto !important;
   bottom: auto !important;
 }
+
+
+/* cards toolbar compact update */
+.controlbar{gap:5px;padding:4px 7px;align-items:center;}
+.controlbar .formation-control,.controlbar .situation-control{gap:4px;padding:4px 5px;border-radius:8px;}
+.controlbar button{font-size:10px;padding:4px 6px;border-radius:7px;min-height:0;}
+.controlbar select{font-size:11px;padding:4px 5px;border-radius:7px;max-width:122px;}
+.controlbar .situation-name{font-size:11px;padding:4px 5px;width:110px;border-radius:7px;}
+.controlbar span{font-size:11px;}
+.touch-mode .controlbar button,.touch-mode .controlbar select,.touch-mode .controlbar input{min-height:0;font-size:11px;}
+@media (pointer: coarse){.controlbar button,.controlbar select,.controlbar input{min-height:0;font-size:11px;}}
+@media (orientation: landscape) and (max-height: 900px){.controlbar{max-height:48px;padding:4px 6px;overflow:auto;}}
