@@ -1258,7 +1258,7 @@ select option {
 .attack-direction-hint {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   font-size: 9px;
   line-height: 1.05;
   font-weight: 800;
@@ -1271,13 +1271,14 @@ select option {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 9px;
-  height: 9px;
-  font-size: 10px;
-  line-height: 1;
+  width: 18px;
+  height: 62px;
+  font-size: 62px;
+  line-height: .75;
   font-weight: 900;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.55);
-  background: rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.95);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .card-preview.compact .attack-direction-hint { display: none; }
