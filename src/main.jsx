@@ -1397,8 +1397,19 @@ function App() {
         const dx = Number(cell.dx);
         const dy = Number(cell.dy);
         if (!Number.isFinite(dx) || !Number.isFinite(dy)) return null;
-        const x = piece.x + dx;
-        const y = piece.y + dy;
+        // Card Defensive Area uses a player-centric view where "up" means attacking direction.
+        // On the board, teams attack horizontally: Blue to the right, Red to the left.
+        let boardDx = dx;
+        let boardDy = dy;
+        if (piece.team === "A") {
+          boardDx = -dy;
+          boardDy = dx;
+        } else if (piece.team === "B") {
+          boardDx = dy;
+          boardDy = -dx;
+        }
+        const x = piece.x + boardDx;
+        const y = piece.y + boardDy;
         if (x < 0 || y < 0 || x >= settings.cols || y >= settings.rows) return null;
         return {
           id: `${piece.id}-${index}-${dx}-${dy}`,
@@ -1643,7 +1654,13 @@ function App() {
               <div className="card-section"><b>Bonuses</b><div className="card-section-list">{(card.bonuses || []).map(a => <small key={a.id}><span>{a.name}</span><em>{a.value}</em></small>)}</div></div>
             </div>
             <div className="area-mini-title">Defensive Area</div>
-            {AreaMiniPreview({ area: card.defensiveArea })}
+            <div className="area-mini-row">
+              {AreaMiniPreview({ area: card.defensiveArea })}
+              <div className="attack-direction-hint" aria-label="Attacking direction">
+                <span className="attack-arrow">↑</span>
+                <span>Attacking<br />direction</span>
+              </div>
+            </div>
           </>
         )}
       </div>

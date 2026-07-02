@@ -1249,3 +1249,35 @@ select option {
   content:none !important;
   display:none !important;
 }
+
+.area-mini-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.attack-direction-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  line-height: 1.05;
+  font-weight: 800;
+  color: rgba(255,255,255,0.9);
+  margin-top: 1px;
+  text-transform: none;
+  white-space: nowrap;
+}
+.attack-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 9px;
+  height: 9px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.55);
+  background: rgba(255,255,255,0.14);
+}
+.card-preview.compact .attack-direction-hint { display: none; }
