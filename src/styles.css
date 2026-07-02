@@ -1263,22 +1263,44 @@ select option {
   line-height: 1.05;
   font-weight: 800;
   color: rgba(255,255,255,0.9);
-  margin-top: 1px;
+  margin-top: 22px; /* aligns the arrow/text center with the white player dot in the 11x11 mini grid */
   text-transform: none;
   white-space: nowrap;
 }
 .attack-arrow {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
+  display: inline-block;
+  flex: 0 0 18px;
   width: 18px;
   height: 62px;
-  font-size: 62px;
-  line-height: .75;
-  font-weight: 900;
-  color: rgba(255,255,255,0.95);
+  font-size: 0;
+  line-height: 0;
+  color: transparent;
   border: 0;
   border-radius: 0;
   background: transparent;
+}
+.attack-arrow::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 9px;
+  width: 2px;
+  height: 53px;
+  transform: translateX(-50%);
+  background: rgba(255,255,255,0.96);
+  border-radius: 2px;
+}
+.attack-arrow::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 9px solid rgba(255,255,255,0.96);
 }
 .card-preview.compact .attack-direction-hint { display: none; }
