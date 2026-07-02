@@ -144,7 +144,7 @@ const CARD_POSITION_OPTIONS = [
   "GK", "LWB", "LB", "CB", "RB", "RWB", "LW", "LM", "CDM", "CAM", "CM", "RM", "RW", "ST"
 ];
 
-const TEAM_LAYOUT_POSITIONS = ["GK", "LWB", "LB", "CB", "CB", "RB", "RWB", "CDM", "CM", "CAM", "LW", "RW", "ST"];
+const TEAM_LAYOUT_POSITIONS = ["GK", "LWB", "LB", "CB", "RB", "RWB", "LM", "CDM", "CM", "CAM", "RM", "LW", "ST", "RW"];
 const TEAM_SLOT_POSITIONS = ["GK", "LB", "CB", "CB", "RB", "CDM", "CM", "CAM", "LW", "RW", "ST"];
 const CARD_THEMES = ["Realistic", "GOALS Style", "Fortnite Style", "Anime Style", "Comic Style", "Minimal"];
 
@@ -510,7 +510,7 @@ function createInitialPieces(cols, rows, blueFormation = FORMATION_SLOTS[0], red
     const benchX = isBlue ? -pad : cols + pad - 1;
     const startY = Math.max(1, goalTopForSettings(localSettings) - 8);
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 7; i++) {
       pieces.push({
         id: `${team}-R-${i + 1}`,
         team,
@@ -1292,16 +1292,36 @@ function App() {
   const inspectedCardId = inspectedPiece ? cardState.assignments[inspectedPiece.id] : null;
   const inspectedCard = inspectedCardId ? cardById[inspectedCardId] : null;
   const rosterSlots = useMemo(() => {
-    const build = (teamCode) => pieces
-      .filter(piece => piece.team === teamCode)
-      .slice()
-      .sort((a, b) => (a.x - b.x) || (a.y - b.y) || String(a.id).localeCompare(String(b.id)))
-      .map((piece, index) => ({
-        id: piece.id,
-        pieceId: piece.id,
-        position: piece.label || `P${index + 1}`,
-        cardId: cardState.assignments[piece.id] || null,
-      }));
+    const orderIndex = (label) => {
+      const clean = String(label || "").trim().toUpperCase();
+      const index = TEAM_LAYOUT_POSITIONS.indexOf(clean);
+      return index === -1 ? 999 : index;
+    };
+    const build = (teamCode) => {
+      const teamPieces = pieces
+        .filter(piece => piece.team === teamCode)
+        .map((piece, index) => ({
+          id: piece.id,
+          pieceId: piece.id,
+          position: piece.label || `P${index + 1}`,
+          cardId: cardState.assignments[piece.id] || null,
+          isSub: String(piece.id).includes("-R-"),
+          y: piece.y,
+          x: piece.x,
+        }));
+
+      const sorter = (a, b) =>
+        (orderIndex(a.position) - orderIndex(b.position)) ||
+        (String(a.position).localeCompare(String(b.position))) ||
+        (a.y - b.y) ||
+        (a.x - b.x) ||
+        String(a.id).localeCompare(String(b.id));
+
+      return {
+        starting: teamPieces.filter(slot => !slot.isSub).sort(sorter),
+        substitutes: teamPieces.filter(slot => slot.isSub).sort(sorter),
+      };
+    };
     return { blue: build("A"), red: build("B") };
   }, [pieces, cardState.assignments]);
 
@@ -1498,7 +1518,12 @@ function App() {
             {CardEditor({ card: editingCard })}
           </div>
         ) : (
-          <div className={`team-layout ${teamKey}`}>{rosterSlots[teamKey].map((slot, index) => <div key={slot.id} className="team-slot"><div><strong>{slot.position}</strong>{slot.cardId && <small>{cardById[slot.cardId]?.name || "Missing card"}</small>}</div><div className="slot-actions"><button onClick={() => setAssignTarget({ type: "team", team: teamKey, index, pieceId: slot.pieceId })}>Assign</button>{slot.cardId && <><button onClick={() => setEditingCardId(slot.cardId) || setCardsView("library")}>Edit</button><button onClick={() => updateCardState(prev => { const nextAssignments = { ...prev.assignments }; delete nextAssignments[slot.pieceId]; return { ...prev, assignments: nextAssignments }; })}>Remove</button></>}</div></div>)}</div>
+          <div className={`team-roster ${teamKey}`}>
+            <div className="roster-title">Starting IX</div>
+            <div className="team-layout">{rosterSlots[teamKey].starting.map((slot) => <div key={slot.id} className="team-slot"><div><strong>{slot.position}</strong>{slot.cardId && <small>{cardById[slot.cardId]?.name || "Missing card"}</small>}</div><div className="slot-actions"><button onClick={() => setAssignTarget({ type: "team", team: teamKey, pieceId: slot.pieceId })}>Assign</button>{slot.cardId && <><button onClick={() => setEditingCardId(slot.cardId) || setCardsView("library")}>Edit</button><button onClick={() => updateCardState(prev => { const nextAssignments = { ...prev.assignments }; delete nextAssignments[slot.pieceId]; return { ...prev, assignments: nextAssignments }; })}>Remove</button></>}</div></div>)}</div>
+            <div className="roster-title substitutes-title">Substitutes</div>
+            <div className="team-layout substitutes-layout">{rosterSlots[teamKey].substitutes.map((slot) => <div key={slot.id} className="team-slot substitute"><div><strong>{slot.position}</strong>{slot.cardId && <small>{cardById[slot.cardId]?.name || "Missing card"}</small>}</div><div className="slot-actions"><button onClick={() => setAssignTarget({ type: "team", team: teamKey, pieceId: slot.pieceId })}>Assign</button>{slot.cardId && <><button onClick={() => setEditingCardId(slot.cardId) || setCardsView("library")}>Edit</button><button onClick={() => updateCardState(prev => { const nextAssignments = { ...prev.assignments }; delete nextAssignments[slot.pieceId]; return { ...prev, assignments: nextAssignments }; })}>Remove</button></>}</div></div>)}</div>
+          </div>
         )}
       </div>
     );
