@@ -980,16 +980,20 @@ input[type="number"] {
 .card-artwork img { width:100%; height:100%; object-fit:cover; }
 .card-head { display:flex; justify-content:space-between; align-items:center; margin:8px 0; }
 .card-head span { border:1px solid rgba(255,255,255,.35); border-radius:8px; padding:2px 7px; font-size:12px; }
-.card-section { display:grid; gap:2px; margin-top:5px; }
-.card-section b { font-size:12px; color:rgba(255,255,255,.78); }
-.card-section small { display:flex; justify-content:space-between; font-size:11px; color:rgba(255,255,255,.82); }
+.card-stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:start; }
+.card-section { display:grid; gap:2px; margin-top:5px; min-width:0; }
+.card-section b { font-size:12px; color:rgba(255,255,255,.86); margin-bottom:1px; }
+.card-section small { display:flex; justify-content:space-between; gap:5px; font-size:10px; line-height:1.18; color:rgba(255,255,255,.86); min-width:0; }
+.card-section small span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.card-section small em { font-style:normal; font-weight:800; color:#fff; flex:0 0 auto; }
+.area-mini-title { margin-top:8px; font-size:12px; font-weight:800; color:rgba(255,255,255,.86); }
 .theme-minimal { background:#111827; }
 .theme-comic-style { background:linear-gradient(145deg,#2d2048,#111827); }
 .theme-anime-style { background:linear-gradient(145deg,#273b65,#1c112b); }
 .theme-fortnite-style { background:linear-gradient(145deg,#523ca6,#13243a); }
 .theme-goals-style { background:linear-gradient(145deg,#193b2e,#111827); }
 
-.area-mini { display:grid; grid-template-columns:repeat(5, 1fr); gap:2px; margin-top:8px; }
+.area-mini { display:grid; grid-template-columns:repeat(5, 1fr); gap:2px; margin-top:4px; }
 .area-mini span { aspect-ratio:1; border-radius:3px; background:rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center; font-size:9px; }
 .area-mini span.active { background:rgba(80,190,120,.95); }
 .area-mini span.player { background:rgba(255,255,255,.9); color:#111827; }

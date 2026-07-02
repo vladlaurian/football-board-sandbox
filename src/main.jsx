@@ -1409,8 +1409,11 @@ function App() {
         <div className="card-head"><strong>{card.name}</strong><span>{card.position}</span></div>
         {!compact && (
           <>
-            <div className="card-section"><b>Passive</b>{(card.passiveAttributes || []).slice(0, 5).map(a => <small key={a.id}>{a.name}: {a.value}</small>)}</div>
-            <div className="card-section"><b>Bonuses</b>{(card.bonuses || []).slice(0, 6).map(a => <small key={a.id}>{a.name}: {a.value}</small>)}</div>
+            <div className="card-stats-grid">
+              <div className="card-section"><b>Attributes</b>{(card.passiveAttributes || []).map(a => <small key={a.id}><span>{a.name}</span><em>{a.value}</em></small>)}</div>
+              <div className="card-section"><b>Bonuses</b>{(card.bonuses || []).map(a => <small key={a.id}><span>{a.name}</span><em>{a.value}</em></small>)}</div>
+            </div>
+            <div className="area-mini-title">Defensive Area</div>
             {AreaMiniPreview({ area: card.defensiveArea })}
           </>
         )}
@@ -1459,7 +1462,7 @@ function App() {
         {CardPreview({ card, team: "neutral" })}
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
         <label>Position<select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
-        {AttributeListEditor({ card, section: "passiveAttributes", title: "Passive Attributes" })}
+        {AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes" })}
         {AttributeListEditor({ card, section: "bonuses", title: "Bonuses" })}
         <div className="card-edit-section"><strong>Defensive Area</strong>{DefensiveAreaEditor({ card })}</div>
       </div>
