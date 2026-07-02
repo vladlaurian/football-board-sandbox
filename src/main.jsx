@@ -1411,7 +1411,7 @@ function App() {
           <>
             <div className="card-section"><b>Passive</b>{(card.passiveAttributes || []).slice(0, 5).map(a => <small key={a.id}>{a.name}: {a.value}</small>)}</div>
             <div className="card-section"><b>Bonuses</b>{(card.bonuses || []).slice(0, 6).map(a => <small key={a.id}>{a.name}: {a.value}</small>)}</div>
-            <AreaMiniPreview area={card.defensiveArea} />
+            {AreaMiniPreview({ area: card.defensiveArea })}
           </>
         )}
       </div>
@@ -1456,12 +1456,12 @@ function App() {
     if (!card) return <div className="empty-panel">Alege sau creează un card.</div>;
     return (
       <div className="card-editor">
-        <CardPreview card={card} team="neutral" />
+        {CardPreview({ card, team: "neutral" })}
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
         <label>Position<select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
-        <AttributeListEditor card={card} section="passiveAttributes" title="Passive Attributes" />
-        <AttributeListEditor card={card} section="bonuses" title="Bonuses" />
-        <div className="card-edit-section"><strong>Defensive Area</strong><DefensiveAreaEditor card={card} /></div>
+        {AttributeListEditor({ card, section: "passiveAttributes", title: "Passive Attributes" })}
+        {AttributeListEditor({ card, section: "bonuses", title: "Bonuses" })}
+        <div className="card-edit-section"><strong>Defensive Area</strong>{DefensiveAreaEditor({ card })}</div>
       </div>
     );
   }
@@ -1476,7 +1476,7 @@ function App() {
         {cardsView === "library" ? (
           <div className="cards-layout">
             <div className="card-library-list"><button className="create-card-btn" onClick={() => createCardFromPosition("ST")}>+ Create Card</button>{cardState.cards.map(card => <div key={card.id} className={`library-row ${editingCardId === card.id ? "selected" : ""}`} onClick={() => setEditingCardId(card.id)}><span><b>{card.name}</b><small>{card.position}</small></span><div><button onClick={(e) => { e.stopPropagation(); cloneCard(card.id); }}>Clone</button><button onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }}>Delete</button></div></div>)}</div>
-            <CardEditor card={editingCard} />
+            {CardEditor({ card: editingCard })}
           </div>
         ) : (
           <div className={`team-layout ${teamKey}`}>{cardState.teams[teamKey].map((slot, index) => <div key={slot.id} className="team-slot"><div><strong>{slot.position}</strong>{slot.cardId && <small>{cardById[slot.cardId]?.name || "Missing card"}</small>}</div><div className="slot-actions"><button onClick={() => setAssignTarget({ type: "team", team: teamKey, index })}>Assign</button>{slot.cardId && <><button onClick={() => setEditingCardId(slot.cardId) || setCardsView("library")}>Edit</button><button onClick={() => updateCardState(prev => ({ ...prev, teams: { ...prev.teams, [teamKey]: prev.teams[teamKey].map((s, i) => i === index ? { ...s, cardId: null } : s) } }))}>Remove</button></>}</div></div>)}</div>
@@ -2203,7 +2203,7 @@ function App() {
         </button>
       </div>
 
-      {cardsPanelOpen && !lockUI && <CardsPanel />}
+      {cardsPanelOpen && !lockUI && CardsPanel()}
 
       <div className="board-and-inspector">
       <div
@@ -2395,7 +2395,7 @@ function App() {
         ) : (
           <>
             <div className="inspector-piece-line"><b>Post puc:</b> {inspectedPiece.label || "—"}</div>
-            {inspectedCard ? <CardPreview card={inspectedCard} team={inspectedPiece.team === "A" ? "blue" : "red"} /> : <div className="card-preview empty">Niciun card atașat</div>}
+            {inspectedCard ? CardPreview({ card: inspectedCard, team: inspectedPiece.team === "A" ? "blue" : "red" }) : <div className="card-preview empty">Niciun card atașat</div>}
             <div className="inspector-actions">
               <button onClick={() => setAssignTarget({ type: "piece", pieceId: inspectedPiece.id })}>Assign Card</button>
               {inspectedCard && <button onClick={() => { setCardsPanelOpen(true); setCardsView("library"); setEditingCardId(inspectedCard.id); }}>Edit Card</button>}
@@ -2541,7 +2541,7 @@ function App() {
         </div>
       )}
 
-      <AssignCardModal />
+      {AssignCardModal()}
 
       {editingPiece && (
         <div className="modal-backdrop" onPointerDown={() => setEditingPiece(null)}>

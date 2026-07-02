@@ -1016,3 +1016,90 @@ input[type="number"] {
   .cards-layout, .card-editor { grid-template-columns: 1fr; }
   .team-layout { grid-template-columns:repeat(2, minmax(120px, 1fr)); }
 }
+
+/* Player-card repair pass: keep the pitch usable and make editors truly touch-friendly. */
+.board-and-inspector {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  position: relative !important;
+  display: block !important;
+}
+.board-and-inspector > .board-wrap {
+  width: 100% !important;
+  height: 100% !important;
+}
+.card-inspector {
+  position: absolute !important;
+  right: 10px !important;
+  top: 10px !important;
+  width: 320px !important;
+  max-width: calc(100vw - 20px) !important;
+  max-height: calc(100% - 20px) !important;
+  z-index: 35 !important;
+  margin: 0 !important;
+}
+.cards-panel {
+  flex: 0 0 auto !important;
+  max-height: min(62vh, 680px) !important;
+  overflow: auto !important;
+  position: relative !important;
+  z-index: 45 !important;
+}
+.cards-panel, .card-inspector, .assign-modal {
+  overscroll-behavior: contain;
+}
+.cards-panel select,
+.card-editor select,
+.position-select,
+.dice-box select,
+.formation-control select,
+.ruler-panel select,
+select {
+  background: #1f2937 !important;
+  color: #f8fafc !important;
+  color-scheme: dark;
+}
+select option {
+  background: #111827 !important;
+  color: #f8fafc !important;
+}
+.card-editor input,
+.card-editor select,
+.attribute-row input,
+.cards-panel button,
+.card-inspector button,
+.assign-modal button,
+.def-grid button {
+  -webkit-tap-highlight-color: transparent;
+}
+.def-grid button {
+  min-height: 28px;
+  touch-action: manipulation;
+}
+.attribute-row input { min-width: 0; }
+.card-editor {
+  padding-bottom: 18px;
+}
+@media (max-width: 1050px) {
+  .card-inspector {
+    position: fixed !important;
+    left: 8px !important;
+    right: 8px !important;
+    bottom: 8px !important;
+    top: auto !important;
+    width: auto !important;
+    max-height: 42vh !important;
+    z-index: 46 !important;
+  }
+  .cards-panel {
+    max-height: 58vh !important;
+  }
+}
+@media (max-width: 700px) {
+  .attribute-row {
+    grid-template-columns: minmax(0, 1fr) 56px 34px 34px 34px !important;
+  }
+  .def-grid {
+    width: min(100%, 330px) !important;
+  }
+}
