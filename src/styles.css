@@ -2543,3 +2543,32 @@ select option {
 .card-special-block.special-dense-2 b,
 .card-special-block.special-dense-3 b,
 .card-special-block.special-dense-4 b { margin-bottom: 2px !important; }
+
+
+/* FINAL FIT FIX: header name must always fit and Special Ability title matches Defensive Area */
+.card-preview .card-top-strip .card-top-name,
+.card-preview .card-top-name {
+  font-size: var(--top-name-font-size, 12px) !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  padding-right: 2px !important;
+}
+.card-special-block b,
+.card-area-block .area-mini-title {
+  font-size: 10.5px !important;
+  line-height: 1.25 !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+}
+.card-special-block p {
+  line-height: 1.34 !important;
+}
+.card-special-block.special-dense-1 p { line-height: 1.30 !important; }
+.card-special-block.special-dense-2 p { line-height: 1.27 !important; }
+.card-special-block.special-dense-3 p { line-height: 1.23 !important; }
+.card-special-block.special-dense-4 p { line-height: 1.18 !important; }

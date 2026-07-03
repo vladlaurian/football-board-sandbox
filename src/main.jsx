@@ -1706,14 +1706,16 @@ function App() {
 
   function cardTopNameFontSize(name = "") {
     const len = String(name || "").trim().length;
-    // Shared front/back header. Keep the name inside its fixed slot instead of letting it overflow.
-    if (len <= 7) return 19;
-    if (len <= 10) return 16;
-    if (len <= 14) return 13.5;
-    if (len <= 18) return 11;
-    if (len <= 23) return 9.2;
-    if (len <= 30) return 7.6;
-    return 6.4;
+    // Final fit rule: the same shared header is used on front/back/inspector/editor.
+    // Values are deliberately aggressive because CSS uses this variable with !important.
+    if (len <= 7) return 18;
+    if (len <= 10) return 15;
+    if (len <= 14) return 12.5;
+    if (len <= 18) return 10.2;
+    if (len <= 23) return 8.2;
+    if (len <= 30) return 6.5;
+    if (len <= 38) return 5.4;
+    return 4.6;
   }
 
   function CardIdentityStrip({ card }) {
@@ -1722,7 +1724,7 @@ function App() {
     return (
       <div className="card-artwork card-top-strip">
         {card?.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : null}
-        <strong className="card-top-name" style={{ fontSize: `${cardTopNameFontSize(safeName)}px` }}>{safeName}</strong>
+        <strong className="card-top-name" style={{ "--top-name-font-size": `${cardTopNameFontSize(safeName)}px` }}>{safeName}</strong>
         <span className="card-top-position">{safePosition}</span>
       </div>
     );
