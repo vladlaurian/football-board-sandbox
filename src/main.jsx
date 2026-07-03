@@ -1770,8 +1770,8 @@ function App() {
     return (
       <div className="card-editor">
         <div className="card-editor-previews">
-          <div><div className="card-preview-label">Front</div>{CardPreview({ card, team: "neutral", side: "front" })}</div>
-          <div><div className="card-preview-label">Back</div>{CardPreview({ card, team: "neutral", side: "back" })}</div>
+          <div><div className="card-preview-label">Front</div><CardPreview card={card} team="neutral" side="front" /></div>
+          <div><div className="card-preview-label">Back</div><CardPreview card={card} team="neutral" side="back" /></div>
         </div>
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
         <label>Position<select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
@@ -2748,7 +2748,7 @@ function App() {
             ) : (
               <>
                 <div className="inspector-piece-line"><b>Post puc:</b> {inspectedPiece.label || "—"}</div>
-                {inspectedCard ? CardPreview({ card: inspectedCard, team: inspectedPiece.team === "A" ? "blue" : "red", side: "front", flippable: true }) : <div className="card-preview empty">Niciun card atașat</div>}
+                {inspectedCard ? <CardPreview card={inspectedCard} team={inspectedPiece.team === "A" ? "blue" : "red"} side="front" flippable /> : <div className="card-preview empty">Niciun card atașat</div>}
                 <div className="inspector-actions">
                   <button onClick={() => setAssignTarget({ type: "piece", pieceId: inspectedPiece.id })}>Assign Card</button>
                   {inspectedCard && <button onClick={() => { setCardsPanelOpen(true); setCardsView("library"); setEditingCardId(inspectedCard.id); }}>Edit Card</button>}
