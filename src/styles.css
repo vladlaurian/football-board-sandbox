@@ -999,7 +999,7 @@ input[type="number"] {
 
 .area-mini { display:grid; grid-template-columns:repeat(11, 8px); grid-auto-rows:8px; gap:1px; margin-top:4px; width:max-content; max-width:100%; }
 .area-mini span { width:8px; height:8px; border-radius:2px; background:rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center; font-size:5px; }
-.area-mini span.active { background:rgba(80,190,120,.95); }
+.area-mini span.active { background:var(--card-area-active-color, rgba(80,190,120,.95)); }
 .area-mini span.player { background:rgba(255,255,255,.9); color:#111827; }
 .def-area-editor { margin-top:8px; }
 .area-actions { justify-content:flex-start; margin-bottom:8px; }
@@ -1288,7 +1288,7 @@ select option {
   width: 2px;
   height: 53px;
   transform: translateX(-50%);
-  background: rgba(255,255,255,0.96);
+  background: currentColor;
   border-radius: 2px;
 }
 .attack-arrow::after {
@@ -1301,7 +1301,7 @@ select option {
   height: 0;
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
-  border-bottom: 9px solid rgba(255,255,255,0.96);
+  border-bottom: 9px solid currentColor;
 }
 .card-preview.compact .attack-direction-hint { display: none; }
 
@@ -2918,4 +2918,22 @@ select option {
 }
 .def-area-editor .editor-attack-direction .attack-arrow::after {
   border-bottom-color: currentColor !important;
+}
+
+/* Defensive Area custom colors */
+.card-preview .area-mini span:not(.active):not(.player) {
+  background: color-mix(in srgb, var(--card-area-color, #fff) 18%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--card-area-color, #fff) 14%, transparent) inset;
+}
+.card-preview .area-mini span.active {
+  background: var(--card-area-active-color, #50be78) !important;
+}
+.card-preview .area-mini span.player {
+  background: color-mix(in srgb, var(--card-area-color, #fff) 92%, white 8%) !important;
+}
+.card-preview .card-area-block .attack-arrow::before {
+  background: var(--card-area-color, #fff) !important;
+}
+.card-preview .card-area-block .attack-arrow::after {
+  border-bottom-color: var(--card-area-color, #fff) !important;
 }

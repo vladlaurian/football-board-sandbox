@@ -154,6 +154,7 @@ const CARD_TEXT_COLOR_DEFAULTS = {
   attributes: "#ffffff",
   bonuses: "#ffffff",
   defensiveArea: "#ffffff",
+  defensiveAreaActive: "#50be78",
   specialAbility: "#ffffff",
 };
 const COLOR_SWATCHES = ["#ffffff", "#f8fafc", "#111827", "#ef4444", "#f97316", "#facc15", "#22c55e", "#14b8a6", "#38bdf8", "#3b82f6", "#8b5cf6", "#ec4899"];
@@ -1902,6 +1903,7 @@ function App() {
       "--card-attributes-color": safeColor(colors.attributes),
       "--card-bonuses-color": safeColor(colors.bonuses),
       "--card-area-color": safeColor(colors.defensiveArea),
+      "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78"),
       "--card-special-color": safeColor(colors.specialAbility),
     };
     return (
@@ -2141,7 +2143,7 @@ function App() {
         {FrontSummaryEditor({ card })}
         {AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes" })}
         {AttributeListEditor({ card, section: "bonuses", title: "Bonuses" })}
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Color" /></div>{DefensiveAreaEditor({ card })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected" /></div>{DefensiveAreaEditor({ card })}</div>
       </div>
     );
   }
@@ -2155,11 +2157,11 @@ function App() {
       <div className="cards-panel">
         <div className="cards-panel-head"><strong>Player Cards</strong><div>
           <select value={selectedTheme} onChange={e => setCardThemeSelection(editingCardId, e.target.value)} disabled={!editingCardId}>{themeOptions.map(theme => <option key={theme} value={theme}>{theme}</option>)}</select>
-          <button onClick={exportSelectedCard}>Export Selected JSON</button>
           <select value={graphicImportSide} onChange={e => setGraphicImportSide(e.target.value)} disabled={!editingCardId} title="Choose which side to import"><option value="front">Front</option><option value="back">Back</option><option value="both">Both</option></select>
           <button onClick={startGraphicImport} disabled={!editingCardId}>Import Graphic</button>
           <button onClick={deleteSelectedGraphic} disabled={!editingCardId || !hasCustomGraphics(editingCard)}>Delete Graphic</button>
           <select value={exportCardId} onChange={e => setExportCardId(e.target.value)} disabled={!cardState.cards.length}>{cardState.cards.length === 0 ? <option value="">No cards</option> : cardState.cards.map(card => <option key={card.id} value={card.id}>{card.name} ({card.position})</option>)}</select>
+          <button onClick={exportSelectedCard}>Export Selected JSON</button>
           <label className="import-btn">Import JSON<input type="file" accept="application/json" onChange={e => { importCardBackup(e.target.files?.[0]); e.target.value = ""; }} /></label>
           <input ref={graphicFrontInputRef} type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" className="hidden-file-input" onChange={e => { handleFrontGraphicFile(e.target.files?.[0]); e.target.value = ""; }} />
           <input ref={graphicBackInputRef} type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" className="hidden-file-input" onChange={e => { handleBackGraphicFile(e.target.files?.[0]); e.target.value = ""; }} />
