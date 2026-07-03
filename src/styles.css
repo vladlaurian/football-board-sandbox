@@ -3256,8 +3256,16 @@ select option {
   margin-top: auto !important;
   flex: 0 0 auto !important;
   align-self: stretch !important;
-  transform: translateY(10px) !important;
+  transform: translateY(-4px) !important;
 }
 .card-preview.theme-custom.card-back .card-preview-content-layer > .card-bottom-third {
-  transform: translateY(10px) !important;
+  transform: translateY(-4px) !important;
+}
+
+
+/* USER FIX: raise Defensive Area + Special Ability slightly above the bottom edge */
+.card-preview.card-back .card-preview-content-layer > .card-bottom-third,
+.card-preview.theme-custom.card-back .card-preview-content-layer > .card-bottom-third {
+  margin-top: auto !important;
+  transform: translateY(-4px) !important;
 }
