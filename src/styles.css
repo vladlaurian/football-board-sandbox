@@ -2144,3 +2144,128 @@ select option {
   line-height: 1.16 !important;
   margin-bottom: 3px !important;
 }
+
+/* Final card layout tuning: shared top identity, safer leading, bigger stats area */
+.card-preview.card-front,
+.card-preview.card-back {
+  width: min(100%, 280px) !important;
+  aspect-ratio: 2 / 3 !important;
+  padding: 10px !important;
+  box-sizing: border-box !important;
+}
+.card-top-strip,
+.card-back .card-artwork,
+.card-front .front-artwork {
+  height: 42px !important;
+  min-height: 42px !important;
+  flex: 0 0 42px !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 30px !important;
+  grid-template-areas: "name pos" !important;
+  align-items: center !important;
+  gap: 7px !important;
+  padding: 0 8px !important;
+  border-radius: 11px !important;
+}
+.card-top-name {
+  grid-area: name !important;
+  display: block !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  font-size: clamp(8px, 1.8vw, 13px) !important;
+  line-height: 1.18 !important;
+  letter-spacing: .005em !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+.card-top-position {
+  grid-area: pos !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  justify-self: end !important;
+  width: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  height: 18px !important;
+  border-radius: 6px !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  font-size: clamp(5.5px, 0.95vw, 8px) !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+}
+.card-front .front-artwork span,
+.card-back .card-artwork span,
+.card-front .front-artwork strong,
+.card-back .card-artwork strong {
+  font-size: inherit !important;
+}
+.card-front-inner {
+  gap: 0 !important;
+}
+.card-front .front-summary-fields {
+  flex: 0 0 58px !important;
+  margin-top: auto !important;
+  margin-bottom: 5px !important;
+}
+.card-back .card-stats-grid {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  margin: 6px 0 0 !important;
+  gap: 10px !important;
+  overflow: hidden !important;
+}
+.card-section-list {
+  overflow: hidden !important;
+}
+.card-section b {
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+  margin-bottom: 3px !important;
+}
+.card-section small {
+  font-size: 10px !important;
+  line-height: 1.28 !important;
+  min-height: 13px !important;
+  align-items: center !important;
+  overflow: visible !important;
+}
+.card-section small span,
+.card-section small em {
+  line-height: 1.28 !important;
+}
+.card-stats-grid.dense-1 .card-section small { font-size: 9px !important; min-height: 11.6px !important; line-height: 1.22 !important; }
+.card-stats-grid.dense-2 .card-section small { font-size: 8px !important; min-height: 10.2px !important; line-height: 1.18 !important; }
+.card-stats-grid.dense-3 .card-section small { font-size: 7px !important; min-height: 9px !important; line-height: 1.14 !important; }
+.card-stats-grid.dense-1 .card-section small span,
+.card-stats-grid.dense-1 .card-section small em { line-height: 1.22 !important; }
+.card-stats-grid.dense-2 .card-section small span,
+.card-stats-grid.dense-2 .card-section small em { line-height: 1.18 !important; }
+.card-stats-grid.dense-3 .card-section small span,
+.card-stats-grid.dense-3 .card-section small em { line-height: 1.14 !important; }
+.card-bottom-third {
+  flex: 0 0 22% !important;
+  margin-top: auto !important;
+  padding-top: 1px !important;
+  gap: 7px !important;
+  overflow: hidden !important;
+}
+.card-special-block b,
+.card-area-block .area-mini-title {
+  font-size: 10.5px !important;
+  line-height: 1.24 !important;
+  margin-bottom: 3px !important;
+}
+.card-special-block p {
+  font-size: 8px !important;
+  line-height: 1.34 !important;
+  -webkit-line-clamp: 5 !important;
+  overflow: hidden !important;
+}
