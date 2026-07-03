@@ -3285,19 +3285,25 @@ select option {
 }
 
 
-/* USER FIX: front card bottom stats should sit at the same visual level
-   as the anchored lower section on the back card. */
-.card-preview.card-front .front-summary-fields {
-  margin-top: auto !important;
-  margin-bottom: 8px !important;
-  transform: translateY(8px) !important;
+
+
+/* USER FIX: align FRONT bottom stats with BACK bottom section.
+   No absolute positioning on stats, no transform outside the card. */
+.card-preview.card-front .card-content {
+  display: grid !important;
+  grid-template-rows: auto 1fr auto !important;
+  height: 100% !important;
 }
 
+.card-preview.card-front .front-player-wrap {
+  align-self: center !important;
+}
 
-/* USER FIX: lower the FRONT summary stats safely, without absolute positioning.
-   This keeps them in the normal card flow, so they cannot jump over the header. */
 .card-preview.card-front .front-summary-fields {
-  margin-top: auto !important;
-  margin-bottom: -2px !important;
-  transform: translateY(18px) !important;
+  align-self: end !important;
+  margin-top: 0 !important;
+  margin-bottom: 12px !important;
+  transform: none !important;
+  position: relative !important;
+  z-index: 5 !important;
 }
