@@ -3568,3 +3568,18 @@ select option {
 .layout-control-row strong { font-size: 12px; }
 .layout-control-row label { display: grid; grid-template-columns: 18px 1fr; gap: 4px; align-items: center; font-size: 11px; margin: 0; }
 .layout-control-row input { width: 100%; min-width: 0; padding: 4px 5px; }
+
+/* BUG FIX: Layout Editor / Inspector stability
+   Custom artwork is side-specific in JS; these rules keep the inspector preview
+   centered and prevent the layout layer from shifting inside the floating window. */
+.card-inspector .card-preview {
+  width: min(100%, calc(var(--inspector-w, 320px) - 36px)) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+.card-preview .card-preview-content-layer.card-layout-layer {
+  box-sizing: border-box !important;
+}
+.card-preview:not(.theme-custom) .card-preview-art-layer:empty {
+  display: none !important;
+}

@@ -1991,9 +1991,12 @@ function App() {
     useEffect(() => setCurrentSide(side), [side, card?.id]);
     if (!card) return <div className="card-preview empty">No card</div>;
     const activeTheme = getCardTheme(card, cardState.theme);
-    const themeClass = activeTheme === CUSTOM_CARD_THEME ? "theme-custom" : `theme-${activeTheme.toLowerCase().replace(/\s+/g, "-")}`;
     const shownSide = flippable ? currentSide : side;
     const graphicUrl = shownSide === "front" ? card?.graphics?.frontDataUrl : card?.graphics?.backDataUrl;
+    // Custom artwork is side-specific. If only the front graphic exists, the back must
+    // still render with the normal theme instead of a transparent/black empty card.
+    const renderedTheme = activeTheme === CUSTOM_CARD_THEME && !graphicUrl ? "Style 1" : activeTheme;
+    const themeClass = renderedTheme === CUSTOM_CARD_THEME ? "theme-custom" : `theme-${renderedTheme.toLowerCase().replace(/\s+/g, "-")}`;
     const colors = cardTextColors(card);
     const layout = normalizeCardLayout(card.layout);
     const previewStyle = {
