@@ -147,6 +147,7 @@ const CARD_POSITION_OPTIONS = [
 const TEAM_LAYOUT_POSITIONS = ["GK", "LWB", "LB", "CB", "RB", "RWB", "LM", "CDM", "CM", "CAM", "RM", "LW", "ST", "RW"];
 const TEAM_SLOT_POSITIONS = ["GK", "LB", "CB", "CB", "RB", "CDM", "CM", "CAM", "LW", "RW", "ST"];
 const CARD_THEMES = ["Style 1", "Style 2", "Style 3", "Style 4", "Style 5", "Style 6", "Style 7"];
+const CARD_FRONT_FIELDS = ["GK", "DEF", "MID", "ATT"];
 const LEGACY_THEME_MAP = {
   "Realistic": "Style 1",
   "GOALS Style": "Style 2",
@@ -168,6 +169,15 @@ function emptyDefensiveArea() {
   return [];
 }
 
+function defaultFrontSummary() {
+  return Object.fromEntries(CARD_FRONT_FIELDS.map(key => [key, 0]));
+}
+
+function normalizeFrontSummary(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  return Object.fromEntries(CARD_FRONT_FIELDS.map(key => [key, cleanTwoDigitValue(source[key] ?? source[key.toLowerCase()] ?? 0)]));
+}
+
 function createPlayerCard(position = "ST") {
   const safePosition = CARD_POSITION_OPTIONS.includes(position) ? position : "ST";
   return {
@@ -176,6 +186,7 @@ function createPlayerCard(position = "ST") {
     position: safePosition,
     passiveAttributes: defaultAttributesForPosition(safePosition, "passive"),
     bonuses: defaultAttributesForPosition(safePosition, "bonus"),
+    frontSummary: defaultFrontSummary(),
     defensiveArea: emptyDefensiveArea(),
     artwork: { mode: "default", customDataUrl: "" },
     createdAt: new Date().toISOString(),
@@ -199,6 +210,7 @@ function normalizeImportedCard(card) {
     position: safePosition,
     passiveAttributes: Array.isArray(card?.passiveAttributes) ? card.passiveAttributes : (Array.isArray(card?.attributes) ? card.attributes : []),
     bonuses: Array.isArray(card?.bonuses) ? card.bonuses : [],
+    frontSummary: normalizeFrontSummary(card?.frontSummary || card?.summary || card?.front || card?.ratings),
     defensiveArea: Array.isArray(card?.defensiveArea) ? card.defensiveArea : [],
     artwork: card?.artwork || { mode: "default", customDataUrl: "" },
   };
@@ -1641,10 +1653,23 @@ function App() {
     }));
   }
 
-  function CardPreview({ card, compact = false, team = "neutral" }) {
+  function CardPreview({ card, compact = false, team = "neutral", side = "back", flippable = false }) {
+    const [currentSide, setCurrentSide] = useState(side);
+    useEffect(() => setCurrentSide(side), [side, card?.id]);
     if (!card) return <div className="card-preview empty">No card</div>;
+    const themeClass = `theme-${cardState.theme.toLowerCase().replace(/\s+/g, "-")}`;
+    const shownSide = flippable ? currentSide : side;
     return (
-      <div className={`card-preview theme-${cardState.theme.toLowerCase().replace(/\s+/g, "-")} ${team}`}>
+      <div className={`card-preview ${shownSide === "front" ? "card-front" : "card-back"} ${themeClass} ${team}`}>
+        {flippable && <button className="card-flip-btn" title={shownSide === "front" ? "Show card back" : "Show card front"} onClick={(e) => { e.stopPropagation(); setCurrentSide(v => v === "front" ? "back" : "front"); }}>{shownSide === "front" ? "↻" : "↺"}</button>}
+        {shownSide === "front" ? CardFront({ card }) : CardBack({ card, compact })}
+      </div>
+    );
+  }
+
+  function CardBack({ card, compact = false }) {
+    return (
+      <>
         <div className="card-artwork">{card.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : <span>{card.position}</span>}</div>
         <div className="card-head"><strong>{card.name}</strong><span>{card.position}</span></div>
         {!compact && (
@@ -1663,6 +1688,25 @@ function App() {
             </div>
           </>
         )}
+      </>
+    );
+  }
+
+  function CardFront({ card }) {
+    const summary = normalizeFrontSummary(card.frontSummary);
+    return (
+      <div className="card-front-inner">
+        <div className="front-artwork">{card.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : <span>{card.position}</span>}</div>
+        <div className="front-name">{card.name}</div>
+        <div className="front-position">{card.position}</div>
+        <div className="front-summary-fields">
+          {CARD_FRONT_FIELDS.map(key => (
+            <div className="front-summary-row" key={key}>
+              <span>{key}</span>
+              <em>{summary[key]}</em>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -1707,13 +1751,31 @@ function App() {
     );
   }
 
+  function FrontSummaryEditor({ card }) {
+    const summary = normalizeFrontSummary(card.frontSummary);
+    return (
+      <div className="card-edit-section front-summary-editor">
+        <div className="card-edit-section-title"><strong>Front Summary</strong></div>
+        <div className="front-summary-editor-grid">
+          {CARD_FRONT_FIELDS.map(key => (
+            <label key={key}>{key}<input inputMode="numeric" value={summary[key]} onChange={e => updateCardField(card.id, "frontSummary", { ...summary, [key]: cleanTwoDigitValue(e.target.value) })} /></label>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   function CardEditor({ card }) {
     if (!card) return <div className="empty-panel">Alege sau creează un card.</div>;
     return (
       <div className="card-editor">
-        {CardPreview({ card, team: "neutral" })}
+        <div className="card-editor-previews">
+          <div><div className="card-preview-label">Front</div>{CardPreview({ card, team: "neutral", side: "front" })}</div>
+          <div><div className="card-preview-label">Back</div>{CardPreview({ card, team: "neutral", side: "back" })}</div>
+        </div>
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
         <label>Position<select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
+        {FrontSummaryEditor({ card })}
         {AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes" })}
         {AttributeListEditor({ card, section: "bonuses", title: "Bonuses" })}
         <div className="card-edit-section"><strong>Defensive Area</strong>{DefensiveAreaEditor({ card })}</div>
@@ -2686,7 +2748,7 @@ function App() {
             ) : (
               <>
                 <div className="inspector-piece-line"><b>Post puc:</b> {inspectedPiece.label || "—"}</div>
-                {inspectedCard ? CardPreview({ card: inspectedCard, team: inspectedPiece.team === "A" ? "blue" : "red" }) : <div className="card-preview empty">Niciun card atașat</div>}
+                {inspectedCard ? CardPreview({ card: inspectedCard, team: inspectedPiece.team === "A" ? "blue" : "red", side: "front", flippable: true }) : <div className="card-preview empty">Niciun card atașat</div>}
                 <div className="inspector-actions">
                   <button onClick={() => setAssignTarget({ type: "piece", pieceId: inspectedPiece.id })}>Assign Card</button>
                   {inspectedCard && <button onClick={() => { setCardsPanelOpen(true); setCardsView("library"); setEditingCardId(inspectedCard.id); }}>Edit Card</button>}
