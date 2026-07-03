@@ -2027,7 +2027,7 @@ function App() {
     const setArea = nextArea => updateCardField(card.id, "defensiveArea", nextArea);
     const toggle = (dx, dy) => { if (dx === 0 && dy === 0) return; setArea(areaHasCell(area, dx, dy) ? area.filter(c => !(Number(c.dx) === dx && Number(c.dy) === dy)) : [...area, { dx, dy }]); };
     return (
-      <div className="def-area-editor">
+      <div className="def-area-editor" style={{ "--card-area-color": safeColor(cardTextColors(card).defensiveArea), "--card-area-active-color": safeColor(cardTextColors(card).defensiveAreaActive, "#50be78") }}>
         <div className="area-actions"><button onClick={() => setArea([])}>Clear Area</button><button onClick={() => setArea(Array.from({ length: 121 }, (_, i) => ({ dx: (i % 11) - 5, dy: Math.floor(i / 11) - 5 })).filter(c => !(c.dx === 0 && c.dy === 0)))}>Fill Area</button><button onClick={() => setArea(area.map(c => ({ dx: -Number(c.dx), dy: Number(c.dy) })))}>Mirror Left/Right</button><button onClick={() => setArea(area.map(c => ({ dx: Number(c.dx), dy: -Number(c.dy) })))}>Mirror Up/Down</button></div>
         <div className="def-area-editor-row">
           <div className="def-grid">{Array.from({ length: 121 }, (_, i) => { const dx = (i % 11) - 5; const dy = Math.floor(i / 11) - 5; const center = dx === 0 && dy === 0; return <button key={i} className={`${center ? "player" : ""} ${areaHasCell(area, dx, dy) ? "active" : ""}`} onClick={() => toggle(dx, dy)}>{center ? "P" : ""}</button>; })}</div>
@@ -2144,7 +2144,7 @@ function App() {
         {FrontSummaryEditor({ card })}
         {AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes" })}
         {AttributeListEditor({ card, section: "bonuses", title: "Bonuses" })}
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected" /></div>{DefensiveAreaEditor({ card })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Writing/Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /></div>{DefensiveAreaEditor({ card })}</div>
       </div>
     );
   }

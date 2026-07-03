@@ -3026,3 +3026,59 @@ select option {
 .card-preview.theme-custom > :not(.card-custom-graphic) {
   z-index: 1 !important;
 }
+
+
+/* USER FIX: Defensive Area color controls */
+.card-edit-section-title {
+  align-items: center;
+  gap: 6px !important;
+}
+.card-edit-section-title .card-color-picker {
+  flex: 0 0 auto;
+}
+.card-edit-section-title .card-color-picker summary {
+  min-width: max-content;
+  white-space: nowrap;
+}
+.card-edit-section-title .card-color-picker summary em {
+  white-space: nowrap;
+}
+
+/* First Defensive Area color controls the writing, arrow and inactive grid cells. */
+.card-preview .card-area-block .area-mini span:not(.active):not(.player) {
+  background: color-mix(in srgb, var(--card-area-color, #fff) 42%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--card-area-color, #fff) 55%, transparent) !important;
+}
+.card-preview .card-area-block .area-mini span.active {
+  background: var(--card-area-active-color, rgba(80,190,120,.95)) !important;
+}
+
+/* The editor grid must preview the exact two Defensive Area colors too. */
+.def-area-editor .def-grid button {
+  color: var(--card-area-color, #fff) !important;
+  border-color: color-mix(in srgb, var(--card-area-color, #fff) 55%, transparent) !important;
+  background: color-mix(in srgb, var(--card-area-color, #fff) 24%, transparent) !important;
+}
+.def-area-editor .def-grid button.active {
+  background: var(--card-area-active-color, #50be78) !important;
+  border-color: color-mix(in srgb, var(--card-area-active-color, #50be78) 75%, transparent) !important;
+}
+.def-area-editor .def-grid button.player {
+  background: color-mix(in srgb, var(--card-area-color, #fff) 85%, transparent) !important;
+  color: #111827 !important;
+}
+.def-area-editor .editor-attack-direction,
+.def-area-editor .editor-attack-direction .attack-arrow {
+  color: var(--card-area-color, #fff) !important;
+}
+
+/* Custom artwork mode must hide decorative containers without disabling the Defensive Area grid colors. */
+.card-preview.theme-custom .card-area-block .area-mini span:not(.player) {
+  box-shadow: none !important;
+}
+.card-preview.theme-custom .card-area-block .area-mini span.active {
+  background: var(--card-area-active-color, rgba(80,190,120,.95)) !important;
+}
+.card-preview.theme-custom .card-area-block .area-mini span:not(.active):not(.player) {
+  background: color-mix(in srgb, var(--card-area-color, #fff) 42%, transparent) !important;
+}
