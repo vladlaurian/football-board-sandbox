@@ -3269,3 +3269,17 @@ select option {
   margin-top: auto !important;
   transform: translateY(-4px) !important;
 }
+
+
+/* USER FIX: very small inward safe-area adjustment for card content.
+   Creates a little more room for border artwork on left/right/bottom. */
+.card-preview.card-back .card-preview-content-layer > .card-stats-grid,
+.card-preview.card-back .card-preview-content-layer > .card-bottom-third {
+  margin-left: 4px !important;
+  margin-right: 4px !important;
+}
+
+.card-preview.card-back .card-preview-content-layer > .card-bottom-third,
+.card-preview.theme-custom.card-back .card-preview-content-layer > .card-bottom-third {
+  transform: translateY(-8px) !important;
+}
