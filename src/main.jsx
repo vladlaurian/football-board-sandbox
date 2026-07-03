@@ -1706,11 +1706,14 @@ function App() {
 
   function cardTopNameFontSize(name = "") {
     const len = String(name || "").trim().length;
-    if (len <= 9) return 22;
-    if (len <= 13) return 18;
-    if (len <= 17) return 15;
-    if (len <= 22) return 12;
-    return 10;
+    // Shared front/back header. Keep the name inside its fixed slot instead of letting it overflow.
+    if (len <= 7) return 19;
+    if (len <= 10) return 16;
+    if (len <= 14) return 13.5;
+    if (len <= 18) return 11;
+    if (len <= 23) return 9.2;
+    if (len <= 30) return 7.6;
+    return 6.4;
   }
 
   function CardIdentityStrip({ card }) {
@@ -1748,7 +1751,7 @@ function App() {
                   <div className="attack-direction-hint" aria-label="Attacking direction"><span className="attack-arrow">↑</span></div>
                 </div>
               </div>
-              <div className={`card-special-block ${String(card.specialAbility || "").length > 180 ? "special-dense-3" : String(card.specialAbility || "").length > 110 ? "special-dense-2" : String(card.specialAbility || "").length > 70 ? "special-dense-1" : ""}`}>
+              <div className={`card-special-block ${String(card.specialAbility || "").length > 280 ? "special-dense-4" : String(card.specialAbility || "").length > 200 ? "special-dense-3" : String(card.specialAbility || "").length > 130 ? "special-dense-2" : String(card.specialAbility || "").length > 70 ? "special-dense-1" : ""}`}>
                 <b>Special Ability</b>
                 <p>{String(card.specialAbility || "").trim() || "—"}</p>
               </div>

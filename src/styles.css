@@ -2466,3 +2466,80 @@ select option {
 .card-special-block.special-dense-1 p { font-size: 7.1px !important; line-height: 1.30 !important; }
 .card-special-block.special-dense-2 p { font-size: 6.5px !important; line-height: 1.28 !important; }
 .card-special-block.special-dense-3 p { font-size: 5.9px !important; line-height: 1.26 !important; }
+
+/* FINAL USER FIX: header must fit, Special Ability uses full bottom height */
+.card-preview .card-top-strip,
+.card-preview.card-front .card-top-strip,
+.card-preview.card-back .card-top-strip,
+.card-back .card-artwork.card-top-strip,
+.card-front .card-artwork.card-top-strip {
+  height: 46px !important;
+  min-height: 46px !important;
+  flex: 0 0 46px !important;
+  grid-template-columns: minmax(0, 1fr) 30px !important;
+  column-gap: 6px !important;
+  padding: 0 8px !important;
+}
+.card-preview .card-top-strip .card-top-name,
+.card-preview .card-top-name {
+  max-width: 100% !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+  line-height: 1.04 !important;
+  letter-spacing: 0 !important;
+}
+.card-preview .card-top-strip .card-top-position,
+.card-preview .card-top-position {
+  width: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  height: 20px !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  border-radius: 7px !important;
+}
+.card-back .card-stats-grid {
+  margin-top: 4px !important;
+  padding-top: 0 !important;
+}
+.card-bottom-third {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  align-items: stretch !important;
+}
+.card-area-block,
+.card-special-block {
+  height: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+.card-special-block b,
+.card-area-block .area-mini-title {
+  font-size: 10.5px !important;
+  line-height: 1.25 !important;
+  margin: 0 0 3px 0 !important;
+  flex: 0 0 auto !important;
+}
+.card-special-block p {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  display: block !important;
+  -webkit-line-clamp: unset !important;
+  -webkit-box-orient: initial !important;
+  white-space: pre-wrap !important;
+  font-size: 8.7px !important;
+  line-height: 1.38 !important;
+  color: rgba(255,255,255,.9) !important;
+}
+.card-special-block.special-dense-1 p { font-size: 8.0px !important; line-height: 1.34 !important; }
+.card-special-block.special-dense-2 p { font-size: 7.15px !important; line-height: 1.30 !important; }
+.card-special-block.special-dense-3 p { font-size: 6.35px !important; line-height: 1.25 !important; }
+.card-special-block.special-dense-4 p { font-size: 5.6px !important; line-height: 1.20 !important; }
+.card-special-block.special-dense-2 b,
+.card-special-block.special-dense-3 b,
+.card-special-block.special-dense-4 b { margin-bottom: 2px !important; }
