@@ -2865,3 +2865,57 @@ select option {
   height: 19px !important;
   font-size: 8.8px !important;
 }
+
+/* USER FIX: inspector card must use exact same card layout as editor */
+.card-preview .card-flip-btn,
+.card-preview > .card-flip-btn {
+  position: absolute !important;
+  right: 10px !important;
+  top: 10px !important;
+  z-index: 6 !important;
+  flex: none !important;
+  margin: 0 !important;
+}
+.card-preview.card-front > .card-front-inner,
+.card-preview.card-back > .card-top-strip {
+  margin-top: 0 !important;
+}
+
+/* USER FIX: Defensive Area color picker controls the preview grid/arrow; active area stays green */
+.card-preview .card-area-block .area-mini-title {
+  color: var(--card-area-color, #fff) !important;
+}
+.card-preview .card-area-block .area-mini span:not(.active):not(.player) {
+  background: color-mix(in srgb, var(--card-area-color, #ffffff) 18%, transparent) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-area-color, #ffffff) 42%, transparent) !important;
+}
+.card-preview .card-area-block .area-mini span.player {
+  background: color-mix(in srgb, var(--card-area-color, #ffffff) 86%, #ffffff 14%) !important;
+  color: #111827 !important;
+}
+.card-preview .card-area-block .area-mini span.active {
+  background: rgba(80,190,120,.95) !important;
+  box-shadow: inset 0 0 0 1px rgba(210,255,225,.42) !important;
+}
+.card-preview .card-area-block .attack-direction-hint,
+.card-preview .card-area-block .attack-arrow {
+  color: var(--card-area-color, #fff) !important;
+}
+.card-preview .card-area-block .attack-arrow::before {
+  background: currentColor !important;
+}
+.card-preview .card-area-block .attack-arrow::after {
+  border-bottom-color: currentColor !important;
+}
+
+/* Same color behavior in the editor preview/defensive area editor visual context */
+.def-area-editor .editor-attack-direction,
+.def-area-editor .editor-attack-direction .attack-arrow {
+  color: var(--card-area-color, #fff) !important;
+}
+.def-area-editor .editor-attack-direction .attack-arrow::before {
+  background: currentColor !important;
+}
+.def-area-editor .editor-attack-direction .attack-arrow::after {
+  border-bottom-color: currentColor !important;
+}
