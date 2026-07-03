@@ -3285,10 +3285,14 @@ select option {
 }
 
 
-/* USER FIX: front card bottom stats should sit at the same visual level
-   as the anchored lower section on the back card. */
-.card-preview.card-front .front-summary-fields {
-  margin-top: auto !important;
-  margin-bottom: 8px !important;
-  transform: translateY(8px) !important;
+/* USER FIX: FORCE front bottom stats lower.
+   Previous rule was being overridden. */
+.card-preview.card-front .front-summary-fields,
+.card-preview.theme-custom.card-front .front-summary-fields {
+  position: absolute !important;
+  left: 18px !important;
+  right: auto !important;
+  bottom: 18px !important;
+  margin: 0 !important;
+  transform: none !important;
 }
