@@ -687,6 +687,7 @@ function App() {
   const graphicBackInputRef = useRef(null);
   const pendingGraphicFrontRef = useRef(null);
   const [graphicImportCardId, setGraphicImportCardId] = useState("");
+  const [graphicImportSide, setGraphicImportSide] = useState("front");
   const [assignTarget, setAssignTarget] = useState(null);
   const [inspectorPosition, setInspectorPosition] = useState({ x: Math.max(12, window.innerWidth - 350), y: 150 });
   const [inspectorSize, setInspectorSize] = useState({ w: 320, h: 520 });
@@ -771,7 +772,11 @@ function App() {
   }, [boardApi]);
 
   useEffect(() => {
-    localStorage.setItem("football-board-player-cards-v1", JSON.stringify(cardState));
+    try {
+      localStorage.setItem("football-board-player-cards-v1", JSON.stringify(cardState));
+    } catch (error) {
+      console.warn("Player cards could not be saved locally. The imported graphics may be too large.", error);
+    }
   }, [cardState]);
 
   function buildCloudState(overrides = {}) {
@@ -1719,10 +1724,65 @@ function App() {
       alert("Please select a PNG, JPG, or JPEG image.");
       return;
     }
+
     const reader = new FileReader();
-    reader.onload = () => callback(String(reader.result || ""));
     reader.onerror = () => alert("Could not read the selected image.");
+    reader.onload = () => {
+      const rawDataUrl = String(reader.result || "");
+      const img = new Image();
+      img.onerror = () => callback(rawDataUrl);
+      img.onload = () => {
+        try {
+          const maxW = 1000;
+          const maxH = 1500;
+          const scale = Math.min(1, maxW / img.width, maxH / img.height);
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL("image/jpeg", 0.88);
+          callback(compressed || rawDataUrl);
+        } catch {
+          callback(rawDataUrl);
+        }
+      };
+      img.src = rawDataUrl;
+    };
     reader.readAsDataURL(file);
+  }
+
+  function applyGraphicToCard(cardId, side, dataUrl, pairedBackDataUrl = null) {
+    if (!cardId || !dataUrl) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => {
+        if (card.id !== cardId) return card;
+        const currentGraphics = card.graphics || {};
+        const previousTheme = CARD_THEMES.includes(card.theme)
+          ? card.theme
+          : (CARD_THEMES.includes(currentGraphics.previousTheme) ? currentGraphics.previousTheme : "Style 1");
+        const nextGraphics = {
+          frontDataUrl: currentGraphics.frontDataUrl || "",
+          backDataUrl: currentGraphics.backDataUrl || "",
+          previousTheme,
+        };
+        if (side === "front") nextGraphics.frontDataUrl = dataUrl;
+        if (side === "back") nextGraphics.backDataUrl = dataUrl;
+        if (side === "both") {
+          nextGraphics.frontDataUrl = dataUrl;
+          nextGraphics.backDataUrl = pairedBackDataUrl || currentGraphics.backDataUrl || "";
+        }
+        return {
+          ...card,
+          theme: CUSTOM_CARD_THEME,
+          graphics: nextGraphics,
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    }));
   }
 
   function startGraphicImport() {
@@ -1733,37 +1793,39 @@ function App() {
     }
     setGraphicImportCardId(selectedCard.id);
     pendingGraphicFrontRef.current = null;
-    alert("Select the FRONT graphic first, then select the BACK graphic.");
+    if (graphicImportSide === "back") {
+      graphicBackInputRef.current?.click();
+      return;
+    }
     graphicFrontInputRef.current?.click();
   }
 
   function handleFrontGraphicFile(file) {
-    const selectedCard = graphicImportCardId ? cardById[graphicImportCardId] : (editingCardId ? cardById[editingCardId] : null);
-    if (!selectedCard) return;
+    const targetCardId = graphicImportCardId || editingCardId;
+    if (!targetCardId) return;
     readGraphicFile(file, dataUrl => {
-      pendingGraphicFrontRef.current = dataUrl;
-      setTimeout(() => graphicBackInputRef.current?.click(), 0);
+      if (graphicImportSide === "both") {
+        pendingGraphicFrontRef.current = dataUrl;
+        setTimeout(() => graphicBackInputRef.current?.click(), 0);
+        return;
+      }
+      applyGraphicToCard(targetCardId, "front", dataUrl);
+      pendingGraphicFrontRef.current = null;
+      setGraphicImportCardId("");
     });
   }
 
   function handleBackGraphicFile(file) {
     const targetCardId = graphicImportCardId || editingCardId;
-    const frontDataUrl = pendingGraphicFrontRef.current;
-    if (!targetCardId || !frontDataUrl) return;
+    if (!targetCardId) return;
     readGraphicFile(file, backDataUrl => {
-      updateCardState(prev => ({
-        ...prev,
-        cards: prev.cards.map(card => {
-          if (card.id !== targetCardId) return card;
-          const previousTheme = CARD_THEMES.includes(card.theme) ? card.theme : (CARD_THEMES.includes(card.graphics?.previousTheme) ? card.graphics.previousTheme : "Style 1");
-          return {
-            ...card,
-            theme: CUSTOM_CARD_THEME,
-            graphics: { frontDataUrl, backDataUrl, previousTheme },
-            updatedAt: new Date().toISOString(),
-          };
-        }),
-      }));
+      if (graphicImportSide === "both") {
+        const frontDataUrl = pendingGraphicFrontRef.current;
+        if (!frontDataUrl) return;
+        applyGraphicToCard(targetCardId, "both", frontDataUrl, backDataUrl);
+      } else {
+        applyGraphicToCard(targetCardId, "back", backDataUrl);
+      }
       pendingGraphicFrontRef.current = null;
       setGraphicImportCardId("");
     });
@@ -2035,6 +2097,7 @@ function App() {
         <div className="cards-panel-head"><strong>Player Cards</strong><div>
           <select value={selectedTheme} onChange={e => setCardThemeSelection(editingCardId, e.target.value)} disabled={!editingCardId}>{themeOptions.map(theme => <option key={theme} value={theme}>{theme}</option>)}</select>
           <button onClick={exportSelectedCard}>Export Selected JSON</button>
+          <select value={graphicImportSide} onChange={e => setGraphicImportSide(e.target.value)} disabled={!editingCardId} title="Choose which side to import"><option value="front">Front</option><option value="back">Back</option><option value="both">Both</option></select>
           <button onClick={startGraphicImport} disabled={!editingCardId}>Import Graphic</button>
           <button onClick={deleteSelectedGraphic} disabled={!editingCardId || !hasCustomGraphics(editingCard)}>Delete Graphic</button>
           <select value={exportCardId} onChange={e => setExportCardId(e.target.value)} disabled={!cardState.cards.length}>{cardState.cards.length === 0 ? <option value="">No cards</option> : cardState.cards.map(card => <option key={card.id} value={card.id}>{card.name} ({card.position})</option>)}</select>
