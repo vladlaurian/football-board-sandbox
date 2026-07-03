@@ -148,6 +148,15 @@ const TEAM_LAYOUT_POSITIONS = ["GK", "LWB", "LB", "CB", "RB", "RWB", "LM", "CDM"
 const TEAM_SLOT_POSITIONS = ["GK", "LB", "CB", "CB", "RB", "CDM", "CM", "CAM", "LW", "RW", "ST"];
 const CARD_THEMES = ["Style 1", "Style 2", "Style 3", "Style 4", "Style 5", "Style 6", "Style 7"];
 const CUSTOM_CARD_THEME = "Custom";
+const CARD_TEXT_COLOR_DEFAULTS = {
+  header: "#ffffff",
+  frontFields: "#ffffff",
+  attributes: "#ffffff",
+  bonuses: "#ffffff",
+  defensiveArea: "#ffffff",
+  specialAbility: "#ffffff",
+};
+const COLOR_SWATCHES = ["#ffffff", "#f8fafc", "#111827", "#ef4444", "#f97316", "#facc15", "#22c55e", "#14b8a6", "#38bdf8", "#3b82f6", "#8b5cf6", "#ec4899"];
 const CARD_FRONT_FIELDS = ["DEF", "ATT"];
 const LEGACY_THEME_MAP = {
   "Realistic": "Style 1",
@@ -238,6 +247,7 @@ function createPlayerCard(position = "ST") {
     artwork: { mode: "default", customDataUrl: "" },
     graphics: { frontDataUrl: "", backDataUrl: "", previousTheme: "Style 1" },
     specialAbility: "",
+    textColors: { ...CARD_TEXT_COLOR_DEFAULTS },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -269,6 +279,7 @@ function normalizeImportedCard(card) {
       previousTheme: CARD_THEMES.includes(card?.graphics?.previousTheme) ? card.graphics.previousTheme : (CARD_THEMES.includes(card?.previousTheme) ? card.previousTheme : base.theme),
     },
     specialAbility: String(card?.specialAbility ?? card?.special_ability ?? card?.special ?? ""),
+    textColors: normalizeTextColors(card?.textColors || card?.colors || card?.text_colors),
   };
   return normalized;
 }
@@ -315,6 +326,19 @@ function cleanTwoDigitValue(value) {
 function normalizeStatValue(value) {
   if (value === "-") return 0;
   return clamp(Number(value) || 0, -99, 99);
+}
+
+function normalizeTextColors(raw = {}) {
+  return { ...CARD_TEXT_COLOR_DEFAULTS, ...(raw && typeof raw === "object" ? raw : {}) };
+}
+
+function safeColor(value, fallback = "#ffffff") {
+  const clean = String(value || "").trim();
+  return /^#[0-9a-fA-F]{6}$/.test(clean) ? clean : fallback;
+}
+
+function cardTextColors(card) {
+  return normalizeTextColors(card?.textColors);
 }
 
 function areaHasCell(area, dx, dy) {
@@ -1871,8 +1895,17 @@ function App() {
     const themeClass = activeTheme === CUSTOM_CARD_THEME ? "theme-custom" : `theme-${activeTheme.toLowerCase().replace(/\s+/g, "-")}`;
     const shownSide = flippable ? currentSide : side;
     const graphicUrl = shownSide === "front" ? card?.graphics?.frontDataUrl : card?.graphics?.backDataUrl;
+    const colors = cardTextColors(card);
+    const previewStyle = {
+      "--card-header-color": safeColor(colors.header),
+      "--card-front-color": safeColor(colors.frontFields),
+      "--card-attributes-color": safeColor(colors.attributes),
+      "--card-bonuses-color": safeColor(colors.bonuses),
+      "--card-area-color": safeColor(colors.defensiveArea),
+      "--card-special-color": safeColor(colors.specialAbility),
+    };
     return (
-      <div className={`card-preview ${shownSide === "front" ? "card-front" : "card-back"} ${themeClass} ${team}`}>
+      <div className={`card-preview ${shownSide === "front" ? "card-front" : "card-back"} ${themeClass} ${team}`} style={previewStyle}>
         {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} alt="" /> : null}
         {flippable && <button className="card-flip-btn" title={shownSide === "front" ? "Show card back" : "Show card front"} onClick={(e) => { e.stopPropagation(); setCurrentSide(v => v === "front" ? "back" : "front"); }}>{shownSide === "front" ? "↻" : "↺"}</button>}
         {shownSide === "front" ? CardFront({ card }) : CardBack({ card, compact })}
@@ -1882,18 +1915,18 @@ function App() {
 
   function cardTopNameFontSize(name = "") {
     const len = String(name || "").trim().length;
-    // Fits the shared front/back header next to the position badge.
-    // Short names stay bold/readable; long names shrink aggressively instead of clipping.
-    if (len <= 7) return 17;
-    if (len <= 10) return 15.5;
-    if (len <= 14) return 13.5;
-    if (len <= 18) return 11.5;
-    if (len <= 23) return 9.2;
-    if (len <= 30) return 7.1;
-    if (len <= 38) return 5.7;
-    if (len <= 48) return 4.7;
-    if (len <= 60) return 3.9;
-    return 3.4;
+    // Auto-fit for the shared front/back header. Short names stay readable; long names shrink to fit.
+    if (len <= 6) return 14.8;
+    if (len <= 9) return 13.4;
+    if (len <= 12) return 12.0;
+    if (len <= 16) return 10.4;
+    if (len <= 20) return 8.8;
+    if (len <= 25) return 7.4;
+    if (len <= 31) return 6.2;
+    if (len <= 38) return 5.2;
+    if (len <= 48) return 4.3;
+    if (len <= 60) return 3.6;
+    return 3.1;
   }
 
   function CardIdentityStrip({ card }) {
@@ -1916,7 +1949,6 @@ function App() {
     return (
       <>
         <CardIdentityStrip card={card} />
-        <div className="card-head"><strong>{card.name}</strong></div>
         {!compact && (
           <>
             <div className={`card-stats-grid ${density}`}>
@@ -1969,7 +2001,7 @@ function App() {
     const changeValue = (itemId, delta) => updateCardList(card.id, section, list => list.map(x => x.id === itemId ? { ...x, value: clamp(normalizeStatValue(x.value) + delta, -99, 99) } : x));
     return (
       <div className="card-edit-section">
-        <div className="card-edit-section-title"><strong>{title}</strong><button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }])}>+ Add</button></div>
+        <div className="card-edit-section-title"><strong>{title}</strong><ColorPicker card={card} colorKey={section === "bonuses" ? "bonuses" : "attributes"} label="Color" /><button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }])}>+ Add</button></div>
         {items.map((item, index) => (
           <div className="attribute-row" key={item.id}>
             <input value={item.name} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, name: e.target.value } : x))} />
@@ -2020,7 +2052,7 @@ function App() {
     }));
     return (
       <div className="card-edit-section front-summary-editor">
-        <div className="card-edit-section-title"><strong>Front Fields</strong><button onClick={() => updateFields(list => [...list, makeFrontField("New", list.length)])}>+ Add Field</button></div>
+        <div className="card-edit-section-title"><strong>Front Fields</strong><ColorPicker card={card} colorKey="frontFields" label="Color" /><button onClick={() => updateFields(list => [...list, makeFrontField("New", list.length)])}>+ Add Field</button></div>
         <div className="front-formula-list">
           {fields.map((field, index) => (
             <div className="front-formula-row" key={field.id}>
@@ -2044,6 +2076,32 @@ function App() {
     );
   }
 
+
+  function updateCardTextColor(cardId, key, value) {
+    if (!cardId) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? {
+        ...card,
+        textColors: { ...CARD_TEXT_COLOR_DEFAULTS, ...(card.textColors || {}), [key]: safeColor(value) },
+        updatedAt: new Date().toISOString(),
+      } : card),
+    }));
+  }
+
+  function ColorPicker({ card, colorKey, label }) {
+    if (!card) return null;
+    const current = safeColor((card.textColors || {})[colorKey], CARD_TEXT_COLOR_DEFAULTS[colorKey] || "#ffffff");
+    return (
+      <details className="card-color-picker">
+        <summary title={`${label} text color`}><span className="color-current" style={{ background: current }} /> <em>{label}</em></summary>
+        <div className="color-panel">
+          {COLOR_SWATCHES.map(color => <button key={color} className={current.toLowerCase() === color.toLowerCase() ? "selected" : ""} style={{ background: color }} onClick={(e) => { e.preventDefault(); updateCardTextColor(card.id, colorKey, color); }} title={color} />)}
+          <input type="color" value={current} onChange={e => updateCardTextColor(card.id, colorKey, e.target.value)} />
+        </div>
+      </details>
+    );
+  }
 
   function setCardThemeSelection(cardId, value) {
     if (!cardId) return;
@@ -2076,13 +2134,14 @@ function App() {
           <div><div className="card-preview-label">Front</div><CardPreview card={card} team="neutral" side="front" /></div>
           <div><div className="card-preview-label">Back</div><CardPreview card={card} team="neutral" side="back" /></div>
         </div>
+        <div className="card-edit-section compact-color-row"><strong>Header</strong><ColorPicker card={card} colorKey="header" label="Color" /></div>
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
         <label>Position<select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
-        <label className="special-ability-editor">Special Ability<textarea value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></label>
+        <label className="special-ability-editor"><span className="editor-label-row"><span>Special Ability</span><ColorPicker card={card} colorKey="specialAbility" label="Color" /></span><textarea value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></label>
         {FrontSummaryEditor({ card })}
         {AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes" })}
         {AttributeListEditor({ card, section: "bonuses", title: "Bonuses" })}
-        <div className="card-edit-section"><strong>Defensive Area</strong>{DefensiveAreaEditor({ card })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Color" /></div>{DefensiveAreaEditor({ card })}</div>
       </div>
     );
   }
