@@ -3230,3 +3230,34 @@ select option {
 .card-edit-section-title .card-color-picker + .card-color-picker {
   margin-left: 2px !important;
 }
+
+
+/* USER FIX: Defensive Area + Special Ability must stay anchored low on the back card.
+   Layout-only fix: does not change their text sizes or internal grid sizing. */
+.card-preview.card-back {
+  display: block !important;
+}
+.card-preview.card-back .card-preview-content-layer {
+  height: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.card-preview.card-back .card-preview-content-layer > .card-top-strip,
+.card-preview.card-back .card-preview-content-layer > .card-artwork {
+  flex: 0 0 auto !important;
+}
+.card-preview.card-back .card-preview-content-layer > .card-stats-grid {
+  flex: 0 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+.card-preview.card-back .card-preview-content-layer > .card-bottom-third {
+  margin-top: auto !important;
+  flex: 0 0 auto !important;
+  align-self: stretch !important;
+  transform: translateY(10px) !important;
+}
+.card-preview.theme-custom.card-back .card-preview-content-layer > .card-bottom-third {
+  transform: translateY(10px) !important;
+}
