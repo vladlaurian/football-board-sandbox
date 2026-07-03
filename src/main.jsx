@@ -1727,7 +1727,7 @@ function App() {
                   <div className="attack-direction-hint" aria-label="Attacking direction"><span className="attack-arrow">↑</span></div>
                 </div>
               </div>
-              <div className="card-special-block">
+              <div className={`card-special-block ${String(card.specialAbility || "").length > 180 ? "special-dense-3" : String(card.specialAbility || "").length > 110 ? "special-dense-2" : String(card.specialAbility || "").length > 70 ? "special-dense-1" : ""}`}>
                 <b>Special Ability</b>
                 <p>{String(card.specialAbility || "").trim() || "—"}</p>
               </div>
