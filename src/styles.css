@@ -2651,3 +2651,36 @@ select option {
   .value-stepper { grid-template-columns: 21px minmax(30px, 1fr) 21px; gap: 2px; }
   .value-step-btn { width: 21px !important; height: 26px !important; }
 }
+
+/* USER FIX: per-card themes and stronger auto-fit in shared header */
+.card-preview .card-top-strip,
+.card-preview.card-front .card-top-strip,
+.card-preview.card-back .card-top-strip,
+.card-back .card-artwork.card-top-strip,
+.card-front .card-artwork.card-top-strip {
+  grid-template-columns: minmax(0, 1fr) 26px !important;
+  column-gap: 4px !important;
+  padding-left: 8px !important;
+  padding-right: 7px !important;
+}
+.card-preview .card-top-strip .card-top-name,
+.card-preview .card-top-name {
+  font-size: var(--top-name-font-size, 12px) !important;
+  line-height: 1 !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+  letter-spacing: -0.04em !important;
+  transform-origin: left center !important;
+}
+.card-preview .card-top-strip .card-top-position,
+.card-preview .card-top-position {
+  width: 26px !important;
+  min-width: 26px !important;
+  max-width: 26px !important;
+  height: 19px !important;
+  font-size: 9px !important;
+  line-height: 1 !important;
+}

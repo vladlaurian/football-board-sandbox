@@ -222,6 +222,7 @@ function createPlayerCard(position = "ST") {
     passiveAttributes: defaultAttributesForPosition(safePosition, "passive"),
     bonuses: defaultAttributesForPosition(safePosition, "bonus"),
     frontFields: defaultFrontFields(),
+    theme: "Style 1",
     defensiveArea: emptyDefensiveArea(),
     artwork: { mode: "default", customDataUrl: "" },
     specialAbility: "",
@@ -247,6 +248,7 @@ function normalizeImportedCard(card) {
     passiveAttributes: normalizeStatItems(Array.isArray(card?.passiveAttributes) ? card.passiveAttributes : (Array.isArray(card?.attributes) ? card.attributes : [])),
     bonuses: normalizeStatItems(Array.isArray(card?.bonuses) ? card.bonuses : []),
     frontFields: normalizeFrontFields(card?.frontFields || card?.frontSummary || card?.summary || card?.front || card?.ratings),
+    theme: CARD_THEMES.includes(card?.theme) ? card.theme : (LEGACY_THEME_MAP[card?.theme] || base.theme || "Style 1"),
     defensiveArea: Array.isArray(card?.defensiveArea) ? card.defensiveArea : [],
     artwork: card?.artwork || { mode: "default", customDataUrl: "" },
     specialAbility: String(card?.specialAbility ?? card?.special_ability ?? card?.special ?? ""),
@@ -1702,7 +1704,8 @@ function App() {
     const [currentSide, setCurrentSide] = useState(side);
     useEffect(() => setCurrentSide(side), [side, card?.id]);
     if (!card) return <div className="card-preview empty">No card</div>;
-    const themeClass = `theme-${cardState.theme.toLowerCase().replace(/\s+/g, "-")}`;
+    const activeTheme = CARD_THEMES.includes(card.theme) ? card.theme : (CARD_THEMES.includes(cardState.theme) ? cardState.theme : "Style 1");
+    const themeClass = `theme-${activeTheme.toLowerCase().replace(/\s+/g, "-")}`;
     const shownSide = flippable ? currentSide : side;
     return (
       <div className={`card-preview ${shownSide === "front" ? "card-front" : "card-back"} ${themeClass} ${team}`}>
@@ -1715,24 +1718,26 @@ function App() {
   function cardTopNameFontSize(name = "") {
     const len = String(name || "").trim().length;
     // Fits the shared front/back header next to the position badge.
+    // Short names stay bold/readable; long names shrink aggressively instead of clipping.
     if (len <= 7) return 17;
-    if (len <= 10) return 15;
-    if (len <= 14) return 12.5;
-    if (len <= 18) return 10.5;
-    if (len <= 23) return 8.7;
-    if (len <= 30) return 6.8;
-    if (len <= 38) return 5.5;
-    if (len <= 48) return 4.6;
-    return 4.0;
+    if (len <= 10) return 15.5;
+    if (len <= 14) return 13.5;
+    if (len <= 18) return 11.5;
+    if (len <= 23) return 9.2;
+    if (len <= 30) return 7.1;
+    if (len <= 38) return 5.7;
+    if (len <= 48) return 4.7;
+    if (len <= 60) return 3.9;
+    return 3.4;
   }
 
   function CardIdentityStrip({ card }) {
     const safeName = String(card?.name || "Player");
     const safePosition = String(card?.position || "").toUpperCase();
     return (
-      <div className="card-artwork card-top-strip">
+      <div className="card-artwork card-top-strip" style={{ "--top-name-font-size": `${cardTopNameFontSize(safeName)}px` }}>
         {card?.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : null}
-        <strong className="card-top-name" style={{ fontSize: `${cardTopNameFontSize(safeName)}px` }} title={safeName}>{safeName}</strong>
+        <strong className="card-top-name" title={safeName}>{safeName}</strong>
         <span className="card-top-position">{safePosition}</span>
       </div>
     );
@@ -1898,7 +1903,7 @@ function App() {
     const teamKey = cardsView === "red" ? "red" : "blue";
     return (
       <div className="cards-panel">
-        <div className="cards-panel-head"><strong>Player Cards</strong><div><select value={cardState.theme} onChange={e => updateCardState(prev => ({ ...prev, theme: e.target.value }))}>{CARD_THEMES.map(theme => <option key={theme}>{theme}</option>)}</select><select value={exportCardId} onChange={e => setExportCardId(e.target.value)} disabled={!cardState.cards.length}>{cardState.cards.length === 0 ? <option value="">No cards</option> : cardState.cards.map(card => <option key={card.id} value={card.id}>{card.name} ({card.position})</option>)}</select><button onClick={exportSelectedCard}>Export Selected JSON</button><label className="import-btn">Import JSON<input type="file" accept="application/json" onChange={e => { importCardBackup(e.target.files?.[0]); e.target.value = ""; }} /></label><button onClick={() => setCardsPanelOpen(false)}>×</button></div></div>
+        <div className="cards-panel-head"><strong>Player Cards</strong><div><select value={(editingCard && CARD_THEMES.includes(editingCard.theme)) ? editingCard.theme : "Style 1"} onChange={e => editingCardId && updateCardField(editingCardId, "theme", e.target.value)} disabled={!editingCardId}>{CARD_THEMES.map(theme => <option key={theme}>{theme}</option>)}</select><select value={exportCardId} onChange={e => setExportCardId(e.target.value)} disabled={!cardState.cards.length}>{cardState.cards.length === 0 ? <option value="">No cards</option> : cardState.cards.map(card => <option key={card.id} value={card.id}>{card.name} ({card.position})</option>)}</select><button onClick={exportSelectedCard}>Export Selected JSON</button><label className="import-btn">Import JSON<input type="file" accept="application/json" onChange={e => { importCardBackup(e.target.files?.[0]); e.target.value = ""; }} /></label><button onClick={() => setCardsPanelOpen(false)}>×</button></div></div>
         <div className="cards-tabs"><button className={cardsView === "library" ? "toggle-on" : ""} onClick={() => setCardsView("library")}>Card Library</button><button className={cardsView === "blue" ? "toggle-on" : ""} onClick={() => setCardsView("blue")}>Blue Team</button><button className={cardsView === "red" ? "toggle-on" : ""} onClick={() => setCardsView("red")}>Red Team</button></div>
         {cardsView === "library" ? (
           <div className="cards-layout">
