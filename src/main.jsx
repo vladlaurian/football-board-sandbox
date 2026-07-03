@@ -157,12 +157,21 @@ const LEGACY_THEME_MAP = {
   "Minimal": "Style 6",
 };
 
+function normalizeStatItems(items = []) {
+  return (Array.isArray(items) ? items : []).map((item, index) => ({
+    id: item?.id || `stat_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`,
+    name: String(item?.name ?? item?.label ?? "New"),
+    value: cleanTwoDigitValue(item?.value ?? 0),
+    showOnCard: item?.showOnCard === false ? false : true,
+  }));
+}
+
 function defaultAttributesForPosition(position, section) {
   const isGk = position === "GK";
   const names = section === "passive"
     ? (isGk ? ["Reflexes", "Diving Saves", "GK Penalty"] : ["Speed", "1vs1 Defending", "Aerial", "Passing", "Ball Control"])
     : (isGk ? ["Long Pass", "Cross Claiming", "Penalty"] : ["Tackling", "Interception", "Long Pass", "Crossing", "Dribbling", "Accuracy", "Long Shot", "Finishing", "Heading", "Penalty"]);
-  return names.map((name, index) => ({ id: `${section}_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`, name, value: 0 }));
+  return names.map((name, index) => ({ id: `${section}_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`, name, value: 0, showOnCard: true }));
 }
 
 function emptyDefensiveArea() {
@@ -215,6 +224,7 @@ function createPlayerCard(position = "ST") {
     frontFields: defaultFrontFields(),
     defensiveArea: emptyDefensiveArea(),
     artwork: { mode: "default", customDataUrl: "" },
+    specialAbility: "",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -234,11 +244,12 @@ function normalizeImportedCard(card) {
     ...base,
     ...(card || {}),
     position: safePosition,
-    passiveAttributes: Array.isArray(card?.passiveAttributes) ? card.passiveAttributes : (Array.isArray(card?.attributes) ? card.attributes : []),
-    bonuses: Array.isArray(card?.bonuses) ? card.bonuses : [],
+    passiveAttributes: normalizeStatItems(Array.isArray(card?.passiveAttributes) ? card.passiveAttributes : (Array.isArray(card?.attributes) ? card.attributes : [])),
+    bonuses: normalizeStatItems(Array.isArray(card?.bonuses) ? card.bonuses : []),
     frontFields: normalizeFrontFields(card?.frontFields || card?.frontSummary || card?.summary || card?.front || card?.ratings),
     defensiveArea: Array.isArray(card?.defensiveArea) ? card.defensiveArea : [],
     artwork: card?.artwork || { mode: "default", customDataUrl: "" },
+    specialAbility: String(card?.specialAbility ?? card?.special_ability ?? card?.special ?? ""),
   };
   return normalized;
 }
@@ -1694,22 +1705,31 @@ function App() {
   }
 
   function CardBack({ card, compact = false }) {
+    const visibleAttributes = (card.passiveAttributes || []).filter(a => a.showOnCard !== false);
+    const visibleBonuses = (card.bonuses || []).filter(a => a.showOnCard !== false);
+    const visibleCount = visibleAttributes.length + visibleBonuses.length;
+    const density = visibleCount > 22 ? "dense-3" : visibleCount > 17 ? "dense-2" : visibleCount > 12 ? "dense-1" : "normal";
     return (
       <>
         <div className="card-artwork">{card.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : <span>{card.position}</span>}</div>
-        <div className="card-head"><strong>{card.name}</strong><span>{card.position}</span></div>
+        <div className="card-head"><strong>{card.name}</strong></div>
         {!compact && (
           <>
-            <div className="card-stats-grid">
-              <div className="card-section"><b>Attributes</b><div className="card-section-list">{(card.passiveAttributes || []).map(a => <small key={a.id}><span>{a.name}</span><em>{a.value}</em></small>)}</div></div>
-              <div className="card-section"><b>Bonuses</b><div className="card-section-list">{(card.bonuses || []).map(a => <small key={a.id}><span>{a.name}</span><em>{a.value}</em></small>)}</div></div>
+            <div className={`card-stats-grid ${density}`}>
+              <div className="card-section"><b>Attributes</b><div className="card-section-list">{visibleAttributes.map(a => <small key={a.id}><span>{a.name}</span><em>{a.value}</em></small>)}</div></div>
+              <div className="card-section"><b>Bonuses</b><div className="card-section-list">{visibleBonuses.map(a => <small key={a.id}><span>{a.name}</span><em>{a.value}</em></small>)}</div></div>
             </div>
-            <div className="area-mini-title">Defensive Area</div>
-            <div className="area-mini-row">
-              {AreaMiniPreview({ area: card.defensiveArea })}
-              <div className="attack-direction-hint" aria-label="Attacking direction">
-                <span className="attack-arrow">↑</span>
-                <span>Attacking<br />direction</span>
+            <div className="card-bottom-third">
+              <div className="card-area-block">
+                <div className="area-mini-title">Defensive Area</div>
+                <div className="area-mini-row">
+                  {AreaMiniPreview({ area: card.defensiveArea })}
+                  <div className="attack-direction-hint" aria-label="Attacking direction"><span className="attack-arrow">↑</span></div>
+                </div>
+              </div>
+              <div className="card-special-block">
+                <b>Special Ability</b>
+                <p>{String(card.specialAbility || "").trim() || "—"}</p>
               </div>
             </div>
           </>
@@ -1724,7 +1744,6 @@ function App() {
       <div className="card-front-inner">
         <div className="front-artwork">{card.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : <span>{card.position}</span>}</div>
         <div className="front-name">{card.name}</div>
-        <div className="front-position">{card.position}</div>
         <div className="front-summary-fields">
           {fields.map(field => (
             <div className="front-summary-row" key={field.id}>
@@ -1746,11 +1765,12 @@ function App() {
     const moveItem = (index, dir) => updateCardList(card.id, section, list => { const next = [...list]; const to = index + dir; if (to < 0 || to >= next.length) return next; [next[index], next[to]] = [next[to], next[index]]; return next; });
     return (
       <div className="card-edit-section">
-        <div className="card-edit-section-title"><strong>{title}</strong><button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0 }])}>+ Add</button></div>
+        <div className="card-edit-section-title"><strong>{title}</strong><button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }])}>+ Add</button></div>
         {items.map((item, index) => (
           <div className="attribute-row" key={item.id}>
             <input value={item.name} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, name: e.target.value } : x))} />
             <input className="attr-value" inputMode="numeric" value={item.value} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, value: cleanTwoDigitValue(e.target.value) } : x))} />
+            <label className="show-on-card-toggle" title="Show on card"><input type="checkbox" checked={item.showOnCard !== false} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, showOnCard: e.target.checked } : x))} /><span>Show</span></label>
             <button onClick={() => moveItem(index, -1)}>↑</button><button onClick={() => moveItem(index, 1)}>↓</button>
             <button onClick={() => updateCardList(card.id, section, list => list.filter(x => x.id !== item.id))}>×</button>
           </div>
@@ -1826,6 +1846,7 @@ function App() {
         </div>
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
         <label>Position<select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
+        <label className="special-ability-editor">Special Ability<textarea value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></label>
         {FrontSummaryEditor({ card })}
         {AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes" })}
         {AttributeListEditor({ card, section: "bonuses", title: "Bonuses" })}
