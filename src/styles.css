@@ -3345,18 +3345,3 @@ select option {
   align-items: end !important;
   transform: none !important;
 }
-
-
-/* USER FIX: move BACK left/right text zones slightly inward.
-   Tiny adjustment only: left side a bit right, right side a bit left. */
-.card-preview.card-back .back-top-left,
-.card-preview.card-back .back-bottom-left,
-.card-preview.card-back .defensive-area-box {
-  transform: translateX(4px) !important;
-}
-
-.card-preview.card-back .back-top-right,
-.card-preview.card-back .back-bottom-right,
-.card-preview.card-back .special-ability-box {
-  transform: translateX(-4px) !important;
-}
