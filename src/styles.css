@@ -1478,3 +1478,105 @@ select option {
     grid-template-columns: 1fr;
   }
 }
+
+/* equal front/back card dimensions + editable front formulas */
+.card-preview {
+  width: min(100%, 280px);
+  aspect-ratio: 2 / 3;
+  min-height: 0 !important;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+}
+.card-editor-previews .card-preview {
+  width: 100%;
+  min-height: 0 !important;
+}
+.card-front,
+.card-back {
+  min-height: 0 !important;
+  height: auto;
+}
+.card-preview.card-front,
+.card-preview.card-back {
+  aspect-ratio: 2 / 3;
+}
+.card-front-inner {
+  min-height: 0 !important;
+  height: 100%;
+  flex: 1;
+}
+.card-back {
+  overflow: hidden;
+}
+.card-stats-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.card-section-list small {
+  min-height: 16px;
+}
+.front-formula-list {
+  display: grid;
+  gap: 10px;
+}
+.front-formula-row {
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 12px;
+  padding: 8px;
+  background: rgba(255,255,255,.035);
+}
+.front-formula-top {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) 40px 30px 30px 30px;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.front-formula-top strong {
+  height: 30px;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+.front-source-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  max-height: 148px;
+  overflow: auto;
+  padding-right: 2px;
+}
+.front-source-picker label {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 5px;
+  align-items: center;
+  padding: 5px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.045);
+  font-size: 11px;
+  font-weight: 800;
+}
+.front-source-picker label.source-on {
+  border-color: rgba(80,190,120,.55);
+  background: rgba(80,190,120,.14);
+}
+.front-source-picker span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.front-source-picker em {
+  font-size: 9px;
+  opacity: .65;
+  font-style: normal;
+}
+.front-summary-fields {
+  max-height: 170px;
+  overflow: hidden;
+}

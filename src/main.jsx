@@ -169,13 +169,39 @@ function emptyDefensiveArea() {
   return [];
 }
 
-function defaultFrontSummary() {
-  return Object.fromEntries(CARD_FRONT_FIELDS.map(key => [key, 0]));
+function makeFrontField(label, index = 0, extra = {}) {
+  return {
+    id: extra.id || `front_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`,
+    label: String(extra.label ?? label ?? "New").slice(0, 12),
+    sources: Array.isArray(extra.sources) ? extra.sources.filter(src => src && src.section && src.id) : [],
+    manualValue: cleanTwoDigitValue(extra.manualValue ?? extra.value ?? 0),
+  };
 }
 
-function normalizeFrontSummary(raw) {
+function defaultFrontFields() {
+  return CARD_FRONT_FIELDS.map((label, index) => makeFrontField(label, index));
+}
+
+function normalizeFrontFields(raw) {
+  if (Array.isArray(raw)) {
+    const fields = raw.map((field, index) => makeFrontField(field?.label ?? field?.name ?? CARD_FRONT_FIELDS[index] ?? "New", index, field));
+    return fields.length ? fields : defaultFrontFields();
+  }
   const source = raw && typeof raw === "object" ? raw : {};
-  return Object.fromEntries(CARD_FRONT_FIELDS.map(key => [key, cleanTwoDigitValue(source[key] ?? source[key.toLowerCase()] ?? 0)]));
+  const fields = CARD_FRONT_FIELDS.map((key, index) => makeFrontField(key, index, { manualValue: source[key] ?? source[key.toLowerCase()] ?? 0 }));
+  return fields;
+}
+
+function computeFrontFieldValue(card, field) {
+  const attrs = Array.isArray(card?.passiveAttributes) ? card.passiveAttributes : [];
+  const bonuses = Array.isArray(card?.bonuses) ? card.bonuses : [];
+  const values = (field?.sources || []).map(src => {
+    const list = src.section === "bonuses" ? bonuses : attrs;
+    const item = list.find(x => x.id === src.id);
+    return item ? Number(item.value) || 0 : null;
+  }).filter(value => value !== null);
+  if (!values.length) return cleanTwoDigitValue(field?.manualValue ?? field?.value ?? 0);
+  return cleanTwoDigitValue(Math.round(values.reduce((sum, value) => sum + value, 0) / values.length));
 }
 
 function createPlayerCard(position = "ST") {
@@ -186,7 +212,7 @@ function createPlayerCard(position = "ST") {
     position: safePosition,
     passiveAttributes: defaultAttributesForPosition(safePosition, "passive"),
     bonuses: defaultAttributesForPosition(safePosition, "bonus"),
-    frontSummary: defaultFrontSummary(),
+    frontFields: defaultFrontFields(),
     defensiveArea: emptyDefensiveArea(),
     artwork: { mode: "default", customDataUrl: "" },
     createdAt: new Date().toISOString(),
@@ -210,7 +236,7 @@ function normalizeImportedCard(card) {
     position: safePosition,
     passiveAttributes: Array.isArray(card?.passiveAttributes) ? card.passiveAttributes : (Array.isArray(card?.attributes) ? card.attributes : []),
     bonuses: Array.isArray(card?.bonuses) ? card.bonuses : [],
-    frontSummary: normalizeFrontSummary(card?.frontSummary || card?.summary || card?.front || card?.ratings),
+    frontFields: normalizeFrontFields(card?.frontFields || card?.frontSummary || card?.summary || card?.front || card?.ratings),
     defensiveArea: Array.isArray(card?.defensiveArea) ? card.defensiveArea : [],
     artwork: card?.artwork || { mode: "default", customDataUrl: "" },
   };
@@ -1693,17 +1719,17 @@ function App() {
   }
 
   function CardFront({ card }) {
-    const summary = normalizeFrontSummary(card.frontSummary);
+    const fields = normalizeFrontFields(card.frontFields || card.frontSummary);
     return (
       <div className="card-front-inner">
         <div className="front-artwork">{card.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : <span>{card.position}</span>}</div>
         <div className="front-name">{card.name}</div>
         <div className="front-position">{card.position}</div>
         <div className="front-summary-fields">
-          {CARD_FRONT_FIELDS.map(key => (
-            <div className="front-summary-row" key={key}>
-              <span>{key}</span>
-              <em>{summary[key]}</em>
+          {fields.map(field => (
+            <div className="front-summary-row" key={field.id}>
+              <span>{field.label}</span>
+              <em>{computeFrontFieldValue(card, field)}</em>
             </div>
           ))}
         </div>
@@ -1752,13 +1778,38 @@ function App() {
   }
 
   function FrontSummaryEditor({ card }) {
-    const summary = normalizeFrontSummary(card.frontSummary);
+    const fields = normalizeFrontFields(card.frontFields || card.frontSummary);
+    const sourceItems = [
+      ...(card.passiveAttributes || []).map(item => ({ ...item, section: "passiveAttributes", group: "Attributes" })),
+      ...(card.bonuses || []).map(item => ({ ...item, section: "bonuses", group: "Bonuses" })),
+    ];
+    const updateFields = updater => updateCardField(card.id, "frontFields", updater(fields));
+    const moveField = (index, dir) => updateFields(list => { const next = [...list]; const to = index + dir; if (to < 0 || to >= next.length) return next; [next[index], next[to]] = [next[to], next[index]]; return next; });
+    const toggleSource = (fieldId, section, sourceId) => updateFields(list => list.map(field => {
+      if (field.id !== fieldId) return field;
+      const exists = (field.sources || []).some(src => src.section === section && src.id === sourceId);
+      return { ...field, sources: exists ? field.sources.filter(src => !(src.section === section && src.id === sourceId)) : [...(field.sources || []), { section, id: sourceId }] };
+    }));
     return (
       <div className="card-edit-section front-summary-editor">
-        <div className="card-edit-section-title"><strong>Front Summary</strong></div>
-        <div className="front-summary-editor-grid">
-          {CARD_FRONT_FIELDS.map(key => (
-            <label key={key}>{key}<input inputMode="numeric" value={summary[key]} onChange={e => updateCardField(card.id, "frontSummary", { ...summary, [key]: cleanTwoDigitValue(e.target.value) })} /></label>
+        <div className="card-edit-section-title"><strong>Front Fields</strong><button onClick={() => updateFields(list => [...list, makeFrontField("New", list.length)])}>+ Add Field</button></div>
+        <div className="front-formula-list">
+          {fields.map((field, index) => (
+            <div className="front-formula-row" key={field.id}>
+              <div className="front-formula-top">
+                <input value={field.label} onChange={e => updateFields(list => list.map(x => x.id === field.id ? { ...x, label: e.target.value.slice(0, 12) } : x))} />
+                <strong>{computeFrontFieldValue(card, field)}</strong>
+                <button onClick={() => moveField(index, -1)}>↑</button>
+                <button onClick={() => moveField(index, 1)}>↓</button>
+                <button onClick={() => updateFields(list => list.filter(x => x.id !== field.id))}>×</button>
+              </div>
+              <div className="front-source-picker">
+                {sourceItems.map(item => {
+                  const checked = (field.sources || []).some(src => src.section === item.section && src.id === item.id);
+                  return <label key={`${field.id}_${item.section}_${item.id}`} className={checked ? "source-on" : ""}><input type="checkbox" checked={checked} onChange={() => toggleSource(field.id, item.section, item.id)} /><span>{item.name}</span><em>{item.group}</em></label>;
+                })}
+              </div>
+            </div>
           ))}
         </div>
       </div>
