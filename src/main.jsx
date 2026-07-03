@@ -147,6 +147,7 @@ const CARD_POSITION_OPTIONS = [
 const TEAM_LAYOUT_POSITIONS = ["GK", "LWB", "LB", "CB", "RB", "RWB", "LM", "CDM", "CM", "CAM", "RM", "LW", "ST", "RW"];
 const TEAM_SLOT_POSITIONS = ["GK", "LB", "CB", "CB", "RB", "CDM", "CM", "CAM", "LW", "RW", "ST"];
 const CARD_THEMES = ["Style 1", "Style 2", "Style 3", "Style 4", "Style 5", "Style 6", "Style 7"];
+const CUSTOM_CARD_THEME = "Custom";
 const CARD_FRONT_FIELDS = ["DEF", "ATT"];
 const LEGACY_THEME_MAP = {
   "Realistic": "Style 1",
@@ -213,6 +214,16 @@ function computeFrontFieldValue(card, field) {
   return cleanTwoDigitValue(Math.round(values.reduce((sum, value) => sum + value, 0) / values.length));
 }
 
+
+function hasCustomGraphics(card) {
+  return Boolean(card?.graphics?.frontDataUrl || card?.graphics?.backDataUrl);
+}
+
+function getCardTheme(card, fallback = "Style 1") {
+  if (hasCustomGraphics(card)) return CUSTOM_CARD_THEME;
+  return CARD_THEMES.includes(card?.theme) ? card.theme : (CARD_THEMES.includes(fallback) ? fallback : "Style 1");
+}
+
 function createPlayerCard(position = "ST") {
   const safePosition = CARD_POSITION_OPTIONS.includes(position) ? position : "ST";
   return {
@@ -225,6 +236,7 @@ function createPlayerCard(position = "ST") {
     theme: "Style 1",
     defensiveArea: emptyDefensiveArea(),
     artwork: { mode: "default", customDataUrl: "" },
+    graphics: { frontDataUrl: "", backDataUrl: "", previousTheme: "Style 1" },
     specialAbility: "",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -248,9 +260,14 @@ function normalizeImportedCard(card) {
     passiveAttributes: normalizeStatItems(Array.isArray(card?.passiveAttributes) ? card.passiveAttributes : (Array.isArray(card?.attributes) ? card.attributes : [])),
     bonuses: normalizeStatItems(Array.isArray(card?.bonuses) ? card.bonuses : []),
     frontFields: normalizeFrontFields(card?.frontFields || card?.frontSummary || card?.summary || card?.front || card?.ratings),
-    theme: CARD_THEMES.includes(card?.theme) ? card.theme : (LEGACY_THEME_MAP[card?.theme] || base.theme || "Style 1"),
+    theme: (card?.theme === CUSTOM_CARD_THEME || card?.theme === "Custom") ? CUSTOM_CARD_THEME : (CARD_THEMES.includes(card?.theme) ? card.theme : (LEGACY_THEME_MAP[card?.theme] || base.theme || "Style 1")),
     defensiveArea: Array.isArray(card?.defensiveArea) ? card.defensiveArea : [],
     artwork: card?.artwork || { mode: "default", customDataUrl: "" },
+    graphics: {
+      frontDataUrl: String(card?.graphics?.frontDataUrl || card?.customGraphics?.frontDataUrl || card?.frontGraphic || ""),
+      backDataUrl: String(card?.graphics?.backDataUrl || card?.customGraphics?.backDataUrl || card?.backGraphic || ""),
+      previousTheme: CARD_THEMES.includes(card?.graphics?.previousTheme) ? card.graphics.previousTheme : (CARD_THEMES.includes(card?.previousTheme) ? card.previousTheme : base.theme),
+    },
     specialAbility: String(card?.specialAbility ?? card?.special_ability ?? card?.special ?? ""),
   };
   return normalized;
@@ -666,6 +683,10 @@ function App() {
   const [cardsView, setCardsView] = useState("library");
   const [editingCardId, setEditingCardId] = useState(null);
   const [exportCardId, setExportCardId] = useState("");
+  const graphicFrontInputRef = useRef(null);
+  const graphicBackInputRef = useRef(null);
+  const pendingGraphicFrontRef = useRef(null);
+  const [graphicImportCardId, setGraphicImportCardId] = useState("");
   const [assignTarget, setAssignTarget] = useState(null);
   const [inspectorPosition, setInspectorPosition] = useState({ x: Math.max(12, window.innerWidth - 350), y: 150 });
   const [inspectorSize, setInspectorSize] = useState({ w: 320, h: 520 });
@@ -1689,6 +1710,86 @@ function App() {
     reader.readAsText(file);
   }
 
+
+  function readGraphicFile(file, callback) {
+    if (!file) return;
+    const okTypes = ["image/png", "image/jpeg", "image/jpg"];
+    const nameOk = /\.(png|jpe?g)$/i.test(file.name || "");
+    if (!okTypes.includes(file.type) && !nameOk) {
+      alert("Please select a PNG, JPG, or JPEG image.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => callback(String(reader.result || ""));
+    reader.onerror = () => alert("Could not read the selected image.");
+    reader.readAsDataURL(file);
+  }
+
+  function startGraphicImport() {
+    const selectedCard = editingCardId ? cardById[editingCardId] : null;
+    if (!selectedCard) {
+      alert("Select a card first.");
+      return;
+    }
+    setGraphicImportCardId(selectedCard.id);
+    pendingGraphicFrontRef.current = null;
+    alert("Select the FRONT graphic first, then select the BACK graphic.");
+    graphicFrontInputRef.current?.click();
+  }
+
+  function handleFrontGraphicFile(file) {
+    const selectedCard = graphicImportCardId ? cardById[graphicImportCardId] : (editingCardId ? cardById[editingCardId] : null);
+    if (!selectedCard) return;
+    readGraphicFile(file, dataUrl => {
+      pendingGraphicFrontRef.current = dataUrl;
+      setTimeout(() => graphicBackInputRef.current?.click(), 0);
+    });
+  }
+
+  function handleBackGraphicFile(file) {
+    const targetCardId = graphicImportCardId || editingCardId;
+    const frontDataUrl = pendingGraphicFrontRef.current;
+    if (!targetCardId || !frontDataUrl) return;
+    readGraphicFile(file, backDataUrl => {
+      updateCardState(prev => ({
+        ...prev,
+        cards: prev.cards.map(card => {
+          if (card.id !== targetCardId) return card;
+          const previousTheme = CARD_THEMES.includes(card.theme) ? card.theme : (CARD_THEMES.includes(card.graphics?.previousTheme) ? card.graphics.previousTheme : "Style 1");
+          return {
+            ...card,
+            theme: CUSTOM_CARD_THEME,
+            graphics: { frontDataUrl, backDataUrl, previousTheme },
+            updatedAt: new Date().toISOString(),
+          };
+        }),
+      }));
+      pendingGraphicFrontRef.current = null;
+      setGraphicImportCardId("");
+    });
+  }
+
+  function deleteSelectedGraphic() {
+    const selectedCard = editingCardId ? cardById[editingCardId] : null;
+    if (!selectedCard) {
+      alert("Select a card first.");
+      return;
+    }
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => {
+        if (card.id !== selectedCard.id) return card;
+        const previousTheme = CARD_THEMES.includes(card.graphics?.previousTheme) ? card.graphics.previousTheme : (CARD_THEMES.includes(card.theme) ? card.theme : "Style 1");
+        return {
+          ...card,
+          theme: previousTheme,
+          graphics: { frontDataUrl: "", backDataUrl: "", previousTheme },
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    }));
+  }
+
   function updateCardField(cardId, key, value) {
     updateCardState(prev => ({ ...prev, cards: prev.cards.map(card => card.id === cardId ? { ...card, [key]: value, updatedAt: new Date().toISOString() } : card) }));
   }
@@ -1704,11 +1805,13 @@ function App() {
     const [currentSide, setCurrentSide] = useState(side);
     useEffect(() => setCurrentSide(side), [side, card?.id]);
     if (!card) return <div className="card-preview empty">No card</div>;
-    const activeTheme = CARD_THEMES.includes(card.theme) ? card.theme : (CARD_THEMES.includes(cardState.theme) ? cardState.theme : "Style 1");
-    const themeClass = `theme-${activeTheme.toLowerCase().replace(/\s+/g, "-")}`;
+    const activeTheme = getCardTheme(card, cardState.theme);
+    const themeClass = activeTheme === CUSTOM_CARD_THEME ? "theme-custom" : `theme-${activeTheme.toLowerCase().replace(/\s+/g, "-")}`;
     const shownSide = flippable ? currentSide : side;
+    const graphicUrl = shownSide === "front" ? card?.graphics?.frontDataUrl : card?.graphics?.backDataUrl;
     return (
       <div className={`card-preview ${shownSide === "front" ? "card-front" : "card-back"} ${themeClass} ${team}`}>
+        {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} alt="" /> : null}
         {flippable && <button className="card-flip-btn" title={shownSide === "front" ? "Show card back" : "Show card front"} onClick={(e) => { e.stopPropagation(); setCurrentSide(v => v === "front" ? "back" : "front"); }}>{shownSide === "front" ? "↻" : "↺"}</button>}
         {shownSide === "front" ? CardFront({ card }) : CardBack({ card, compact })}
       </div>
@@ -1879,6 +1982,30 @@ function App() {
     );
   }
 
+
+  function setCardThemeSelection(cardId, value) {
+    if (!cardId) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => {
+        if (card.id !== cardId) return card;
+        if (value === CUSTOM_CARD_THEME) {
+          return hasCustomGraphics(card) ? { ...card, theme: CUSTOM_CARD_THEME, updatedAt: new Date().toISOString() } : card;
+        }
+        if (!CARD_THEMES.includes(value)) return card;
+        if (hasCustomGraphics(card)) {
+          return {
+            ...card,
+            theme: CUSTOM_CARD_THEME,
+            graphics: { ...(card.graphics || {}), previousTheme: value },
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return { ...card, theme: value, updatedAt: new Date().toISOString() };
+      }),
+    }));
+  }
+
   function CardEditor({ card }) {
     if (!card) return <div className="empty-panel">Alege sau creează un card.</div>;
     return (
@@ -1901,9 +2028,20 @@ function App() {
   function CardsPanel() {
     const editingCard = editingCardId ? cardById[editingCardId] : null;
     const teamKey = cardsView === "red" ? "red" : "blue";
+    const themeOptions = editingCard && hasCustomGraphics(editingCard) ? [...CARD_THEMES, CUSTOM_CARD_THEME] : CARD_THEMES;
+    const selectedTheme = editingCard ? getCardTheme(editingCard, cardState.theme) : "Style 1";
     return (
       <div className="cards-panel">
-        <div className="cards-panel-head"><strong>Player Cards</strong><div><select value={(editingCard && CARD_THEMES.includes(editingCard.theme)) ? editingCard.theme : "Style 1"} onChange={e => editingCardId && updateCardField(editingCardId, "theme", e.target.value)} disabled={!editingCardId}>{CARD_THEMES.map(theme => <option key={theme}>{theme}</option>)}</select><select value={exportCardId} onChange={e => setExportCardId(e.target.value)} disabled={!cardState.cards.length}>{cardState.cards.length === 0 ? <option value="">No cards</option> : cardState.cards.map(card => <option key={card.id} value={card.id}>{card.name} ({card.position})</option>)}</select><button onClick={exportSelectedCard}>Export Selected JSON</button><label className="import-btn">Import JSON<input type="file" accept="application/json" onChange={e => { importCardBackup(e.target.files?.[0]); e.target.value = ""; }} /></label><button onClick={() => setCardsPanelOpen(false)}>×</button></div></div>
+        <div className="cards-panel-head"><strong>Player Cards</strong><div>
+          <select value={selectedTheme} onChange={e => setCardThemeSelection(editingCardId, e.target.value)} disabled={!editingCardId}>{themeOptions.map(theme => <option key={theme} value={theme}>{theme}</option>)}</select>
+          <button onClick={exportSelectedCard}>Export Selected JSON</button>
+          <button onClick={startGraphicImport} disabled={!editingCardId}>Import Graphic</button>
+          <button onClick={deleteSelectedGraphic} disabled={!editingCardId || !hasCustomGraphics(editingCard)}>Delete Graphic</button>
+          <select value={exportCardId} onChange={e => setExportCardId(e.target.value)} disabled={!cardState.cards.length}>{cardState.cards.length === 0 ? <option value="">No cards</option> : cardState.cards.map(card => <option key={card.id} value={card.id}>{card.name} ({card.position})</option>)}</select>
+          <label className="import-btn">Import JSON<input type="file" accept="application/json" onChange={e => { importCardBackup(e.target.files?.[0]); e.target.value = ""; }} /></label>
+          <input ref={graphicFrontInputRef} type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" className="hidden-file-input" onChange={e => { handleFrontGraphicFile(e.target.files?.[0]); e.target.value = ""; }} />
+          <input ref={graphicBackInputRef} type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" className="hidden-file-input" onChange={e => { handleBackGraphicFile(e.target.files?.[0]); e.target.value = ""; }} />
+          <button onClick={() => setCardsPanelOpen(false)}>×</button></div></div>
         <div className="cards-tabs"><button className={cardsView === "library" ? "toggle-on" : ""} onClick={() => setCardsView("library")}>Card Library</button><button className={cardsView === "blue" ? "toggle-on" : ""} onClick={() => setCardsView("blue")}>Blue Team</button><button className={cardsView === "red" ? "toggle-on" : ""} onClick={() => setCardsView("red")}>Red Team</button></div>
         {cardsView === "library" ? (
           <div className="cards-layout">

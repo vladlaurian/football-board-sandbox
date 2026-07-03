@@ -2684,3 +2684,34 @@ select option {
   font-size: 9px !important;
   line-height: 1 !important;
 }
+
+/* USER FIX: custom per-card graphics import */
+.hidden-file-input {
+  display: none !important;
+}
+.card-preview {
+  position: relative !important;
+  isolation: isolate;
+}
+.card-custom-graphic {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.card-preview > :not(.card-custom-graphic) {
+  position: relative;
+  z-index: 1;
+}
+.card-preview.theme-custom {
+  background: #111827 !important;
+}
+.cards-panel-head > div {
+  gap: 6px !important;
+  flex-wrap: wrap;
+}
