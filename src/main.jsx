@@ -285,9 +285,17 @@ function normalizeCardState(raw) {
 }
 
 function cleanTwoDigitValue(value) {
-  const text = String(value ?? "").replace(/\D/g, "").slice(0, 2);
-  if (text === "") return 0;
-  return clamp(Number(text), 0, 99);
+  const raw = String(value ?? "").trim();
+  const negative = raw.startsWith("-");
+  const digits = raw.replace(/\D/g, "").slice(0, 2);
+  if (digits === "") return negative ? "-" : 0;
+  const number = clamp(Number(digits), 0, 99);
+  return negative ? -number : number;
+}
+
+function normalizeStatValue(value) {
+  if (value === "-") return 0;
+  return clamp(Number(value) || 0, -99, 99);
 }
 
 function areaHasCell(area, dx, dy) {
@@ -1706,16 +1714,16 @@ function App() {
 
   function cardTopNameFontSize(name = "") {
     const len = String(name || "").trim().length;
-    // Final fit rule: the same shared header is used on front/back/inspector/editor.
-    // Values are deliberately aggressive because CSS uses this variable with !important.
-    if (len <= 7) return 18;
+    // Fits the shared front/back header next to the position badge.
+    if (len <= 7) return 17;
     if (len <= 10) return 15;
     if (len <= 14) return 12.5;
-    if (len <= 18) return 10.2;
-    if (len <= 23) return 8.2;
-    if (len <= 30) return 6.5;
-    if (len <= 38) return 5.4;
-    return 4.6;
+    if (len <= 18) return 10.5;
+    if (len <= 23) return 8.7;
+    if (len <= 30) return 6.8;
+    if (len <= 38) return 5.5;
+    if (len <= 48) return 4.6;
+    return 4.0;
   }
 
   function CardIdentityStrip({ card }) {
@@ -1724,7 +1732,7 @@ function App() {
     return (
       <div className="card-artwork card-top-strip">
         {card?.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : null}
-        <strong className="card-top-name" style={{ "--top-name-font-size": `${cardTopNameFontSize(safeName)}px` }}>{safeName}</strong>
+        <strong className="card-top-name" style={{ fontSize: `${cardTopNameFontSize(safeName)}px` }} title={safeName}>{safeName}</strong>
         <span className="card-top-position">{safePosition}</span>
       </div>
     );
@@ -1742,8 +1750,8 @@ function App() {
         {!compact && (
           <>
             <div className={`card-stats-grid ${density}`}>
-              <div className="card-section"><b>Attributes</b><div className="card-section-list">{visibleAttributes.map(a => <small key={a.id}><span>{a.name}</span><em>{a.value}</em></small>)}</div></div>
-              <div className="card-section"><b>Bonuses</b><div className="card-section-list">{visibleBonuses.map(a => <small key={a.id}><span>{a.name}</span><em>{a.value}</em></small>)}</div></div>
+              <div className="card-section"><b>Attributes</b><div className="card-section-list">{visibleAttributes.map(a => <small key={a.id}><span>{a.name}</span><em>{normalizeStatValue(a.value)}</em></small>)}</div></div>
+              <div className="card-section"><b>Bonuses</b><div className="card-section-list">{visibleBonuses.map(a => <small key={a.id}><span>{a.name}</span><em>{normalizeStatValue(a.value)}</em></small>)}</div></div>
             </div>
             <div className="card-bottom-third">
               <div className="card-area-block">
@@ -1788,15 +1796,20 @@ function App() {
   function AttributeListEditor({ card, section, title }) {
     const items = card[section] || [];
     const moveItem = (index, dir) => updateCardList(card.id, section, list => { const next = [...list]; const to = index + dir; if (to < 0 || to >= next.length) return next; [next[index], next[to]] = [next[to], next[index]]; return next; });
+    const changeValue = (itemId, delta) => updateCardList(card.id, section, list => list.map(x => x.id === itemId ? { ...x, value: clamp(normalizeStatValue(x.value) + delta, -99, 99) } : x));
     return (
       <div className="card-edit-section">
         <div className="card-edit-section-title"><strong>{title}</strong><button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }])}>+ Add</button></div>
         {items.map((item, index) => (
           <div className="attribute-row" key={item.id}>
             <input value={item.name} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, name: e.target.value } : x))} />
-            <input className="attr-value" inputMode="numeric" value={item.value} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, value: cleanTwoDigitValue(e.target.value) } : x))} />
+            <div className="value-stepper" title="Edit value">
+              <button className="value-step-btn" onClick={() => changeValue(item.id, -1)}>−</button>
+              <input className="attr-value" inputMode="text" value={item.value} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, value: cleanTwoDigitValue(e.target.value) } : x))} onBlur={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, value: normalizeStatValue(e.target.value) } : x))} />
+              <button className="value-step-btn" onClick={() => changeValue(item.id, 1)}>+</button>
+            </div>
             <label className="show-on-card-toggle" title="Show on card"><input type="checkbox" checked={item.showOnCard !== false} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, showOnCard: e.target.checked } : x))} /><span>Show</span></label>
-            <button onClick={() => moveItem(index, -1)}>↑</button><button onClick={() => moveItem(index, 1)}>↓</button>
+            <button className="order-btn" onClick={() => moveItem(index, -1)}>↑</button><button className="order-btn" onClick={() => moveItem(index, 1)}>↓</button>
             <button onClick={() => updateCardList(card.id, section, list => list.filter(x => x.id !== item.id))}>×</button>
           </div>
         ))}

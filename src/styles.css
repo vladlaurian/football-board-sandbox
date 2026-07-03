@@ -2572,3 +2572,82 @@ select option {
 .card-special-block.special-dense-2 p { line-height: 1.27 !important; }
 .card-special-block.special-dense-3 p { line-height: 1.23 !important; }
 .card-special-block.special-dense-4 p { line-height: 1.18 !important; }
+
+
+/* USER FIX: wider fitted header name, negative values, and separate value controls */
+.card-preview .card-top-strip,
+.card-preview.card-front .card-top-strip,
+.card-preview.card-back .card-top-strip,
+.card-back .card-artwork.card-top-strip,
+.card-front .card-artwork.card-top-strip {
+  grid-template-columns: minmax(0, 1fr) 28px !important;
+  column-gap: 5px !important;
+  padding-left: 8px !important;
+  padding-right: 7px !important;
+}
+.card-preview .card-top-strip .card-top-name,
+.card-preview .card-top-name {
+  font-size: inherit;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+}
+.card-preview .card-top-strip .card-top-position,
+.card-preview .card-top-position {
+  width: 27px !important;
+  min-width: 27px !important;
+  max-width: 27px !important;
+  height: 20px !important;
+  font-size: 9.5px !important;
+}
+.card-section small {
+  grid-template-columns: minmax(0, 1fr) 24px !important;
+  gap: 4px !important;
+}
+.card-section small em {
+  min-width: 24px !important;
+  max-width: 24px !important;
+  text-align: right !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+}
+.attribute-row {
+  grid-template-columns: minmax(120px, 1fr) 96px 74px 34px 34px 34px !important;
+  gap: 6px !important;
+}
+.value-stepper {
+  display: grid;
+  grid-template-columns: 24px minmax(34px, 1fr) 24px;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+.value-stepper .attr-value {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+}
+.value-step-btn {
+  height: 28px !important;
+  width: 24px !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(118, 255, 214, .55) !important;
+  background: rgba(20, 224, 165, .18) !important;
+  color: #dfffee !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+.order-btn {
+  border-radius: 8px !important;
+  border-color: rgba(255,255,255,.25) !important;
+}
+@media (max-width: 700px) {
+  .attribute-row { grid-template-columns: minmax(90px, 1fr) 86px 42px 28px 28px 28px !important; gap: 4px !important; }
+  .value-stepper { grid-template-columns: 21px minmax(30px, 1fr) 21px; gap: 2px; }
+  .value-step-btn { width: 21px !important; height: 26px !important; }
+}
