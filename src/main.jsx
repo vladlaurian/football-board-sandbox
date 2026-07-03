@@ -1917,18 +1917,19 @@ function App() {
 
   function cardTopNameFontSize(name = "") {
     const len = String(name || "").trim().length;
-    // Auto-fit for the shared front/back header. Short names stay readable; long names shrink to fit.
-    if (len <= 6) return 14.8;
-    if (len <= 9) return 13.4;
-    if (len <= 12) return 12.0;
-    if (len <= 16) return 10.4;
-    if (len <= 20) return 8.8;
-    if (len <= 25) return 7.4;
-    if (len <= 31) return 6.2;
-    if (len <= 38) return 5.2;
-    if (len <= 48) return 4.3;
-    if (len <= 60) return 3.6;
-    return 3.1;
+    // Auto-fit pentru header-ul comun front/back. Zona de nume este mai generoasă,
+    // iar fontul pornește mai mare pentru nume scurte și scade gradual pentru nume lungi.
+    if (len <= 6) return 17.2;
+    if (len <= 9) return 15.8;
+    if (len <= 12) return 14.2;
+    if (len <= 16) return 12.4;
+    if (len <= 20) return 10.6;
+    if (len <= 25) return 8.9;
+    if (len <= 31) return 7.5;
+    if (len <= 38) return 6.2;
+    if (len <= 48) return 5.1;
+    if (len <= 60) return 4.2;
+    return 3.5;
   }
 
   function CardIdentityStrip({ card }) {

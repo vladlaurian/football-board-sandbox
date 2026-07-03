@@ -2937,3 +2937,92 @@ select option {
 .card-preview .card-area-block .attack-arrow::after {
   border-bottom-color: var(--card-area-color, #fff) !important;
 }
+
+/* USER REQUEST: bigger player-name area + clean Custom Artwork overlay mode */
+.card-preview .card-top-strip,
+.card-preview.card-front .card-top-strip,
+.card-preview.card-back .card-top-strip,
+.card-back .card-artwork.card-top-strip,
+.card-front .card-artwork.card-top-strip {
+  height: 56px !important;
+  min-height: 56px !important;
+  flex: 0 0 56px !important;
+  grid-template-columns: minmax(0, 1fr) 30px !important;
+  column-gap: 6px !important;
+  padding-left: 10px !important;
+  padding-right: 8px !important;
+}
+.card-preview .card-top-strip .card-top-name,
+.card-preview .card-top-name {
+  font-size: var(--top-name-font-size, 14px) !important;
+  line-height: 1 !important;
+  max-height: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+  letter-spacing: -0.025em !important;
+}
+.card-preview .card-top-strip .card-top-position,
+.card-preview .card-top-position {
+  width: 30px !important;
+  min-width: 30px !important;
+  max-width: 30px !important;
+  height: 22px !important;
+  font-size: 9.8px !important;
+}
+.card-preview.theme-custom {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.card-preview.theme-custom .card-top-strip,
+.card-preview.theme-custom .card-artwork,
+.card-preview.theme-custom .front-artwork,
+.card-preview.theme-custom .card-top-position,
+.card-preview.theme-custom .front-summary-row,
+.card-preview.theme-custom .front-summary-row em,
+.card-preview.theme-custom .card-section,
+.card-preview.theme-custom .card-section b,
+.card-preview.theme-custom .card-section small,
+.card-preview.theme-custom .card-section small em,
+.card-preview.theme-custom .card-area-block,
+.card-preview.theme-custom .card-special-block,
+.card-preview.theme-custom .area-mini-title,
+.card-preview.theme-custom .attack-direction-hint {
+  background: transparent !important;
+  background-image: none !important;
+  border-color: transparent !important;
+  border-width: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+.card-preview.theme-custom .card-top-strip,
+.card-preview.theme-custom .card-artwork.card-top-strip,
+.card-preview.theme-custom .front-artwork.card-top-strip {
+  border-radius: 0 !important;
+}
+.card-preview.theme-custom .front-summary-row em,
+.card-preview.theme-custom .card-section small em {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+}
+.card-preview.theme-custom .front-summary-row em {
+  justify-content: center !important;
+}
+.card-preview.theme-custom .area-mini span:not(.active):not(.player) {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.card-preview.theme-custom .area-mini span.player {
+  background: transparent !important;
+  color: var(--card-area-color, #fff) !important;
+}
+.card-preview.theme-custom .card-custom-graphic {
+  z-index: 0 !important;
+}
+.card-preview.theme-custom > :not(.card-custom-graphic) {
+  z-index: 1 !important;
+}
