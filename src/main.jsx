@@ -766,6 +766,28 @@ function createInitialPieces(cols, rows, blueFormation = FORMATION_SLOTS[0], red
   return ensureBenchReserveCount(pieces, localSettings, 7);
 }
 
+
+class CardPreviewErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, message: "" };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, message: String(error?.message || error || "Preview error") };
+  }
+  componentDidUpdate(prevProps) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false, message: "" });
+    }
+  }
+  render() {
+    if (this.state.hasError) {
+      return <div className="card-preview empty preview-error">Preview error: {this.state.message}</div>;
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   const [settings, setSettings] = useState(() => normalizeSettingsForApp(DEFAULT_SETTINGS));
   const [formations, setFormations] = useState(() => loadStoredFormations());
@@ -2019,6 +2041,8 @@ function App() {
     const themeClass = renderedTheme === CUSTOM_CARD_THEME ? "theme-custom" : `theme-${renderedTheme.toLowerCase().replace(/\s+/g, "-")}`;
     const colors = cardTextColors(card);
     const layout = normalizeCardLayout(card.layout);
+    const safeShownSide = shownSide === "front" || shownSide === "back" ? shownSide : "back";
+    const sideLayout = layout[safeShownSide] || DEFAULT_CARD_LAYOUT[safeShownSide] || {};
     const previewStyle = {
       "--card-header-color": safeColor(colors.header),
       "--card-front-color": safeColor(colors.frontFields),
@@ -2042,7 +2066,7 @@ function App() {
         rect,
         startX: e.clientX,
         startY: e.clientY,
-        startBox: { ...layout[shownSide][key] },
+        startBox: { ...(sideLayout[key] || DEFAULT_CARD_LAYOUT[safeShownSide]?.[key] || { x: 0, y: 0, w: 20, h: 10 }) },
       };
       e.currentTarget.setPointerCapture?.(e.pointerId);
     };
@@ -2051,24 +2075,26 @@ function App() {
       const drag = dragRef.current;
       if (!drag || !editableLayout) return;
       e.preventDefault();
-      const dx = ((e.clientX - drag.startX) / drag.rect.width) * 100;
-      const dy = ((e.clientY - drag.startY) / drag.rect.height) * 100;
+      const rectW = Math.max(1, Number(drag.rect.width) || 1);
+      const rectH = Math.max(1, Number(drag.rect.height) || 1);
+      const dx = ((e.clientX - drag.startX) / rectW) * 100;
+      const dy = ((e.clientY - drag.startY) / rectH) * 100;
       const base = drag.startBox;
       if (drag.mode === "resize") {
         const w = clamp(base.w + dx, 4, 100 - base.x);
         const h = clamp(base.h + dy, 4, 100 - base.y);
-        updateCardLayoutBox(card.id, shownSide, drag.key, { w, h });
+        updateCardLayoutBox(card.id, safeShownSide, drag.key, { w, h });
       } else {
         const x = clamp(base.x + dx, 0, 100 - base.w);
         const y = clamp(base.y + dy, 0, 100 - base.h);
-        updateCardLayoutBox(card.id, shownSide, drag.key, { x, y });
+        updateCardLayoutBox(card.id, safeShownSide, drag.key, { x, y });
       }
     };
 
     const endPointer = () => { dragRef.current = null; };
 
     const LayoutBox = ({ layoutKey, className = "", children }) => {
-      const box = layout[shownSide][layoutKey];
+      const box = sideLayout[layoutKey] || DEFAULT_CARD_LAYOUT[safeShownSide]?.[layoutKey] || { x: 0, y: 0, w: 20, h: 10 };
       return (
         <div
           className={`card-layout-box ${editableLayout ? "editable" : ""} ${selectedLayoutKey === layoutKey ? "selected" : ""} ${className}`}
@@ -2347,8 +2373,8 @@ function App() {
     return (
       <div className="card-editor">
         <div className="card-editor-previews">
-          <div><div className="card-preview-label">Front</div><CardPreview card={card} team="neutral" side="front" editableLayout /></div>
-          <div><div className="card-preview-label">Back</div><CardPreview card={card} team="neutral" side="back" editableLayout /></div>
+          <div><div className="card-preview-label">Front</div><CardPreviewErrorBoundary resetKey={`${card?.id}-front-${JSON.stringify(card?.layout?.front || {})}`}><CardPreview card={card} team="neutral" side="front" editableLayout /></CardPreviewErrorBoundary></div>
+          <div><div className="card-preview-label">Back</div><CardPreviewErrorBoundary resetKey={`${card?.id}-back-${JSON.stringify(card?.layout?.back || {})}`}><CardPreview card={card} team="neutral" side="back" editableLayout /></CardPreviewErrorBoundary></div>
         </div>
         <div className="card-edit-section compact-color-row"><strong>Header</strong><ColorPicker card={card} colorKey="header" label="Color" /></div>
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
@@ -3340,7 +3366,7 @@ function App() {
             ) : (
               <>
                 <div className="inspector-piece-line"><b>Post puc:</b> {inspectedPiece.label || "—"}</div>
-                {inspectedCard ? <CardPreview card={inspectedCard} team={inspectedPiece.team === "A" ? "blue" : "red"} side="front" flippable /> : <div className="card-preview empty">Niciun card atașat</div>}
+                {inspectedCard ? <CardPreviewErrorBoundary resetKey={`${inspectedCard?.id}-${inspectedCard?.updatedAt || ""}`}><CardPreview card={inspectedCard} team={inspectedPiece.team === "A" ? "blue" : "red"} side="front" flippable /></CardPreviewErrorBoundary> : <div className="card-preview empty">Niciun card atașat</div>}
                 <div className="inspector-actions">
                   <button onClick={() => setAssignTarget({ type: "piece", pieceId: inspectedPiece.id })}>Assign Card</button>
                   {inspectedCard && <button onClick={() => { setCardsPanelOpen(true); setCardsView("library"); setEditingCardId(inspectedCard.id); }}>Edit Card</button>}

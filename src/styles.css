@@ -3583,3 +3583,14 @@ select option {
 .card-preview:not(.theme-custom) .card-preview-art-layer:empty {
   display: none !important;
 }
+
+
+/* HARD FIX: preview errors must not black-screen the whole app. */
+.preview-error {
+  color: #fff !important;
+  background: #320b0b !important;
+  border: 1px solid rgba(255,90,90,.8) !important;
+  padding: 12px !important;
+  font-size: 12px !important;
+  overflow: auto !important;
+}
