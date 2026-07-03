@@ -147,7 +147,7 @@ const CARD_POSITION_OPTIONS = [
 const TEAM_LAYOUT_POSITIONS = ["GK", "LWB", "LB", "CB", "RB", "RWB", "LM", "CDM", "CM", "CAM", "RM", "LW", "ST", "RW"];
 const TEAM_SLOT_POSITIONS = ["GK", "LB", "CB", "CB", "RB", "CDM", "CM", "CAM", "LW", "RW", "ST"];
 const CARD_THEMES = ["Style 1", "Style 2", "Style 3", "Style 4", "Style 5", "Style 6", "Style 7"];
-const CARD_FRONT_FIELDS = ["GK", "DEF", "MID", "ATT"];
+const CARD_FRONT_FIELDS = ["DEF", "ATT"];
 const LEGACY_THEME_MAP = {
   "Realistic": "Style 1",
   "GOALS Style": "Style 2",
@@ -1711,7 +1711,7 @@ function App() {
     const density = visibleCount > 22 ? "dense-3" : visibleCount > 17 ? "dense-2" : visibleCount > 12 ? "dense-1" : "normal";
     return (
       <>
-        <div className="card-artwork">{card.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : <span>{card.position}</span>}</div>
+        <div className="card-artwork card-top-strip">{card.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : <><span className="card-top-position">{card.position}</span><strong className="card-top-name">{card.name}</strong></>}</div>
         <div className="card-head"><strong>{card.name}</strong></div>
         {!compact && (
           <>
@@ -1742,9 +1742,8 @@ function App() {
     const fields = normalizeFrontFields(card.frontFields || card.frontSummary);
     return (
       <div className="card-front-inner">
-        <div className="front-artwork">{card.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : <span>{card.position}</span>}</div>
-        <div className="front-name">{card.name}</div>
-        <div className="front-summary-fields">
+        <div className="front-artwork card-top-strip">{card.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : <><span className="card-top-position">{card.position}</span><strong className="card-top-name">{card.name}</strong></>}</div>
+        <div className={`front-summary-fields ${fields.length > 4 ? "front-dense-3" : fields.length > 2 ? "front-dense-2" : "front-normal"}`}>
           {fields.map(field => (
             <div className="front-summary-row" key={field.id}>
               <span>{field.label}</span>

@@ -1878,3 +1878,196 @@ select option {
   color: #eef4ff;
   font-family: inherit;
 }
+
+/* Card layout refinement: compact top identity, fixed lower zones, scalable text */
+.card-preview.card-front,
+.card-preview.card-back {
+  width: min(100%, 280px) !important;
+  aspect-ratio: 2 / 3 !important;
+  padding: 10px !important;
+  box-sizing: border-box !important;
+}
+.card-preview.card-back {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+}
+.card-back .card-artwork,
+.card-front .front-artwork,
+.card-top-strip {
+  height: 48px !important;
+  min-height: 48px !important;
+  flex: 0 0 48px !important;
+  border-radius: 12px !important;
+}
+.card-top-strip {
+  display: grid !important;
+  grid-template-columns: 34px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 7px !important;
+  padding: 0 9px !important;
+  background: radial-gradient(circle at 50% 35%, rgba(255,255,255,.18), rgba(255,255,255,.04)) !important;
+}
+.card-top-position {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 22px !important;
+  min-width: 30px !important;
+  border: 1px solid rgba(255,255,255,.36) !important;
+  border-radius: 8px !important;
+  background: rgba(255,255,255,.08) !important;
+  color: rgba(255,255,255,.92) !important;
+  font-size: clamp(8px, 1.4vw, 11px) !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  letter-spacing: .02em !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+}
+.card-top-name {
+  display: block !important;
+  min-width: 0 !important;
+  color: rgba(255,255,255,.95) !important;
+  font-size: clamp(10px, 2.7vw, 16px) !important;
+  line-height: 1.05 !important;
+  font-weight: 1000 !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+}
+.card-front .front-artwork span,
+.card-back .card-artwork span {
+  font-size: inherit !important;
+  border: inherit !important;
+  background: inherit !important;
+  padding: inherit !important;
+}
+.card-head,
+.front-name,
+.front-position,
+.card-head span {
+  display: none !important;
+}
+.card-front-inner {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  gap: 0 !important;
+}
+.card-front .front-summary-fields {
+  flex: 0 0 58px !important;
+  width: 100% !important;
+  max-height: 58px !important;
+  margin: auto 0 4px 0 !important;
+  transform: none !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-items: end !important;
+  gap: 6px !important;
+  overflow: hidden !important;
+}
+.front-summary-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 28px !important;
+  align-items: center !important;
+  gap: 6px !important;
+  min-width: 0 !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+}
+.front-summary-row span {
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+}
+.front-summary-row em {
+  height: 22px !important;
+  min-width: 28px !important;
+  font-size: 12px !important;
+  line-height: 22px !important;
+  padding: 0 !important;
+  text-align: center !important;
+}
+.front-summary-fields.front-dense-2 .front-summary-row { font-size: 10px !important; gap: 4px !important; }
+.front-summary-fields.front-dense-2 .front-summary-row em { font-size: 10px !important; min-width: 24px !important; height: 19px !important; line-height: 19px !important; }
+.front-summary-fields.front-dense-3 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 3px !important; }
+.front-summary-fields.front-dense-3 .front-summary-row { font-size: 8px !important; gap: 3px !important; }
+.front-summary-fields.front-dense-3 .front-summary-row em { font-size: 8px !important; min-width: 20px !important; height: 16px !important; line-height: 16px !important; }
+
+.card-back .card-stats-grid {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 8px !important;
+  margin: 4px 0 0 !important;
+  align-items: start !important;
+}
+.card-section-list {
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+.card-section b {
+  font-size: 12px !important;
+  line-height: 1.1 !important;
+  margin-bottom: 3px !important;
+}
+.card-section small {
+  font-size: 10px !important;
+  line-height: 1.08 !important;
+  min-height: 11px !important;
+  grid-template-columns: minmax(0, 1fr) 18px !important;
+}
+.card-section small em { line-height: 1.08 !important; }
+.card-stats-grid.dense-1 .card-section small { font-size: 9px !important; min-height: 10px !important; line-height: 1 !important; }
+.card-stats-grid.dense-2 .card-section small { font-size: 8px !important; min-height: 9px !important; line-height: .95 !important; }
+.card-stats-grid.dense-3 .card-section small { font-size: 7px !important; min-height: 8px !important; line-height: .9 !important; }
+.card-stats-grid.dense-1 .card-section b { font-size: 11px !important; }
+.card-stats-grid.dense-2 .card-section b,
+.card-stats-grid.dense-3 .card-section b { font-size: 9.5px !important; }
+.card-bottom-third {
+  flex: 0 0 25% !important;
+  margin-top: auto !important;
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 8px !important;
+  padding-top: 2px !important;
+  overflow: hidden !important;
+}
+.card-area-block .area-mini-title,
+.card-special-block b {
+  font-size: 10.5px !important;
+  line-height: 1 !important;
+  margin: 0 0 3px !important;
+}
+.card-area-block .area-mini-row {
+  gap: 4px !important;
+  align-items: center !important;
+}
+.card-area-block .area-mini {
+  grid-template-columns: repeat(11, 4.5px) !important;
+  grid-auto-rows: 4.5px !important;
+  gap: 1px !important;
+  margin: 0 !important;
+}
+.card-area-block .area-mini span {
+  width: 4.5px !important;
+  height: 4.5px !important;
+  border-radius: 1.3px !important;
+  font-size: 0 !important;
+}
+.card-area-block .attack-direction-hint {
+  margin-top: 0 !important;
+  transform: scale(.50) !important;
+  transform-origin: center center !important;
+  align-self: center !important;
+}
+.card-special-block p {
+  font-size: 8px !important;
+  line-height: 1.05 !important;
+  -webkit-line-clamp: 6 !important;
+}
