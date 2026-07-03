@@ -177,6 +177,68 @@ function normalizeStatItems(items = []) {
   }));
 }
 
+
+const CARD_LAYOUT_FIELD_KEYS = {
+  front: ["header", "position", "attributes", "bonuses"],
+  back: ["header", "attributes", "bonuses", "defensiveArea", "specialAbility"],
+};
+
+const CARD_LAYOUT_LABELS = {
+  header: "Header",
+  position: "Position",
+  attributes: "Attributes",
+  bonuses: "Bonuses",
+  defensiveArea: "Defensive Area",
+  specialAbility: "Special Ability",
+};
+
+const DEFAULT_CARD_LAYOUT = {
+  front: {
+    header: { x: 7, y: 5, w: 58, h: 9 },
+    position: { x: 78, y: 5, w: 12, h: 8 },
+    attributes: { x: 7, y: 78, w: 39, h: 8 },
+    bonuses: { x: 52, y: 78, w: 39, h: 8 },
+  },
+  back: {
+    header: { x: 7, y: 5, w: 82, h: 9 },
+    attributes: { x: 7, y: 19, w: 40, h: 42 },
+    bonuses: { x: 52, y: 19, w: 40, h: 42 },
+    defensiveArea: { x: 7, y: 75, w: 40, h: 18 },
+    specialAbility: { x: 52, y: 75, w: 40, h: 18 },
+  },
+};
+
+function cleanLayoutNumber(value, fallback, min = 0, max = 100) {
+  const n = Number(value);
+  return Number.isFinite(n) ? clamp(n, min, max) : fallback;
+}
+
+function normalizeLayoutBox(raw, fallback) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const w = cleanLayoutNumber(source.w ?? source.width, fallback.w, 4, 100);
+  const h = cleanLayoutNumber(source.h ?? source.height, fallback.h, 4, 100);
+  return {
+    x: cleanLayoutNumber(source.x, fallback.x, 0, 100 - w),
+    y: cleanLayoutNumber(source.y, fallback.y, 0, 100 - h),
+    w,
+    h,
+  };
+}
+
+function defaultCardLayout() {
+  return JSON.parse(JSON.stringify(DEFAULT_CARD_LAYOUT));
+}
+
+function normalizeCardLayout(raw) {
+  const out = defaultCardLayout();
+  for (const side of Object.keys(CARD_LAYOUT_FIELD_KEYS)) {
+    for (const key of CARD_LAYOUT_FIELD_KEYS[side]) {
+      out[side][key] = normalizeLayoutBox(raw?.[side]?.[key], DEFAULT_CARD_LAYOUT[side][key]);
+    }
+  }
+  return out;
+}
+
 function defaultAttributesForPosition(position, section) {
   const isGk = position === "GK";
   const names = section === "passive"
@@ -249,6 +311,7 @@ function createPlayerCard(position = "ST") {
     graphics: { frontDataUrl: "", backDataUrl: "", previousTheme: "Style 1" },
     specialAbility: "",
     textColors: { ...CARD_TEXT_COLOR_DEFAULTS },
+    layout: defaultCardLayout(),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -281,6 +344,7 @@ function normalizeImportedCard(card) {
     },
     specialAbility: String(card?.specialAbility ?? card?.special_ability ?? card?.special ?? ""),
     textColors: normalizeTextColors(card?.textColors || card?.colors || card?.text_colors),
+    layout: normalizeCardLayout(card?.layout || card?.cardLayout || card?.textLayout),
   };
   return normalized;
 }
@@ -1888,8 +1952,42 @@ function App() {
     }));
   }
 
-  function CardPreview({ card, compact = false, team = "neutral", side = "back", flippable = false }) {
+  function updateCardLayoutBox(cardId, side, key, patch) {
+    if (!cardId || !CARD_LAYOUT_FIELD_KEYS[side]?.includes(key)) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => {
+        if (card.id !== cardId) return card;
+        const currentLayout = normalizeCardLayout(card.layout);
+        const fallback = DEFAULT_CARD_LAYOUT[side][key];
+        const current = currentLayout[side][key] || fallback;
+        const rawNext = { ...current, ...(typeof patch === "function" ? patch(current) : patch) };
+        const nextBox = normalizeLayoutBox(rawNext, fallback);
+        return {
+          ...card,
+          layout: {
+            ...currentLayout,
+            [side]: { ...currentLayout[side], [key]: nextBox },
+          },
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    }));
+  }
+
+  function resetCardLayout(cardId) {
+    if (!cardId) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? { ...card, layout: defaultCardLayout(), updatedAt: new Date().toISOString() } : card),
+    }));
+  }
+
+  function CardPreview({ card, compact = false, team = "neutral", side = "back", flippable = false, editableLayout = false }) {
     const [currentSide, setCurrentSide] = useState(side);
+    const [selectedLayoutKey, setSelectedLayoutKey] = useState(null);
+    const contentLayerRef = useRef(null);
+    const dragRef = useRef(null);
     useEffect(() => setCurrentSide(side), [side, card?.id]);
     if (!card) return <div className="card-preview empty">No card</div>;
     const activeTheme = getCardTheme(card, cardState.theme);
@@ -1897,6 +1995,7 @@ function App() {
     const shownSide = flippable ? currentSide : side;
     const graphicUrl = shownSide === "front" ? card?.graphics?.frontDataUrl : card?.graphics?.backDataUrl;
     const colors = cardTextColors(card);
+    const layout = normalizeCardLayout(card.layout);
     const previewStyle = {
       "--card-header-color": safeColor(colors.header),
       "--card-front-color": safeColor(colors.frontFields),
@@ -1906,13 +2005,71 @@ function App() {
       "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78"),
       "--card-special-color": safeColor(colors.specialAbility),
     };
+
+    const beginLayoutPointer = (e, key, mode = "move") => {
+      if (!editableLayout) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = contentLayerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setSelectedLayoutKey(key);
+      dragRef.current = {
+        key,
+        mode,
+        rect,
+        startX: e.clientX,
+        startY: e.clientY,
+        startBox: { ...layout[shownSide][key] },
+      };
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    };
+
+    const updateFromPointer = (e) => {
+      const drag = dragRef.current;
+      if (!drag || !editableLayout) return;
+      e.preventDefault();
+      const dx = ((e.clientX - drag.startX) / drag.rect.width) * 100;
+      const dy = ((e.clientY - drag.startY) / drag.rect.height) * 100;
+      const base = drag.startBox;
+      if (drag.mode === "resize") {
+        const w = clamp(base.w + dx, 4, 100 - base.x);
+        const h = clamp(base.h + dy, 4, 100 - base.y);
+        updateCardLayoutBox(card.id, shownSide, drag.key, { w, h });
+      } else {
+        const x = clamp(base.x + dx, 0, 100 - base.w);
+        const y = clamp(base.y + dy, 0, 100 - base.h);
+        updateCardLayoutBox(card.id, shownSide, drag.key, { x, y });
+      }
+    };
+
+    const endPointer = () => { dragRef.current = null; };
+
+    const LayoutBox = ({ layoutKey, className = "", children }) => {
+      const box = layout[shownSide][layoutKey];
+      return (
+        <div
+          className={`card-layout-box ${editableLayout ? "editable" : ""} ${selectedLayoutKey === layoutKey ? "selected" : ""} ${className}`}
+          style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.w}%`, height: `${box.h}%` }}
+          onPointerDown={(e) => beginLayoutPointer(e, layoutKey, "move")}
+          onPointerMove={updateFromPointer}
+          onPointerUp={endPointer}
+          onPointerCancel={endPointer}
+          title={editableLayout ? CARD_LAYOUT_LABELS[layoutKey] : undefined}
+        >
+          <div className="card-layout-box-content">{children}</div>
+          {editableLayout && <span className="card-layout-tag">{CARD_LAYOUT_LABELS[layoutKey]}</span>}
+          {editableLayout && <span className="card-layout-resize" onPointerDown={(e) => beginLayoutPointer(e, layoutKey, "resize")} />}
+        </div>
+      );
+    };
+
     return (
-      <div className={`card-preview ${shownSide === "front" ? "card-front" : "card-back"} ${themeClass} ${team}`} style={previewStyle}>
+      <div className={`card-preview ${shownSide === "front" ? "card-front" : "card-back"} ${themeClass} ${team} ${editableLayout ? "layout-editing" : ""}`} style={previewStyle}>
         <div className="card-preview-art-layer" aria-hidden="true">
           {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} alt="" /> : null}
         </div>
-        <div className="card-preview-content-layer">
-          {shownSide === "front" ? CardFront({ card }) : CardBack({ card, compact })}
+        <div className="card-preview-content-layer card-layout-layer" ref={contentLayerRef}>
+          {shownSide === "front" ? CardFront({ card, LayoutBox }) : CardBack({ card, compact, LayoutBox })}
         </div>
         {flippable && (
           <button
@@ -1934,8 +2091,6 @@ function App() {
 
   function cardTopNameFontSize(name = "") {
     const len = String(name || "").trim().length;
-    // Auto-fit pentru header-ul comun front/back. Zona de nume este mai generoasă,
-    // iar fontul pornește mai mare pentru nume scurte și scade gradual pentru nume lungi.
     if (len <= 6) return 17.2;
     if (len <= 9) return 15.8;
     if (len <= 12) return 14.2;
@@ -1949,33 +2104,41 @@ function App() {
     return 3.5;
   }
 
-  function CardIdentityStrip({ card }) {
+  function HeaderContent({ card, showPosition = false }) {
     const safeName = String(card?.name || "Player");
     const safePosition = String(card?.position || "").toUpperCase();
     return (
-      <div className="card-artwork card-top-strip" style={{ "--top-name-font-size": `${cardTopNameFontSize(safeName)}px` }}>
-        {card?.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : null}
+      <div className="card-layout-header" style={{ "--top-name-font-size": `${cardTopNameFontSize(safeName)}px` }}>
         <strong className="card-top-name" title={safeName}>{safeName}</strong>
-        <span className="card-top-position">{safePosition}</span>
+        {showPosition ? <span className="card-top-position">{safePosition}</span> : null}
       </div>
     );
   }
 
-  function CardBack({ card, compact = false }) {
+  function AttributeBox({ items, title, kind = "attributes" }) {
+    return (
+      <div className={`card-section card-layout-section ${kind}`}>
+        <b>{title}</b>
+        <div className="card-section-list">
+          {(items || []).map(a => <small key={a.id}><span>{a.name}</span><em>{normalizeStatValue(a.value)}</em></small>)}
+        </div>
+      </div>
+    );
+  }
+
+  function CardBack({ card, compact = false, LayoutBox }) {
     const visibleAttributes = (card.passiveAttributes || []).filter(a => a.showOnCard !== false);
     const visibleBonuses = (card.bonuses || []).filter(a => a.showOnCard !== false);
     const visibleCount = visibleAttributes.length + visibleBonuses.length;
     const density = visibleCount > 22 ? "dense-3" : visibleCount > 17 ? "dense-2" : visibleCount > 12 ? "dense-1" : "normal";
     return (
       <>
-        <CardIdentityStrip card={card} />
+        <LayoutBox layoutKey="header" className="layout-header-box"><HeaderContent card={card} showPosition /></LayoutBox>
         {!compact && (
           <>
-            <div className={`card-stats-grid ${density}`}>
-              <div className="card-section"><b>Attributes</b><div className="card-section-list">{visibleAttributes.map(a => <small key={a.id}><span>{a.name}</span><em>{normalizeStatValue(a.value)}</em></small>)}</div></div>
-              <div className="card-section"><b>Bonuses</b><div className="card-section-list">{visibleBonuses.map(a => <small key={a.id}><span>{a.name}</span><em>{normalizeStatValue(a.value)}</em></small>)}</div></div>
-            </div>
-            <div className="card-bottom-third">
+            <LayoutBox layoutKey="attributes" className={`layout-attributes-box ${density}`}><AttributeBox items={visibleAttributes} title="Attributes" kind="attributes" /></LayoutBox>
+            <LayoutBox layoutKey="bonuses" className={`layout-bonuses-box ${density}`}><AttributeBox items={visibleBonuses} title="Bonuses" kind="bonuses" /></LayoutBox>
+            <LayoutBox layoutKey="defensiveArea" className="layout-defensive-box">
               <div className="card-area-block">
                 <div className="area-mini-title">Defensive Area</div>
                 <div className="area-mini-row">
@@ -1983,56 +2146,66 @@ function App() {
                   <div className="attack-direction-hint" aria-label="Attacking direction"><span className="attack-arrow">↑</span></div>
                 </div>
               </div>
+            </LayoutBox>
+            <LayoutBox layoutKey="specialAbility" className={`layout-special-box ${String(card.specialAbility || "").length > 280 ? "special-dense-4" : String(card.specialAbility || "").length > 200 ? "special-dense-3" : String(card.specialAbility || "").length > 130 ? "special-dense-2" : String(card.specialAbility || "").length > 70 ? "special-dense-1" : ""}`}>
               <div className={`card-special-block ${String(card.specialAbility || "").length > 280 ? "special-dense-4" : String(card.specialAbility || "").length > 200 ? "special-dense-3" : String(card.specialAbility || "").length > 130 ? "special-dense-2" : String(card.specialAbility || "").length > 70 ? "special-dense-1" : ""}`}>
                 <b>Special Ability</b>
                 <p>{String(card.specialAbility || "").trim() || "—"}</p>
               </div>
-            </div>
+            </LayoutBox>
           </>
         )}
       </>
     );
   }
 
-  function CardFront({ card }) {
+  function CardFront({ card, LayoutBox }) {
     const fields = normalizeFrontFields(card.frontFields || card.frontSummary);
-    return (
-      <div className="card-front-inner">
-        <CardIdentityStrip card={card} />
-        <div className={`front-summary-fields ${fields.length > 4 ? "front-dense-3" : fields.length > 2 ? "front-dense-2" : "front-normal"}`}>
-          {fields.map(field => (
-            <div className="front-summary-row" key={field.id}>
-              <span>{field.label}</span>
-              <em>{computeFrontFieldValue(card, field)}</em>
-            </div>
-          ))}
-        </div>
+    const attrFields = fields.filter(field => /attr/i.test(field.label || ""));
+    const bonusFields = fields.filter(field => /bonus/i.test(field.label || ""));
+    const otherFields = fields.filter(field => !/attr|bonus/i.test(field.label || ""));
+    const leftFields = attrFields.length ? attrFields : (otherFields.length ? otherFields.slice(0, Math.ceil(otherFields.length / 2)) : fields.slice(0, 1));
+    const rightFields = bonusFields.length ? bonusFields : (otherFields.length ? otherFields.slice(Math.ceil(otherFields.length / 2)) : fields.slice(1, 2));
+    const FieldRows = ({ list }) => (
+      <div className={`front-summary-fields ${list.length > 4 ? "front-dense-3" : list.length > 2 ? "front-dense-2" : "front-normal"}`}>
+        {list.map(field => (
+          <div className="front-summary-row" key={field.id}>
+            <span>{field.label}</span>
+            <em>{computeFrontFieldValue(card, field)}</em>
+          </div>
+        ))}
       </div>
+    );
+    return (
+      <>
+        <LayoutBox layoutKey="header" className="layout-header-box"><HeaderContent card={card} /></LayoutBox>
+        <LayoutBox layoutKey="position" className="layout-position-box"><span className="card-front-position-box">{String(card.position || "").toUpperCase()}</span></LayoutBox>
+        <LayoutBox layoutKey="attributes" className="layout-front-fields-box"><FieldRows list={leftFields} /></LayoutBox>
+        <LayoutBox layoutKey="bonuses" className="layout-front-fields-box"><FieldRows list={rightFields} /></LayoutBox>
+      </>
     );
   }
 
-  function AreaMiniPreview({ area = [] }) {
-    return <div className="area-mini">{Array.from({ length: 121 }, (_, i) => { const dx = (i % 11) - 5; const dy = Math.floor(i / 11) - 5; const center = dx === 0 && dy === 0; return <span key={i} className={`${center ? "player" : ""} ${areaHasCell(area, dx, dy) ? "active" : ""}`}>{center ? "" : ""}</span>; })}</div>;
-  }
-
-  function AttributeListEditor({ card, section, title }) {
-    const items = card[section] || [];
-    const moveItem = (index, dir) => updateCardList(card.id, section, list => { const next = [...list]; const to = index + dir; if (to < 0 || to >= next.length) return next; [next[index], next[to]] = [next[to], next[index]]; return next; });
-    const changeValue = (itemId, delta) => updateCardList(card.id, section, list => list.map(x => x.id === itemId ? { ...x, value: clamp(normalizeStatValue(x.value) + delta, -99, 99) } : x));
+  function LayoutEditorControls({ card }) {
+    if (!card) return null;
+    const layout = normalizeCardLayout(card.layout);
+    const update = (side, key, prop, value) => updateCardLayoutBox(card.id, side, key, { [prop]: Number(value) });
     return (
-      <div className="card-edit-section">
-        <div className="card-edit-section-title"><strong>{title}</strong><ColorPicker card={card} colorKey={section === "bonuses" ? "bonuses" : "attributes"} label="Color" /><button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }])}>+ Add</button></div>
-        {items.map((item, index) => (
-          <div className="attribute-row" key={item.id}>
-            <input value={item.name} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, name: e.target.value } : x))} />
-            <div className="value-stepper" title="Edit value">
-              <button className="value-step-btn" onClick={() => changeValue(item.id, -1)}>−</button>
-              <input className="attr-value" inputMode="text" value={item.value} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, value: cleanTwoDigitValue(e.target.value) } : x))} onBlur={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, value: normalizeStatValue(e.target.value) } : x))} />
-              <button className="value-step-btn" onClick={() => changeValue(item.id, 1)}>+</button>
-            </div>
-            <label className="show-on-card-toggle" title="Show on card"><input type="checkbox" checked={item.showOnCard !== false} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, showOnCard: e.target.checked } : x))} /><span>Show</span></label>
-            <button className="order-btn" onClick={() => moveItem(index, -1)}>↑</button><button className="order-btn" onClick={() => moveItem(index, 1)}>↓</button>
-            <button onClick={() => updateCardList(card.id, section, list => list.filter(x => x.id !== item.id))}>×</button>
+      <div className="card-edit-section layout-controls">
+        <div className="card-edit-section-title"><strong>Layout Editor</strong><button onClick={() => resetCardLayout(card.id)}>Reset Layout</button></div>
+        <div className="layout-help">Mută zonele direct pe card sau ajustează numeric X / Y / W / H.</div>
+        {(["front", "back"]).map(side => (
+          <div className="layout-side-controls" key={side}>
+            <h4>{side === "front" ? "Front" : "Back"}</h4>
+            {CARD_LAYOUT_FIELD_KEYS[side].map(key => {
+              const box = layout[side][key];
+              return (
+                <div className="layout-control-row" key={`${side}-${key}`}>
+                  <strong>{CARD_LAYOUT_LABELS[key]}</strong>
+                  {(["x", "y", "w", "h"]).map(prop => <label key={prop}>{prop.toUpperCase()}<input type="number" step="0.5" min="0" max="100" value={box[prop]} onChange={e => update(side, key, prop, e.target.value)} /></label>)}
+                </div>
+              );
+            })}
           </div>
         ))}
       </div>
@@ -2151,13 +2324,14 @@ function App() {
     return (
       <div className="card-editor">
         <div className="card-editor-previews">
-          <div><div className="card-preview-label">Front</div><CardPreview card={card} team="neutral" side="front" /></div>
-          <div><div className="card-preview-label">Back</div><CardPreview card={card} team="neutral" side="back" /></div>
+          <div><div className="card-preview-label">Front</div><CardPreview card={card} team="neutral" side="front" editableLayout /></div>
+          <div><div className="card-preview-label">Back</div><CardPreview card={card} team="neutral" side="back" editableLayout /></div>
         </div>
         <div className="card-edit-section compact-color-row"><strong>Header</strong><ColorPicker card={card} colorKey="header" label="Color" /></div>
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
         <label>Position<select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
         <label className="special-ability-editor"><span className="editor-label-row"><span>Special Ability</span><ColorPicker card={card} colorKey="specialAbility" label="Color" /></span><textarea value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></label>
+        {LayoutEditorControls({ card })}
         {FrontSummaryEditor({ card })}
         {AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes" })}
         {AttributeListEditor({ card, section: "bonuses", title: "Bonuses" })}

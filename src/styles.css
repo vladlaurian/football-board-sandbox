@@ -3332,16 +3332,239 @@ select option {
   overflow: hidden !important;
 }
 
-
-/* USER FIX: align the BOTTOM edge of front stats with the BOTTOM edge
-   of the back lower section, not the top edge. */
-.card-preview.card-front .front-summary-fields {
-  flex: 0 0 28% !important;
-  margin-top: auto !important;
-  margin-bottom: 0 !important;
-  padding-top: 0 !important;
-  padding-bottom: 12px !important;
-  align-content: end !important;
-  align-items: end !important;
-  transform: none !important;
+/* LAYOUT EDITOR FOR CARD TEXT ZONES */
+.card-preview .card-preview-content-layer.card-layout-layer {
+  position: absolute !important;
+  inset: 10px !important;
+  z-index: 2 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  display: block !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+  border-radius: 14px !important;
 }
+.card-preview.layout-editing .card-preview-content-layer.card-layout-layer {
+  pointer-events: auto !important;
+}
+.card-layout-box {
+  position: absolute !important;
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  color: inherit !important;
+}
+.card-preview.layout-editing .card-layout-box {
+  pointer-events: auto !important;
+  cursor: move !important;
+  outline: 1px dashed rgba(255,255,255,.34) !important;
+  background: rgba(0,0,0,.045) !important;
+}
+.card-preview.layout-editing .card-layout-box.selected,
+.card-preview.layout-editing .card-layout-box:hover {
+  outline: 2px solid rgba(80,190,255,.95) !important;
+  background: rgba(80,190,255,.08) !important;
+}
+.card-layout-box-content {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+.card-layout-tag {
+  position: absolute !important;
+  left: 2px !important;
+  top: 2px !important;
+  z-index: 20 !important;
+  font-size: 7px !important;
+  line-height: 1 !important;
+  padding: 2px 3px !important;
+  border-radius: 4px !important;
+  background: rgba(0,0,0,.72) !important;
+  color: #fff !important;
+  pointer-events: none !important;
+  font-weight: 800 !important;
+  opacity: .85 !important;
+}
+.card-layout-resize {
+  position: absolute !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 13px !important;
+  height: 13px !important;
+  z-index: 30 !important;
+  cursor: nwse-resize !important;
+  pointer-events: auto !important;
+  background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,.85) 50%) !important;
+  border-bottom-right-radius: 2px !important;
+}
+.card-layout-header {
+  width: 100% !important;
+  height: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 5px !important;
+  overflow: hidden !important;
+  color: var(--card-header-color, #fff) !important;
+}
+.card-layout-header .card-top-name {
+  font-size: var(--top-name-font-size, 12px) !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  color: var(--card-header-color, #fff) !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+}
+.card-layout-header .card-top-position,
+.card-front-position-box {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid color-mix(in srgb, var(--card-header-color, #fff) 55%, transparent) !important;
+  border-radius: 7px !important;
+  color: var(--card-header-color, #fff) !important;
+  font-weight: 900 !important;
+  font-size: clamp(7px, 4.8cqw, 12px) !important;
+  line-height: 1 !important;
+  overflow: hidden !important;
+  background: rgba(255,255,255,.06) !important;
+  box-sizing: border-box !important;
+}
+.layout-position-box .card-layout-box-content { display:flex !important; align-items:center !important; justify-content:center !important; }
+.card-layout-section {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  color: var(--card-attributes-color, #fff) !important;
+}
+.card-layout-section.bonuses { color: var(--card-bonuses-color, #fff) !important; }
+.card-layout-section b,
+.card-layout-section .card-section-list,
+.card-layout-section small,
+.card-layout-section span,
+.card-layout-section em {
+  color: inherit !important;
+}
+.card-layout-section b {
+  font-size: clamp(8px, 4.1cqw, 12px) !important;
+  line-height: 1.05 !important;
+  margin: 0 0 3px 0 !important;
+  flex: 0 0 auto !important;
+  font-weight: 900 !important;
+}
+.card-layout-section .card-section-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: grid !important;
+  align-content: start !important;
+  gap: 1px !important;
+}
+.card-layout-section small {
+  display: grid !important;
+  grid-template-columns: minmax(0,1fr) auto !important;
+  gap: 4px !important;
+  min-height: 0 !important;
+  font-size: clamp(6px, 3.15cqw, 10px) !important;
+  line-height: 1.08 !important;
+  overflow: hidden !important;
+  font-weight: 700 !important;
+}
+.layout-attributes-box.dense-2 .card-layout-section small,
+.layout-bonuses-box.dense-2 .card-layout-section small { font-size: clamp(5.5px, 2.8cqw, 8px) !important; line-height: 1.02 !important; }
+.layout-attributes-box.dense-3 .card-layout-section small,
+.layout-bonuses-box.dense-3 .card-layout-section small { font-size: clamp(5px, 2.5cqw, 7px) !important; line-height: .98 !important; }
+.card-layout-section small span { overflow:hidden !important; white-space:nowrap !important; text-overflow:clip !important; }
+.card-layout-section small em { font-style:normal !important; font-weight:900 !important; }
+.layout-front-fields-box .front-summary-fields {
+  width: 100% !important;
+  height: 100% !important;
+  display: grid !important;
+  align-content: end !important;
+  gap: 3px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  transform: none !important;
+  overflow: hidden !important;
+  color: var(--card-front-color, #fff) !important;
+}
+.layout-front-fields-box .front-summary-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 5px !important;
+  font-size: clamp(8px, 4.2cqw, 13px) !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  color: var(--card-front-color, #fff) !important;
+  overflow: hidden !important;
+}
+.layout-front-fields-box .front-summary-row span { overflow:hidden !important; white-space:nowrap !important; text-overflow:clip !important; color:inherit !important; }
+.layout-front-fields-box .front-summary-row em {
+  min-width: 22px !important;
+  width: auto !important;
+  height: 18px !important;
+  padding: 0 5px !important;
+  line-height: 18px !important;
+  text-align: center !important;
+  border-radius: 7px !important;
+  border: 1px solid color-mix(in srgb, var(--card-front-color, #fff) 40%, transparent) !important;
+  color: inherit !important;
+  font-size: inherit !important;
+  box-sizing: border-box !important;
+}
+.layout-defensive-box .card-area-block,
+.layout-special-box .card-special-block {
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+.layout-defensive-box .area-mini-title,
+.layout-special-box .card-special-block b {
+  font-size: clamp(7px, 3.6cqw, 11px) !important;
+  line-height: 1.15 !important;
+  margin: 0 0 3px 0 !important;
+  color: inherit !important;
+  font-weight: 900 !important;
+}
+.layout-special-box .card-special-block { color: var(--card-special-color, #fff) !important; }
+.layout-special-box .card-special-block p {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  white-space: pre-wrap !important;
+  font-size: clamp(5.4px, 2.6cqw, 8.7px) !important;
+  line-height: 1.22 !important;
+  color: inherit !important;
+}
+.layout-special-box.special-dense-2 .card-special-block p { font-size: clamp(5px, 2.3cqw, 7px) !important; line-height: 1.16 !important; }
+.layout-special-box.special-dense-3 .card-special-block p,
+.layout-special-box.special-dense-4 .card-special-block p { font-size: clamp(4.5px, 2.1cqw, 6px) !important; line-height: 1.1 !important; }
+.layout-defensive-box .area-mini-row { min-height: 0 !important; overflow: hidden !important; }
+.layout-defensive-box .area-mini { transform-origin: top left !important; }
+.layout-controls { gap: 10px !important; }
+.layout-help { color: rgba(255,255,255,.72); font-size: 12px; }
+.layout-side-controls { border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 8px; background: rgba(255,255,255,.03); }
+.layout-side-controls h4 { margin: 0 0 8px 0; }
+.layout-control-row { display: grid; grid-template-columns: 108px repeat(4, minmax(56px, 1fr)); gap: 6px; align-items: center; margin-bottom: 6px; }
+.layout-control-row strong { font-size: 12px; }
+.layout-control-row label { display: grid; grid-template-columns: 18px 1fr; gap: 4px; align-items: center; font-size: 11px; margin: 0; }
+.layout-control-row input { width: 100%; min-width: 0; padding: 4px 5px; }
