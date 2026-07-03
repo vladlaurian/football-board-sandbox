@@ -3285,25 +3285,49 @@ select option {
 }
 
 
-
-
-/* USER FIX: align FRONT bottom stats with BACK bottom section.
-   No absolute positioning on stats, no transform outside the card. */
-.card-preview.card-front .card-content {
-  display: grid !important;
-  grid-template-rows: auto 1fr auto !important;
-  height: 100% !important;
-}
-
-.card-preview.card-front .front-player-wrap {
-  align-self: center !important;
-}
-
+/* USER FIX: front card bottom stats should sit at the same visual level
+   as the anchored lower section on the back card. */
 .card-preview.card-front .front-summary-fields {
-  align-self: end !important;
-  margin-top: 0 !important;
-  margin-bottom: 12px !important;
+  margin-top: auto !important;
+  margin-bottom: 8px !important;
+  transform: translateY(8px) !important;
+}
+
+
+/* USER FIX: REAL front-bottom alignment.
+   Root cause: on the FRONT card, .card-preview-content-layer had no explicit height.
+   So .card-front-inner height:100% resolved against auto height, and margin-top:auto
+   could not push the stats to the bottom area.
+   Fix: make the front content layer fill the card, then reserve the same bottom zone
+   used by the BACK card bottom section. */
+.card-preview.card-front .card-preview-content-layer {
+  height: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.card-preview.card-front .card-preview-content-layer > .card-front-inner {
+  height: 100% !important;
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Put the front stats in the same lower zone as Defensive Area / Special Ability on the back. */
+.card-preview.card-front .front-summary-fields {
+  margin-top: auto !important;
+  margin-bottom: 0 !important;
+  padding-top: 6px !important;
+  flex: 0 0 28% !important;
+  max-height: none !important;
+  width: 100% !important;
   transform: none !important;
-  position: relative !important;
-  z-index: 5 !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-content: start !important;
+  align-items: start !important;
+  gap: 6px !important;
+  overflow: hidden !important;
 }
