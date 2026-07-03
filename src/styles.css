@@ -3283,3 +3283,12 @@ select option {
 .card-preview.theme-custom.card-back .card-preview-content-layer > .card-bottom-third {
   transform: translateY(-8px) !important;
 }
+
+
+/* USER FIX: front card bottom stats should sit at the same visual level
+   as the anchored lower section on the back card. */
+.card-preview.card-front .front-summary-fields {
+  margin-top: auto !important;
+  margin-bottom: 8px !important;
+  transform: translateY(8px) !important;
+}
