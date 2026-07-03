@@ -410,6 +410,26 @@ function areaHasCell(area, dx, dy) {
   return (area || []).some(cell => Number(cell.dx) === dx && Number(cell.dy) === dy);
 }
 
+function AreaMiniPreview({ area = [] }) {
+  return (
+    <div className="area-mini">
+      {Array.from({ length: 121 }, (_, i) => {
+        const dx = (i % 11) - 5;
+        const dy = Math.floor(i / 11) - 5;
+        const center = dx === 0 && dy === 0;
+        const active = areaHasCell(area, dx, dy);
+        return (
+          <span
+            key={`${dx}_${dy}`}
+            className={`${center ? "player" : ""} ${active ? "active" : ""}`}
+            aria-hidden="true"
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
