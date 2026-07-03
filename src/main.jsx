@@ -1908,9 +1908,26 @@ function App() {
     };
     return (
       <div className={`card-preview ${shownSide === "front" ? "card-front" : "card-back"} ${themeClass} ${team}`} style={previewStyle}>
-        {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} alt="" /> : null}
-        {flippable && <button className="card-flip-btn card-preview-flip-btn" title={shownSide === "front" ? "Show card back" : "Show card front"} onClick={(e) => { e.stopPropagation(); setCurrentSide(v => v === "front" ? "back" : "front"); }}>{shownSide === "front" ? "↻" : "↺"}</button>}
-        {shownSide === "front" ? CardFront({ card }) : CardBack({ card, compact })}
+        <div className="card-preview-art-layer" aria-hidden="true">
+          {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} alt="" /> : null}
+        </div>
+        <div className="card-preview-content-layer">
+          {shownSide === "front" ? CardFront({ card }) : CardBack({ card, compact })}
+        </div>
+        {flippable && (
+          <button
+            type="button"
+            className="card-flip-btn card-preview-flip-btn"
+            title={shownSide === "front" ? "Show card back" : "Show card front"}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setCurrentSide(v => v === "front" ? "back" : "front");
+            }}
+          >
+            {shownSide === "front" ? "↻" : "↺"}
+          </button>
+        )}
       </div>
     );
   }
@@ -1995,7 +2012,7 @@ function App() {
   }
 
   function AreaMiniPreview({ area = [] }) {
-    return <div className="area-mini">{Array.from({ length: 121 }, (_, i) => { const dx = (i % 11) - 5; const dy = Math.floor(i / 11) - 5; const center = dx === 0 && dy === 0; return <span key={i} className={`${center ? "player" : ""} ${areaHasCell(area, dx, dy) ? "active" : ""}`}>{center ? "•" : ""}</span>; })}</div>;
+    return <div className="area-mini">{Array.from({ length: 121 }, (_, i) => { const dx = (i % 11) - 5; const dy = Math.floor(i / 11) - 5; const center = dx === 0 && dy === 0; return <span key={i} className={`${center ? "player" : ""} ${areaHasCell(area, dx, dy) ? "active" : ""}`}>{center ? "P" : ""}</span>; })}</div>;
   }
 
   function AttributeListEditor({ card, section, title }) {

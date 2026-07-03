@@ -3116,3 +3116,72 @@ select option {
 .card-preview.theme-custom > :not(.card-custom-graphic):not(.card-flip-btn):not(.card-preview-flip-btn) {
   z-index: 1 !important;
 }
+
+
+/* USER FIX FINAL: CardPreview layers for imported artwork; flip stays clickable in Inspector */
+.card-preview {
+  position: relative !important;
+  isolation: isolate !important;
+}
+.card-preview-art-layer {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+  border-radius: inherit !important;
+  overflow: hidden !important;
+}
+.card-preview-art-layer .card-custom-graphic,
+.card-preview .card-custom-graphic {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+  border-radius: inherit !important;
+}
+.card-preview-content-layer {
+  position: relative !important;
+  z-index: 1 !important;
+  pointer-events: none !important;
+}
+.card-preview .card-preview-flip-btn,
+.card-preview .card-flip-btn {
+  position: absolute !important;
+  right: 10px !important;
+  top: 10px !important;
+  z-index: 10000 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* USER FIX FINAL: on card graphics only, center player marker is a P, not a square */
+.card-preview .card-area-block .area-mini span.player {
+  width: 8px !important;
+  height: 8px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: var(--card-area-color, #fff) !important;
+  font-size: 8px !important;
+  line-height: 8px !important;
+  font-weight: 1000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+/* USER FIX FINAL: imported/custom artwork must not cancel Defensive Area card grid colors */
+.card-preview.theme-custom .card-area-block .area-mini span:not(.active):not(.player),
+.card-preview .card-area-block .area-mini span:not(.active):not(.player) {
+  background: color-mix(in srgb, var(--card-area-color, #fff) 42%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--card-area-color, #fff) 55%, transparent) !important;
+}
+.card-preview.theme-custom .card-area-block .area-mini span.active,
+.card-preview .card-area-block .area-mini span.active {
+  background: var(--card-area-active-color, rgba(80,190,120,.95)) !important;
+}
