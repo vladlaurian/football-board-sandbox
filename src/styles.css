@@ -3331,3 +3331,17 @@ select option {
   gap: 6px !important;
   overflow: hidden !important;
 }
+
+
+/* USER FIX: align the BOTTOM edge of front stats with the BOTTOM edge
+   of the back lower section, not the top edge. */
+.card-preview.card-front .front-summary-fields {
+  flex: 0 0 28% !important;
+  margin-top: auto !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 12px !important;
+  align-content: end !important;
+  align-items: end !important;
+  transform: none !important;
+}
