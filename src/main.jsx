@@ -1704,6 +1704,27 @@ function App() {
     );
   }
 
+  function cardTopNameFontSize(name = "") {
+    const len = String(name || "").trim().length;
+    if (len <= 9) return 22;
+    if (len <= 13) return 18;
+    if (len <= 17) return 15;
+    if (len <= 22) return 12;
+    return 10;
+  }
+
+  function CardIdentityStrip({ card }) {
+    const safeName = String(card?.name || "Player");
+    const safePosition = String(card?.position || "").toUpperCase();
+    return (
+      <div className="card-artwork card-top-strip">
+        {card?.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : null}
+        <strong className="card-top-name" style={{ fontSize: `${cardTopNameFontSize(safeName)}px` }}>{safeName}</strong>
+        <span className="card-top-position">{safePosition}</span>
+      </div>
+    );
+  }
+
   function CardBack({ card, compact = false }) {
     const visibleAttributes = (card.passiveAttributes || []).filter(a => a.showOnCard !== false);
     const visibleBonuses = (card.bonuses || []).filter(a => a.showOnCard !== false);
@@ -1711,7 +1732,7 @@ function App() {
     const density = visibleCount > 22 ? "dense-3" : visibleCount > 17 ? "dense-2" : visibleCount > 12 ? "dense-1" : "normal";
     return (
       <>
-        <div className="card-artwork card-top-strip">{card.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : <><span className="card-top-position">{card.position}</span><strong className="card-top-name">{card.name}</strong></>}</div>
+        <CardIdentityStrip card={card} />
         <div className="card-head"><strong>{card.name}</strong></div>
         {!compact && (
           <>
@@ -1742,7 +1763,7 @@ function App() {
     const fields = normalizeFrontFields(card.frontFields || card.frontSummary);
     return (
       <div className="card-front-inner">
-        <div className="front-artwork card-top-strip">{card.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : <><span className="card-top-position">{card.position}</span><strong className="card-top-name">{card.name}</strong></>}</div>
+        <CardIdentityStrip card={card} />
         <div className={`front-summary-fields ${fields.length > 4 ? "front-dense-3" : fields.length > 2 ? "front-dense-2" : "front-normal"}`}>
           {fields.map(field => (
             <div className="front-summary-row" key={field.id}>

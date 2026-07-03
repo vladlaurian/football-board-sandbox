@@ -2358,3 +2358,111 @@ select option {
 .card-special-block.special-dense-3 p { font-size: 6.2px !important; line-height: 1.02 !important; }
 .card-special-block.special-dense-2 b,
 .card-special-block.special-dense-3 b { margin-bottom: 2px !important; }
+
+
+/* USER FIX: identical shared header, fitted name, equal bottom columns, readable special text */
+.card-preview.card-front,
+.card-preview.card-back {
+  container-type: inline-size;
+}
+.card-preview .card-top-strip,
+.card-preview.card-front .card-top-strip,
+.card-preview.card-back .card-top-strip,
+.card-back .card-artwork.card-top-strip,
+.card-front .card-artwork.card-top-strip {
+  height: 50px !important;
+  min-height: 50px !important;
+  flex: 0 0 50px !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 34px !important;
+  grid-template-areas: "name pos" !important;
+  align-items: center !important;
+  column-gap: 8px !important;
+  padding: 0 10px !important;
+  box-sizing: border-box !important;
+  text-align: left !important;
+  overflow: hidden !important;
+}
+.card-preview .card-top-strip img {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  z-index: 0 !important;
+  opacity: .92 !important;
+}
+.card-preview .card-top-strip .card-top-name,
+.card-preview .card-top-name {
+  grid-area: name !important;
+  position: relative !important;
+  z-index: 1 !important;
+  display: block !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+  line-height: 1.05 !important;
+  font-weight: 900 !important;
+  letter-spacing: .005em !important;
+  text-align: left !important;
+}
+.card-preview .card-top-strip .card-top-position,
+.card-preview .card-top-position {
+  grid-area: pos !important;
+  position: relative !important;
+  z-index: 1 !important;
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  border-radius: 9px !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+  justify-self: end !important;
+}
+.card-front .front-artwork.card-top-strip,
+.card-back .card-artwork.card-top-strip {
+  grid-template-columns: minmax(0, 1fr) 34px !important;
+}
+.card-bottom-third {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  align-items: stretch !important;
+  gap: 8px !important;
+}
+.card-special-block,
+.card-area-block {
+  min-width: 0 !important;
+  width: 100% !important;
+  overflow: hidden !important;
+}
+.card-special-block b,
+.card-area-block .area-mini-title {
+  font-size: 10.5px !important;
+  line-height: 1.24 !important;
+  margin: 0 0 3px 0 !important;
+  padding: 0 !important;
+  display: block !important;
+}
+.card-special-block p {
+  font-size: 7.6px !important;
+  line-height: 1.32 !important;
+  max-height: calc(100% - 17px) !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+  word-break: normal !important;
+}
+.card-special-block.special-dense-1 p { font-size: 7.1px !important; line-height: 1.30 !important; }
+.card-special-block.special-dense-2 p { font-size: 6.5px !important; line-height: 1.28 !important; }
+.card-special-block.special-dense-3 p { font-size: 5.9px !important; line-height: 1.26 !important; }
