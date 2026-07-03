@@ -2071,3 +2071,76 @@ select option {
   line-height: 1.05 !important;
   -webkit-line-clamp: 6 !important;
 }
+
+/* Refinement pass: top identity left/right, better text leading, more stats room */
+.card-top-strip {
+  grid-template-columns: minmax(0, 1fr) 36px !important;
+  grid-template-areas: "name pos" !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  flex-basis: 46px !important;
+  gap: 8px !important;
+  padding: 0 9px !important;
+}
+.card-top-name {
+  grid-area: name !important;
+  font-size: clamp(9px, 2.1vw, 14px) !important;
+  line-height: 1 !important;
+  letter-spacing: .01em !important;
+  text-align: left !important;
+}
+.card-top-position {
+  grid-area: pos !important;
+  width: 34px !important;
+  min-width: 34px !important;
+  max-width: 34px !important;
+  height: 22px !important;
+  font-size: clamp(7px, 1.2vw, 10px) !important;
+  line-height: 1 !important;
+  justify-self: end !important;
+  overflow: hidden !important;
+}
+.card-front .front-artwork span,
+.card-back .card-artwork span {
+  font-size: inherit !important;
+}
+.card-back .card-stats-grid {
+  flex: 1 1 auto !important;
+  margin: 5px 0 0 !important;
+  gap: 9px !important;
+}
+.card-section b {
+  font-size: 12px !important;
+  line-height: 1.18 !important;
+  margin-bottom: 4px !important;
+}
+.card-section small {
+  font-size: 10px !important;
+  line-height: 1.22 !important;
+  min-height: 12px !important;
+  align-items: center !important;
+}
+.card-section small em {
+  line-height: 1.22 !important;
+}
+.card-stats-grid.dense-1 .card-section small { font-size: 9px !important; min-height: 10.8px !important; line-height: 1.16 !important; }
+.card-stats-grid.dense-2 .card-section small { font-size: 8px !important; min-height: 9.8px !important; line-height: 1.12 !important; }
+.card-stats-grid.dense-3 .card-section small { font-size: 7px !important; min-height: 8.8px !important; line-height: 1.08 !important; }
+.card-stats-grid.dense-1 .card-section b { font-size: 11px !important; line-height: 1.16 !important; }
+.card-stats-grid.dense-2 .card-section b,
+.card-stats-grid.dense-3 .card-section b { font-size: 9.5px !important; line-height: 1.12 !important; }
+.card-bottom-third {
+  flex: 0 0 22% !important;
+  padding-top: 1px !important;
+  gap: 7px !important;
+}
+.card-special-block p {
+  font-size: 8px !important;
+  line-height: 1.22 !important;
+  -webkit-line-clamp: 5 !important;
+}
+.card-area-block .area-mini-title,
+.card-special-block b {
+  line-height: 1.16 !important;
+  margin-bottom: 3px !important;
+}
