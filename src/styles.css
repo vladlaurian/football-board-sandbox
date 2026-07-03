@@ -3185,3 +3185,48 @@ select option {
 .card-preview .card-area-block .area-mini span.active {
   background: var(--card-area-active-color, rgba(80,190,120,.95)) !important;
 }
+
+
+/* USER FIX: move Defensive Area + Special Ability lower again */
+.card-back .card-bottom-third,
+.card-preview.card-back .card-bottom-third {
+  margin-top: auto !important;
+  flex: 0 0 28% !important;
+  padding-top: 6px !important;
+  align-self: stretch !important;
+}
+
+/* USER FIX: card grid center marker is a filled grid-color square, not text */
+.card-preview .card-area-block .area-mini span.player {
+  width: 4.5px !important;
+  height: 4.5px !important;
+  min-width: 4.5px !important;
+  min-height: 4.5px !important;
+  border-radius: 1.3px !important;
+  background: var(--card-area-color, #fff) !important;
+  border: 1px solid color-mix(in srgb, var(--card-area-color, #fff) 70%, transparent) !important;
+  box-shadow: none !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+
+/* USER FIX: keep custom/imported graphics using the same filled center square */
+.card-preview.theme-custom .card-area-block .area-mini span.player {
+  background: var(--card-area-color, #fff) !important;
+  border: 1px solid color-mix(in srgb, var(--card-area-color, #fff) 70%, transparent) !important;
+  color: transparent !important;
+}
+
+/* USER FIX: Defensive Area color buttons in editor closer together */
+.card-edit-section-title {
+  justify-content: flex-start !important;
+  gap: 6px !important;
+}
+.card-edit-section-title .card-color-picker {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+.card-edit-section-title .card-color-picker + .card-color-picker {
+  margin-left: 2px !important;
+}
