@@ -208,6 +208,7 @@ const CARD_TEXT_COLOR_DEFAULTS = {
   defensiveArea: "#ffffff",
   defensiveAreaActive: "#50be78",
   specialAbility: "#ffffff",
+  layoutZones: "#ffffff",
 };
 const COLOR_SWATCHES = ["#ffffff", "#f8fafc", "#111827", "#ef4444", "#f97316", "#facc15", "#22c55e", "#14b8a6", "#38bdf8", "#3b82f6", "#8b5cf6", "#ec4899"];
 const CARD_FRONT_FIELDS = ["DEF", "ATT"];
@@ -1959,6 +1960,7 @@ function App() {
       "--card-area-color": safeColor(colors.defensiveArea),
       "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78"),
       "--card-special-color": safeColor(colors.specialAbility),
+      "--card-layout-zone-color": safeColor(colors.layoutZones),
     };
     return (
       <div className={`card-preview ${shownSide === "front" ? "card-front" : "card-back"} ${themeClass} ${team}`} style={previewStyle}>
@@ -2017,9 +2019,26 @@ function App() {
 
   function CardVisualCanvas({ card, side, showZones = false }) {
     const canvasRef = useRef(null);
-    const [activeZoneEdit, setActiveZoneEdit] = useState(null);
+    const liveCoordinatesRef = useRef(null);
     const layout = normalizeCardVisualLayout(card?.visualLayout || card?.layout);
     const sideLayout = layout[side] || layout.back || {};
+
+    const formatBoxCoordinates = box => `X ${Math.round(box.x * 10) / 10} · Y ${Math.round(box.y * 10) / 10}<br />W ${Math.round(box.w * 10) / 10} · H ${Math.round(box.h * 10) / 10}`;
+
+    const showLiveCoordinates = box => {
+      const el = liveCoordinatesRef.current;
+      if (!el) return;
+      el.innerHTML = formatBoxCoordinates(box);
+      el.style.left = `${Math.min(92, Math.max(8, box.x + box.w / 2))}%`;
+      el.style.top = `${Math.min(94, Math.max(2, box.y + box.h + 2))}%`;
+      el.classList.add("is-visible");
+    };
+
+    const hideLiveCoordinates = () => {
+      const el = liveCoordinatesRef.current;
+      if (!el) return;
+      el.classList.remove("is-visible");
+    };
 
     const beginZoneEdit = (event, zoneKey, box, mode = "move", corner = "br") => {
       if (!showZones || !card?.id) return;
@@ -2033,7 +2052,7 @@ function App() {
       const startBox = { ...box };
       const pointerId = event.pointerId;
       try { event.currentTarget.setPointerCapture?.(pointerId); } catch (_) {}
-      setActiveZoneEdit({ zoneKey, mode, box: startBox });
+      showLiveCoordinates(startBox);
 
       const toPctX = px => (px / Math.max(rect.width, 1)) * 100;
       const toPctY = px => (px / Math.max(rect.height, 1)) * 100;
@@ -2068,12 +2087,12 @@ function App() {
         };
         bounded.w = Math.min(bounded.w, 100 - bounded.x);
         bounded.h = Math.min(bounded.h, 100 - bounded.y);
-        setActiveZoneEdit({ zoneKey, mode, box: bounded });
+        showLiveCoordinates(bounded);
         updateCardVisualLayoutBox(card.id, side, zoneKey, bounded);
       };
 
-      const onUp = upEvent => {
-        setActiveZoneEdit(null);
+      const onUp = () => {
+        hideLiveCoordinates();
         try { event.currentTarget.releasePointerCapture?.(pointerId); } catch (_) {}
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
@@ -2101,12 +2120,6 @@ function App() {
             }}
           >
             {showZones ? <span>{ZONE_LABELS[key] || key}</span> : null}
-            {showZones && activeZoneEdit?.zoneKey === key ? (
-              <b className="zone-live-coordinates">
-                X {Math.round(activeZoneEdit.box.x * 10) / 10} · Y {Math.round(activeZoneEdit.box.y * 10) / 10}<br />
-                W {Math.round(activeZoneEdit.box.w * 10) / 10} · H {Math.round(activeZoneEdit.box.h * 10) / 10}
-              </b>
-            ) : null}
             {showZones ? (
               <>
                 <i className="zone-resize-handle zone-resize-tl" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "tl")} />
@@ -2117,18 +2130,7 @@ function App() {
             ) : null}
           </div>
         ))}
-        {showZones && activeZoneEdit ? (
-          <b
-            className="zone-live-coordinates zone-live-coordinates-global"
-            style={{
-              left: `${Math.min(92, Math.max(8, activeZoneEdit.box.x + activeZoneEdit.box.w / 2))}%`,
-              top: `${Math.min(94, Math.max(2, activeZoneEdit.box.y + activeZoneEdit.box.h + 2))}%`,
-            }}
-          >
-            X {Math.round(activeZoneEdit.box.x * 10) / 10} · Y {Math.round(activeZoneEdit.box.y * 10) / 10}<br />
-            W {Math.round(activeZoneEdit.box.w * 10) / 10} · H {Math.round(activeZoneEdit.box.h * 10) / 10}
-          </b>
-        ) : null}
+        {showZones ? <b ref={liveCoordinatesRef} className="zone-live-coordinates zone-live-coordinates-global" /> : null}
       </div>
     );
   }
@@ -2346,24 +2348,13 @@ function App() {
     }));
   }
 
-  function resetCardVisualLayout(cardId) {
-    if (!cardId) return;
-    updateCardState(prev => ({
-      ...prev,
-      cards: prev.cards.map(card => card.id === cardId ? {
-        ...card,
-        visualLayout: JSON.parse(JSON.stringify(DEFAULT_CARD_VISUAL_LAYOUT)),
-        updatedAt: new Date().toISOString(),
-      } : card),
-    }));
-  }
 
   function CardLayoutEditor({ card }) {
     return (
       <div className="card-edit-section card-layout-editor">
         <div className="card-edit-section-title">
           <strong>Layout Zones</strong>
-          <button type="button" onClick={() => resetCardVisualLayout(card.id)}>Reset Layout</button>
+          <ColorPicker card={card} colorKey="layoutZones" label="Color" />
         </div>
       </div>
     );

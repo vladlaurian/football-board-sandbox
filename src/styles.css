@@ -3592,3 +3592,41 @@ select option {
 .card-visual-zone > .zone-live-coordinates {
   display: none !important;
 }
+
+/* Current request: Layout Zones color button controls the visible editor zone color. */
+.card-visual-zone.show-zone {
+  border-color: color-mix(in srgb, var(--card-layout-zone-color, #ffffff) 72%, transparent) !important;
+  color: var(--card-layout-zone-color, #ffffff) !important;
+}
+.card-visual-zone.show-zone span {
+  color: var(--card-layout-zone-color, #ffffff) !important;
+}
+.zone-resize-handle {
+  border-color: var(--card-layout-zone-color, #ffffff) !important;
+}
+
+/* Current request: live coordinates stay visible for the entire drag/resize action and hide on release. */
+.zone-live-coordinates-global {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+.zone-live-coordinates-global.is-visible {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Current request: keep card previews visible while scrolling through lower editor menus. */
+.card-editor-previews {
+  position: sticky !important;
+  top: 10px !important;
+  z-index: 5 !important;
+  align-self: start !important;
+}
+
+@media (max-width: 900px) {
+  .card-editor-previews {
+    position: static !important;
+  }
+}
