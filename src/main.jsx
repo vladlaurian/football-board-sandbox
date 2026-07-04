@@ -1934,7 +1934,7 @@ function App() {
     }));
   }
 
-  function CardPreview({ card, compact = false, team = "neutral", side = "back", flippable = false }) {
+  function CardPreview({ card, compact = false, team = "neutral", side = "back", flippable = false, showLayoutZones = false }) {
     const [currentSide, setCurrentSide] = useState(side);
     useEffect(() => setCurrentSide(side), [side, card?.id]);
     if (!card) return <div className="card-preview empty">No card</div>;
@@ -1958,7 +1958,7 @@ function App() {
           {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} alt="" /> : null}
         </div>
         <div className="card-preview-content-layer">
-          <CardVisualCanvas card={card} side={shownSide} editable={editableLayout} />
+          <CardVisualCanvas card={card} side={shownSide} showZones={showLayoutZones} />
         </div>
         {flippable && (
           <button
@@ -2007,7 +2007,7 @@ function App() {
     );
   }
 
-  function CardVisualCanvas({ card, side, editable = false }) {
+  function CardVisualCanvas({ card, side, showZones = false }) {
     const layout = normalizeCardVisualLayout(card?.visualLayout || card?.layout);
     const sideLayout = layout[side] || layout.back || {};
     return (
@@ -2015,7 +2015,7 @@ function App() {
         {Object.entries(sideLayout).map(([key, box]) => (
           <div
             key={`${side}_${key}`}
-            className={`card-visual-zone card-visual-zone-${key} ${editable ? "is-editable" : ""}`}
+            className={`card-visual-zone card-visual-zone-${key} ${showZones ? "show-zone" : ""}`}
             data-zone={key}
             style={{
               left: `${box.x}%`,
@@ -2024,7 +2024,7 @@ function App() {
               height: `${box.h}%`,
             }}
           >
-            {editable ? <span>{ZONE_LABELS[key] || key}</span> : null}
+            {showZones ? <span>{ZONE_LABELS[key] || key}</span> : null}
           </div>
         ))}
       </div>
@@ -2261,25 +2261,7 @@ function App() {
   }
 
   function LayoutArrowButton({ children, title, onClick }) {
-    return (
-      <button
-        type="button"
-        className="layout-arrow-btn"
-        title={title}
-        onClick={onClick}
-      >
-        {children}
-      </button>
-    );
-  }
-
-  function nudgeLayoutBox(cardId, side, zoneKey, box, patch) {
-    updateCardVisualLayoutBox(cardId, side, zoneKey, {
-      x: patch.x ?? box.x,
-      y: patch.y ?? box.y,
-      w: patch.w ?? box.w,
-      h: patch.h ?? box.h,
-    });
+    return <button type="button" className="layout-arrow-btn" title={title} onClick={onClick}>{children}</button>;
   }
 
   function CardLayoutEditor({ card }) {
@@ -2288,41 +2270,38 @@ function App() {
       ["front", "Față"],
       ["back", "Verso"],
     ];
-    const moveStep = 1;
-    const sizeStep = 1;
-
+    const move = (side, zoneKey, box, dx, dy) => updateCardVisualLayoutBox(card.id, side, zoneKey, { x: box.x + dx, y: box.y + dy });
+    const resize = (side, zoneKey, box, dw, dh) => updateCardVisualLayoutBox(card.id, side, zoneKey, { w: box.w + dw, h: box.h + dh });
     return (
       <div className="card-edit-section card-layout-editor">
         <div className="card-edit-section-title">
           <strong>Layout Zones</strong>
           <button type="button" onClick={() => resetCardVisualLayout(card.id)}>Reset Layout</button>
         </div>
-        <p className="layout-editor-note">Zonele se mută și se redimensionează din săgeți. Chenarele apar doar în editor.</p>
+        <p className="layout-editor-note">Zonele se mută din săgeți. Chenarele apar doar în editor.</p>
         {sides.map(([side, label]) => (
           <details key={side} open className="layout-side-editor">
             <summary>{label}</summary>
-            <div className="layout-zone-list">
+            <div className="layout-zone-arrow-list">
               {Object.entries(layout[side]).map(([zoneKey, box]) => (
                 <div className="layout-zone-row arrow-mode" key={`${side}_${zoneKey}`}>
                   <strong>{ZONE_LABELS[zoneKey] || zoneKey}</strong>
-
-                  <div className="layout-arrow-group" aria-label="Poziție">
+                  <div className="layout-arrow-group">
                     <span>Poziție</span>
                     <div className="layout-cross">
-                      <LayoutArrowButton title="Mută sus" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { y: box.y - moveStep })}>↑</LayoutArrowButton>
-                      <LayoutArrowButton title="Mută stânga" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { x: box.x - moveStep })}>←</LayoutArrowButton>
-                      <LayoutArrowButton title="Mută dreapta" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { x: box.x + moveStep })}>→</LayoutArrowButton>
-                      <LayoutArrowButton title="Mută jos" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { y: box.y + moveStep })}>↓</LayoutArrowButton>
+                      <LayoutArrowButton title="Sus" onClick={() => move(side, zoneKey, box, 0, -1)}>↑</LayoutArrowButton>
+                      <LayoutArrowButton title="Stânga" onClick={() => move(side, zoneKey, box, -1, 0)}>←</LayoutArrowButton>
+                      <LayoutArrowButton title="Dreapta" onClick={() => move(side, zoneKey, box, 1, 0)}>→</LayoutArrowButton>
+                      <LayoutArrowButton title="Jos" onClick={() => move(side, zoneKey, box, 0, 1)}>↓</LayoutArrowButton>
                     </div>
                   </div>
-
-                  <div className="layout-arrow-group" aria-label="Dimensiune">
+                  <div className="layout-arrow-group">
                     <span>Dimensiune</span>
                     <div className="layout-size-grid">
-                      <LayoutArrowButton title="Îngustează" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { w: box.w - sizeStep })}>W−</LayoutArrowButton>
-                      <LayoutArrowButton title="Lărgește" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { w: box.w + sizeStep })}>W+</LayoutArrowButton>
-                      <LayoutArrowButton title="Micșorează înălțimea" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { h: box.h - sizeStep })}>H−</LayoutArrowButton>
-                      <LayoutArrowButton title="Mărește înălțimea" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { h: box.h + sizeStep })}>H+</LayoutArrowButton>
+                      <LayoutArrowButton title="Mai îngust" onClick={() => resize(side, zoneKey, box, -1, 0)}>W−</LayoutArrowButton>
+                      <LayoutArrowButton title="Mai lat" onClick={() => resize(side, zoneKey, box, 1, 0)}>W+</LayoutArrowButton>
+                      <LayoutArrowButton title="Mai scund" onClick={() => resize(side, zoneKey, box, 0, -1)}>H−</LayoutArrowButton>
+                      <LayoutArrowButton title="Mai înalt" onClick={() => resize(side, zoneKey, box, 0, 1)}>H+</LayoutArrowButton>
                     </div>
                   </div>
                 </div>
@@ -2339,8 +2318,8 @@ function App() {
     return (
       <div className="card-editor">
         <div className="card-editor-previews">
-          <div><div className="card-preview-label">Front</div><CardPreview card={card} team="neutral" side="front" /></div>
-          <div><div className="card-preview-label">Back</div><CardPreview card={card} team="neutral" side="back" /></div>
+          <div><div className="card-preview-label">Front</div><CardPreview card={card} team="neutral" side="front" showLayoutZones={true} /></div>
+          <div><div className="card-preview-label">Back</div><CardPreview card={card} team="neutral" side="back" showLayoutZones={true} /></div>
         </div>
         {CardLayoutEditor({ card })}
         <div className="card-edit-section compact-color-row"><strong>Header</strong><ColorPicker card={card} colorKey="header" label="Color" /></div>
