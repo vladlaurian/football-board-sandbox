@@ -148,6 +148,43 @@ const TEAM_LAYOUT_POSITIONS = ["GK", "LWB", "LB", "CB", "RB", "RWB", "LM", "CDM"
 const TEAM_SLOT_POSITIONS = ["GK", "LB", "CB", "CB", "RB", "CDM", "CM", "CAM", "LW", "RW", "ST"];
 const CARD_THEMES = ["Style 1", "Style 2", "Style 3", "Style 4", "Style 5", "Style 6", "Style 7"];
 const CUSTOM_CARD_THEME = "Custom";
+
+const DEFAULT_CARD_VISUAL_LAYOUT = {
+  front: {
+    header: { x: 12, y: 5, w: 62, h: 10 },
+    position: { x: 76, y: 5, w: 12, h: 10 },
+    attributes: { x: 12, y: 72, w: 34, h: 20 },
+    bonuses: { x: 54, y: 72, w: 34, h: 20 },
+  },
+  back: {
+    header: { x: 12, y: 5, w: 62, h: 10 },
+    position: { x: 76, y: 5, w: 12, h: 10 },
+    attributes: { x: 12, y: 18, w: 34, h: 34 },
+    bonuses: { x: 54, y: 18, w: 34, h: 34 },
+    defensiveArea: { x: 12, y: 66, w: 34, h: 26 },
+    specialAbility: { x: 54, y: 66, w: 34, h: 26 },
+  },
+};
+
+function normalizeCardVisualLayout(layout) {
+  const source = layout && typeof layout === "object" ? layout : {};
+  const normalizeSide = (side) => {
+    const defaults = DEFAULT_CARD_VISUAL_LAYOUT[side] || {};
+    const current = source[side] && typeof source[side] === "object" ? source[side] : {};
+    return Object.fromEntries(Object.entries(defaults).map(([key, box]) => {
+      const raw = current[key] && typeof current[key] === "object" ? current[key] : {};
+      return [key, {
+        x: Number.isFinite(Number(raw.x)) ? Number(raw.x) : box.x,
+        y: Number.isFinite(Number(raw.y)) ? Number(raw.y) : box.y,
+        w: Number.isFinite(Number(raw.w)) ? Number(raw.w) : box.w,
+        h: Number.isFinite(Number(raw.h)) ? Number(raw.h) : box.h,
+      }];
+    }));
+  };
+  return { front: normalizeSide("front"), back: normalizeSide("back") };
+}
+
+
 const CARD_TEXT_COLOR_DEFAULTS = {
   header: "#ffffff",
   frontFields: "#ffffff",
@@ -1912,7 +1949,7 @@ function App() {
           {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} alt="" /> : null}
         </div>
         <div className="card-preview-content-layer">
-          {shownSide === "front" ? CardFront({ card }) : CardBack({ card, compact })}
+          <CardVisualCanvas card={card} side={shownSide} />
         </div>
         {flippable && (
           <button
@@ -1957,6 +1994,28 @@ function App() {
         {card?.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : null}
         <strong className="card-top-name" title={safeName}>{safeName}</strong>
         <span className="card-top-position">{safePosition}</span>
+      </div>
+    );
+  }
+
+  function CardVisualCanvas({ card, side }) {
+    const layout = normalizeCardVisualLayout(card?.visualLayout || card?.layout);
+    const sideLayout = layout[side] || layout.back || {};
+    return (
+      <div className="card-visual-canvas" data-card-side={side}>
+        {Object.entries(sideLayout).map(([key, box]) => (
+          <div
+            key={`${side}_${key}`}
+            className={`card-visual-zone card-visual-zone-${key}`}
+            data-zone={key}
+            style={{
+              left: `${box.x}%`,
+              top: `${box.y}%`,
+              width: `${box.w}%`,
+              height: `${box.h}%`,
+            }}
+          />
+        ))}
       </div>
     );
   }

@@ -3345,3 +3345,35 @@ select option {
   align-items: end !important;
   transform: none !important;
 }
+
+
+/* STEP 1 CARD VISUAL REFACTOR:
+   Card faces are now blank visual canvases.
+   Existing themes, borders and custom artwork remain unchanged.
+   Zones exist as invisible absolute boxes for the next editor steps. */
+.card-preview .card-preview-content-layer {
+  position: relative !important;
+  z-index: 2 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  pointer-events: none !important;
+}
+
+.card-visual-canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none !important;
+}
+
+.card-visual-zone {
+  position: absolute !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  background: transparent !important;
+  border: 0 !important;
+  color: transparent !important;
+  pointer-events: none !important;
+}
