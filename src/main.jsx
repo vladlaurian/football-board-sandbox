@@ -2231,33 +2231,31 @@ function App() {
 
   function FrontZoneFieldsEditor({ card, storageKey, title, colorKey, sourceSection }) {
     const fallback = storageKey === "frontAttributeFields" ? (card.frontAttributeFields || card.frontFields || card.frontSummary) : card[storageKey];
-    const fields = normalizeFrontFields(fallback);
+    const defaultLabel = storageKey === "frontAttributeFields" ? "Attributes" : "DEF";
+    const allFields = normalizeFrontFields(fallback);
+    const firstField = allFields[0] ? { ...allFields[0], label: allFields[0].label || defaultLabel } : makeFrontField(defaultLabel, 0);
+    const fields = [firstField];
     const sourceItems = (sourceSection === "bonuses" ? (card.bonuses || []) : (card.passiveAttributes || []))
       .map(item => ({ ...item, section: sourceSection === "bonuses" ? "bonuses" : "passiveAttributes", group: sourceSection === "bonuses" ? "Bonuses" : "Attributes" }));
-    const updateFields = updater => updateCardField(card.id, storageKey, updater(fields));
-    const moveField = (index, dir) => updateFields(list => { const next = [...list]; const to = index + dir; if (to < 0 || to >= next.length) return next; [next[index], next[to]] = [next[to], next[index]]; return next; });
-    const toggleSource = (fieldId, section, sourceId) => updateFields(list => list.map(field => {
-      if (field.id !== fieldId) return field;
+    const updateSingleField = updater => updateCardField(card.id, storageKey, [updater(firstField)]);
+    const toggleSource = (section, sourceId) => updateSingleField(field => {
       const exists = (field.sources || []).some(src => src.section === section && src.id === sourceId);
       return { ...field, sources: exists ? field.sources.filter(src => !(src.section === section && src.id === sourceId)) : [...(field.sources || []), { section, id: sourceId }] };
-    }));
+    });
     return (
       <div className="card-edit-section front-summary-editor">
-        <div className="card-edit-section-title"><strong>{title}</strong><ColorPicker card={card} colorKey={colorKey} label="Color" /><button onClick={() => updateFields(list => [...list, makeFrontField("New", list.length)])}>+ Add Field</button></div>
+        <div className="card-edit-section-title"><strong>{title}</strong><ColorPicker card={card} colorKey={colorKey} label="Color" /></div>
         <div className="front-formula-list">
-          {fields.map((field, index) => (
+          {fields.map(field => (
             <div className="front-formula-row" key={field.id}>
               <div className="front-formula-top">
-                <input value={field.label} onChange={e => updateFields(list => list.map(x => x.id === field.id ? { ...x, label: e.target.value.slice(0, 12) } : x))} />
+                <input value={field.label} onChange={e => updateSingleField(current => ({ ...current, label: e.target.value.slice(0, 12) }))} />
                 <strong>{computeFrontFieldValue(card, field)}</strong>
-                <button onClick={() => moveField(index, -1)}>↑</button>
-                <button onClick={() => moveField(index, 1)}>↓</button>
-                <button onClick={() => updateFields(list => list.filter(x => x.id !== field.id))}>×</button>
               </div>
               <div className="front-source-picker">
                 {sourceItems.map(item => {
                   const checked = (field.sources || []).some(src => src.section === item.section && src.id === item.id);
-                  return <label key={`${field.id}_${item.section}_${item.id}`} className={checked ? "source-on" : ""}><input type="checkbox" checked={checked} onChange={() => toggleSource(field.id, item.section, item.id)} /><span>{item.name}</span><em>{item.group}</em></label>;
+                  return <label key={`${field.id}_${item.section}_${item.id}`} className={checked ? "source-on" : ""}><input type="checkbox" checked={checked} onChange={() => toggleSource(item.section, item.id)} /><span>{item.name}</span><em>{item.group}</em></label>;
                 })}
               </div>
             </div>
