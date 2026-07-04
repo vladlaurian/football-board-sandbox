@@ -1958,7 +1958,7 @@ function App() {
           {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} alt="" /> : null}
         </div>
         <div className="card-preview-content-layer">
-          <CardVisualCanvas card={card} side={shownSide} />
+          <CardVisualCanvas card={card} side={shownSide} editable={editableLayout} />
         </div>
         {flippable && (
           <button
@@ -2007,7 +2007,7 @@ function App() {
     );
   }
 
-  function CardVisualCanvas({ card, side }) {
+  function CardVisualCanvas({ card, side, editable = false }) {
     const layout = normalizeCardVisualLayout(card?.visualLayout || card?.layout);
     const sideLayout = layout[side] || layout.back || {};
     return (
@@ -2015,7 +2015,7 @@ function App() {
         {Object.entries(sideLayout).map(([key, box]) => (
           <div
             key={`${side}_${key}`}
-            className={`card-visual-zone card-visual-zone-${key}`}
+            className={`card-visual-zone card-visual-zone-${key} ${editable ? "is-editable" : ""}`}
             data-zone={key}
             style={{
               left: `${box.x}%`,
@@ -2024,7 +2024,7 @@ function App() {
               height: `${box.h}%`,
             }}
           >
-            <span>{ZONE_LABELS[key] || key}</span>
+            {editable ? <span>{ZONE_LABELS[key] || key}</span> : null}
           </div>
         ))}
       </div>
@@ -2260,18 +2260,26 @@ function App() {
     }));
   }
 
-  function LayoutNumberInput({ value, onChange }) {
+  function LayoutArrowButton({ children, title, onClick }) {
     return (
-      <input
-        className="layout-number-input"
-        type="number"
-        step="1"
-        min="0"
-        max="100"
-        value={Math.round(Number(value) * 10) / 10}
-        onChange={e => onChange(Number(e.target.value))}
-      />
+      <button
+        type="button"
+        className="layout-arrow-btn"
+        title={title}
+        onClick={onClick}
+      >
+        {children}
+      </button>
     );
+  }
+
+  function nudgeLayoutBox(cardId, side, zoneKey, box, patch) {
+    updateCardVisualLayoutBox(cardId, side, zoneKey, {
+      x: patch.x ?? box.x,
+      y: patch.y ?? box.y,
+      w: patch.w ?? box.w,
+      h: patch.h ?? box.h,
+    });
   }
 
   function CardLayoutEditor({ card }) {
@@ -2280,25 +2288,43 @@ function App() {
       ["front", "Față"],
       ["back", "Verso"],
     ];
+    const moveStep = 1;
+    const sizeStep = 1;
+
     return (
       <div className="card-edit-section card-layout-editor">
         <div className="card-edit-section-title">
           <strong>Layout Zones</strong>
-          <button onClick={() => resetCardVisualLayout(card.id)}>Reset Layout</button>
+          <button type="button" onClick={() => resetCardVisualLayout(card.id)}>Reset Layout</button>
         </div>
-        <p className="layout-editor-note">Pasul 2: zonele sunt editabile numeric. Textul va fi legat în pasul următor.</p>
+        <p className="layout-editor-note">Zonele se mută și se redimensionează din săgeți. Chenarele apar doar în editor.</p>
         {sides.map(([side, label]) => (
           <details key={side} open className="layout-side-editor">
             <summary>{label}</summary>
-            <div className="layout-zone-table">
-              <div className="layout-zone-head"><span>Zone</span><span>X</span><span>Y</span><span>W</span><span>H</span></div>
+            <div className="layout-zone-list">
               {Object.entries(layout[side]).map(([zoneKey, box]) => (
-                <div className="layout-zone-row" key={`${side}_${zoneKey}`}>
+                <div className="layout-zone-row arrow-mode" key={`${side}_${zoneKey}`}>
                   <strong>{ZONE_LABELS[zoneKey] || zoneKey}</strong>
-                  <LayoutNumberInput value={box.x} onChange={value => updateCardVisualLayoutBox(card.id, side, zoneKey, { x: value })} />
-                  <LayoutNumberInput value={box.y} onChange={value => updateCardVisualLayoutBox(card.id, side, zoneKey, { y: value })} />
-                  <LayoutNumberInput value={box.w} onChange={value => updateCardVisualLayoutBox(card.id, side, zoneKey, { w: value })} />
-                  <LayoutNumberInput value={box.h} onChange={value => updateCardVisualLayoutBox(card.id, side, zoneKey, { h: value })} />
+
+                  <div className="layout-arrow-group" aria-label="Poziție">
+                    <span>Poziție</span>
+                    <div className="layout-cross">
+                      <LayoutArrowButton title="Mută sus" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { y: box.y - moveStep })}>↑</LayoutArrowButton>
+                      <LayoutArrowButton title="Mută stânga" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { x: box.x - moveStep })}>←</LayoutArrowButton>
+                      <LayoutArrowButton title="Mută dreapta" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { x: box.x + moveStep })}>→</LayoutArrowButton>
+                      <LayoutArrowButton title="Mută jos" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { y: box.y + moveStep })}>↓</LayoutArrowButton>
+                    </div>
+                  </div>
+
+                  <div className="layout-arrow-group" aria-label="Dimensiune">
+                    <span>Dimensiune</span>
+                    <div className="layout-size-grid">
+                      <LayoutArrowButton title="Îngustează" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { w: box.w - sizeStep })}>W−</LayoutArrowButton>
+                      <LayoutArrowButton title="Lărgește" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { w: box.w + sizeStep })}>W+</LayoutArrowButton>
+                      <LayoutArrowButton title="Micșorează înălțimea" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { h: box.h - sizeStep })}>H−</LayoutArrowButton>
+                      <LayoutArrowButton title="Mărește înălțimea" onClick={() => nudgeLayoutBox(card.id, side, zoneKey, box, { h: box.h + sizeStep })}>H+</LayoutArrowButton>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
