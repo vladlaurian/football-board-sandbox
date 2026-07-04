@@ -196,6 +196,10 @@ function normalizeCardVisualLayout(layout) {
 
 const CARD_TEXT_COLOR_DEFAULTS = {
   header: "#ffffff",
+  headerFront: "#ffffff",
+  positionFront: "#ffffff",
+  headerBack: "#ffffff",
+  positionBack: "#ffffff",
   frontFields: "#ffffff",
   attributes: "#ffffff",
   bonuses: "#ffffff",
@@ -2009,6 +2013,7 @@ function App() {
 
   function CardVisualCanvas({ card, side, showZones = false }) {
     const canvasRef = useRef(null);
+    const [activeZoneEdit, setActiveZoneEdit] = useState(null);
     const layout = normalizeCardVisualLayout(card?.visualLayout || card?.layout);
     const sideLayout = layout[side] || layout.back || {};
 
@@ -2024,6 +2029,7 @@ function App() {
       const startBox = { ...box };
       const pointerId = event.pointerId;
       try { event.currentTarget.setPointerCapture?.(pointerId); } catch (_) {}
+      setActiveZoneEdit({ zoneKey, mode, box: startBox });
 
       const toPctX = px => (px / Math.max(rect.width, 1)) * 100;
       const toPctY = px => (px / Math.max(rect.height, 1)) * 100;
@@ -2050,10 +2056,20 @@ function App() {
           }
         }
 
-        updateCardVisualLayoutBox(card.id, side, zoneKey, next);
+        const bounded = {
+          x: clamp(Number(next.x), 0, 100),
+          y: clamp(Number(next.y), 0, 100),
+          w: clamp(Number(next.w), 4, 100),
+          h: clamp(Number(next.h), 4, 100),
+        };
+        bounded.w = Math.min(bounded.w, 100 - bounded.x);
+        bounded.h = Math.min(bounded.h, 100 - bounded.y);
+        setActiveZoneEdit({ zoneKey, mode, box: bounded });
+        updateCardVisualLayoutBox(card.id, side, zoneKey, bounded);
       };
 
       const onUp = upEvent => {
+        setActiveZoneEdit(null);
         try { event.currentTarget.releasePointerCapture?.(pointerId); } catch (_) {}
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
@@ -2081,6 +2097,12 @@ function App() {
             }}
           >
             {showZones ? <span>{ZONE_LABELS[key] || key}</span> : null}
+            {showZones && activeZoneEdit?.zoneKey === key ? (
+              <b className="zone-live-coordinates">
+                X {Math.round(activeZoneEdit.box.x * 10) / 10} · Y {Math.round(activeZoneEdit.box.y * 10) / 10}<br />
+                W {Math.round(activeZoneEdit.box.w * 10) / 10} · H {Math.round(activeZoneEdit.box.h * 10) / 10}
+              </b>
+            ) : null}
             {showZones ? (
               <>
                 <i className="zone-resize-handle zone-resize-tl" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "tl")} />
@@ -2344,9 +2366,11 @@ function App() {
           <div><div className="card-preview-label">Back</div><CardPreview card={card} team="neutral" side="back" showLayoutZones={true} /></div>
         </div>
         {CardLayoutEditor({ card })}
-        <div className="card-edit-section compact-color-row"><strong>Header</strong><ColorPicker card={card} colorKey="header" label="Color" /></div>
+        <div className="card-edit-section compact-color-row"><strong>Header Front</strong><ColorPicker card={card} colorKey="headerFront" label="Color" /></div>
+        <label className="editor-position-row"><span className="editor-label-row"><span>Position Front</span><ColorPicker card={card} colorKey="positionFront" label="Color" /></span><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
+        <div className="card-edit-section compact-color-row"><strong>Header Back</strong><ColorPicker card={card} colorKey="headerBack" label="Color" /></div>
+        <label className="editor-position-row"><span className="editor-label-row"><span>Position Back</span><ColorPicker card={card} colorKey="positionBack" label="Color" /></span><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
-        <label>Position<select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
         <label className="special-ability-editor"><span className="editor-label-row"><span>Special Ability</span><ColorPicker card={card} colorKey="specialAbility" label="Color" /></span><textarea value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></label>
         {FrontSummaryEditor({ card })}
         {AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes" })}
