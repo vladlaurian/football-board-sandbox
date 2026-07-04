@@ -166,6 +166,15 @@ const DEFAULT_CARD_VISUAL_LAYOUT = {
   },
 };
 
+const ZONE_LABELS = {
+  header: "Header",
+  position: "Position",
+  attributes: "Attributes",
+  bonuses: "Bonuses",
+  defensiveArea: "Defensive Area",
+  specialAbility: "Special Ability",
+};
+
 function normalizeCardVisualLayout(layout) {
   const source = layout && typeof layout === "object" ? layout : {};
   const normalizeSide = (side) => {
@@ -2014,7 +2023,9 @@ function App() {
               width: `${box.w}%`,
               height: `${box.h}%`,
             }}
-          />
+          >
+            <span>{ZONE_LABELS[key] || key}</span>
+          </div>
         ))}
       </div>
     );
@@ -2205,6 +2216,98 @@ function App() {
     }));
   }
 
+
+  function updateCardVisualLayoutBox(cardId, side, zoneKey, patch) {
+    if (!cardId || !DEFAULT_CARD_VISUAL_LAYOUT[side]?.[zoneKey]) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => {
+        if (card.id !== cardId) return card;
+        const current = normalizeCardVisualLayout(card.visualLayout || card.layout);
+        const base = current[side][zoneKey] || DEFAULT_CARD_VISUAL_LAYOUT[side][zoneKey];
+        const nextBox = {
+          x: clamp(Number(patch.x ?? base.x), 0, 100),
+          y: clamp(Number(patch.y ?? base.y), 0, 100),
+          w: clamp(Number(patch.w ?? base.w), 4, 100),
+          h: clamp(Number(patch.h ?? base.h), 4, 100),
+        };
+        nextBox.w = Math.min(nextBox.w, 100 - nextBox.x);
+        nextBox.h = Math.min(nextBox.h, 100 - nextBox.y);
+        return {
+          ...card,
+          visualLayout: {
+            ...current,
+            [side]: {
+              ...current[side],
+              [zoneKey]: nextBox,
+            },
+          },
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    }));
+  }
+
+  function resetCardVisualLayout(cardId) {
+    if (!cardId) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? {
+        ...card,
+        visualLayout: JSON.parse(JSON.stringify(DEFAULT_CARD_VISUAL_LAYOUT)),
+        updatedAt: new Date().toISOString(),
+      } : card),
+    }));
+  }
+
+  function LayoutNumberInput({ value, onChange }) {
+    return (
+      <input
+        className="layout-number-input"
+        type="number"
+        step="1"
+        min="0"
+        max="100"
+        value={Math.round(Number(value) * 10) / 10}
+        onChange={e => onChange(Number(e.target.value))}
+      />
+    );
+  }
+
+  function CardLayoutEditor({ card }) {
+    const layout = normalizeCardVisualLayout(card.visualLayout || card.layout);
+    const sides = [
+      ["front", "Față"],
+      ["back", "Verso"],
+    ];
+    return (
+      <div className="card-edit-section card-layout-editor">
+        <div className="card-edit-section-title">
+          <strong>Layout Zones</strong>
+          <button onClick={() => resetCardVisualLayout(card.id)}>Reset Layout</button>
+        </div>
+        <p className="layout-editor-note">Pasul 2: zonele sunt editabile numeric. Textul va fi legat în pasul următor.</p>
+        {sides.map(([side, label]) => (
+          <details key={side} open className="layout-side-editor">
+            <summary>{label}</summary>
+            <div className="layout-zone-table">
+              <div className="layout-zone-head"><span>Zone</span><span>X</span><span>Y</span><span>W</span><span>H</span></div>
+              {Object.entries(layout[side]).map(([zoneKey, box]) => (
+                <div className="layout-zone-row" key={`${side}_${zoneKey}`}>
+                  <strong>{ZONE_LABELS[zoneKey] || zoneKey}</strong>
+                  <LayoutNumberInput value={box.x} onChange={value => updateCardVisualLayoutBox(card.id, side, zoneKey, { x: value })} />
+                  <LayoutNumberInput value={box.y} onChange={value => updateCardVisualLayoutBox(card.id, side, zoneKey, { y: value })} />
+                  <LayoutNumberInput value={box.w} onChange={value => updateCardVisualLayoutBox(card.id, side, zoneKey, { w: value })} />
+                  <LayoutNumberInput value={box.h} onChange={value => updateCardVisualLayoutBox(card.id, side, zoneKey, { h: value })} />
+                </div>
+              ))}
+            </div>
+          </details>
+        ))}
+      </div>
+    );
+  }
+
   function CardEditor({ card }) {
     if (!card) return <div className="empty-panel">Alege sau creează un card.</div>;
     return (
@@ -2213,6 +2316,7 @@ function App() {
           <div><div className="card-preview-label">Front</div><CardPreview card={card} team="neutral" side="front" /></div>
           <div><div className="card-preview-label">Back</div><CardPreview card={card} team="neutral" side="back" /></div>
         </div>
+        {CardLayoutEditor({ card })}
         <div className="card-edit-section compact-color-row"><strong>Header</strong><ColorPicker card={card} colorKey="header" label="Color" /></div>
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
         <label>Position<select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
