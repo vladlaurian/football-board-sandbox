@@ -3578,3 +3578,17 @@ select option {
   justify-content: space-between !important;
   gap: 8px !important;
 }
+
+/* Keep live coordinates visible during the entire drag/resize action, not only on hover/still cursor. */
+.zone-live-coordinates-global {
+  position: absolute !important;
+  transform: translateX(-50%) !important;
+  z-index: 999 !important;
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: none !important;
+}
+.card-visual-zone > .zone-live-coordinates {
+  display: none !important;
+}

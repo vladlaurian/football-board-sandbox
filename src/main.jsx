@@ -201,6 +201,8 @@ const CARD_TEXT_COLOR_DEFAULTS = {
   headerBack: "#ffffff",
   positionBack: "#ffffff",
   frontFields: "#ffffff",
+  attributesFront: "#ffffff",
+  bonusesFront: "#ffffff",
   attributes: "#ffffff",
   bonuses: "#ffffff",
   defensiveArea: "#ffffff",
@@ -1950,6 +1952,8 @@ function App() {
     const previewStyle = {
       "--card-header-color": safeColor(colors.header),
       "--card-front-color": safeColor(colors.frontFields),
+      "--card-attributes-front-color": safeColor(colors.attributesFront),
+      "--card-bonuses-front-color": safeColor(colors.bonusesFront),
       "--card-attributes-color": safeColor(colors.attributes),
       "--card-bonuses-color": safeColor(colors.bonuses),
       "--card-area-color": safeColor(colors.defensiveArea),
@@ -2113,6 +2117,18 @@ function App() {
             ) : null}
           </div>
         ))}
+        {showZones && activeZoneEdit ? (
+          <b
+            className="zone-live-coordinates zone-live-coordinates-global"
+            style={{
+              left: `${Math.min(92, Math.max(8, activeZoneEdit.box.x + activeZoneEdit.box.w / 2))}%`,
+              top: `${Math.min(94, Math.max(2, activeZoneEdit.box.y + activeZoneEdit.box.h + 2))}%`,
+            }}
+          >
+            X {Math.round(activeZoneEdit.box.x * 10) / 10} · Y {Math.round(activeZoneEdit.box.y * 10) / 10}<br />
+            W {Math.round(activeZoneEdit.box.w * 10) / 10} · H {Math.round(activeZoneEdit.box.h * 10) / 10}
+          </b>
+        ) : null}
       </div>
     );
   }
@@ -2213,13 +2229,12 @@ function App() {
     );
   }
 
-  function FrontSummaryEditor({ card }) {
-    const fields = normalizeFrontFields(card.frontFields || card.frontSummary);
-    const sourceItems = [
-      ...(card.passiveAttributes || []).map(item => ({ ...item, section: "passiveAttributes", group: "Attributes" })),
-      ...(card.bonuses || []).map(item => ({ ...item, section: "bonuses", group: "Bonuses" })),
-    ];
-    const updateFields = updater => updateCardField(card.id, "frontFields", updater(fields));
+  function FrontZoneFieldsEditor({ card, storageKey, title, colorKey, sourceSection }) {
+    const fallback = storageKey === "frontAttributeFields" ? (card.frontAttributeFields || card.frontFields || card.frontSummary) : card[storageKey];
+    const fields = normalizeFrontFields(fallback);
+    const sourceItems = (sourceSection === "bonuses" ? (card.bonuses || []) : (card.passiveAttributes || []))
+      .map(item => ({ ...item, section: sourceSection === "bonuses" ? "bonuses" : "passiveAttributes", group: sourceSection === "bonuses" ? "Bonuses" : "Attributes" }));
+    const updateFields = updater => updateCardField(card.id, storageKey, updater(fields));
     const moveField = (index, dir) => updateFields(list => { const next = [...list]; const to = index + dir; if (to < 0 || to >= next.length) return next; [next[index], next[to]] = [next[to], next[index]]; return next; });
     const toggleSource = (fieldId, section, sourceId) => updateFields(list => list.map(field => {
       if (field.id !== fieldId) return field;
@@ -2228,7 +2243,7 @@ function App() {
     }));
     return (
       <div className="card-edit-section front-summary-editor">
-        <div className="card-edit-section-title"><strong>Front Fields</strong><ColorPicker card={card} colorKey="frontFields" label="Color" /><button onClick={() => updateFields(list => [...list, makeFrontField("New", list.length)])}>+ Add Field</button></div>
+        <div className="card-edit-section-title"><strong>{title}</strong><ColorPicker card={card} colorKey={colorKey} label="Color" /><button onClick={() => updateFields(list => [...list, makeFrontField("New", list.length)])}>+ Add Field</button></div>
         <div className="front-formula-list">
           {fields.map((field, index) => (
             <div className="front-formula-row" key={field.id}>
@@ -2251,7 +2266,6 @@ function App() {
       </div>
     );
   }
-
 
   function updateCardTextColor(cardId, key, value) {
     if (!cardId) return;
@@ -2366,15 +2380,16 @@ function App() {
           <div><div className="card-preview-label">Back</div><CardPreview card={card} team="neutral" side="back" showLayoutZones={true} /></div>
         </div>
         {CardLayoutEditor({ card })}
+        <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
         <div className="card-edit-section compact-color-row"><strong>Header Front</strong><ColorPicker card={card} colorKey="headerFront" label="Color" /></div>
         <label className="editor-position-row"><span className="editor-label-row"><span>Position Front</span><ColorPicker card={card} colorKey="positionFront" label="Color" /></span><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
         <div className="card-edit-section compact-color-row"><strong>Header Back</strong><ColorPicker card={card} colorKey="headerBack" label="Color" /></div>
         <label className="editor-position-row"><span className="editor-label-row"><span>Position Back</span><ColorPicker card={card} colorKey="positionBack" label="Color" /></span><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
-        <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
-        <label className="special-ability-editor"><span className="editor-label-row"><span>Special Ability</span><ColorPicker card={card} colorKey="specialAbility" label="Color" /></span><textarea value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></label>
-        {FrontSummaryEditor({ card })}
+        {FrontZoneFieldsEditor({ card, storageKey: "frontAttributeFields", title: "Attributes Front", colorKey: "attributesFront", sourceSection: "passiveAttributes" })}
+        {FrontZoneFieldsEditor({ card, storageKey: "frontBonusFields", title: "Bonuses Front", colorKey: "bonusesFront", sourceSection: "bonuses" })}
         {AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes" })}
         {AttributeListEditor({ card, section: "bonuses", title: "Bonuses" })}
+        <label className="special-ability-editor"><span className="editor-label-row"><span>Special Ability</span><ColorPicker card={card} colorKey="specialAbility" label="Color" /></span><textarea value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></label>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Writing/Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /></div>{DefensiveAreaEditor({ card })}</div>
       </div>
     );
