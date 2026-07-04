@@ -3719,3 +3719,135 @@ select option {
     resize: vertical !important;
   }
 }
+
+
+/* Bind editor fields into visual layout zones. */
+.card-zone-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+}
+.card-visual-zone.show-zone > .card-zone-label {
+  position: absolute !important;
+  left: 3px !important;
+  top: 2px !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: calc(100% - 6px) !important;
+  padding: 1px 3px !important;
+  border-radius: 4px !important;
+  background: rgba(0,0,0,.45) !important;
+  color: rgba(255,255,255,.72) !important;
+  font-size: 5.5px !important;
+  line-height: 1 !important;
+  z-index: 4 !important;
+  pointer-events: none !important;
+}
+.card-zone-text {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 4px;
+  overflow: hidden;
+  text-shadow: 0 1px 2px rgba(0,0,0,.65);
+}
+.card-zone-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-weight: 900;
+  font-size: clamp(8px, 7.2cqw, 18px);
+  line-height: 1;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.card-zone-position {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 950;
+  font-size: clamp(9px, 8.2cqw, 20px);
+  line-height: 1;
+}
+.card-zone-formula {
+  display: grid;
+  grid-template-rows: 1fr 1.2fr;
+  align-items: center;
+  justify-items: center;
+  text-align: center;
+  gap: 1px;
+}
+.card-zone-formula span {
+  font-size: clamp(6px, 4.5cqw, 12px);
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.card-zone-formula strong {
+  font-size: clamp(12px, 11cqw, 30px);
+  line-height: .9;
+  font-weight: 950;
+}
+.card-zone-list {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  font-size: clamp(5px, 3.1cqw, 9px);
+  line-height: 1.05;
+}
+.card-zone-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+}
+.card-zone-list-row span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.card-zone-list-row strong {
+  font-weight: 950;
+}
+.card-zone-special {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: clamp(5px, 3.3cqw, 10px);
+  line-height: 1.12;
+  font-weight: 750;
+  white-space: pre-wrap;
+}
+.card-zone-defense {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+}
+.card-zone-defense .area-mini {
+  margin: 0 !important;
+  transform: scale(.72);
+  transform-origin: center center;
+}
+.card-zone-defense .area-mini span:not(.active):not(.player) {
+  background: rgba(255,255,255,.18) !important;
+}
+.card-zone-defense .area-mini span.active {
+  background: var(--card-area-active-color, #50be78) !important;
+}
+.card-zone-defense .area-mini span.player {
+  background: currentColor !important;
+}

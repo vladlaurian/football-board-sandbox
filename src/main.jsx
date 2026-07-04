@@ -1952,6 +1952,10 @@ function App() {
     const colors = cardTextColors(card);
     const previewStyle = {
       "--card-header-color": safeColor(colors.header),
+      "--card-header-front-color": safeColor(colors.headerFront),
+      "--card-header-back-color": safeColor(colors.headerBack),
+      "--card-position-front-color": safeColor(colors.positionFront),
+      "--card-position-back-color": safeColor(colors.positionBack),
       "--card-front-color": safeColor(colors.frontFields),
       "--card-attributes-front-color": safeColor(colors.attributesFront),
       "--card-bonuses-front-color": safeColor(colors.bonusesFront),
@@ -2024,6 +2028,72 @@ function App() {
     const sideLayout = layout[side] || layout.back || {};
 
     const formatBoxCoordinates = box => `X ${Math.round(box.x * 10) / 10} · Y ${Math.round(box.y * 10) / 10} · W ${Math.round(box.w * 10) / 10} · H ${Math.round(box.h * 10) / 10}`;
+
+    const colors = cardTextColors(card);
+    const visibleAttributes = (card?.passiveAttributes || []).filter(item => item.showOnCard !== false);
+    const visibleBonuses = (card?.bonuses || []).filter(item => item.showOnCard !== false);
+    const frontAttributeFields = normalizeFrontFields(card?.frontAttributeFields || card?.frontFields || card?.frontSummary);
+    const frontBonusFields = normalizeFrontFields(card?.frontBonusFields);
+    const firstFrontAttribute = frontAttributeFields[0] || makeFrontField("Attributes", 0);
+    const firstFrontBonus = frontBonusFields[0] || makeFrontField("DEF", 0);
+
+    const renderNameZone = colorKey => (
+      <div className="card-zone-text card-zone-name" style={{ color: safeColor(colors[colorKey]) }} title={card?.name || "Player"}>
+        {card?.name || "Player"}
+      </div>
+    );
+
+    const renderPositionZone = colorKey => (
+      <div className="card-zone-text card-zone-position" style={{ color: safeColor(colors[colorKey]) }}>
+        {String(card?.position || "").toUpperCase()}
+      </div>
+    );
+
+    const renderFrontFormulaZone = (field, colorKey) => (
+      <div className="card-zone-text card-zone-formula" style={{ color: safeColor(colors[colorKey]) }}>
+        <span>{field.label}</span>
+        <strong>{computeFrontFieldValue(card, field)}</strong>
+      </div>
+    );
+
+    const renderListZone = (items, colorKey) => (
+      <div className="card-zone-text card-zone-list" style={{ color: safeColor(colors[colorKey]) }}>
+        {items.length ? items.map(item => (
+          <div className="card-zone-list-row" key={item.id}>
+            <span>{item.name}</span>
+            <strong>{normalizeStatValue(item.value)}</strong>
+          </div>
+        )) : <em>—</em>}
+      </div>
+    );
+
+    const renderSpecialAbilityZone = () => (
+      <div className="card-zone-text card-zone-special" style={{ color: safeColor(colors.specialAbility) }}>
+        {card?.specialAbility || ""}
+      </div>
+    );
+
+    const renderDefensiveAreaZone = () => (
+      <div className="card-zone-text card-zone-defense" style={{ color: safeColor(colors.defensiveArea), "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78") }}>
+        <AreaMiniPreview area={card?.defensiveArea || []} />
+      </div>
+    );
+
+    const renderZoneContent = zoneKey => {
+      if (side === "front") {
+        if (zoneKey === "header") return renderNameZone("headerFront");
+        if (zoneKey === "position") return renderPositionZone("positionFront");
+        if (zoneKey === "attributes") return renderFrontFormulaZone(firstFrontAttribute, "attributesFront");
+        if (zoneKey === "bonuses") return renderFrontFormulaZone(firstFrontBonus, "bonusesFront");
+      }
+      if (zoneKey === "header") return renderNameZone("headerBack");
+      if (zoneKey === "position") return renderPositionZone("positionBack");
+      if (zoneKey === "attributes") return renderListZone(visibleAttributes, "attributes");
+      if (zoneKey === "bonuses") return renderListZone(visibleBonuses, "bonuses");
+      if (zoneKey === "specialAbility") return renderSpecialAbilityZone();
+      if (zoneKey === "defensiveArea") return renderDefensiveAreaZone();
+      return null;
+    };
 
     const showLiveCoordinates = (zoneKey, box) => {
       setActiveLayoutEdit({ zoneKey, box: { ...box } });
@@ -2112,7 +2182,8 @@ function App() {
               height: `${box.h}%`,
             }}
           >
-            {showZones ? <span>{ZONE_LABELS[key] || key}</span> : null}
+            <div className="card-zone-content">{renderZoneContent(key)}</div>
+            {showZones ? <span className="card-zone-label">{ZONE_LABELS[key] || key}</span> : null}
             {showZones && activeLayoutEdit?.zoneKey === key ? (
               <b className="zone-live-coordinates is-visible">{formatBoxCoordinates(activeLayoutEdit.box)}</b>
             ) : null}
