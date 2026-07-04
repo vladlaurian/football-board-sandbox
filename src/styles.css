@@ -3506,3 +3506,45 @@ select option {
 .layout-size-grid { display: grid !important; grid-template-columns: 38px 38px !important; gap: 3px !important; }
 .layout-arrow-btn { min-width: 0 !important; width: 100% !important; min-height: 26px !important; padding: 3px 5px !important; border-radius: 7px !important; font-size: 12px !important; font-weight: 800 !important; line-height: 1 !important; }
 .layout-number-input, .layout-zone-head { display: none !important; }
+
+
+/* Drag + corner resize for card layout zones. Active only in Card Editor previews. */
+.card-preview-content-layer.layout-editing,
+.card-preview-content-layer.layout-editing .card-visual-canvas {
+  pointer-events: auto !important;
+}
+
+.card-visual-zone.show-zone {
+  cursor: move !important;
+  pointer-events: auto !important;
+  user-select: none !important;
+  touch-action: none !important;
+  overflow: visible !important;
+}
+
+.zone-resize-handle {
+  position: absolute !important;
+  width: 9px !important;
+  height: 9px !important;
+  border: 1px solid rgba(255,255,255,.95) !important;
+  border-radius: 2px !important;
+  background: rgba(0,0,0,.72) !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,.55) !important;
+  z-index: 3 !important;
+  pointer-events: auto !important;
+  touch-action: none !important;
+}
+
+.zone-resize-tl { left: -5px !important; top: -5px !important; cursor: nwse-resize !important; }
+.zone-resize-tr { right: -5px !important; top: -5px !important; cursor: nesw-resize !important; }
+.zone-resize-bl { left: -5px !important; bottom: -5px !important; cursor: nesw-resize !important; }
+.zone-resize-br { right: -5px !important; bottom: -5px !important; cursor: nwse-resize !important; }
+
+/* Layout Zones menu now keeps only Reset Layout. */
+.card-layout-editor .layout-side-editor,
+.card-layout-editor .layout-editor-note,
+.layout-zone-arrow-list,
+.layout-arrow-group,
+.layout-arrow-btn {
+  display: none !important;
+}

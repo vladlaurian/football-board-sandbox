@@ -1957,7 +1957,7 @@ function App() {
         <div className="card-preview-art-layer" aria-hidden="true">
           {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} alt="" /> : null}
         </div>
-        <div className="card-preview-content-layer">
+        <div className={`card-preview-content-layer ${showLayoutZones ? "layout-editing" : ""}`}>
           <CardVisualCanvas card={card} side={shownSide} showZones={showLayoutZones} />
         </div>
         {flippable && (
@@ -2008,15 +2008,71 @@ function App() {
   }
 
   function CardVisualCanvas({ card, side, showZones = false }) {
+    const canvasRef = useRef(null);
     const layout = normalizeCardVisualLayout(card?.visualLayout || card?.layout);
     const sideLayout = layout[side] || layout.back || {};
+
+    const beginZoneEdit = (event, zoneKey, box, mode = "move", corner = "br") => {
+      if (!showZones || !card?.id) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startBox = { ...box };
+      const pointerId = event.pointerId;
+      try { event.currentTarget.setPointerCapture?.(pointerId); } catch (_) {}
+
+      const toPctX = px => (px / Math.max(rect.width, 1)) * 100;
+      const toPctY = px => (px / Math.max(rect.height, 1)) * 100;
+
+      const onMove = moveEvent => {
+        moveEvent.preventDefault();
+        const dx = toPctX(moveEvent.clientX - startX);
+        const dy = toPctY(moveEvent.clientY - startY);
+        let next = { ...startBox };
+
+        if (mode === "move") {
+          next.x = startBox.x + dx;
+          next.y = startBox.y + dy;
+        } else {
+          if (corner.includes("r")) next.w = startBox.w + dx;
+          if (corner.includes("l")) {
+            next.x = startBox.x + dx;
+            next.w = startBox.w - dx;
+          }
+          if (corner.includes("b")) next.h = startBox.h + dy;
+          if (corner.includes("t")) {
+            next.y = startBox.y + dy;
+            next.h = startBox.h - dy;
+          }
+        }
+
+        updateCardVisualLayoutBox(card.id, side, zoneKey, next);
+      };
+
+      const onUp = upEvent => {
+        try { event.currentTarget.releasePointerCapture?.(pointerId); } catch (_) {}
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+      };
+
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp, { once: true });
+      window.addEventListener("pointercancel", onUp, { once: true });
+    };
+
     return (
-      <div className="card-visual-canvas" data-card-side={side}>
+      <div className="card-visual-canvas" data-card-side={side} ref={canvasRef}>
         {Object.entries(sideLayout).map(([key, box]) => (
           <div
             key={`${side}_${key}`}
             className={`card-visual-zone card-visual-zone-${key} ${showZones ? "show-zone" : ""}`}
             data-zone={key}
+            onPointerDown={event => beginZoneEdit(event, key, box, "move")}
             style={{
               left: `${box.x}%`,
               top: `${box.y}%`,
@@ -2025,6 +2081,14 @@ function App() {
             }}
           >
             {showZones ? <span>{ZONE_LABELS[key] || key}</span> : null}
+            {showZones ? (
+              <>
+                <i className="zone-resize-handle zone-resize-tl" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "tl")} />
+                <i className="zone-resize-handle zone-resize-tr" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "tr")} />
+                <i className="zone-resize-handle zone-resize-bl" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "bl")} />
+                <i className="zone-resize-handle zone-resize-br" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "br")} />
+              </>
+            ) : null}
           </div>
         ))}
       </div>
@@ -2260,55 +2324,13 @@ function App() {
     }));
   }
 
-  function LayoutArrowButton({ children, title, onClick }) {
-    return <button type="button" className="layout-arrow-btn" title={title} onClick={onClick}>{children}</button>;
-  }
-
   function CardLayoutEditor({ card }) {
-    const layout = normalizeCardVisualLayout(card.visualLayout || card.layout);
-    const sides = [
-      ["front", "Față"],
-      ["back", "Verso"],
-    ];
-    const move = (side, zoneKey, box, dx, dy) => updateCardVisualLayoutBox(card.id, side, zoneKey, { x: box.x + dx, y: box.y + dy });
-    const resize = (side, zoneKey, box, dw, dh) => updateCardVisualLayoutBox(card.id, side, zoneKey, { w: box.w + dw, h: box.h + dh });
     return (
       <div className="card-edit-section card-layout-editor">
         <div className="card-edit-section-title">
           <strong>Layout Zones</strong>
           <button type="button" onClick={() => resetCardVisualLayout(card.id)}>Reset Layout</button>
         </div>
-        <p className="layout-editor-note">Zonele se mută din săgeți. Chenarele apar doar în editor.</p>
-        {sides.map(([side, label]) => (
-          <details key={side} open className="layout-side-editor">
-            <summary>{label}</summary>
-            <div className="layout-zone-arrow-list">
-              {Object.entries(layout[side]).map(([zoneKey, box]) => (
-                <div className="layout-zone-row arrow-mode" key={`${side}_${zoneKey}`}>
-                  <strong>{ZONE_LABELS[zoneKey] || zoneKey}</strong>
-                  <div className="layout-arrow-group">
-                    <span>Poziție</span>
-                    <div className="layout-cross">
-                      <LayoutArrowButton title="Sus" onClick={() => move(side, zoneKey, box, 0, -1)}>↑</LayoutArrowButton>
-                      <LayoutArrowButton title="Stânga" onClick={() => move(side, zoneKey, box, -1, 0)}>←</LayoutArrowButton>
-                      <LayoutArrowButton title="Dreapta" onClick={() => move(side, zoneKey, box, 1, 0)}>→</LayoutArrowButton>
-                      <LayoutArrowButton title="Jos" onClick={() => move(side, zoneKey, box, 0, 1)}>↓</LayoutArrowButton>
-                    </div>
-                  </div>
-                  <div className="layout-arrow-group">
-                    <span>Dimensiune</span>
-                    <div className="layout-size-grid">
-                      <LayoutArrowButton title="Mai îngust" onClick={() => resize(side, zoneKey, box, -1, 0)}>W−</LayoutArrowButton>
-                      <LayoutArrowButton title="Mai lat" onClick={() => resize(side, zoneKey, box, 1, 0)}>W+</LayoutArrowButton>
-                      <LayoutArrowButton title="Mai scund" onClick={() => resize(side, zoneKey, box, 0, -1)}>H−</LayoutArrowButton>
-                      <LayoutArrowButton title="Mai înalt" onClick={() => resize(side, zoneKey, box, 0, 1)}>H+</LayoutArrowButton>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </details>
-        ))}
       </div>
     );
   }
