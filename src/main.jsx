@@ -1958,7 +1958,7 @@ function App() {
           {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} alt="" /> : null}
         </div>
         <div className="card-preview-content-layer">
-          <CardVisualCanvas card={card} side={shownSide} />
+          <CardVisualCanvas card={card} side={shownSide} editable={editableLayout} />
         </div>
         {flippable && (
           <button
@@ -2007,7 +2007,7 @@ function App() {
     );
   }
 
-  function CardVisualCanvas({ card, side }) {
+  function CardVisualCanvas({ card, side, editable = false }) {
     const layout = normalizeCardVisualLayout(card?.visualLayout || card?.layout);
     const sideLayout = layout[side] || layout.back || {};
     return (
@@ -2015,8 +2015,9 @@ function App() {
         {Object.entries(sideLayout).map(([key, box]) => (
           <div
             key={`${side}_${key}`}
-            className={`card-visual-zone card-visual-zone-${key}`}
+            className={`card-visual-zone card-visual-zone-${key} ${editable ? "is-editable" : ""}`}
             data-zone={key}
+            onPointerDown={editable ? (e) => beginZoneDrag(e, card.id, side, key, box) : undefined}
             style={{
               left: `${box.x}%`,
               top: `${box.y}%`,
@@ -2024,7 +2025,7 @@ function App() {
               height: `${box.h}%`,
             }}
           >
-            <span>{ZONE_LABELS[key] || key}</span>
+            {editable ? <span>{ZONE_LABELS[key] || key}</span> : null}
           </div>
         ))}
       </div>
@@ -2307,6 +2308,50 @@ function App() {
       </div>
     );
   }
+
+
+  function beginZoneDrag(e, cardId, side, zoneKey, box) {
+    if (!cardId || !DEFAULT_CARD_VISUAL_LAYOUT[side]?.[zoneKey]) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const canvas = e.currentTarget.closest(".card-visual-canvas");
+    const rect = canvas?.getBoundingClientRect();
+    if (!rect || !rect.width || !rect.height) return;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    setZoneDrag({
+      cardId,
+      side,
+      zoneKey,
+      startX: e.clientX,
+      startY: e.clientY,
+      rect: { width: rect.width, height: rect.height },
+      startBox: { ...box },
+    });
+  }
+
+  useEffect(() => {
+    if (!zoneDrag) return;
+
+    const onMove = (e) => {
+      const dx = ((e.clientX - zoneDrag.startX) / Math.max(1, zoneDrag.rect.width)) * 100;
+      const dy = ((e.clientY - zoneDrag.startY) / Math.max(1, zoneDrag.rect.height)) * 100;
+      const x = clamp(zoneDrag.startBox.x + dx, 0, 100 - zoneDrag.startBox.w);
+      const y = clamp(zoneDrag.startBox.y + dy, 0, 100 - zoneDrag.startBox.h);
+      updateCardVisualLayoutBox(zoneDrag.cardId, zoneDrag.side, zoneDrag.zoneKey, { x, y });
+    };
+
+    const onUp = () => setZoneDrag(null);
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp, { once: true });
+    window.addEventListener("pointercancel", onUp, { once: true });
+
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [zoneDrag]);
 
   function CardEditor({ card }) {
     if (!card) return <div className="empty-panel">Alege sau creează un card.</div>;

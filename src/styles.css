@@ -3458,3 +3458,40 @@ select option {
   text-align: center !important;
   font-size: 12px !important;
 }
+
+
+/* STEP 3: zones are visible and draggable only inside Card Editor.
+   Inspector / normal preview stays clean. */
+.card-visual-zone {
+  border: 0 !important;
+  background: transparent !important;
+  color: transparent !important;
+  display: block !important;
+  pointer-events: none !important;
+  cursor: default !important;
+  user-select: none !important;
+  touch-action: none !important;
+}
+
+.card-visual-zone.is-editable {
+  border: 1px dashed rgba(255,255,255,.65) !important;
+  background: rgba(0,0,0,.18) !important;
+  color: rgba(255,255,255,.9) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  font-size: 7px !important;
+  line-height: 1.05 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .04em !important;
+  padding: 2px !important;
+  pointer-events: auto !important;
+  cursor: grab !important;
+}
+
+.card-visual-zone.is-editable:active {
+  cursor: grabbing !important;
+  border-style: solid !important;
+  background: rgba(255,255,255,.14) !important;
+}
