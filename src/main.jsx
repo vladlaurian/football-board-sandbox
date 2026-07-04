@@ -2019,25 +2019,18 @@ function App() {
 
   function CardVisualCanvas({ card, side, showZones = false }) {
     const canvasRef = useRef(null);
-    const liveCoordinatesRef = useRef(null);
+    const [activeLayoutEdit, setActiveLayoutEdit] = useState(null);
     const layout = normalizeCardVisualLayout(card?.visualLayout || card?.layout);
     const sideLayout = layout[side] || layout.back || {};
 
-    const formatBoxCoordinates = box => `X ${Math.round(box.x * 10) / 10} · Y ${Math.round(box.y * 10) / 10}<br />W ${Math.round(box.w * 10) / 10} · H ${Math.round(box.h * 10) / 10}`;
+    const formatBoxCoordinates = box => `X ${Math.round(box.x * 10) / 10} · Y ${Math.round(box.y * 10) / 10} · W ${Math.round(box.w * 10) / 10} · H ${Math.round(box.h * 10) / 10}`;
 
-    const showLiveCoordinates = box => {
-      const el = liveCoordinatesRef.current;
-      if (!el) return;
-      el.innerHTML = formatBoxCoordinates(box);
-      el.style.left = `${Math.min(92, Math.max(8, box.x + box.w / 2))}%`;
-      el.style.top = `${Math.min(94, Math.max(2, box.y + box.h + 2))}%`;
-      el.classList.add("is-visible");
+    const showLiveCoordinates = (zoneKey, box) => {
+      setActiveLayoutEdit({ zoneKey, box: { ...box } });
     };
 
     const hideLiveCoordinates = () => {
-      const el = liveCoordinatesRef.current;
-      if (!el) return;
-      el.classList.remove("is-visible");
+      setActiveLayoutEdit(null);
     };
 
     const beginZoneEdit = (event, zoneKey, box, mode = "move", corner = "br") => {
@@ -2052,7 +2045,7 @@ function App() {
       const startBox = { ...box };
       const pointerId = event.pointerId;
       try { event.currentTarget.setPointerCapture?.(pointerId); } catch (_) {}
-      showLiveCoordinates(startBox);
+      showLiveCoordinates(zoneKey, startBox);
 
       const toPctX = px => (px / Math.max(rect.width, 1)) * 100;
       const toPctY = px => (px / Math.max(rect.height, 1)) * 100;
@@ -2087,7 +2080,7 @@ function App() {
         };
         bounded.w = Math.min(bounded.w, 100 - bounded.x);
         bounded.h = Math.min(bounded.h, 100 - bounded.y);
-        showLiveCoordinates(bounded);
+        showLiveCoordinates(zoneKey, bounded);
         updateCardVisualLayoutBox(card.id, side, zoneKey, bounded);
       };
 
@@ -2120,6 +2113,9 @@ function App() {
             }}
           >
             {showZones ? <span>{ZONE_LABELS[key] || key}</span> : null}
+            {showZones && activeLayoutEdit?.zoneKey === key ? (
+              <b className="zone-live-coordinates is-visible">{formatBoxCoordinates(activeLayoutEdit.box)}</b>
+            ) : null}
             {showZones ? (
               <>
                 <i className="zone-resize-handle zone-resize-tl" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "tl")} />
@@ -2130,7 +2126,6 @@ function App() {
             ) : null}
           </div>
         ))}
-        {showZones ? <b ref={liveCoordinatesRef} className="zone-live-coordinates zone-live-coordinates-global" /> : null}
       </div>
     );
   }
@@ -2368,6 +2363,7 @@ function App() {
           <div><div className="card-preview-label">Front</div><CardPreview card={card} team="neutral" side="front" showLayoutZones={true} /></div>
           <div><div className="card-preview-label">Back</div><CardPreview card={card} team="neutral" side="back" showLayoutZones={true} /></div>
         </div>
+        <div className="card-editor-controls">
         {CardLayoutEditor({ card })}
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
         <div className="card-edit-section compact-color-row"><strong>Header Front</strong><ColorPicker card={card} colorKey="headerFront" label="Color" /></div>
@@ -2380,6 +2376,7 @@ function App() {
         {AttributeListEditor({ card, section: "bonuses", title: "Bonuses" })}
         <label className="special-ability-editor"><span className="editor-label-row"><span>Special Ability</span><ColorPicker card={card} colorKey="specialAbility" label="Color" /></span><textarea value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></label>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Writing/Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /></div>{DefensiveAreaEditor({ card })}</div>
+        </div>
       </div>
     );
   }

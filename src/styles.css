@@ -3630,3 +3630,92 @@ select option {
     position: static !important;
   }
 }
+
+/* Current request: right-side card edit menus are resizable from bottom-left. */
+.card-editor {
+  grid-template-columns: minmax(420px, 520px) minmax(260px, 1fr) !important;
+  align-items: start !important;
+}
+.card-editor-controls {
+  grid-column: 2 !important;
+  grid-row: 1 / span 50 !important;
+  min-width: 260px !important;
+  max-width: calc(100vw - 560px) !important;
+  min-height: 320px !important;
+  max-height: calc(100vh - 170px) !important;
+  overflow: auto !important;
+  resize: both !important;
+  direction: rtl !important;
+  padding: 0 4px 18px 14px !important;
+  border-left: 1px solid rgba(255,255,255,.10) !important;
+}
+.card-editor-controls > * {
+  direction: ltr !important;
+}
+.card-editor-controls:after {
+  content: "";
+  position: sticky;
+  left: 0;
+  bottom: 0;
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin-top: -18px;
+  pointer-events: none;
+  background: linear-gradient(45deg, transparent 50%, rgba(255,255,255,.45) 50%, rgba(255,255,255,.45) 60%, transparent 60%);
+  opacity: .85;
+}
+
+/* Current request: live layout coordinates stay inside card, next to the edited zone, during the whole drag/resize. */
+.card-visual-zone.show-zone {
+  overflow: visible !important;
+}
+.zone-live-coordinates,
+.zone-live-coordinates-global,
+.zone-live-coordinates-global.is-visible {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+.card-visual-zone.show-zone > .zone-live-coordinates.is-visible {
+  position: absolute !important;
+  left: min(100%, calc(100% + 4px)) !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  z-index: 9999 !important;
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  width: max-content !important;
+  max-width: 116px !important;
+  min-width: 0 !important;
+  padding: 3px 5px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(255,255,255,.45) !important;
+  background: rgba(0,0,0,.88) !important;
+  color: #fff !important;
+  font-size: 8.5px !important;
+  line-height: 1.15 !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+  text-align: left !important;
+  white-space: normal !important;
+  pointer-events: none !important;
+  text-transform: none !important;
+}
+.card-visual-zone.show-zone[style*="left: 7"] > .zone-live-coordinates.is-visible,
+.card-visual-zone.show-zone[style*="left: 8"] > .zone-live-coordinates.is-visible,
+.card-visual-zone.show-zone[style*="left: 9"] > .zone-live-coordinates.is-visible {
+  left: auto !important;
+  right: calc(100% + 4px) !important;
+}
+
+@media (max-width: 900px) {
+  .card-editor-controls {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    resize: vertical !important;
+  }
+}
