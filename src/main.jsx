@@ -3079,32 +3079,42 @@ function App() {
 
   function DefensiveGridAdjustControl({ card }) {
     if (!card) return null;
+    const [isOpen, setIsOpen] = useState(false);
     const current = normalizeDefensiveGridAdjust(card.defensiveGridAdjust);
+    const stopGridAdjustEvent = e => e.stopPropagation();
+    const clampGridValue = (value, min, max) => Math.max(min, Math.min(max, Number(value)));
+    const setGridValue = (key, value, min, max) => updateDefensiveGridAdjust(card.id, { [key]: clampGridValue(value, min, max) });
     const slider = (label, key, min, max) => (
-      <label className="grid-adjust-slider" key={key}>
-        <span>{label}</span>
-        <button type="button" onClick={() => updateDefensiveGridAdjust(card.id, { [key]: current[key] - 1 })}>−</button>
+      <label className="grid-adjust-slider" key={key} onPointerDown={stopGridAdjustEvent} onMouseDown={stopGridAdjustEvent} onClick={stopGridAdjustEvent}>
+        <span className="grid-adjust-slider-label">{label}</span>
+        <button type="button" className="grid-adjust-step" onClick={() => setGridValue(key, current[key] - 1, min, max)} aria-label={`${label} minus`}>−</button>
         <input
           type="range"
           min={min}
           max={max}
           value={current[key]}
-          onChange={e => updateDefensiveGridAdjust(card.id, { [key]: Number(e.currentTarget.value) })}
+          onPointerDown={stopGridAdjustEvent}
+          onMouseDown={stopGridAdjustEvent}
+          onClick={stopGridAdjustEvent}
+          onInput={e => setGridValue(key, e.currentTarget.value, min, max)}
+          onChange={e => setGridValue(key, e.currentTarget.value, min, max)}
         />
-        <button type="button" onClick={() => updateDefensiveGridAdjust(card.id, { [key]: current[key] + 1 })}>+</button>
-        <em>{current[key]}</em>
+        <button type="button" className="grid-adjust-step" onClick={() => setGridValue(key, current[key] + 1, min, max)} aria-label={`${label} plus`}>+</button>
+        <em className="grid-adjust-value">{current[key]}</em>
       </label>
     );
     return (
-      <details className="grid-adjust-control">
-        <summary>Adjust Grid</summary>
-        <div className="grid-adjust-panel">
-          {slider("Width", "width", 40, 180)}
-          {slider("Height", "height", 40, 180)}
-          {slider("Move X", "offsetX", -80, 80)}
-          {slider("Move Y", "offsetY", -80, 80)}
-        </div>
-      </details>
+      <div className={`grid-adjust-control ${isOpen ? "open" : ""}`} onPointerDown={stopGridAdjustEvent} onMouseDown={stopGridAdjustEvent} onClick={stopGridAdjustEvent}>
+        <button type="button" className={`grid-adjust-toggle ${isOpen ? "active" : ""}`} aria-expanded={isOpen} onClick={() => setIsOpen(open => !open)}>Adjust Grid/Arrow</button>
+        {isOpen ? (
+          <div className="grid-adjust-panel" onPointerDown={stopGridAdjustEvent} onMouseDown={stopGridAdjustEvent} onClick={stopGridAdjustEvent}>
+            {slider("Width", "width", 40, 180)}
+            {slider("Height", "height", 40, 180)}
+            {slider("Move X", "offsetX", -80, 80)}
+            {slider("Move Y", "offsetY", -80, 80)}
+          </div>
+        ) : null}
+      </div>
     );
   }
 
