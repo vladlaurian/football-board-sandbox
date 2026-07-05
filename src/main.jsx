@@ -299,7 +299,9 @@ function zoneNumberStyleVars(styles, textKey, numberKey) {
   const defaultNumber = CARD_TEXT_STYLE_DEFAULTS[numberKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
   const font = number.font && number.font !== defaultNumber.font ? number.font : base.font;
   const fontScale = (base.fontSize / 100) * (number.fontSize / 100);
-  const fontWeight = number.bold ? 950 : (base.bold ? 950 : 650);
+  // Numbers use Text as the base for font/size/line-height/Y, but Bold is an explicit Numbers override.
+  // If Numbers B is off, the number stays normal even when the label text is bold.
+  const fontWeight = number.bold ? 950 : 650;
   return {
     "--zone-align": base.align,
     "--zone-justify": base.align === "left" ? "flex-start" : base.align === "right" ? "flex-end" : "center",
@@ -307,6 +309,7 @@ function zoneNumberStyleVars(styles, textKey, numberKey) {
     "--zone-font-family": font,
     "--zone-font-weight": fontWeight,
     "--zone-font-scale": fontScale,
+    "--zone-number-font-scale": fontScale,
     "--zone-line-height": base.lineHeight / 100,
     "--zone-y-offset": `${base.verticalOffset * 0.4}cqh`,
   };
@@ -2454,7 +2457,7 @@ function App() {
       return (
         <div className="card-zone-text card-zone-formula zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor, ...zonePairDistanceVars(textStyles, colorKey) }}>
           <span className="card-zone-label" style={{ color: textColor, ...zoneTextStyleVars(textStyles, colorKey) }}>{field.label}</span>
-          <strong className="card-zone-value" style={{ color: valueColor, ...zoneNumberStyleVars(textStyles, colorKey, valueKey) }}>{computeFrontFieldValue(card, field)}</strong>
+          <strong className="card-zone-value" style={{ "--zone-number-color": valueColor, color: valueColor, ...zoneNumberStyleVars(textStyles, colorKey, valueKey) }}>{computeFrontFieldValue(card, field)}</strong>
         </div>
       );
     };
@@ -2471,7 +2474,7 @@ function App() {
             {items.length ? items.map(item => (
               <div className="card-zone-list-row" key={item.id} style={{ color: textColor }}>
                 <span className="card-zone-label" style={{ color: textColor }}>{item.name}</span>
-                <strong className="card-zone-value" style={{ color: valueColor, ...zoneNumberStyleVars(textStyles, colorKey, valueKey) }}>{normalizeStatValue(item.value)}</strong>
+                <strong className="card-zone-value" style={{ "--zone-number-color": valueColor, color: valueColor, ...zoneNumberStyleVars(textStyles, colorKey, valueKey) }}>{normalizeStatValue(item.value)}</strong>
               </div>
             )) : <em style={{ color: textColor }}>—</em>}
           </div>
