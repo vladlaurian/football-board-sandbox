@@ -474,12 +474,161 @@ function normalizeCustomZone(raw, index = 0) {
     id: String(source.id || fallback.id),
     side,
     name: String(source.name ?? source.title ?? fallback.name),
+    contentBlockId: source.contentBlockId ? String(source.contentBlockId) : "",
     box,
   };
 }
 
 function normalizeCustomZones(card) {
   return Array.isArray(card?.customZones) ? card.customZones.map((zone, index) => normalizeCustomZone(zone, index)) : [];
+}
+
+
+const DUPLICABLE_BLOCK_TYPES = {
+  attributesFront: { label: "Attributes Front", side: "front", kind: "frontPair", sourceSection: "passiveAttributes", colorKey: "attributesFront" },
+  bonusesFront: { label: "Bonuses Front", side: "front", kind: "frontPair", sourceSection: "bonuses", colorKey: "bonusesFront" },
+  attributesBack: { label: "Attributes Back", side: "back", kind: "list", sourceSection: "passiveAttributes", colorKey: "attributes" },
+  bonusesBack: { label: "Bonuses Back", side: "back", kind: "list", sourceSection: "bonuses", colorKey: "bonuses" },
+  specialAbility: { label: "Special Ability", side: "back", kind: "special", colorKey: "specialAbility" },
+};
+
+function baseDuplicateStyle(style = {}) {
+  const s = style && typeof style === "object" ? style : {};
+  return {
+    align: ["left", "center", "right"].includes(s.align) ? s.align : "left",
+    bold: typeof s.bold === "boolean" ? s.bold : true,
+    font: CARD_FONT_OPTIONS.includes(s.font) ? s.font : "Inter",
+    fontSize: clamp(Number(s.fontSize ?? 100), 50, 260),
+    lineHeight: clamp(Number(s.lineHeight ?? 100), 70, 180),
+    verticalOffset: clamp(Number(s.verticalOffset ?? 0), -100, 100),
+    statGap: clamp(Number(s.statGap ?? 300), 0, 300),
+  };
+}
+
+function baseDuplicateTitleStyle(style = {}) {
+  const s = baseDuplicateStyle(style);
+  return { ...s, align: ["left", "center", "right"].includes(style?.align) ? style.align : "center", lineHeight: 100, verticalOffset: 0 };
+}
+
+function duplicateStyleVars(style = {}) {
+  const s = baseDuplicateStyle(style);
+  return {
+    "--zone-align": s.align,
+    "--zone-justify": s.align === "left" ? "flex-start" : s.align === "right" ? "flex-end" : "center",
+    "--zone-grid-justify": s.align === "left" ? "start" : s.align === "right" ? "end" : "center",
+    "--zone-font-family": s.font,
+    "--zone-font-weight": s.bold ? 950 : 650,
+    "--zone-font-scale": s.fontSize / 100,
+    "--zone-line-height": s.lineHeight / 100,
+    "--zone-y-offset": `${s.verticalOffset * 0.4}cqh`,
+  };
+}
+
+function duplicateNumberStyleVars(textStyle = {}, numberStyle = {}) {
+  const base = baseDuplicateStyle(textStyle);
+  const num = baseDuplicateStyle(numberStyle);
+  const font = num.font || base.font;
+  const fontScale = (base.fontSize / 100) * (num.fontSize / 100);
+  return {
+    "--zone-font-family": font,
+    "--zone-font-weight": num.bold ? 950 : 650,
+    "--zone-font-scale": fontScale,
+    "--zone-number-font-scale": fontScale,
+    "--zone-line-height": base.lineHeight / 100,
+    "--zone-y-offset": `${base.verticalOffset * 0.4}cqh`,
+  };
+}
+
+function duplicateDistanceVars(style = {}, items = []) {
+  const s = baseDuplicateStyle(style);
+  const normalizedDistance = clamp(Number(s.statGap ?? 300), 0, 300);
+  const shiftPercent = Math.max(0, Math.min(1, (300 - normalizedDistance) / 300));
+  return {
+    "--zone-stat-gap": "0px",
+    "--zone-stat-gap-wide": "0px",
+    "--zone-distance-shift-raw": `${(shiftPercent * 28).toFixed(2)}cqw`,
+    "--zone-longest-label-ch": Math.max(0, ...items.map(item => String(item?.name || item?.label || "").length)),
+    "--zone-number-ch": Math.max(1, ...items.map(item => String(normalizeStatValue(item?.value ?? 0)).length)),
+  };
+}
+
+function cloneStatItemsForDuplicate(items = []) {
+  return normalizeStatItems(items).map((item, index) => ({
+    ...item,
+    id: `dup_item_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`,
+  }));
+}
+
+function makeDuplicateBlockFromCard(card, type) {
+  const meta = DUPLICABLE_BLOCK_TYPES[type] || DUPLICABLE_BLOCK_TYPES.attributesBack;
+  const styles = cardTextStyles(card);
+  const colors = normalizeTextColors(card?.textColors);
+  const id = `dup_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  if (meta.kind === "frontPair") {
+    const storageKey = type === "attributesFront" ? "frontAttributeFields" : "frontBonusFields";
+    const fallback = storageKey === "frontAttributeFields" ? (card.frontAttributeFields || card.frontFields || card.frontSummary) : card[storageKey];
+    const field = normalizeFrontFields(fallback)[0] || makeFrontField(type === "attributesFront" ? "Attributes" : "Bonuses", 0);
+    return {
+      id, type, kind: meta.kind, side: meta.side, name: `${meta.label} Copy`,
+      title: field.label || meta.label.replace(/ Front$/, ""),
+      value: computeFrontFieldValue(card, field),
+      textColor: safeColor(colors[meta.colorKey]),
+      numberColor: safeColor(colors[`${meta.colorKey}Value`], colors[meta.colorKey]),
+      textStyle: baseDuplicateStyle(styles[meta.colorKey]),
+      numberStyle: baseDuplicateStyle(styles[`${meta.colorKey}Value`]),
+    };
+  }
+  if (meta.kind === "special") {
+    return {
+      id, type, kind: meta.kind, side: meta.side, name: `${meta.label} Copy`,
+      title: cardLayoutTitle(card, "specialAbility"),
+      text: String(card?.specialAbility || ""),
+      titleColor: safeColor(colors.specialAbilityTitle),
+      textColor: safeColor(colors.specialAbility),
+      titleStyle: baseDuplicateTitleStyle(styles.specialAbilityTitle),
+      textStyle: baseDuplicateStyle(styles.specialAbility),
+    };
+  }
+  const sourceItems = meta.sourceSection === "bonuses" ? (card.bonuses || []) : (card.passiveAttributes || []);
+  return {
+    id, type, kind: meta.kind, side: meta.side, name: `${meta.label} Copy`,
+    title: cardLayoutTitle(card, meta.sourceSection === "bonuses" ? "bonuses" : "attributes"),
+    items: cloneStatItemsForDuplicate(sourceItems),
+    titleColor: safeColor(colors[`${meta.colorKey}Title`]),
+    textColor: safeColor(colors[meta.colorKey]),
+    numberColor: safeColor(colors[`${meta.colorKey}Value`], colors[meta.colorKey]),
+    titleStyle: baseDuplicateTitleStyle(styles[`${meta.colorKey}Title`]),
+    textStyle: baseDuplicateStyle(styles[meta.colorKey]),
+    numberStyle: baseDuplicateStyle(styles[`${meta.colorKey}Value`]),
+  };
+}
+
+function normalizeDuplicateBlock(raw, index = 0) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const type = Object.prototype.hasOwnProperty.call(DUPLICABLE_BLOCK_TYPES, source.type) ? source.type : "attributesBack";
+  const meta = DUPLICABLE_BLOCK_TYPES[type];
+  const id = String(source.id || `dup_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`);
+  const common = {
+    id,
+    type,
+    kind: meta.kind,
+    side: source.side === "front" || source.side === "back" ? source.side : meta.side,
+    name: String(source.name || `${meta.label} Copy`),
+    title: String(source.title || meta.label.replace(/ (Front|Back)$/, "")),
+    textColor: safeColor(source.textColor || "#ffffff"),
+    numberColor: safeColor(source.numberColor || source.textColor || "#ffffff"),
+    titleColor: safeColor(source.titleColor || "#ffffff"),
+    textStyle: baseDuplicateStyle(source.textStyle),
+    numberStyle: baseDuplicateStyle(source.numberStyle),
+    titleStyle: baseDuplicateTitleStyle(source.titleStyle),
+  };
+  if (meta.kind === "frontPair") return { ...common, value: cleanTwoDigitValue(source.value ?? 0) };
+  if (meta.kind === "special") return { ...common, text: String(source.text || "") };
+  return { ...common, items: normalizeStatItems(source.items || []) };
+}
+
+function normalizeDuplicateBlocks(card) {
+  return Array.isArray(card?.duplicateBlocks) ? card.duplicateBlocks.map((block, index) => normalizeDuplicateBlock(block, index)) : [];
 }
 
 const COLOR_SWATCHES = ["#ffffff", "#f8fafc", "#111827", "#ef4444", "#f97316", "#facc15", "#22c55e", "#14b8a6", "#38bdf8", "#3b82f6", "#8b5cf6", "#ec4899"];
@@ -600,6 +749,7 @@ function createPlayerCard(position = "ST") {
     graphics: { frontDataUrl: "", backDataUrl: "", previousTheme: "Style 1" },
     specialAbility: "",
     customZones: [],
+    duplicateBlocks: [],
     deletedLayoutZones: [],
     textColors: { ...CARD_TEXT_COLOR_DEFAULTS },
     textStyles: normalizeTextStyles(),
@@ -635,6 +785,7 @@ function normalizeImportedCard(card) {
     },
     specialAbility: String(card?.specialAbility ?? card?.special_ability ?? card?.special ?? ""),
     customZones: normalizeCustomZones(card),
+    duplicateBlocks: normalizeDuplicateBlocks(card),
     deletedLayoutZones: Array.isArray(card?.deletedLayoutZones) ? card.deletedLayoutZones.map(String) : [],
     textColors: normalizeTextColors(card?.textColors || card?.colors || card?.text_colors),
     textStyles: normalizeTextStyles(card?.textStyles || card?.text_styles),
@@ -2502,9 +2653,59 @@ function App() {
       );
     };
 
-    const renderCustomZoneContent = () => (
-      <div className="card-zone-text card-zone-custom-empty" aria-hidden="true" />
-    );
+    const duplicateBlocks = normalizeDuplicateBlocks(card);
+    const duplicateBlockById = Object.fromEntries(duplicateBlocks.map(block => [block.id, block]));
+
+    const renderDuplicateListBlock = block => {
+      const items = (block.items || []).filter(item => item.showOnCard !== false);
+      const textColor = safeColor(block.textColor);
+      const numberColor = safeColor(block.numberColor, textColor);
+      const titleColor = safeColor(block.titleColor, textColor);
+      return (
+        <div className="card-zone-text card-zone-list-with-title zone-color-bound duplicate-content-zone" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": Math.max(2, items.length + 1), color: textColor }}>
+          <div className="card-zone-section-title" style={{ color: titleColor, ...duplicateStyleVars(block.titleStyle) }}>{block.title}</div>
+          <div className="card-zone-list" style={{ color: textColor, "--zone-lines": Math.max(2, items.length + 1), ...duplicateStyleVars(block.textStyle), ...duplicateDistanceVars(block.textStyle, items) }}>
+            {items.length ? items.map(item => (
+              <div className="card-zone-list-row" key={item.id} style={{ color: textColor }}>
+                <span className="card-zone-label" style={{ color: textColor }}>{item.name}</span>
+                <strong className="card-zone-value" style={{ "--zone-number-color": numberColor, color: numberColor, ...duplicateNumberStyleVars(block.textStyle, block.numberStyle) }}>{normalizeStatValue(item.value)}</strong>
+              </div>
+            )) : <em style={{ color: textColor }}>—</em>}
+          </div>
+        </div>
+      );
+    };
+
+    const renderDuplicateFrontPairBlock = block => {
+      const textColor = safeColor(block.textColor);
+      const numberColor = safeColor(block.numberColor, textColor);
+      const item = { name: block.title, value: block.value };
+      return (
+        <div className="card-zone-text card-zone-formula zone-color-bound duplicate-content-zone" style={{ "--zone-text-color": textColor, color: textColor, ...duplicateDistanceVars(block.textStyle, [item]) }}>
+          <span className="card-zone-label" style={{ color: textColor, ...duplicateStyleVars(block.textStyle) }}>{block.title}</span>
+          <strong className="card-zone-value" style={{ "--zone-number-color": numberColor, color: numberColor, ...duplicateNumberStyleVars(block.textStyle, block.numberStyle) }}>{normalizeStatValue(block.value)}</strong>
+        </div>
+      );
+    };
+
+    const renderDuplicateSpecialBlock = block => {
+      const textColor = safeColor(block.textColor);
+      const titleColor = safeColor(block.titleColor, textColor);
+      return (
+        <div className="card-zone-text card-zone-special-with-title zone-color-bound duplicate-content-zone" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 3, color: textColor }}>
+          <div className="card-zone-section-title" style={{ color: titleColor, ...duplicateStyleVars(block.titleStyle) }}>{block.title}</div>
+          <div className="card-zone-special" style={{ color: textColor, ...duplicateStyleVars(block.textStyle) }}>{block.text || ""}</div>
+        </div>
+      );
+    };
+
+    const renderCustomZoneContent = zone => {
+      const block = duplicateBlockById[zone.contentBlockId];
+      if (!block) return <div className="card-zone-text card-zone-custom-empty" aria-hidden="true" />;
+      if (block.kind === "frontPair") return renderDuplicateFrontPairBlock(block);
+      if (block.kind === "special") return renderDuplicateSpecialBlock(block);
+      return renderDuplicateListBlock(block);
+    };
 
     const renderZoneContent = zoneKey => {
       if (side === "front") {
@@ -2824,7 +3025,7 @@ function App() {
     });
     return (
       <div className="card-edit-section front-summary-editor">
-        <div className="card-edit-section-title front-pair-toolbar"><strong>{title}</strong><ColorPicker card={card} colorKey={colorKey} label="Color" />{renderTextStyleControls(card, colorKey, false, { buttonLabel: "Text", panelAlign: "front" })}{renderPairDistanceControl(card, colorKey)}<ColorPicker card={card} colorKey={`${colorKey}Value`} label="Numbers Color" />{renderTextStyleControls(card, `${colorKey}Value`, false, { buttonLabel: "Numbers", panelAlign: "front", numbersMode: true })}</div>
+        <div className="card-edit-section-title front-pair-toolbar"><strong>{title}</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, storageKey === "frontAttributeFields" ? "attributesFront" : "bonusesFront")}>Duplicate</button><ColorPicker card={card} colorKey={colorKey} label="Color" />{renderTextStyleControls(card, colorKey, false, { buttonLabel: "Text", panelAlign: "front" })}{renderPairDistanceControl(card, colorKey)}<ColorPicker card={card} colorKey={`${colorKey}Value`} label="Numbers Color" />{renderTextStyleControls(card, `${colorKey}Value`, false, { buttonLabel: "Numbers", panelAlign: "front", numbersMode: true })}</div>
         <div className="front-formula-list">
           {fields.map(field => (
             <div className="front-formula-row" key={field.id}>
@@ -3101,6 +3302,154 @@ function App() {
     }));
   }
 
+
+  function addDuplicateBlock(cardId, type) {
+    if (!cardId || !DUPLICABLE_BLOCK_TYPES[type]) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? {
+        ...card,
+        duplicateBlocks: [...normalizeDuplicateBlocks(card), makeDuplicateBlockFromCard(card, type)],
+        updatedAt: new Date().toISOString(),
+      } : card),
+    }));
+  }
+
+  function updateDuplicateBlock(cardId, blockId, patch) {
+    if (!cardId || !blockId) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? {
+        ...card,
+        duplicateBlocks: normalizeDuplicateBlocks(card).map(block => block.id === blockId ? normalizeDuplicateBlock({ ...block, ...patch }) : block),
+        updatedAt: new Date().toISOString(),
+      } : card),
+    }));
+  }
+
+  function updateDuplicateBlockStyle(cardId, blockId, styleKey, patch) {
+    if (!cardId || !blockId) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? {
+        ...card,
+        duplicateBlocks: normalizeDuplicateBlocks(card).map(block => block.id === blockId ? normalizeDuplicateBlock({ ...block, [styleKey]: { ...(block[styleKey] || {}), ...patch } }) : block),
+        updatedAt: new Date().toISOString(),
+      } : card),
+    }));
+  }
+
+  function updateDuplicateItem(cardId, blockId, itemId, patch) {
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? {
+        ...card,
+        duplicateBlocks: normalizeDuplicateBlocks(card).map(block => block.id === blockId ? normalizeDuplicateBlock({
+          ...block,
+          items: (block.items || []).map(item => item.id === itemId ? { ...item, ...patch } : item),
+        }) : block),
+        updatedAt: new Date().toISOString(),
+      } : card),
+    }));
+  }
+
+  function addDuplicateItem(cardId, blockId) {
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? {
+        ...card,
+        duplicateBlocks: normalizeDuplicateBlocks(card).map(block => block.id === blockId ? normalizeDuplicateBlock({
+          ...block,
+          items: [...(block.items || []), { id: `dup_item_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }],
+        }) : block),
+        updatedAt: new Date().toISOString(),
+      } : card),
+    }));
+  }
+
+  function deleteDuplicateBlock(cardId, blockId) {
+    if (!cardId || !blockId) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? {
+        ...card,
+        duplicateBlocks: normalizeDuplicateBlocks(card).filter(block => block.id !== blockId),
+        customZones: normalizeCustomZones(card).map(zone => zone.contentBlockId === blockId ? { ...zone, contentBlockId: "" } : zone),
+        updatedAt: new Date().toISOString(),
+      } : card),
+    }));
+  }
+
+  function assignContentToCustomZone(cardId, zoneId, blockId) {
+    updateCardCustomZone(cardId, zoneId, { contentBlockId: blockId || "" });
+  }
+
+  function DuplicateStyleMiniControls({ card, block, styleKey, titleMode = false, numbersMode = false }) {
+    const style = titleMode ? baseDuplicateTitleStyle(block[styleKey]) : baseDuplicateStyle(block[styleKey]);
+    const patch = next => updateDuplicateBlockStyle(card.id, block.id, styleKey, next);
+    return (
+      <div className="duplicate-style-mini">
+        {!numbersMode ? <button type="button" className={style.align === "left" ? "selected" : ""} onClick={() => patch({ align: "left" })}>L</button> : null}
+        {!numbersMode ? <button type="button" className={style.align === "center" ? "selected" : ""} onClick={() => patch({ align: "center" })}>C</button> : null}
+        {!numbersMode ? <button type="button" className={style.align === "right" ? "selected" : ""} onClick={() => patch({ align: "right" })}>R</button> : null}
+        <button type="button" className={style.bold ? "selected" : ""} onClick={() => patch({ bold: !style.bold })}>B</button>
+        {!titleMode ? <select value={style.font} onChange={e => patch({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select> : null}
+        <label>Size<input type="range" min="50" max="260" value={style.fontSize} onChange={e => patch({ fontSize: Number(e.currentTarget.value) })} /></label>
+        {!titleMode && !numbersMode ? <label>Line<input type="range" min="70" max="180" value={style.lineHeight} onChange={e => patch({ lineHeight: Number(e.currentTarget.value) })} /></label> : null}
+        {!titleMode && !numbersMode ? <label>Y<input type="range" min="-100" max="100" value={style.verticalOffset} onChange={e => patch({ verticalOffset: Number(e.currentTarget.value) })} /></label> : null}
+      </div>
+    );
+  }
+
+  function DuplicateBlocksEditor({ card }) {
+    const blocks = normalizeDuplicateBlocks(card);
+    return (
+      <div className="card-edit-section duplicate-blocks-editor">
+        <div className="card-edit-section-title"><strong>Duplicated content</strong></div>
+        <div className="duplicate-source-actions">
+          {Object.entries(DUPLICABLE_BLOCK_TYPES).map(([type, meta]) => <button key={type} type="button" onClick={() => addDuplicateBlock(card.id, type)}>Duplicate {meta.label}</button>)}
+        </div>
+        {!blocks.length ? <p className="custom-zone-empty-note">No duplicated content yet. Duplicate one of the supported blocks, then select an empty layout and add it.</p> : null}
+        {blocks.map(block => <DuplicateBlockEditor key={block.id} card={card} block={block} />)}
+      </div>
+    );
+  }
+
+  function DuplicateBlockEditor({ card, block }) {
+    const meta = DUPLICABLE_BLOCK_TYPES[block.type] || {};
+    return (
+      <div className="duplicate-block-editor">
+        <div className="duplicate-block-title"><strong>{block.name}</strong><button type="button" onClick={() => deleteDuplicateBlock(card.id, block.id)}>Delete copy</button></div>
+        <label>Name<input value={block.name} onChange={e => updateDuplicateBlock(card.id, block.id, { name: e.target.value })} /></label>
+        <label>Title<input value={block.title} onChange={e => updateDuplicateBlock(card.id, block.id, { title: e.target.value })} /></label>
+        {block.kind !== "frontPair" ? <label>Title color<input type="color" value={safeColor(block.titleColor)} onChange={e => updateDuplicateBlock(card.id, block.id, { titleColor: e.target.value })} /></label> : null}
+        {block.kind !== "frontPair" ? <DuplicateStyleMiniControls card={card} block={block} styleKey="titleStyle" titleMode /> : null}
+        {block.kind === "special" ? (
+          <>
+            <label>Text color<input type="color" value={safeColor(block.textColor)} onChange={e => updateDuplicateBlock(card.id, block.id, { textColor: e.target.value })} /></label>
+            <DuplicateStyleMiniControls card={card} block={block} styleKey="textStyle" />
+            <textarea className="special-ability-textarea" value={block.text} onChange={e => updateDuplicateBlock(card.id, block.id, { text: e.target.value })} />
+          </>
+        ) : block.kind === "frontPair" ? (
+          <>
+            <div className="duplicate-inline-tools"><label>Text color<input type="color" value={safeColor(block.textColor)} onChange={e => updateDuplicateBlock(card.id, block.id, { textColor: e.target.value })} /></label><label>Numbers color<input type="color" value={safeColor(block.numberColor)} onChange={e => updateDuplicateBlock(card.id, block.id, { numberColor: e.target.value })} /></label></div>
+            <DuplicateStyleMiniControls card={card} block={block} styleKey="textStyle" />
+            <DuplicateStyleMiniControls card={card} block={block} styleKey="numberStyle" numbersMode />
+            <label>Value<input className="attr-value" value={block.value} onChange={e => updateDuplicateBlock(card.id, block.id, { value: cleanTwoDigitValue(e.target.value) })} /></label>
+          </>
+        ) : (
+          <>
+            <div className="duplicate-inline-tools"><label>Text color<input type="color" value={safeColor(block.textColor)} onChange={e => updateDuplicateBlock(card.id, block.id, { textColor: e.target.value })} /></label><label>Numbers color<input type="color" value={safeColor(block.numberColor)} onChange={e => updateDuplicateBlock(card.id, block.id, { numberColor: e.target.value })} /></label></div>
+            <DuplicateStyleMiniControls card={card} block={block} styleKey="textStyle" />
+            <DuplicateStyleMiniControls card={card} block={block} styleKey="numberStyle" numbersMode />
+            <button type="button" onClick={() => addDuplicateItem(card.id, block.id)}>+ Add row</button>
+            {(block.items || []).map(item => <div className="attribute-row" key={item.id}><input value={item.name} onChange={e => updateDuplicateItem(card.id, block.id, item.id, { name: e.target.value })} /><input className="attr-value" value={item.value} onChange={e => updateDuplicateItem(card.id, block.id, item.id, { value: cleanTwoDigitValue(e.target.value) })} /><label className="show-on-card-toggle"><input type="checkbox" checked={item.showOnCard !== false} onChange={e => updateDuplicateItem(card.id, block.id, item.id, { showOnCard: e.target.checked })} /><span>Show</span></label><button type="button" onClick={() => updateDuplicateBlock(card.id, block.id, { items: (block.items || []).filter(x => x.id !== item.id) })}>×</button></div>)}
+          </>
+        )}
+      </div>
+    );
+  }
+
   function SectionTitleEditor({ card, titleKey, colorKey, label }) {
     return (
       <label className="section-title-editor">
@@ -3120,7 +3469,16 @@ function App() {
           <button type="button" className="mini-action-btn layout-action-btn" onClick={() => addCardCustomZone(card.id, "back")}>New layout back</button>
           <button type="button" className="mini-action-btn layout-action-btn danger" disabled={!selectedLayout || selectedLayout.cardId !== card.id} onClick={() => deleteSelectedLayoutZone(card.id)}>Delete layout</button>
         </div>
-        {customZones.length ? <p className="custom-zone-empty-note">New layouts are empty containers. Select one on the card to move, resize, or delete it.</p> : null}
+        {customZones.length ? <p className="custom-zone-empty-note">New layouts are empty containers. Select one on the card to move, resize, delete it, or attach duplicated content.</p> : null}
+        {selectedLayout?.cardId === card.id && selectedLayout.kind === "custom" ? (
+          <div className="custom-zone-content-picker">
+            <strong>Selected layout content</strong>
+            <select value={(customZones.find(zone => zone.id === selectedLayout.zoneKey)?.contentBlockId) || ""} onChange={e => assignContentToCustomZone(card.id, selectedLayout.zoneKey, e.target.value)}>
+              <option value="">+ Add content</option>
+              {normalizeDuplicateBlocks(card).map(block => <option key={block.id} value={block.id}>{block.name}</option>)}
+            </select>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -3135,6 +3493,7 @@ function App() {
         </div>
         <div className="card-editor-controls">
         {CardLayoutEditor({ card })}
+        {DuplicateBlocksEditor({ card })}
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
         <div className="card-edit-section compact-color-row"><strong>Header Front</strong><ColorPicker card={card} colorKey="headerFront" label="Color" />{renderTextStyleControls(card, "headerFront", false, { panelAlign: "front" })}</div>
         <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Front</strong><ColorPicker card={card} colorKey="positionFront" label="Color" />{renderTextStyleControls(card, "positionFront", false, { panelAlign: "front" })}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
@@ -3142,9 +3501,9 @@ function App() {
         <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Back</strong><ColorPicker card={card} colorKey="positionBack" label="Color" />{renderTextStyleControls(card, "positionBack", false, { panelAlign: "front" })}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
         {FrontZoneFieldsEditor({ card, storageKey: "frontAttributeFields", title: "Attributes Front", colorKey: "attributesFront", sourceSection: "passiveAttributes" })}
         {FrontZoneFieldsEditor({ card, storageKey: "frontBonusFields", title: "Bonuses Front", colorKey: "bonusesFront", sourceSection: "bonuses" })}
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="attributes" label="Text Color" />{renderTextStyleControls(card, "attributes", false, { panelAlign: "left", buttonLabel: "Text" })}{renderPairDistanceControl(card, "attributes")}<ColorPicker card={card} colorKey="attributesValue" label="Numbers Color" />{renderTextStyleControls(card, "attributesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="bonuses" label="Text Color" />{renderTextStyleControls(card, "bonuses", false, { panelAlign: "left", buttonLabel: "Text" })}{renderPairDistanceControl(card, "bonuses")}<ColorPicker card={card} colorKey="bonusesValue" label="Numbers Color" />{renderTextStyleControls(card, "bonusesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
-        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar"><ColorPicker card={card} colorKey="specialAbility" label="Text Color" />{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left" })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "attributesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="attributes" label="Text Color" />{renderTextStyleControls(card, "attributes", false, { panelAlign: "left", buttonLabel: "Text" })}{renderPairDistanceControl(card, "attributes")}<ColorPicker card={card} colorKey="attributesValue" label="Numbers Color" />{renderTextStyleControls(card, "attributesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "bonusesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="bonuses" label="Text Color" />{renderTextStyleControls(card, "bonuses", false, { panelAlign: "left", buttonLabel: "Text" })}{renderPairDistanceControl(card, "bonuses")}<ColorPicker card={card} colorKey="bonusesValue" label="Numbers Color" />{renderTextStyleControls(card, "bonusesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
+        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "specialAbility")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar"><ColorPicker card={card} colorKey="specialAbility" label="Text Color" />{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left" })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
         </div>
       </div>

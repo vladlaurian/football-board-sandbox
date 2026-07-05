@@ -5331,3 +5331,79 @@ select option {
   line-height: 1.35 !important;
   opacity: .72 !important;
 }
+
+/* Step 2: duplicated content blocks assigned to empty custom layouts */
+.duplicate-blocks-editor {
+  gap: 8px;
+}
+.duplicate-source-actions,
+.duplicate-inline-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.duplicate-source-actions button,
+.duplicate-block-title button {
+  font-size: 12px;
+  font-weight: 650;
+  padding: 6px 9px;
+}
+.duplicate-block-editor {
+  display: grid;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid rgba(147, 197, 253, .28);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, .34);
+}
+.duplicate-block-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.duplicate-style-mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 6px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, .28);
+}
+.duplicate-style-mini button,
+.duplicate-style-mini select {
+  min-height: 30px;
+}
+.duplicate-style-mini button.selected {
+  border-color: rgba(34, 211, 238, .95);
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, .18) inset;
+}
+.duplicate-style-mini label {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 5px;
+  width: auto !important;
+  min-width: 130px;
+}
+.duplicate-style-mini input[type="range"] {
+  width: 85px;
+}
+.custom-zone-content-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(14, 165, 233, .08);
+  border: 1px solid rgba(125, 211, 252, .24);
+}
+.custom-zone-content-picker select {
+  flex: 1 1 auto;
+  min-width: 180px;
+}
+.duplicate-content-zone {
+  width: 100%;
+  height: 100%;
+}
