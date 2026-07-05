@@ -4275,3 +4275,58 @@ select option {
   .card-zone-formula { gap: var(--zone-stat-gap-wide, var(--zone-stat-gap, 8px)) !important; }
   .card-zone-formula span { text-align: var(--zone-align, left) !important; }
 }
+
+
+/* FIX: text style controls must remain interactive; range sliders should not close/collapse parent editors. */
+.card-text-style-controls,
+.card-text-style-controls *,
+.text-style-controls,
+.text-style-controls *,
+.style-controls,
+.style-controls * {
+  pointer-events: auto;
+}
+
+/* FIX: colors applied to attributes/bonuses must affect labels and values consistently. */
+.card-zone-formula,
+.card-zone-formula *,
+.card-zone-list,
+.card-zone-list *,
+.card-zone-list-row,
+.card-zone-list-row *,
+.card-zone-stat,
+.card-zone-stat *,
+.card-zone-stat-label,
+.card-zone-stat-value,
+.card-zone-label,
+.card-zone-value,
+.card-zone-title,
+.card-zone-content,
+.card-zone-content * {
+  color: currentColor !important;
+  fill: currentColor !important;
+}
+
+/* Some rows may have direct inline color on values from older code; force labels to inherit zone color too. */
+.card-visual-zone .card-zone-formula strong,
+.card-visual-zone .card-zone-formula span,
+.card-visual-zone .card-zone-list strong,
+.card-visual-zone .card-zone-list span,
+.card-visual-zone .card-zone-list-row strong,
+.card-visual-zone .card-zone-list-row span {
+  color: inherit !important;
+}
+
+/* FIX: defensive area arrow scales with grid, not with entire zone. */
+.defensive-area-arrow,
+.card-defensive-arrow,
+.defensive-grid-arrow,
+.card-zone-defensive-area .attack-arrow,
+.card-zone-defensive-area .direction-arrow {
+  width: 50% !important;
+  max-width: 50% !important;
+  height: auto !important;
+  max-height: 18% !important;
+  transform-origin: center center !important;
+  object-fit: contain !important;
+}

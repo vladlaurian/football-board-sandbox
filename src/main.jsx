@@ -2580,9 +2580,9 @@ function App() {
             <button type="button" className={current.bold ? "selected" : ""} onClick={() => set({ bold: !current.bold })}>B</button>
           </div>
           <label>Font<select value={current.font} onChange={e => set({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label>
-          <label>Size<input type="range" min="50" max="180" value={current.fontSize} onChange={e => set({ fontSize: Number(e.target.value) })} /><span>{current.fontSize}%</span></label>
-          <label>Line<input type="range" min="70" max="180" value={current.lineHeight} onChange={e => set({ lineHeight: Number(e.target.value) })} /><span>{current.lineHeight}%</span></label>
-          {stats ? <label>Gap<input type="range" min="30" max="250" value={current.statGap} onChange={e => set({ statGap: Number(e.target.value) })} /><span>{current.statGap}%</span></label> : null}
+          <label>Size<input type="range" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} min="50" max="180" value={current.fontSize} onChange={e => set({ fontSize: Number(e.target.value) })} /><span>{current.fontSize}%</span></label>
+          <label>Line<input type="range" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} min="70" max="180" value={current.lineHeight} onChange={e => set({ lineHeight: Number(e.target.value) })} /><span>{current.lineHeight}%</span></label>
+          {stats ? <label>Gap<input type="range" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} min="30" max="250" value={current.statGap} onChange={e => set({ statGap: Number(e.target.value) })} /><span>{current.statGap}%</span></label> : null}
         </div>
       </details>
     );
