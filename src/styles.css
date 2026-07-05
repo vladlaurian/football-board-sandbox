@@ -5074,3 +5074,83 @@ select option {
 @media (max-width: 900px) {
   .text-style-controls.align-front .text-style-panel { transform: translateX(48px) !important; }
 }
+
+
+/* FINAL ROW-ALIGNED NUMBERS: every stat is rendered label + distance + number inside the same row. */
+.card-zone-formula,
+.card-zone-list-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: baseline !important;
+  justify-content: flex-start !important;
+  gap: var(--zone-stat-gap, 18px) !important;
+  text-align: initial !important;
+}
+.card-zone-formula .card-zone-label,
+.card-zone-list-row .card-zone-label {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  text-align: var(--zone-align, left) !important;
+  line-height: var(--zone-line-height, 1) !important;
+  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
+}
+.card-zone-formula .card-zone-value,
+.card-zone-list-row .card-zone-value {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: max-content !important;
+  max-width: max-content !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  text-align: center !important;
+  line-height: var(--zone-line-height, 1) !important;
+  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
+}
+.card-zone-list {
+  display: grid !important;
+  align-content: start !important;
+  row-gap: 0 !important;
+}
+.card-editor .pair-distance-control,
+.pair-distance-control {
+  display: inline-grid !important;
+  grid-template-columns: auto 22px minmax(72px, 110px) 22px !important;
+  grid-template-rows: 22px !important;
+  align-items: center !important;
+  justify-content: start !important;
+  gap: 5px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  opacity: .95 !important;
+  flex-direction: row !important;
+  width: auto !important;
+  max-width: 100% !important;
+}
+.card-editor .pair-distance-control span,
+.pair-distance-control span {
+  white-space: nowrap !important;
+}
+.card-editor .pair-distance-control input[type="range"],
+.pair-distance-control input[type="range"] {
+  width: 100% !important;
+  min-width: 72px !important;
+}
+.card-editor .pair-distance-control button,
+.pair-distance-control button {
+  min-width: 22px !important;
+  width: 22px !important;
+  height: 22px !important;
+  padding: 0 !important;
+  border-radius: 7px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+}
