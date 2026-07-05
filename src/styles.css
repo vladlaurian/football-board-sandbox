@@ -3887,3 +3887,8 @@ select option {
   color: #111827 !important;
   opacity: 1 !important;
 }
+
+/* Requested: do not display layout titles, but keep the label elements in DOM. */
+.card-visual-zone > .card-zone-label {
+  display: none !important;
+}
