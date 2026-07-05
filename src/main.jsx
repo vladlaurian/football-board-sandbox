@@ -286,9 +286,15 @@ function zoneTextStyleVars(styles, key, hasStats = false) {
 
 function zonePairDistanceVars(styles, key) {
   const s = normalizeTextStyles(styles)[key] || CARD_TEXT_STYLE_DEFAULTS[key] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
+  const normalizedDistance = clamp(Number(s.statGap ?? 300), 0, 300);
+  const shiftPercent = Math.max(0, Math.min(1, (300 - normalizedDistance) / 300));
   return {
-    "--zone-stat-gap": `${Math.round(s.statGap / 100 * 18)}px`,
-    "--zone-stat-gap-wide": `${Math.round(s.statGap / 100 * 30)}px`,
+    // Distance now moves the Numbers column as one compact right-aligned block.
+    // 300 = default/right edge, 0 = closest safe offset toward the text.
+    "--zone-stat-gap": "0px",
+    "--zone-stat-gap-wide": "0px",
+    "--zone-number-shift": `${(shiftPercent * 22).toFixed(2)}cqw`,
+    "--zone-number-reserve": `calc(1.8em + ${(shiftPercent * 22).toFixed(2)}cqw)`,
   };
 }
 

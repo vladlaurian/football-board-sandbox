@@ -5228,3 +5228,57 @@ select option {
   grid-column: 4 !important;
   grid-row: 1 !important;
 }
+
+/* FINAL DISTANCE MODEL: labels stay fixed; Numbers move as one compact column.
+   Distance=right max keeps the numbers on the zone's right edge. Moving left shifts
+   only the Numbers column toward the labels and reserves enough text width to avoid overlap. */
+.card-zone-formula,
+.card-zone-list-row {
+  position: relative !important;
+  display: block !important;
+  gap: 0 !important;
+  column-gap: 0 !important;
+  align-items: initial !important;
+  justify-content: initial !important;
+  text-align: initial !important;
+  padding-right: var(--zone-number-reserve, 1.8em) !important;
+  min-height: calc(1em * var(--zone-line-height, 1)) !important;
+}
+.card-zone-formula .card-zone-label,
+.card-zone-list-row .card-zone-label {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  text-align: var(--zone-align, left) !important;
+  line-height: var(--zone-line-height, 1) !important;
+  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
+}
+.card-zone-formula .card-zone-value,
+.card-zone-list-row .card-zone-value {
+  position: absolute !important;
+  right: 0 !important;
+  top: 0 !important;
+  display: block !important;
+  width: max-content !important;
+  min-width: max-content !important;
+  max-width: max-content !important;
+  margin-left: 0 !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  text-align: right !important;
+  transform: translateX(calc(-1 * var(--zone-number-shift, 0cqw))) translateY(var(--zone-y-offset, 0cqh)) !important;
+  color: var(--zone-number-color, currentColor) !important;
+  font-family: var(--zone-font-family, Inter), system-ui, sans-serif !important;
+  font-weight: var(--zone-font-weight, 650) !important;
+  line-height: var(--zone-line-height, 1) !important;
+}
+.card-zone-list {
+  display: grid !important;
+  align-content: start !important;
+  row-gap: 0 !important;
+}
