@@ -663,6 +663,18 @@ function emptyDefensiveArea() {
   return [];
 }
 
+const DEFENSIVE_GRID_ADJUST_DEFAULTS = { width: 100, height: 100, offsetX: 0, offsetY: 0 };
+
+function normalizeDefensiveGridAdjust(raw = {}) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  return {
+    width: clamp(Number(source.width ?? DEFENSIVE_GRID_ADJUST_DEFAULTS.width) || DEFENSIVE_GRID_ADJUST_DEFAULTS.width, 40, 180),
+    height: clamp(Number(source.height ?? DEFENSIVE_GRID_ADJUST_DEFAULTS.height) || DEFENSIVE_GRID_ADJUST_DEFAULTS.height, 40, 180),
+    offsetX: clamp(Number(source.offsetX ?? DEFENSIVE_GRID_ADJUST_DEFAULTS.offsetX) || 0, -80, 80),
+    offsetY: clamp(Number(source.offsetY ?? DEFENSIVE_GRID_ADJUST_DEFAULTS.offsetY) || 0, -80, 80),
+  };
+}
+
 function makeFrontField(label, index = 0, extra = {}) {
   return {
     id: extra.id || `front_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`,
@@ -745,6 +757,7 @@ function createPlayerCard(position = "ST") {
     frontFields: defaultFrontFields(),
     theme: "Style 1",
     defensiveArea: emptyDefensiveArea(),
+    defensiveGridAdjust: { ...DEFENSIVE_GRID_ADJUST_DEFAULTS },
     artwork: { mode: "default", customDataUrl: "" },
     graphics: { frontDataUrl: "", backDataUrl: "", previousTheme: "Style 1" },
     specialAbility: "",
@@ -777,6 +790,7 @@ function normalizeImportedCard(card) {
     frontFields: normalizeFrontFields(card?.frontFields || card?.frontSummary || card?.summary || card?.front || card?.ratings),
     theme: (card?.theme === CUSTOM_CARD_THEME || card?.theme === "Custom") ? CUSTOM_CARD_THEME : (CARD_THEMES.includes(card?.theme) ? card.theme : (LEGACY_THEME_MAP[card?.theme] || base.theme || "Style 1")),
     defensiveArea: Array.isArray(card?.defensiveArea) ? card.defensiveArea : [],
+    defensiveGridAdjust: normalizeDefensiveGridAdjust(card?.defensiveGridAdjust || card?.defensive_grid_adjust),
     artwork: card?.artwork || { mode: "default", customDataUrl: "" },
     graphics: {
       frontDataUrl: String(card?.graphics?.frontDataUrl || card?.customGraphics?.frontDataUrl || card?.frontGraphic || ""),
@@ -2648,7 +2662,12 @@ function App() {
       return (
         <div className="card-zone-text card-zone-defense-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 2, color: textColor, "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78") }}>
           <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVars(textStyles, "defensiveAreaTitle") }}>{cardLayoutTitle(card, "defensiveArea")}</div>
-          <div className="card-zone-defense card-zone-defense-row" style={{ color: textColor, ...zoneTextStyleVars(textStyles, "defensiveArea") }}><AreaMiniPreview area={card?.defensiveArea || []} /><div className="attack-direction-hint card-zone-attack-direction" aria-label="Attacking direction"><span className="attack-arrow">↑</span></div></div>
+          <div className="card-zone-defense card-zone-defense-row" style={{ color: textColor, ...zoneTextStyleVars(textStyles, "defensiveArea") }}>
+            <div className="card-zone-defense-grid-adjust" style={defensiveGridAdjustStyle(card)}>
+              <AreaMiniPreview area={card?.defensiveArea || []} />
+              <div className="attack-direction-hint card-zone-attack-direction" aria-label="Attacking direction"><span className="attack-arrow">↑</span></div>
+            </div>
+          </div>
         </div>
       );
     };
@@ -3044,6 +3063,58 @@ function App() {
         </div>
       </div>
     );
+  }
+
+  function updateDefensiveGridAdjust(cardId, patch) {
+    if (!cardId) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? {
+        ...card,
+        defensiveGridAdjust: normalizeDefensiveGridAdjust({ ...(card.defensiveGridAdjust || DEFENSIVE_GRID_ADJUST_DEFAULTS), ...patch }),
+        updatedAt: new Date().toISOString(),
+      } : card),
+    }));
+  }
+
+  function DefensiveGridAdjustControl({ card }) {
+    if (!card) return null;
+    const current = normalizeDefensiveGridAdjust(card.defensiveGridAdjust);
+    const slider = (label, key, min, max) => (
+      <label className="grid-adjust-slider" key={key}>
+        <span>{label}</span>
+        <button type="button" onClick={() => updateDefensiveGridAdjust(card.id, { [key]: current[key] - 1 })}>−</button>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          value={current[key]}
+          onChange={e => updateDefensiveGridAdjust(card.id, { [key]: Number(e.currentTarget.value) })}
+        />
+        <button type="button" onClick={() => updateDefensiveGridAdjust(card.id, { [key]: current[key] + 1 })}>+</button>
+        <em>{current[key]}</em>
+      </label>
+    );
+    return (
+      <details className="grid-adjust-control">
+        <summary>Adjust Grid</summary>
+        <div className="grid-adjust-panel">
+          {slider("Width", "width", 40, 180)}
+          {slider("Height", "height", 40, 180)}
+          {slider("Move X", "offsetX", -80, 80)}
+          {slider("Move Y", "offsetY", -80, 80)}
+        </div>
+      </details>
+    );
+  }
+
+  function defensiveGridAdjustStyle(card) {
+    const adjust = normalizeDefensiveGridAdjust(card?.defensiveGridAdjust);
+    return {
+      width: `${adjust.width}%`,
+      height: `${adjust.height}%`,
+      transform: `translate(-50%, -50%) translate(${adjust.offsetX}%, ${adjust.offsetY}%)`,
+    };
   }
 
   function updateCardTextStyle(cardId, key, patch) {
@@ -3504,7 +3575,7 @@ function App() {
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "attributesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="attributes" label="Text Color" />{renderTextStyleControls(card, "attributes", false, { panelAlign: "left", buttonLabel: "Text" })}{renderPairDistanceControl(card, "attributes")}<ColorPicker card={card} colorKey="attributesValue" label="Numbers Color" />{renderTextStyleControls(card, "attributesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "bonusesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="bonuses" label="Text Color" />{renderTextStyleControls(card, "bonuses", false, { panelAlign: "left", buttonLabel: "Text" })}{renderPairDistanceControl(card, "bonuses")}<ColorPicker card={card} colorKey="bonusesValue" label="Numbers Color" />{renderTextStyleControls(card, "bonusesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
         <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "specialAbility")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar"><ColorPicker card={card} colorKey="specialAbility" label="Text Color" />{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left" })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /><DefensiveGridAdjustControl card={card} /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
         </div>
       </div>
     );
