@@ -4032,3 +4032,157 @@ select option {
   max-height: 100% !important;
   transform: scale(clamp(.42, min(18cqw, 18cqh), .82)) !important;
 }
+
+/* REFLOW AUTOFIT FIX: text must re-wrap and use the available layout shape, not only scale. */
+.card-visual-zone {
+  container-type: size !important;
+}
+.card-zone-content,
+.card-zone-text,
+.card-zone-text * {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  box-sizing: border-box !important;
+}
+.card-zone-text {
+  overflow: hidden !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+  hyphens: auto !important;
+}
+.card-zone-special-with-title {
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+  gap: clamp(0px, .8cqh, 2px) !important;
+}
+.card-zone-special-with-title .card-zone-section-title {
+  flex: 0 0 auto !important;
+}
+.card-zone-special-with-title .card-zone-special {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  flex: 1 1 auto !important;
+  text-align: center !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  text-wrap: pretty !important;
+  font-size: clamp(3px, min(5.2cqw, 15cqh), 11px) !important;
+  line-height: clamp(.9, 1.03, 1.12) !important;
+}
+
+/* Front Attributes / Bonuses: if the layout is wide, use a horizontal line; if it is tall/narrow, stack label/value. */
+.card-zone-formula {
+  width: 100% !important;
+  height: 100% !important;
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  grid-template-rows: minmax(0, auto) minmax(0, 1fr) !important;
+  align-content: center !important;
+  justify-content: center !important;
+  justify-items: center !important;
+  gap: clamp(0px, 1cqh, 3px) !important;
+  text-align: center !important;
+}
+.card-zone-formula span,
+.card-zone-formula strong {
+  max-width: 100% !important;
+  min-width: 0 !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  text-overflow: clip !important;
+}
+.card-zone-formula span {
+  font-size: clamp(3px, min(7cqw, 24cqh), 12px) !important;
+}
+.card-zone-formula strong {
+  font-size: clamp(4px, min(14cqw, 42cqh), 30px) !important;
+}
+@container (min-aspect-ratio: 2/1) {
+  .card-zone-formula {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-rows: 1fr !important;
+    align-items: center !important;
+    justify-items: stretch !important;
+    gap: clamp(2px, 5cqw, 10px) !important;
+    text-align: left !important;
+  }
+  .card-zone-formula span {
+    text-align: left !important;
+    font-size: clamp(3px, min(7cqw, 48cqh), 13px) !important;
+  }
+  .card-zone-formula strong {
+    text-align: right !important;
+    font-size: clamp(4px, min(10cqw, 70cqh), 30px) !important;
+  }
+}
+
+/* Back Attributes / Bonuses: labels may wrap when the zone is narrow and rows compress to available height. */
+.card-zone-list-with-title {
+  justify-content: flex-start !important;
+  gap: clamp(0px, .9cqh, 2px) !important;
+}
+.card-zone-list-with-title .card-zone-list {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  gap: clamp(0px, .8cqh, 2px) !important;
+  overflow: hidden !important;
+}
+.card-zone-list-row {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: clamp(1px, 2.8cqw, 8px) !important;
+  align-items: center !important;
+}
+.card-zone-list-row span {
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  text-overflow: clip !important;
+  line-height: .98 !important;
+}
+.card-zone-list-row strong {
+  white-space: nowrap !important;
+  line-height: .98 !important;
+}
+
+/* Defensive Area: the 11x11 grid is a responsive square that always fits inside the defensive layout. */
+.card-zone-defense-with-title {
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+  gap: clamp(0px, .9cqh, 2px) !important;
+}
+.card-zone-defense-with-title .card-zone-defense {
+  width: 100% !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+  padding: clamp(0px, .8cqh, 2px) !important;
+}
+.card-zone-defense .area-mini {
+  display: grid !important;
+  grid-template-columns: repeat(11, minmax(0, 1fr)) !important;
+  grid-template-rows: repeat(11, minmax(0, 1fr)) !important;
+  gap: clamp(0px, .55cqw, 1px) !important;
+  width: min(100%, 82cqh, 46cqw) !important;
+  height: auto !important;
+  aspect-ratio: 1 / 1 !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+.card-zone-defense .area-mini span {
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  aspect-ratio: 1 / 1 !important;
+  border-radius: clamp(1px, .9cqw, 3px) !important;
+  font-size: clamp(0px, 1.2cqw, 4px) !important;
+}
