@@ -353,6 +353,7 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
     setRangeDraft(prev => ({ ...prev, [key]: value }));
     onPreviewEnd && onPreviewEnd();
     onPatch && onPatch({ [key]: value });
+    onPreview && onPreview(null);
   };
 
   const beginRange = key => () => {
@@ -376,6 +377,7 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
     setRangeDraft(prev => ({ ...prev, [key]: value }));
     onPreviewEnd && onPreviewEnd();
     onPatch && onPatch({ [key]: value });
+    onPreview && onPreview(null);
   };
 
   const renderRange = (label, key, min, max, suffix = "", step = 1) => (
@@ -410,7 +412,7 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
 }
 
 
-function StableDefensiveGridAdjustControl({ cardId, current, isOpen, onToggle, onPatch }) {
+function StableDefensiveGridAdjustControl({ cardId, current, isOpen, onToggle, onPatch, onPreview }) {
   if (!cardId) return null;
   const safeCurrent = current || DEFENSIVE_GRID_ADJUST_DEFAULTS;
   const [rangeDraft, setRangeDraft] = useState({});
@@ -429,7 +431,9 @@ function StableDefensiveGridAdjustControl({ cardId, current, isOpen, onToggle, o
   // and breaks pointer capture, so the range behaves like click-only. Commit on release.
   const setRangeDraftValue = key => e => {
     const value = Number(e.currentTarget.value);
-    setRangeDraft(prev => ({ ...prev, [key]: value }));
+    const nextDraft = { ...rangeDraft, [key]: value };
+    setRangeDraft(nextDraft);
+    onPreview && onPreview({ ...safeCurrent, ...nextDraft });
   };
 
   const commitRangeValue = (key, rawValue, min, max) => {
@@ -490,8 +494,8 @@ function StableDefensiveGridAdjustControl({ cardId, current, isOpen, onToggle, o
       <button type="button" className={`text-style-toggle grid-adjust-toggle ${isOpen ? "active" : ""}`} aria-expanded={isOpen} onClick={onToggle}>Adjust Grid/Arrow</button>
       {isOpen ? (
         <div className="text-style-panel grid-adjust-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
-          {slider("Width", "width", 40, 180)}
-          {slider("Height", "height", 40, 180)}
+          {slider("Width", "width", 40, 220)}
+          {slider("Height", "height", 40, 220)}
           {slider("Move X", "offsetX", -80, 80)}
           {slider("Move Y", "offsetY", -80, 80)}
         </div>
@@ -759,8 +763,8 @@ const DEFENSIVE_GRID_ADJUST_DEFAULTS = { width: 100, height: 100, offsetX: 0, of
 function normalizeDefensiveGridAdjust(raw = {}) {
   const source = raw && typeof raw === "object" ? raw : {};
   return {
-    width: clamp(Number(source.width ?? DEFENSIVE_GRID_ADJUST_DEFAULTS.width) || DEFENSIVE_GRID_ADJUST_DEFAULTS.width, 40, 180),
-    height: clamp(Number(source.height ?? DEFENSIVE_GRID_ADJUST_DEFAULTS.height) || DEFENSIVE_GRID_ADJUST_DEFAULTS.height, 40, 180),
+    width: clamp(Number(source.width ?? DEFENSIVE_GRID_ADJUST_DEFAULTS.width) || DEFENSIVE_GRID_ADJUST_DEFAULTS.width, 40, 220),
+    height: clamp(Number(source.height ?? DEFENSIVE_GRID_ADJUST_DEFAULTS.height) || DEFENSIVE_GRID_ADJUST_DEFAULTS.height, 40, 220),
     offsetX: clamp(Number(source.offsetX ?? DEFENSIVE_GRID_ADJUST_DEFAULTS.offsetX) || 0, -80, 80),
     offsetY: clamp(Number(source.offsetY ?? DEFENSIVE_GRID_ADJUST_DEFAULTS.offsetY) || 0, -80, 80),
   };
@@ -2755,9 +2759,13 @@ function App() {
         <div className="card-zone-text card-zone-defense-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 2, color: textColor, "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78") }}>
           <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVars(textStyles, "defensiveAreaTitle") }}>{cardLayoutTitle(card, "defensiveArea")}</div>
           <div className="card-zone-defense card-zone-defense-row" style={{ color: textColor, ...zoneTextStyleVars(textStyles, "defensiveArea") }}>
-            <div className="card-zone-defense-grid-adjust" style={defensiveGridAdjustStyle(card)}>
+            <div className="card-zone-defense-grid-adjust" data-defensive-grid-card-id={card.id} style={defensiveGridAdjustStyle(card)}>
               <AreaMiniPreview area={card?.defensiveArea || []} />
-              <div className="attack-direction-hint card-zone-attack-direction" aria-label="Attacking direction"><span className="attack-arrow">↑</span></div>
+              <div className="attack-direction-hint card-zone-attack-direction" aria-label="Attacking direction">
+                <span className="attack-direction-label attack-direction-label-left" aria-hidden="true">{Array.from("ATTACKING").map((letter, index) => <span key={`attack-${index}`}>{letter}</span>)}</span>
+                <span className="attack-arrow">↑</span>
+                <span className="attack-direction-label attack-direction-label-right" aria-hidden="true">{Array.from("DIRECTION").map((letter, index) => <span key={`direction-${index}`}>{letter}</span>)}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -3169,6 +3177,23 @@ function App() {
     }));
   }
 
+  function previewDefensiveGridAdjust(cardId, nextAdjust) {
+    if (!cardId || typeof document === "undefined") return;
+    const selector = `[data-defensive-grid-card-id="${String(cardId).replace(/"/g, '\"')}"]`;
+    document.querySelectorAll(selector).forEach(node => {
+      if (!nextAdjust) {
+        node.style.removeProperty("width");
+        node.style.removeProperty("height");
+        node.style.removeProperty("transform");
+        return;
+      }
+      const adjust = normalizeDefensiveGridAdjust(nextAdjust);
+      node.style.width = `${adjust.width}%`;
+      node.style.height = `${adjust.height}%`;
+      node.style.transform = `translate(-50%, -50%) translate(${adjust.offsetX}%, ${adjust.offsetY}%)`;
+    });
+  }
+
   function DefensiveGridAdjustControl({ card }) {
     if (!card) return null;
     const panelKey = `${card.id}:defensiveGridAdjust`;
@@ -3179,6 +3204,7 @@ function App() {
         isOpen={openGridAdjustKey === panelKey}
         onToggle={() => setOpenGridAdjustKey(openGridAdjustKey === panelKey ? null : panelKey)}
         onPatch={patch => updateDefensiveGridAdjust(card.id, patch)}
+        onPreview={nextAdjust => previewDefensiveGridAdjust(card.id, nextAdjust)}
       />
     );
   }

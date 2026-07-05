@@ -5572,3 +5572,39 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   flex: 0 0 auto;
   transform: none !important;
 }
+
+/* Defensive Area: vertical label for the arrow and stronger arrow readability */
+.card-zone-defense-row .card-zone-attack-direction {
+  display: inline-flex !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  gap: clamp(1px, 0.8cqw, 3px) !important;
+}
+.card-zone-defense-row .card-zone-attack-direction .attack-arrow {
+  --card-zone-arrow-height: min(27cqw, 47cqh) !important;
+  --card-zone-arrow-head: max(3px, calc(var(--card-zone-arrow-height) * .20)) !important;
+  --card-zone-arrow-width: max(6px, calc(var(--card-zone-arrow-height) * .34)) !important;
+}
+.card-zone-defense-row .card-zone-attack-direction .attack-direction-label {
+  height: var(--card-zone-arrow-height) !important;
+  max-height: var(--card-zone-arrow-height) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex: 0 0 auto !important;
+  overflow: hidden !important;
+  font-family: var(--zone-font, Inter, system-ui, sans-serif) !important;
+  font-weight: 800 !important;
+  font-size: clamp(2.4px, min(2.2cqw, 3.3cqh), 8px) !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  color: var(--zone-text-color, currentColor) !important;
+  text-shadow: 0 0 2px rgba(0,0,0,.45) !important;
+  pointer-events: none !important;
+}
+.card-zone-defense-row .card-zone-attack-direction .attack-direction-label span {
+  display: block !important;
+  line-height: 1 !important;
+  height: 1em !important;
+}
