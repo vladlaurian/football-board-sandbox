@@ -910,8 +910,14 @@ function createDefaultCardState() {
       red: TEAM_SLOT_POSITIONS.map((position, index) => ({ id: `red-${index + 1}`, position, cardId: null })),
     },
     assignments: {},
+    assignmentMeta: {},
     theme: "Style 1",
   };
+}
+
+function emptyCardTeams() {
+  const base = createDefaultCardState();
+  return base.teams;
 }
 
 function normalizeCardState(raw) {
@@ -920,63 +926,41 @@ function normalizeCardState(raw) {
   const cards = Array.isArray(raw.cards) ? raw.cards.map(card => normalizeImportedCard(card)) : [];
   const validCardIds = new Set(cards.map(card => String(card.id)));
 
-  // Strong data invariant: one player card can be attached to one puck only.
-  // Older saves could keep stale references after moving/deleting cards, so normalize
-  // aggressively on load, save and every card-state update. Last assignment wins,
-  // which preserves the most recent target in object-spread based updates.
-  const normalizeAssignments = (assignments) => {
-    if (!assignments || typeof assignments !== "object") return {};
-    const result = {};
-    const cardToPiece = new Map();
-
-    Object.entries(assignments).forEach(([rawPieceId, rawCardId]) => {
+  const assignments = {};
+  const seenCardIds = new Set();
+  if (raw.assignments && typeof raw.assignments === "object") {
+    Object.entries(raw.assignments).forEach(([rawPieceId, rawCardId]) => {
       const pieceId = String(rawPieceId || "").trim();
       const cardId = String(rawCardId || "").trim();
-      if (!pieceId || !cardId || !validCardIds.has(cardId)) return;
-
-      const previousPieceId = cardToPiece.get(cardId);
-      if (previousPieceId && previousPieceId !== pieceId) {
-        delete result[previousPieceId];
-      }
-      cardToPiece.set(cardId, pieceId);
-      result[pieceId] = cardId;
+      if (!pieceId || !cardId || !validCardIds.has(cardId) || seenCardIds.has(cardId)) return;
+      seenCardIds.add(cardId);
+      assignments[pieceId] = cardId;
     });
+  }
 
-    return result;
-  };
-
-  const assignments = normalizeAssignments(raw.assignments);
-
-  const normalizeTeam = (team, fallback, usedTeamCardIds) => {
-    const source = Array.isArray(team) ? team : [];
-    return fallback.map((slot, index) => {
-      const sourceSlot = source[index] || {};
-      const cardId = String(sourceSlot.cardId || "").trim();
-      const keepCardId = cardId && validCardIds.has(cardId) && !usedTeamCardIds.has(cardId);
-      if (keepCardId) usedTeamCardIds.add(cardId);
-      return {
-        ...slot,
-        ...sourceSlot,
-        id: slot.id,
-        position: sourceSlot.position || slot.position,
-        cardId: keepCardId ? cardId : null,
+  const assignmentMeta = {};
+  if (raw.assignmentMeta && typeof raw.assignmentMeta === "object") {
+    Object.entries(raw.assignmentMeta).forEach(([rawPieceId, meta]) => {
+      const pieceId = String(rawPieceId || "").trim();
+      if (!pieceId || !assignments[pieceId] || !meta || typeof meta !== "object") return;
+      assignmentMeta[pieceId] = {
+        team: String(meta.team || ""),
+        label: String(meta.label || ""),
+        coord: String(meta.coord || ""),
       };
     });
-  };
-
-  const usedTeamCardIds = new Set(Object.values(assignments).map(String));
+  }
 
   return {
     cards,
-    teams: {
-      blue: normalizeTeam(raw.teams?.blue, base.teams.blue, usedTeamCardIds),
-      red: normalizeTeam(raw.teams?.red, base.teams.red, usedTeamCardIds),
-    },
+    // assignments is the only source of truth for Card -> Puck.
+    // Legacy teams[].cardId is intentionally wiped so old roster data cannot reassign cards.
+    teams: emptyCardTeams(),
     assignments,
+    assignmentMeta,
     theme: CARD_THEMES.includes(raw.theme) ? raw.theme : (LEGACY_THEME_MAP[raw.theme] || base.theme),
   };
 }
-
 
 function pieceAssignmentSignature(piece, settingsLike = DEFAULT_SETTINGS) {
   if (!piece || piece.team === "BALL") return null;
@@ -999,9 +983,7 @@ function reconcileCardStateWithPieces(rawCardState, piecesLike = [], settingsLik
   const normalized = normalizeCardState(rawCardState);
   const boardPieces = normalizePiecesForBoard(piecesLike || [], settingsLike).filter(piece => piece.team !== "BALL");
   const pieceById = new Map(boardPieces.map(piece => [String(piece.id), piece]));
-  const rawMeta = rawCardState && typeof rawCardState === "object" && rawCardState.assignmentMeta && typeof rawCardState.assignmentMeta === "object"
-    ? rawCardState.assignmentMeta
-    : {};
+  const allowLegacyAssignments = options.allowLegacyAssignments !== false;
   const resultAssignments = {};
   const resultMeta = {};
   const usedCardIds = new Set();
@@ -1013,15 +995,9 @@ function reconcileCardStateWithPieces(rawCardState, piecesLike = [], settingsLik
     if (!piece || !cardId || usedCardIds.has(cardId)) return;
 
     const currentSignature = pieceAssignmentSignature(piece, settingsLike);
-    const savedSignature = rawMeta[pieceId];
-
-    // New saves carry assignmentMeta. If the same volatile id now points to another
-    // puck/slot, drop the stale assignment instead of silently attaching the card to it.
+    const savedSignature = normalized.assignmentMeta?.[pieceId];
     if (savedSignature && !samePieceAssignmentSignature(savedSignature, currentSignature)) return;
-
-    // Legacy saves did not have assignmentMeta. Keep them only when explicitly allowed;
-    // every new save will add metadata and become strict from then on.
-    if (!savedSignature && options.dropLegacyAssignments) return;
+    if (!savedSignature && !allowLegacyAssignments) return;
 
     usedCardIds.add(cardId);
     resultAssignments[pieceId] = cardId;
@@ -1030,13 +1006,19 @@ function reconcileCardStateWithPieces(rawCardState, piecesLike = [], settingsLik
 
   return {
     ...normalized,
+    teams: emptyCardTeams(),
     assignments: resultAssignments,
     assignmentMeta: resultMeta,
   };
 }
 
+function stripAssignmentsFromCardLibrary(cardStateLike) {
+  const normalized = normalizeCardState(cardStateLike);
+  return { ...normalized, teams: emptyCardTeams(), assignments: {}, assignmentMeta: {} };
+}
+
 function buildPersistedCardState(cardStateLike, piecesLike = [], settingsLike = DEFAULT_SETTINGS) {
-  return reconcileCardStateWithPieces(cardStateLike, piecesLike, settingsLike);
+  return reconcileCardStateWithPieces(cardStateLike, piecesLike, settingsLike, { allowLegacyAssignments: true });
 }
 
 function cleanTwoDigitValue(value) {
@@ -1420,11 +1402,13 @@ function App() {
   const [cardState, setCardState] = useState(() => {
     try {
       const raw = localStorage.getItem("football-board-player-cards-v1");
-      return raw ? normalizeCardState(JSON.parse(raw)) : normalizeCardState();
+      return raw ? stripAssignmentsFromCardLibrary(JSON.parse(raw)) : stripAssignmentsFromCardLibrary();
     } catch {
-      return normalizeCardState();
+      return stripAssignmentsFromCardLibrary();
     }
   });
+  const settingsRef = useRef(settings);
+  const piecesRef = useRef(pieces);
   const cardStateRef = useRef(cardState);
   const [cardsPanelOpen, setCardsPanelOpen] = useState(false);
   const [inspectorVisible, setInspectorVisible] = useState(true);
@@ -1516,6 +1500,10 @@ function App() {
 
   const boardApi = useMemo(() => buildBoardApi(settings, pieces), [settings, pieces]);
 
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => { piecesRef.current = pieces; }, [pieces]);
+  useEffect(() => { cardStateRef.current = cardState; }, [cardState]);
+
   useEffect(() => {
     // Debug/development hook: the board now has a logical coordinate API.
     // Example in Console: window.__footballBoardApi.getPieceAt("O15")
@@ -1526,9 +1514,8 @@ function App() {
   }, [boardApi]);
 
   useEffect(() => {
-    cardStateRef.current = cardState;
     try {
-      localStorage.setItem("football-board-player-cards-v1", JSON.stringify(cardState));
+      localStorage.setItem("football-board-player-cards-v1", JSON.stringify(stripAssignmentsFromCardLibrary(cardState)));
     } catch (error) {
       console.warn("Player cards could not be saved locally. The imported graphics may be too large.", error);
     }
@@ -1603,15 +1590,15 @@ function App() {
       touchMode,
       snapToGrid,
       showCoordinates,
-      cardState: stripInlineGraphicsFromCardState(buildPersistedCardState(cardStateRef.current, pieces, settings)),
+      cardState: stripInlineGraphicsFromCardState(buildPersistedCardState(cardStateRef.current, piecesRef.current, settingsRef.current)),
       ...overrides,
     };
   }
 
   function applyCloudState(data) {
     if (!data) return;
-    const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settings;
-    const nextPieces = data.pieces ? ensureBenchReserveCount(data.pieces, nextSettings) : pieces;
+    const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settingsRef.current;
+    const nextPieces = data.pieces ? ensureBenchReserveCount(data.pieces, nextSettings) : piecesRef.current;
     if (data.settings) setSettings(nextSettings);
     if (data.formations) setFormations(data.formations);
     if (data.gameSituations) setGameSituations(data.gameSituations);
@@ -1625,7 +1612,7 @@ function App() {
     if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
-    if (data.cardState) commitCardState(reconcileCardStateWithPieces(data.cardState, nextPieces, nextSettings));
+    if (data.cardState) commitCardState(data.cardState, nextPieces, nextSettings, { allowLegacyAssignments: true });
   }
 
   function buildLiveBoardState(overrides = {}) {
@@ -1640,15 +1627,15 @@ function App() {
       blueFormationId,
       redFormationId,
       actionLog,
-      cardState: stripInlineGraphicsFromCardState(buildPersistedCardState(cardState, pieces, settings)),
+      cardState: stripInlineGraphicsFromCardState(buildPersistedCardState(cardStateRef.current, piecesRef.current, settingsRef.current)),
       ...overrides,
     };
   }
 
   function applyLiveBoardState(data) {
     if (!data) return;
-    const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settings;
-    const nextPieces = data.pieces ? ensureBenchReserveCount(data.pieces, nextSettings) : pieces;
+    const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settingsRef.current;
+    const nextPieces = data.pieces ? ensureBenchReserveCount(data.pieces, nextSettings) : piecesRef.current;
     if (data.settings) setSettings(nextSettings);
     if (data.pieces) setPieces(nextPieces);
     if (typeof data.dieType === "number") setDieType(data.dieType);
@@ -1658,7 +1645,7 @@ function App() {
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
     if (data.actionLog) setActionLog(data.actionLog);
-    if (data.cardState) commitCardState(reconcileCardStateWithPieces(data.cardState, nextPieces, nextSettings));
+    if (data.cardState) commitCardState(data.cardState, nextPieces, nextSettings, { allowLegacyAssignments: true });
   }
 
   async function saveSessionState(overrides = {}) {
@@ -2004,15 +1991,18 @@ function App() {
         team === "B" ? formation : getFormationById(redFormationId)
       ).filter(p => p.team === team);
       const next = normalizePiecesForBoard([...others, ...temp, ball].filter(Boolean), settings);
-      updateCardState(prevCardState => {
-        const keptAssignments = Object.fromEntries(
+      // Formation presets replace the tactical pucks for that team.
+      // Do not move cards intelligently to the new formation: keep only assignments
+      // belonging to the other team/ball-safe existing pucks, then reconcile.
+      commitCardState(prevCardState => ({
+        ...prevCardState,
+        assignments: Object.fromEntries(
           Object.entries(prevCardState.assignments || {}).filter(([pieceId]) => {
             const piece = next.find(p => p.id === pieceId);
-            return piece && piece.team !== team;
+            return piece && piece.team !== team && piece.team !== "BALL";
           })
-        );
-        return reconcileCardStateWithPieces({ ...prevCardState, assignments: keptAssignments }, next, settings);
-      });
+        ),
+      }), next, settings);
       logSnapshot(`${team === "A" ? "Blue" : "Red"} formation: ${formation.name}`, next);
       return next;
     });
@@ -2053,7 +2043,7 @@ function App() {
       redFormationId,
       dieType,
       dieResult,
-      cardState,
+      cardState: buildPersistedCardState(cardStateRef.current, piecesRef.current, settingsRef.current),
     };
   }
 
@@ -2067,14 +2057,16 @@ function App() {
     if (!situation.snapshot) return;
 
     pushHistory();
-    setSettings(situation.snapshot.settings);
-    setPieces(ensureBenchReserveCount(situation.snapshot.pieces, situation.snapshot.settings || settings));
+    const nextSettings = normalizeSettingsForApp(situation.snapshot.settings || settingsRef.current);
+    const nextPieces = ensureBenchReserveCount(situation.snapshot.pieces || piecesRef.current, nextSettings);
+    setSettings(nextSettings);
+    setPieces(nextPieces);
     setZoom(situation.snapshot.zoom ?? 0.9);
     setBlueFormationId(situation.snapshot.blueFormationId ?? 1);
     setRedFormationId(situation.snapshot.redFormationId ?? 2);
     setDieType(situation.snapshot.dieType ?? 20);
     setDieResult(situation.snapshot.dieResult ?? null);
-    if (situation.snapshot.cardState) commitCardState(reconcileCardStateWithPieces(situation.snapshot.cardState, situation.snapshot.pieces || pieces, situation.snapshot.settings || settings));
+    if (situation.snapshot.cardState) commitCardState(situation.snapshot.cardState, nextPieces, nextSettings, { allowLegacyAssignments: true });
     logSnapshot(`Load situație: ${situation.name}`, situation.snapshot.pieces);
   }
 
@@ -2097,12 +2089,12 @@ function App() {
     pushHistory();
     const fresh = createInitialPieces(settings.cols, settings.rows, getFormationById(blueFormationId), getFormationById(redFormationId));
     setPieces(fresh);
-    updateCardState(prevCardState => reconcileCardStateWithPieces({ ...prevCardState, assignments: {} }, fresh, settings));
+    commitCardState(prevCardState => ({ ...prevCardState, assignments: {}, assignmentMeta: {} }), fresh, settings);
     logSnapshot("Reset poziții", fresh);
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v35", JSON.stringify({ settings, pieces, zoom, cardState: buildPersistedCardState(cardState, pieces, settings) }));
+    localStorage.setItem("football-board-sandbox-v35", JSON.stringify({ settings, pieces, zoom, cardState: buildPersistedCardState(cardStateRef.current, piecesRef.current, settingsRef.current) }));
     alert("Salvat în browser.");
   }
 
@@ -2144,10 +2136,11 @@ function App() {
       localStorage.getItem("football-board-sandbox-v03");
     if (!raw) return alert("Nu există salvare încă.");
     const saved = JSON.parse(raw);
-    setSettings(normalizeLoadedSettings(saved.settings));
     const loadedSettings = normalizeLoadedSettings(saved.settings);
-    setPieces(ensureBenchReserveCount(saved.pieces, loadedSettings));
-    if (saved.cardState) commitCardState(reconcileCardStateWithPieces(saved.cardState, saved.pieces || pieces, loadedSettings));
+    const loadedPieces = ensureBenchReserveCount(saved.pieces, loadedSettings);
+    setSettings(loadedSettings);
+    setPieces(loadedPieces);
+    if (saved.cardState) commitCardState(saved.cardState, loadedPieces, loadedSettings, { allowLegacyAssignments: true });
     setZoom(saved.zoom ?? 1);
   }
 
@@ -2374,11 +2367,12 @@ function App() {
     return { blue: build("A"), red: build("B") };
   }, [pieces, cardState.assignments, cardById]);
 
-  function commitCardState(updater) {
+  function commitCardState(updater, contextPieces = piecesRef.current, contextSettings = settingsRef.current, options = {}) {
     let committedState = null;
     setCardState(prev => {
       const source = cardStateRef.current || prev;
-      committedState = reconcileCardStateWithPieces(typeof updater === "function" ? updater(source) : updater, pieces, settings);
+      const rawNext = typeof updater === "function" ? updater(source) : updater;
+      committedState = reconcileCardStateWithPieces(rawNext, contextPieces, contextSettings, options);
       cardStateRef.current = committedState;
       return committedState;
     });
@@ -2417,11 +2411,9 @@ function App() {
     updateCardState(prev => ({
       ...prev,
       cards: prev.cards.filter(c => c.id !== cardId),
-      teams: {
-        blue: prev.teams.blue.map(slot => slot.cardId === cardId ? { ...slot, cardId: null } : slot),
-        red: prev.teams.red.map(slot => slot.cardId === cardId ? { ...slot, cardId: null } : slot),
-      },
+      teams: emptyCardTeams(),
       assignments: Object.fromEntries(Object.entries(prev.assignments).filter(([, value]) => value !== cardId)),
+      assignmentMeta: Object.fromEntries(Object.entries(prev.assignmentMeta || {}).filter(([pieceId]) => prev.assignments?.[pieceId] !== cardId)),
     }));
     if (editingCardId === cardId) setEditingCardId(null);
   }
@@ -2429,14 +2421,14 @@ function App() {
   function assignCard(cardId) {
     if (!assignTarget) return;
     const targetPieceId = assignTarget.pieceId || null;
-    if (assignTarget.type === "piece" || assignTarget.pieceId) {
-      const targetPiece = pieces.find(piece => piece.id === targetPieceId && piece.team !== "BALL");
+    if (targetPieceId) {
+      const targetPiece = piecesRef.current.find(piece => piece.id === targetPieceId && piece.team !== "BALL");
       if (!targetPiece) {
         setAssignTarget(null);
         return;
       }
     }
-    const existingPieceIds = Object.entries(cardState.assignments || {})
+    const existingPieceIds = Object.entries(cardStateRef.current.assignments || {})
       .filter(([pieceId, assignedCardId]) => assignedCardId === cardId && pieceId !== targetPieceId)
       .map(([pieceId]) => pieceId);
 
@@ -2457,13 +2449,7 @@ function App() {
         const nextAssignments = assignTarget.pieceId
           ? { ...cleanAssignments, [assignTarget.pieceId]: cardId }
           : cleanAssignments;
-        const nextTeams = prev.teams?.[assignTarget.team]
-          ? {
-              ...prev.teams,
-              [assignTarget.team]: prev.teams[assignTarget.team].map((slot, index) => index === assignTarget.index ? { ...slot, cardId } : slot),
-            }
-          : prev.teams;
-        return { ...prev, assignments: nextAssignments, teams: nextTeams };
+        return { ...prev, assignments: nextAssignments, teams: emptyCardTeams() };
       }
       return prev;
     });
