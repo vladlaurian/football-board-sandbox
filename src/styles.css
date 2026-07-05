@@ -4987,3 +4987,90 @@ select option {
 .card-visual-canvas[data-card-side="front"] .card-zone-formula .card-zone-value {
   flex: .45 1 0 !important;
 }
+
+/* FINAL NUMBERS / DISTANCE CLEANUP
+   Layout color control removed from editor. Text remains the base style; Numbers
+   only applies font/bold/size adjustments, while line-height and vertical offset
+   stay inherited from Text so rows remain aligned. */
+.card-zone-formula,
+.card-zone-list-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: baseline !important;
+  justify-content: flex-start !important;
+  gap: var(--zone-stat-gap, clamp(1px, 2.2cqw, 8px)) !important;
+}
+.card-zone-formula .card-zone-label,
+.card-zone-list-row .card-zone-label {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  text-align: var(--zone-align, left) !important;
+}
+.card-zone-formula .card-zone-value,
+.card-zone-list-row .card-zone-value {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: max-content !important;
+  max-width: max-content !important;
+  text-align: center !important;
+  justify-self: auto !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+.card-preview.card-front .card-zone-formula .card-zone-label,
+.card-visual-canvas[data-card-side="front"] .card-zone-formula .card-zone-label {
+  flex: 1 1 auto !important;
+}
+.card-preview.card-front .card-zone-formula .card-zone-value,
+.card-visual-canvas[data-card-side="front"] .card-zone-formula .card-zone-value {
+  flex: 0 0 auto !important;
+}
+
+/* Numbers panels are intentionally simpler: no paragraph alignment, line-height or Y controls. */
+.text-style-toggle.active,
+.text-style-controls.open > .text-style-toggle {
+  border-color: rgba(79, 209, 255, .95) !important;
+}
+.pair-distance-control {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  opacity: .95 !important;
+}
+.pair-distance-control span {
+  white-space: nowrap !important;
+}
+.pair-distance-control input[type="range"] {
+  width: 78px !important;
+  min-width: 62px !important;
+}
+.pair-distance-control button {
+  min-width: 22px !important;
+  width: 22px !important;
+  height: 22px !important;
+  padding: 0 !important;
+  border-radius: 7px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+}
+
+/* Header Back / Position Back use the same safe in-panel offset as the front controls. */
+.text-style-controls.align-front .text-style-panel {
+  left: 0 !important;
+  right: auto !important;
+  transform: translateX(88px) !important;
+}
+@media (max-width: 900px) {
+  .text-style-controls.align-front .text-style-panel { transform: translateX(48px) !important; }
+}
