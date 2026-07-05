@@ -385,6 +385,79 @@ function cardLayoutTitle(card, key) {
   return String(titles[key] ?? CARD_LAYOUT_TITLE_DEFAULTS[key] ?? "");
 }
 
+function makeCustomZone(side = "front", index = 1) {
+  const safeSide = side === "back" ? "back" : "front";
+  return {
+    id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    side: safeSide,
+    title: safeSide === "front" ? `Front Layout ${index}` : `Back Layout ${index}`,
+    text: "Custom text",
+    titleColor: "#ffffff",
+    textColor: "#ffffff",
+    box: safeSide === "front"
+      ? { x: 14, y: 58, w: 34, h: 14 }
+      : { x: 14, y: 54, w: 34, h: 18 },
+    titleStyle: { align: "center", bold: true, fontSize: 100 },
+    textStyle: { align: "center", bold: false, fontSize: 100, lineHeight: 105, verticalOffset: 0 },
+  };
+}
+
+function normalizeCustomTextStyle(style = {}, titleMode = false) {
+  const source = style && typeof style === "object" ? style : {};
+  return {
+    align: ["left", "center", "right"].includes(source.align) ? source.align : "center",
+    bold: typeof source.bold === "boolean" ? source.bold : !!titleMode,
+    fontSize: clamp(Number(source.fontSize ?? 100), 50, 260),
+    lineHeight: titleMode ? 100 : clamp(Number(source.lineHeight ?? 105), 70, 180),
+    verticalOffset: titleMode ? 0 : clamp(Number(source.verticalOffset ?? 0), -100, 100),
+  };
+}
+
+function customTextStyleVars(style = {}, titleMode = false) {
+  const s = normalizeCustomTextStyle(style, titleMode);
+  const justify = s.align === "left" ? "flex-start" : s.align === "right" ? "flex-end" : "center";
+  return {
+    "--zone-align": s.align,
+    "--zone-justify": justify,
+    "--zone-font-weight": s.bold ? 950 : 650,
+    "--zone-font-scale": s.fontSize / 100,
+    "--zone-line-height": s.lineHeight / 100,
+    "--zone-y-offset": `${s.verticalOffset * 0.4}cqh`,
+  };
+}
+
+function normalizeCustomZone(raw, index = 0) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const side = source.side === "back" ? "back" : "front";
+  const fallback = makeCustomZone(side, index + 1);
+  const rawBox = source.box && typeof source.box === "object" ? source.box : source;
+  const box = {
+    x: clamp(Number(rawBox.x ?? fallback.box.x), 0, 100),
+    y: clamp(Number(rawBox.y ?? fallback.box.y), 0, 100),
+    w: clamp(Number(rawBox.w ?? rawBox.width ?? fallback.box.w), 4, 100),
+    h: clamp(Number(rawBox.h ?? rawBox.height ?? fallback.box.h), 4, 100),
+  };
+  box.w = Math.min(box.w, 100 - box.x);
+  box.h = Math.min(box.h, 100 - box.y);
+  return {
+    ...fallback,
+    ...source,
+    id: String(source.id || fallback.id),
+    side,
+    title: String(source.title ?? fallback.title),
+    text: String(source.text ?? fallback.text),
+    titleColor: safeColor(source.titleColor, fallback.titleColor),
+    textColor: safeColor(source.textColor, fallback.textColor),
+    box,
+    titleStyle: normalizeCustomTextStyle(source.titleStyle, true),
+    textStyle: normalizeCustomTextStyle(source.textStyle, false),
+  };
+}
+
+function normalizeCustomZones(card) {
+  return Array.isArray(card?.customZones) ? card.customZones.map((zone, index) => normalizeCustomZone(zone, index)) : [];
+}
+
 const COLOR_SWATCHES = ["#ffffff", "#f8fafc", "#111827", "#ef4444", "#f97316", "#facc15", "#22c55e", "#14b8a6", "#38bdf8", "#3b82f6", "#8b5cf6", "#ec4899"];
 const CARD_FRONT_FIELDS = ["DEF", "ATT"];
 const LEGACY_THEME_MAP = {
@@ -502,6 +575,7 @@ function createPlayerCard(position = "ST") {
     artwork: { mode: "default", customDataUrl: "" },
     graphics: { frontDataUrl: "", backDataUrl: "", previousTheme: "Style 1" },
     specialAbility: "",
+    customZones: [],
     textColors: { ...CARD_TEXT_COLOR_DEFAULTS },
     textStyles: normalizeTextStyles(),
     createdAt: new Date().toISOString(),
@@ -535,6 +609,7 @@ function normalizeImportedCard(card) {
       previousTheme: CARD_THEMES.includes(card?.graphics?.previousTheme) ? card.graphics.previousTheme : (CARD_THEMES.includes(card?.previousTheme) ? card.previousTheme : base.theme),
     },
     specialAbility: String(card?.specialAbility ?? card?.special_ability ?? card?.special ?? ""),
+    customZones: normalizeCustomZones(card),
     textColors: normalizeTextColors(card?.textColors || card?.colors || card?.text_colors),
     textStyles: normalizeTextStyles(card?.textStyles || card?.text_styles),
   };
@@ -2396,6 +2471,17 @@ function App() {
       );
     };
 
+    const renderCustomZoneContent = zone => {
+      const titleColor = safeColor(zone.titleColor, "#ffffff");
+      const textColor = safeColor(zone.textColor, "#ffffff");
+      return (
+        <div className="card-zone-text card-zone-custom-with-title zone-color-bound" style={{ "--zone-title-color": titleColor, "--zone-text-color": textColor, color: textColor }}>
+          <div className="card-zone-section-title" style={{ color: titleColor, ...customTextStyleVars(zone.titleStyle, true) }}>{zone.title}</div>
+          <div className="card-zone-custom-body" style={{ color: textColor, ...customTextStyleVars(zone.textStyle, false) }}>{zone.text}</div>
+        </div>
+      );
+    };
+
     const renderZoneContent = zoneKey => {
       if (side === "front") {
         if (zoneKey === "header") return renderNameZone("headerFront");
@@ -2484,6 +2570,63 @@ function App() {
       window.addEventListener("pointercancel", onUp, { once: true });
     };
 
+    const sideCustomZones = normalizeCustomZones(card).filter(zone => zone.side === side);
+
+    const beginCustomZoneEdit = (event, zone, mode = "move", corner = "br") => {
+      if (!showZones || !card?.id) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startBox = { ...zone.box };
+      const pointerId = event.pointerId;
+      try { event.currentTarget.setPointerCapture?.(pointerId); } catch (_) {}
+      showLiveCoordinates(zone.id, startBox);
+
+      const toPctX = px => (px / Math.max(rect.width, 1)) * 100;
+      const toPctY = px => (px / Math.max(rect.height, 1)) * 100;
+
+      const onMove = moveEvent => {
+        moveEvent.preventDefault();
+        const dx = toPctX(moveEvent.clientX - startX);
+        const dy = toPctY(moveEvent.clientY - startY);
+        let next = { ...startBox };
+        if (mode === "move") {
+          next.x = startBox.x + dx;
+          next.y = startBox.y + dy;
+        } else {
+          if (corner.includes("r")) next.w = startBox.w + dx;
+          if (corner.includes("l")) { next.x = startBox.x + dx; next.w = startBox.w - dx; }
+          if (corner.includes("b")) next.h = startBox.h + dy;
+          if (corner.includes("t")) { next.y = startBox.y + dy; next.h = startBox.h - dy; }
+        }
+        const bounded = {
+          x: clamp(Number(next.x), 0, 100),
+          y: clamp(Number(next.y), 0, 100),
+          w: clamp(Number(next.w), 4, 100),
+          h: clamp(Number(next.h), 4, 100),
+        };
+        bounded.w = Math.min(bounded.w, 100 - bounded.x);
+        bounded.h = Math.min(bounded.h, 100 - bounded.y);
+        showLiveCoordinates(zone.id, bounded);
+        updateCardCustomZoneBox(card.id, zone.id, bounded);
+      };
+
+      const onUp = () => {
+        hideLiveCoordinates();
+        try { event.currentTarget.releasePointerCapture?.(pointerId); } catch (_) {}
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp, { once: true });
+      window.addEventListener("pointercancel", onUp, { once: true });
+    };
+
     return (
       <div className="card-visual-canvas" data-card-side={side} ref={canvasRef}>
         {Object.entries(sideLayout).map(([key, box]) => (
@@ -2510,6 +2653,32 @@ function App() {
                 <i className="zone-resize-handle zone-resize-tr" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "tr")} />
                 <i className="zone-resize-handle zone-resize-bl" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "bl")} />
                 <i className="zone-resize-handle zone-resize-br" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "br")} />
+              </>
+            ) : null}
+          </div>
+        ))}
+        {sideCustomZones.map(zone => (
+          <div
+            key={`${side}_${zone.id}`}
+            className={`card-visual-zone card-visual-zone-custom ${showZones ? "show-zone" : ""}`}
+            data-zone={zone.id}
+            onPointerDown={event => beginCustomZoneEdit(event, zone, "move")}
+            style={{
+              left: `${zone.box.x}%`,
+              top: `${zone.box.y}%`,
+              width: `${zone.box.w}%`,
+              height: `${zone.box.h}%`,
+            }}
+          >
+            <div className="card-zone-content">{renderCustomZoneContent(zone)}</div>
+            {showZones ? <span className="card-zone-label">{zone.title || "Custom Layout"}</span> : null}
+            {showZones && activeLayoutEdit?.zoneKey === zone.id ? <b className="zone-live-coordinates is-visible">{formatBoxCoordinates(activeLayoutEdit.box)}</b> : null}
+            {showZones ? (
+              <>
+                <i className="zone-resize-handle zone-resize-tl" onPointerDown={event => beginCustomZoneEdit(event, zone, "resize", "tl")} />
+                <i className="zone-resize-handle zone-resize-tr" onPointerDown={event => beginCustomZoneEdit(event, zone, "resize", "tr")} />
+                <i className="zone-resize-handle zone-resize-bl" onPointerDown={event => beginCustomZoneEdit(event, zone, "resize", "bl")} />
+                <i className="zone-resize-handle zone-resize-br" onPointerDown={event => beginCustomZoneEdit(event, zone, "resize", "br")} />
               </>
             ) : null}
           </div>
@@ -2771,6 +2940,67 @@ function App() {
   }
 
 
+  function addCardCustomZone(cardId, side = "front") {
+    if (!cardId) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => {
+        if (card.id !== cardId) return card;
+        const existing = normalizeCustomZones(card);
+        const sideCount = existing.filter(zone => zone.side === side).length + 1;
+        return { ...card, customZones: [...existing, makeCustomZone(side, sideCount)], updatedAt: new Date().toISOString() };
+      }),
+    }));
+  }
+
+  function updateCardCustomZoneBox(cardId, zoneId, patch) {
+    if (!cardId || !zoneId) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => {
+        if (card.id !== cardId) return card;
+        const zones = normalizeCustomZones(card).map(zone => {
+          if (zone.id !== zoneId) return zone;
+          const base = zone.box || {};
+          const nextBox = {
+            x: clamp(Number(patch.x ?? base.x), 0, 100),
+            y: clamp(Number(patch.y ?? base.y), 0, 100),
+            w: clamp(Number(patch.w ?? base.w), 4, 100),
+            h: clamp(Number(patch.h ?? base.h), 4, 100),
+          };
+          nextBox.w = Math.min(nextBox.w, 100 - nextBox.x);
+          nextBox.h = Math.min(nextBox.h, 100 - nextBox.y);
+          return { ...zone, box: nextBox };
+        });
+        return { ...card, customZones: zones, updatedAt: new Date().toISOString() };
+      }),
+    }));
+  }
+
+  function updateCardCustomZone(cardId, zoneId, patch) {
+    if (!cardId || !zoneId) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? {
+        ...card,
+        customZones: normalizeCustomZones(card).map(zone => zone.id === zoneId ? { ...zone, ...patch } : zone),
+        updatedAt: new Date().toISOString(),
+      } : card),
+    }));
+  }
+
+  function deleteCardCustomZone(cardId, zoneId) {
+    if (!cardId || !zoneId) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? {
+        ...card,
+        customZones: normalizeCustomZones(card).filter(zone => zone.id !== zoneId),
+        updatedAt: new Date().toISOString(),
+      } : card),
+    }));
+  }
+
   function updateCardVisualLayoutBox(cardId, side, zoneKey, patch) {
     if (!cardId || !DEFAULT_CARD_VISUAL_LAYOUT[side]?.[zoneKey]) return;
     updateCardState(prev => ({
@@ -2825,12 +3055,33 @@ function App() {
   }
 
   function CardLayoutEditor({ card }) {
+    const customZones = normalizeCustomZones(card);
     return (
       <div className="card-edit-section card-layout-editor">
         <div className="card-edit-section-title">
           <strong>Layout Zones</strong>
           <ColorPicker card={card} colorKey="layoutZones" label="Color" />
+          <button type="button" className="mini-action-btn" onClick={() => addCardCustomZone(card.id, "front")}>New layout front</button>
+          <button type="button" className="mini-action-btn" onClick={() => addCardCustomZone(card.id, "back")}>New layout back</button>
         </div>
+        {customZones.length ? (
+          <div className="custom-zone-editor-list">
+            {customZones.map(zone => (
+              <div className="custom-zone-editor-row" key={zone.id}>
+                <div className="custom-zone-editor-head">
+                  <strong>{zone.side === "front" ? "Front" : "Back"}</strong>
+                  <button type="button" className="mini-action-btn danger" onClick={() => deleteCardCustomZone(card.id, zone.id)}>Delete</button>
+                </div>
+                <label>Title<input value={zone.title} onChange={e => updateCardCustomZone(card.id, zone.id, { title: e.target.value })} /></label>
+                <label>Text<textarea value={zone.text} onChange={e => updateCardCustomZone(card.id, zone.id, { text: e.target.value })} /></label>
+                <div className="custom-zone-color-row">
+                  <label>Title color<input type="color" value={safeColor(zone.titleColor)} onChange={e => updateCardCustomZone(card.id, zone.id, { titleColor: e.target.value })} /></label>
+                  <label>Text color<input type="color" value={safeColor(zone.textColor)} onChange={e => updateCardCustomZone(card.id, zone.id, { textColor: e.target.value })} /></label>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     );
   }

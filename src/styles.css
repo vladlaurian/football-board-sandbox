@@ -4834,3 +4834,104 @@ select option {
 .card-zone-formula .card-zone-value {
   flex: .65 1 0 !important;
 }
+
+/* Custom layout zones added from Layout Zones editor. */
+.text-style-panel {
+  width: 300px !important;
+  max-width: min(300px, calc(100vw - 24px)) !important;
+}
+.text-style-panel .text-style-range-row {
+  grid-template-columns: 46px 26px minmax(110px, 1fr) 26px 52px !important;
+}
+.card-zone-custom-with-title {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  align-items: stretch !important;
+  justify-items: stretch !important;
+  gap: clamp(0px, 1.8cqh, 3px) !important;
+  padding: clamp(1px, min(2cqw, 5cqh), 4px) !important;
+  overflow: hidden !important;
+}
+.card-zone-custom-with-title .card-zone-section-title {
+  color: var(--zone-title-color, #fff) !important;
+  font-family: Inter, system-ui, sans-serif !important;
+  font-weight: var(--zone-font-weight, 950) !important;
+  font-size: clamp(3px, calc(min(8cqw, 22cqh) * var(--zone-font-scale, 1)), 20px) !important;
+  line-height: 1 !important;
+  text-align: var(--zone-align, center) !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+}
+.card-zone-custom-body {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: var(--zone-justify, center) !important;
+  color: var(--zone-text-color, #fff) !important;
+  font-family: Inter, system-ui, sans-serif !important;
+  font-weight: var(--zone-font-weight, 650) !important;
+  font-size: clamp(3px, calc(min(8.2cqw, 28cqh) * var(--zone-font-scale, 1)), 22px) !important;
+  line-height: var(--zone-line-height, 1.05) !important;
+  text-align: var(--zone-align, center) !important;
+  transform: translateY(var(--zone-y-offset, 0)) !important;
+  overflow: hidden !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+.card-layout-editor .card-edit-section-title {
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+}
+.mini-action-btn {
+  border: 1px solid rgba(255,255,255,.18) !important;
+  border-radius: 9px !important;
+  padding: 5px 9px !important;
+  background: rgba(255,255,255,.08) !important;
+  color: inherit !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+}
+.mini-action-btn:hover {
+  border-color: rgba(56,189,248,.75) !important;
+  background: rgba(14,165,233,.18) !important;
+}
+.mini-action-btn.danger:hover {
+  border-color: rgba(248,113,113,.85) !important;
+  background: rgba(239,68,68,.18) !important;
+}
+.custom-zone-editor-list {
+  display: grid !important;
+  gap: 10px !important;
+  margin-top: 10px !important;
+}
+.custom-zone-editor-row {
+  display: grid !important;
+  gap: 7px !important;
+  padding: 10px !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  border-radius: 12px !important;
+  background: rgba(255,255,255,.04) !important;
+}
+.custom-zone-editor-head,
+.custom-zone-color-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+}
+.custom-zone-editor-row label {
+  display: grid !important;
+  gap: 4px !important;
+  font-size: 12px !important;
+}
+.custom-zone-editor-row textarea {
+  min-height: 72px !important;
+  resize: vertical !important;
+}
+.custom-zone-color-row label {
+  grid-template-columns: auto 44px !important;
+  align-items: center !important;
+}
