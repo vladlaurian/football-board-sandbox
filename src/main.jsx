@@ -861,6 +861,7 @@ function App() {
   const [defAreaMode, setDefAreaMode] = useState(0);
   const [cardsView, setCardsView] = useState("library");
   const [editingCardId, setEditingCardId] = useState(null);
+  const [openTextPanelKey, setOpenTextPanelKey] = useState(null);
   const [exportCardId, setExportCardId] = useState("");
   const graphicFrontInputRef = useRef(null);
   const graphicBackInputRef = useRef(null);
@@ -2568,23 +2569,28 @@ function App() {
     if (!card || !CARD_TEXT_STYLE_DEFAULTS[styleKey]) return null;
     const styles = cardTextStyles(card);
     const current = styles[styleKey] || CARD_TEXT_STYLE_DEFAULTS[styleKey];
+    const panelKey = `${card.id}:${styleKey}`;
+    const isOpen = openTextPanelKey === panelKey;
     const set = patch => updateCardTextStyle(card.id, styleKey, patch);
+    const stopPanelEvent = e => e.stopPropagation();
     return (
-      <details className="text-style-controls">
-        <summary>Text</summary>
-        <div className="text-style-panel">
-          <div className="text-align-buttons" aria-label="Text align">
-            <button type="button" className={current.align === "left" ? "selected" : ""} onClick={() => set({ align: "left" })}>L</button>
-            <button type="button" className={current.align === "center" ? "selected" : ""} onClick={() => set({ align: "center" })}>C</button>
-            <button type="button" className={current.align === "right" ? "selected" : ""} onClick={() => set({ align: "right" })}>R</button>
-            <button type="button" className={current.bold ? "selected" : ""} onClick={() => set({ bold: !current.bold })}>B</button>
+      <div className={`text-style-controls ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+        <button type="button" className="text-style-toggle" aria-expanded={isOpen} onClick={() => setOpenTextPanelKey(isOpen ? null : panelKey)}>Text</button>
+        {isOpen ? (
+          <div className="text-style-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+            <div className="text-align-buttons" aria-label="Text align">
+              <button type="button" className={current.align === "left" ? "selected" : ""} onClick={() => set({ align: "left" })}>L</button>
+              <button type="button" className={current.align === "center" ? "selected" : ""} onClick={() => set({ align: "center" })}>C</button>
+              <button type="button" className={current.align === "right" ? "selected" : ""} onClick={() => set({ align: "right" })}>R</button>
+              <button type="button" className={current.bold ? "selected" : ""} onClick={() => set({ bold: !current.bold })}>B</button>
+            </div>
+            <label>Font<select value={current.font} onChange={e => set({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label>
+            <label>Size<input type="range" min="50" max="180" value={current.fontSize} onChange={e => set({ fontSize: Number(e.target.value) })} /><span>{current.fontSize}%</span></label>
+            <label>Line<input type="range" min="70" max="180" value={current.lineHeight} onChange={e => set({ lineHeight: Number(e.target.value) })} /><span>{current.lineHeight}%</span></label>
+            {stats ? <label>Gap<input type="range" min="30" max="250" value={current.statGap} onChange={e => set({ statGap: Number(e.target.value) })} /><span>{current.statGap}%</span></label> : null}
           </div>
-          <label>Font<select value={current.font} onChange={e => set({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label>
-          <label>Size<input type="range" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} min="50" max="180" value={current.fontSize} onChange={e => set({ fontSize: Number(e.target.value) })} /><span>{current.fontSize}%</span></label>
-          <label>Line<input type="range" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} min="70" max="180" value={current.lineHeight} onChange={e => set({ lineHeight: Number(e.target.value) })} /><span>{current.lineHeight}%</span></label>
-          {stats ? <label>Gap<input type="range" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} min="30" max="250" value={current.statGap} onChange={e => set({ statGap: Number(e.target.value) })} /><span>{current.statGap}%</span></label> : null}
-        </div>
-      </details>
+        ) : null}
+      </div>
     );
   }
 

@@ -4330,3 +4330,63 @@ select option {
   transform-origin: center center !important;
   object-fit: contain !important;
 }
+
+/* FIX: React-controlled Text panel. It must not collapse on re-render and must block click-through. */
+.text-style-controls {
+  z-index: 1000 !important;
+  pointer-events: auto !important;
+}
+.text-style-controls.open {
+  z-index: 10000 !important;
+}
+.text-style-toggle {
+  cursor: pointer !important;
+  border: 1px solid rgba(255,255,255,.18) !important;
+  border-radius: 999px !important;
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+  color: inherit !important;
+  background: rgba(255,255,255,.06) !important;
+  pointer-events: auto !important;
+}
+.text-style-panel {
+  z-index: 10001 !important;
+  pointer-events: auto !important;
+  user-select: none !important;
+  touch-action: none !important;
+}
+.text-style-panel,
+.text-style-panel * {
+  pointer-events: auto !important;
+}
+.text-style-panel input[type="range"] {
+  touch-action: none !important;
+}
+
+/* FIX: scale only the Defensive Area arrow rendered on the card layout, not the editor arrow. */
+.card-zone-defense-row .card-zone-attack-direction {
+  transform: none !important;
+  margin: 0 !important;
+  align-self: center !important;
+  flex: 0 0 auto !important;
+}
+.card-zone-defense-row .card-zone-attack-direction .attack-arrow {
+  --card-zone-arrow-height: min(21cqw, 38cqh);
+  --card-zone-arrow-head: max(3px, calc(var(--card-zone-arrow-height) * .18));
+  --card-zone-arrow-width: max(5px, calc(var(--card-zone-arrow-height) * .28));
+  width: var(--card-zone-arrow-width) !important;
+  flex-basis: var(--card-zone-arrow-width) !important;
+  height: var(--card-zone-arrow-height) !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+.card-zone-defense-row .card-zone-attack-direction .attack-arrow::before {
+  top: var(--card-zone-arrow-head) !important;
+  height: calc(var(--card-zone-arrow-height) - var(--card-zone-arrow-head)) !important;
+  width: max(1px, calc(var(--card-zone-arrow-width) * .12)) !important;
+}
+.card-zone-defense-row .card-zone-attack-direction .attack-arrow::after {
+  border-left-width: calc(var(--card-zone-arrow-width) * .5) !important;
+  border-right-width: calc(var(--card-zone-arrow-width) * .5) !important;
+  border-bottom-width: var(--card-zone-arrow-head) !important;
+}
