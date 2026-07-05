@@ -216,6 +216,61 @@ const CARD_TEXT_COLOR_DEFAULTS = {
   specialAbilityTitle: "#ffffff",
   layoutZones: "#ffffff",
 };
+
+const CARD_TEXT_STYLE_DEFAULTS = {
+  headerFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
+  positionFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
+  headerBack: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
+  positionBack: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
+  attributesFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
+  bonusesFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
+  attributes: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
+  bonuses: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
+  specialAbility: { align: "center", bold: false, font: "Inter", fontSize: 100, lineHeight: 105, statGap: 100 },
+  defensiveArea: { align: "center", bold: false, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
+};
+
+const CARD_FONT_OPTIONS = ["Inter", "Arial", "Verdana", "Tahoma", "Georgia", "Times New Roman", "Trebuchet MS", "Courier New"];
+
+function normalizeTextStyles(raw = {}) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const normalizeOne = (key) => {
+    const defaults = CARD_TEXT_STYLE_DEFAULTS[key] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
+    const current = source[key] && typeof source[key] === "object" ? source[key] : {};
+    const align = ["left", "center", "right"].includes(current.align) ? current.align : defaults.align;
+    const font = CARD_FONT_OPTIONS.includes(current.font) ? current.font : defaults.font;
+    return {
+      align,
+      bold: typeof current.bold === "boolean" ? current.bold : defaults.bold,
+      font,
+      fontSize: clamp(Number(current.fontSize ?? defaults.fontSize), 50, 180),
+      lineHeight: clamp(Number(current.lineHeight ?? defaults.lineHeight), 70, 180),
+      statGap: clamp(Number(current.statGap ?? defaults.statGap), 30, 250),
+    };
+  };
+  return Object.fromEntries(Object.keys(CARD_TEXT_STYLE_DEFAULTS).map(key => [key, normalizeOne(key)]));
+}
+
+function cardTextStyles(card) {
+  return normalizeTextStyles(card?.textStyles);
+}
+
+function zoneTextStyleVars(styles, key, hasStats = false) {
+  const s = normalizeTextStyles(styles)[key] || CARD_TEXT_STYLE_DEFAULTS[key] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
+  const justify = s.align === "left" ? "flex-start" : s.align === "right" ? "flex-end" : "center";
+  const gridJustify = s.align === "left" ? "start" : s.align === "right" ? "end" : "center";
+  return {
+    "--zone-align": s.align,
+    "--zone-justify": justify,
+    "--zone-grid-justify": gridJustify,
+    "--zone-font-family": s.font,
+    "--zone-font-weight": s.bold ? 950 : 650,
+    "--zone-font-scale": s.fontSize / 100,
+    "--zone-line-height": s.lineHeight / 100,
+    ...(hasStats ? { "--zone-stat-gap": `${Math.round(s.statGap / 100 * 4)}px`, "--zone-stat-gap-wide": `${Math.round(s.statGap / 100 * 8)}px` } : {}),
+  };
+}
+
 const CARD_LAYOUT_TITLE_DEFAULTS = {
   attributes: "Attributes",
   bonuses: "Bonuses",
@@ -346,6 +401,7 @@ function createPlayerCard(position = "ST") {
     graphics: { frontDataUrl: "", backDataUrl: "", previousTheme: "Style 1" },
     specialAbility: "",
     textColors: { ...CARD_TEXT_COLOR_DEFAULTS },
+    textStyles: normalizeTextStyles(),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -378,6 +434,7 @@ function normalizeImportedCard(card) {
     },
     specialAbility: String(card?.specialAbility ?? card?.special_ability ?? card?.special ?? ""),
     textColors: normalizeTextColors(card?.textColors || card?.colors || card?.text_colors),
+    textStyles: normalizeTextStyles(card?.textStyles || card?.text_styles),
   };
   return normalized;
 }
@@ -2164,6 +2221,7 @@ function App() {
     const formatBoxCoordinates = box => `X ${Math.round(box.x * 10) / 10} · Y ${Math.round(box.y * 10) / 10} · W ${Math.round(box.w * 10) / 10} · H ${Math.round(box.h * 10) / 10}`;
 
     const colors = cardTextColors(card);
+    const textStyles = cardTextStyles(card);
     const visibleAttributes = (card?.passiveAttributes || []).filter(item => item.showOnCard !== false);
     const visibleBonuses = (card?.bonuses || []).filter(item => item.showOnCard !== false);
     const frontAttributeFields = normalizeFrontFields(card?.frontAttributeFields || card?.frontFields || card?.frontSummary);
@@ -2172,13 +2230,13 @@ function App() {
     const firstFrontBonus = frontBonusFields[0] || makeFrontField("DEF", 0);
 
     const renderNameZone = colorKey => (
-      <div className="card-zone-text card-zone-name zone-color-bound" style={{ "--zone-text-color": safeColor(colors[colorKey]), color: safeColor(colors[colorKey]) }} title={card?.name || "Player"}>
+      <div className="card-zone-text card-zone-name zone-color-bound" style={{ "--zone-text-color": safeColor(colors[colorKey]), color: safeColor(colors[colorKey]), ...zoneTextStyleVars(textStyles, colorKey) }} title={card?.name || "Player"}>
         {card?.name || "Player"}
       </div>
     );
 
     const renderPositionZone = colorKey => (
-      <div className="card-zone-text card-zone-position zone-color-bound" style={{ "--zone-text-color": safeColor(colors[colorKey]), color: safeColor(colors[colorKey]) }}>
+      <div className="card-zone-text card-zone-position zone-color-bound" style={{ "--zone-text-color": safeColor(colors[colorKey]), color: safeColor(colors[colorKey]), ...zoneTextStyleVars(textStyles, colorKey) }}>
         {String(card?.position || "").toUpperCase()}
       </div>
     );
@@ -2186,7 +2244,7 @@ function App() {
     const renderFrontFormulaZone = (field, colorKey) => {
       const textColor = safeColor(colors[colorKey]);
       return (
-        <div className="card-zone-text card-zone-formula zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor }}>
+        <div className="card-zone-text card-zone-formula zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor, ...zoneTextStyleVars(textStyles, colorKey, true) }}>
           <span style={{ color: textColor }}>{field.label}</span>
           <strong style={{ color: textColor }}>{computeFrontFieldValue(card, field)}</strong>
         </div>
@@ -2197,7 +2255,7 @@ function App() {
       const textColor = safeColor(colors[colorKey]);
       const titleColor = safeColor(colors[titleColorKey]);
       return (
-        <div className="card-zone-text card-zone-list-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": Math.max(2, items.length + 1), color: textColor }}>
+        <div className="card-zone-text card-zone-list-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": Math.max(2, items.length + 1), color: textColor, ...zoneTextStyleVars(textStyles, colorKey, true) }}>
           <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, titleKey)}</div>
           <div className="card-zone-list">
             {items.length ? items.map(item => (
@@ -2215,7 +2273,7 @@ function App() {
       const textColor = safeColor(colors.specialAbility);
       const titleColor = safeColor(colors.specialAbilityTitle);
       return (
-        <div className="card-zone-text card-zone-special-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 3, color: textColor }}>
+        <div className="card-zone-text card-zone-special-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 3, color: textColor, ...zoneTextStyleVars(textStyles, "specialAbility") }}>
           <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, "specialAbility")}</div>
           <div className="card-zone-special" style={{ color: textColor }}>{card?.specialAbility || ""}</div>
         </div>
@@ -2226,9 +2284,9 @@ function App() {
       const textColor = safeColor(colors.defensiveArea);
       const titleColor = safeColor(colors.defensiveAreaTitle);
       return (
-        <div className="card-zone-text card-zone-defense-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 2, color: textColor, "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78") }}>
+        <div className="card-zone-text card-zone-defense-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 2, color: textColor, "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78"), ...zoneTextStyleVars(textStyles, "defensiveArea") }}>
           <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, "defensiveArea")}</div>
-          <div className="card-zone-defense" style={{ color: textColor }}><AreaMiniPreview area={card?.defensiveArea || []} /></div>
+          <div className="card-zone-defense card-zone-defense-row" style={{ color: textColor }}><AreaMiniPreview area={card?.defensiveArea || []} /><div className="attack-direction-hint card-zone-attack-direction" aria-label="Attacking direction"><span className="attack-arrow">↑</span></div></div>
         </div>
       );
     };
@@ -2466,7 +2524,7 @@ function App() {
     });
     return (
       <div className="card-edit-section front-summary-editor">
-        <div className="card-edit-section-title"><strong>{title}</strong><ColorPicker card={card} colorKey={colorKey} label="Color" /></div>
+        <div className="card-edit-section-title"><strong>{title}</strong><ColorPicker card={card} colorKey={colorKey} label="Color" /><TextStyleControls card={card} styleKey={colorKey} stats={true} /></div>
         <div className="front-formula-list">
           {fields.map(field => (
             <div className="front-formula-row" key={field.id}>
@@ -2484,6 +2542,49 @@ function App() {
           ))}
         </div>
       </div>
+    );
+  }
+
+  function updateCardTextStyle(cardId, key, patch) {
+    if (!cardId || !CARD_TEXT_STYLE_DEFAULTS[key]) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => {
+        if (card.id !== cardId) return card;
+        const current = normalizeTextStyles(card.textStyles);
+        return {
+          ...card,
+          textStyles: {
+            ...current,
+            [key]: { ...current[key], ...patch },
+          },
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    }));
+  }
+
+  function TextStyleControls({ card, styleKey, stats = false }) {
+    if (!card || !CARD_TEXT_STYLE_DEFAULTS[styleKey]) return null;
+    const styles = cardTextStyles(card);
+    const current = styles[styleKey] || CARD_TEXT_STYLE_DEFAULTS[styleKey];
+    const set = patch => updateCardTextStyle(card.id, styleKey, patch);
+    return (
+      <details className="text-style-controls">
+        <summary>Text</summary>
+        <div className="text-style-panel">
+          <div className="text-align-buttons" aria-label="Text align">
+            <button type="button" className={current.align === "left" ? "selected" : ""} onClick={() => set({ align: "left" })}>L</button>
+            <button type="button" className={current.align === "center" ? "selected" : ""} onClick={() => set({ align: "center" })}>C</button>
+            <button type="button" className={current.align === "right" ? "selected" : ""} onClick={() => set({ align: "right" })}>R</button>
+            <button type="button" className={current.bold ? "selected" : ""} onClick={() => set({ bold: !current.bold })}>B</button>
+          </div>
+          <label>Font<select value={current.font} onChange={e => set({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label>
+          <label>Size<input type="range" min="50" max="180" value={current.fontSize} onChange={e => set({ fontSize: Number(e.target.value) })} /><span>{current.fontSize}%</span></label>
+          <label>Line<input type="range" min="70" max="180" value={current.lineHeight} onChange={e => set({ lineHeight: Number(e.target.value) })} /><span>{current.lineHeight}%</span></label>
+          {stats ? <label>Gap<input type="range" min="30" max="250" value={current.statGap} onChange={e => set({ statGap: Number(e.target.value) })} /><span>{current.statGap}%</span></label> : null}
+        </div>
+      </details>
     );
   }
 
@@ -2612,16 +2713,16 @@ function App() {
         <div className="card-editor-controls">
         {CardLayoutEditor({ card })}
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
-        <div className="card-edit-section compact-color-row"><strong>Header Front</strong><ColorPicker card={card} colorKey="headerFront" label="Color" /></div>
-        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Front</strong><ColorPicker card={card} colorKey="positionFront" label="Color" /></div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
-        <div className="card-edit-section compact-color-row"><strong>Header Back</strong><ColorPicker card={card} colorKey="headerBack" label="Color" /></div>
-        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Back</strong><ColorPicker card={card} colorKey="positionBack" label="Color" /></div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
+        <div className="card-edit-section compact-color-row"><strong>Header Front</strong><ColorPicker card={card} colorKey="headerFront" label="Color" /><TextStyleControls card={card} styleKey="headerFront" /></div>
+        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Front</strong><ColorPicker card={card} colorKey="positionFront" label="Color" /><TextStyleControls card={card} styleKey="positionFront" /></div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
+        <div className="card-edit-section compact-color-row"><strong>Header Back</strong><ColorPicker card={card} colorKey="headerBack" label="Color" /><TextStyleControls card={card} styleKey="headerBack" /></div>
+        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Back</strong><ColorPicker card={card} colorKey="positionBack" label="Color" /><TextStyleControls card={card} styleKey="positionBack" /></div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
         {FrontZoneFieldsEditor({ card, storageKey: "frontAttributeFields", title: "Attributes Front", colorKey: "attributesFront", sourceSection: "passiveAttributes" })}
         {FrontZoneFieldsEditor({ card, storageKey: "frontBonusFields", title: "Bonuses Front", colorKey: "bonusesFront", sourceSection: "bonuses" })}
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><ColorPicker card={card} colorKey="attributes" label="Text Color" /></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true })}</div>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><ColorPicker card={card} colorKey="bonuses" label="Text Color" /></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true })}</div>
-        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><ColorPicker card={card} colorKey="specialAbility" label="Text Color" /></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<textarea value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><ColorPicker card={card} colorKey="attributes" label="Text Color" /><TextStyleControls card={card} styleKey="attributes" stats={true} /></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><ColorPicker card={card} colorKey="bonuses" label="Text Color" /><TextStyleControls card={card} styleKey="bonuses" stats={true} /></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true })}</div>
+        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><ColorPicker card={card} colorKey="specialAbility" label="Text Color" /><TextStyleControls card={card} styleKey="specialAbility" /></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<textarea value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /><TextStyleControls card={card} styleKey="defensiveArea" /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
         </div>
       </div>
     );
