@@ -5314,3 +5314,20 @@ select option {
   top: 50% !important;
   transform: translateX(calc(-1 * var(--zone-number-safe-shift, 0px))) translateY(calc(-50% + var(--zone-y-offset, 0cqh))) !important;
 }
+
+/* STEP 1: New layout zones are empty containers only. They keep the same visual-zone engine, resize handles and clipping behavior, but no title/text/color editor UI. */
+.card-zone-custom-empty {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+.custom-zone-empty-note {
+  margin: 8px 0 0 !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  opacity: .72 !important;
+}

@@ -426,15 +426,10 @@ function makeCustomZone(side = "front", index = 1) {
   return {
     id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     side: safeSide,
-    title: safeSide === "front" ? `Front Layout ${index}` : `Back Layout ${index}`,
-    text: "Custom text",
-    titleColor: "#ffffff",
-    textColor: "#ffffff",
+    name: safeSide === "front" ? `Front Layout ${index}` : `Back Layout ${index}`,
     box: safeSide === "front"
       ? { x: 14, y: 58, w: 34, h: 14 }
       : { x: 14, y: 54, w: 34, h: 18 },
-    titleStyle: { align: "center", bold: true, fontSize: 100 },
-    textStyle: { align: "center", bold: false, fontSize: 100, lineHeight: 105, verticalOffset: 0 },
   };
 }
 
@@ -476,17 +471,10 @@ function normalizeCustomZone(raw, index = 0) {
   box.w = Math.min(box.w, 100 - box.x);
   box.h = Math.min(box.h, 100 - box.y);
   return {
-    ...fallback,
-    ...source,
     id: String(source.id || fallback.id),
     side,
-    title: String(source.title ?? fallback.title),
-    text: String(source.text ?? fallback.text),
-    titleColor: safeColor(source.titleColor, fallback.titleColor),
-    textColor: safeColor(source.textColor, fallback.textColor),
+    name: String(source.name ?? source.title ?? fallback.name),
     box,
-    titleStyle: normalizeCustomTextStyle(source.titleStyle, true),
-    textStyle: normalizeCustomTextStyle(source.textStyle, false),
   };
 }
 
@@ -2514,16 +2502,9 @@ function App() {
       );
     };
 
-    const renderCustomZoneContent = zone => {
-      const titleColor = safeColor(zone.titleColor, "#ffffff");
-      const textColor = safeColor(zone.textColor, "#ffffff");
-      return (
-        <div className="card-zone-text card-zone-custom-with-title zone-color-bound" style={{ "--zone-title-color": titleColor, "--zone-text-color": textColor, color: textColor }}>
-          <div className="card-zone-section-title" style={{ color: titleColor, ...customTextStyleVars(zone.titleStyle, true) }}>{zone.title}</div>
-          <div className="card-zone-custom-body" style={{ color: textColor, ...customTextStyleVars(zone.textStyle, false) }}>{zone.text}</div>
-        </div>
-      );
-    };
+    const renderCustomZoneContent = () => (
+      <div className="card-zone-text card-zone-custom-empty" aria-hidden="true" />
+    );
 
     const renderZoneContent = zoneKey => {
       if (side === "front") {
@@ -2716,7 +2697,7 @@ function App() {
             }}
           >
             <div className="card-zone-content">{renderCustomZoneContent(zone)}</div>
-            {showZones ? <span className="card-zone-label">{zone.title || "Custom Layout"}{isSelectedLayout("custom", zone.id) ? " · Selected" : ""}</span> : null}
+            {showZones ? <span className="card-zone-label">{zone.name || "Custom Layout"}{isSelectedLayout("custom", zone.id) ? " · Selected" : ""}</span> : null}
             {showZones && activeLayoutEdit?.zoneKey === zone.id ? <b className="zone-live-coordinates is-visible">{formatBoxCoordinates(activeLayoutEdit.box)}</b> : null}
             {showZones ? (
               <>
@@ -3139,24 +3120,7 @@ function App() {
           <button type="button" className="mini-action-btn layout-action-btn" onClick={() => addCardCustomZone(card.id, "back")}>New layout back</button>
           <button type="button" className="mini-action-btn layout-action-btn danger" disabled={!selectedLayout || selectedLayout.cardId !== card.id} onClick={() => deleteSelectedLayoutZone(card.id)}>Delete layout</button>
         </div>
-        {customZones.length ? (
-          <div className="custom-zone-editor-list">
-            {customZones.map(zone => (
-              <div className="custom-zone-editor-row" key={zone.id}>
-                <div className="custom-zone-editor-head">
-                  <strong>{zone.side === "front" ? "Front" : "Back"}</strong>
-                  <button type="button" className="mini-action-btn danger" onClick={() => deleteCardCustomZone(card.id, zone.id)}>Delete</button>
-                </div>
-                <label>Title<input value={zone.title} onChange={e => updateCardCustomZone(card.id, zone.id, { title: e.target.value })} /></label>
-                <label>Text<textarea value={zone.text} onChange={e => updateCardCustomZone(card.id, zone.id, { text: e.target.value })} /></label>
-                <div className="custom-zone-color-row">
-                  <label>Title color<input type="color" value={safeColor(zone.titleColor)} onChange={e => updateCardCustomZone(card.id, zone.id, { titleColor: e.target.value })} /></label>
-                  <label>Text color<input type="color" value={safeColor(zone.textColor)} onChange={e => updateCardCustomZone(card.id, zone.id, { textColor: e.target.value })} /></label>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : null}
+        {customZones.length ? <p className="custom-zone-empty-note">New layouts are empty containers. Select one on the card to move, resize, or delete it.</p> : null}
       </div>
     );
   }
