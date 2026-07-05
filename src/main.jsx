@@ -218,16 +218,16 @@ const CARD_TEXT_COLOR_DEFAULTS = {
 };
 
 const CARD_TEXT_STYLE_DEFAULTS = {
-  headerFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
-  positionFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
-  headerBack: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
-  positionBack: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
-  attributesFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
-  bonusesFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
-  attributes: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
-  bonuses: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
-  specialAbility: { align: "center", bold: false, font: "Inter", fontSize: 100, lineHeight: 105, statGap: 100 },
-  defensiveArea: { align: "center", bold: false, font: "Inter", fontSize: 100, lineHeight: 100, statGap: 100 },
+  headerFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  positionFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  headerBack: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  positionBack: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  attributesFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  bonusesFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  attributes: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  bonuses: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  specialAbility: { align: "center", bold: false, font: "Inter", fontSize: 100, lineHeight: 105, verticalOffset: 0, statGap: 100 },
+  defensiveArea: { align: "center", bold: false, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
 };
 
 const CARD_FONT_OPTIONS = ["Inter", "Arial", "Verdana", "Tahoma", "Georgia", "Times New Roman", "Trebuchet MS", "Courier New"];
@@ -243,8 +243,9 @@ function normalizeTextStyles(raw = {}) {
       align,
       bold: typeof current.bold === "boolean" ? current.bold : defaults.bold,
       font,
-      fontSize: clamp(Number(current.fontSize ?? defaults.fontSize), 50, 180),
+      fontSize: clamp(Number(current.fontSize ?? defaults.fontSize), 50, 260),
       lineHeight: clamp(Number(current.lineHeight ?? defaults.lineHeight), 70, 180),
+      verticalOffset: clamp(Number(current.verticalOffset ?? defaults.verticalOffset ?? 0), -100, 100),
       statGap: clamp(Number(current.statGap ?? defaults.statGap), 30, 250),
     };
   };
@@ -267,6 +268,7 @@ function zoneTextStyleVars(styles, key, hasStats = false) {
     "--zone-font-weight": s.bold ? 950 : 650,
     "--zone-font-scale": s.fontSize / 100,
     "--zone-line-height": s.lineHeight / 100,
+    "--zone-y-offset": `${s.verticalOffset * 0.4}cqh`,
     ...(hasStats ? { "--zone-stat-gap": `${Math.round(s.statGap / 100 * 4)}px`, "--zone-stat-gap-wide": `${Math.round(s.statGap / 100 * 8)}px` } : {}),
   };
 }
@@ -2573,6 +2575,7 @@ function App() {
     const isOpen = openTextPanelKey === panelKey;
     const set = patch => updateCardTextStyle(card.id, styleKey, patch);
     const stopPanelEvent = e => e.stopPropagation();
+    const setRange = key => e => set({ [key]: Number(e.currentTarget.value) });
     return (
       <div className={`text-style-controls ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
         <button type="button" className="text-style-toggle" aria-expanded={isOpen} onClick={() => setOpenTextPanelKey(isOpen ? null : panelKey)}>Text</button>
@@ -2585,9 +2588,10 @@ function App() {
               <button type="button" className={current.bold ? "selected" : ""} onClick={() => set({ bold: !current.bold })}>B</button>
             </div>
             <label>Font<select value={current.font} onChange={e => set({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label>
-            <label>Size<input type="range" min="50" max="180" value={current.fontSize} onChange={e => set({ fontSize: Number(e.target.value) })} /><span>{current.fontSize}%</span></label>
-            <label>Line<input type="range" min="70" max="180" value={current.lineHeight} onChange={e => set({ lineHeight: Number(e.target.value) })} /><span>{current.lineHeight}%</span></label>
-            {stats ? <label>Gap<input type="range" min="30" max="250" value={current.statGap} onChange={e => set({ statGap: Number(e.target.value) })} /><span>{current.statGap}%</span></label> : null}
+            <label>Size<input type="range" min="50" max="260" value={current.fontSize} onInput={setRange("fontSize")} onChange={setRange("fontSize")} /><span>{current.fontSize}%</span></label>
+            <label>Line<input type="range" min="70" max="180" value={current.lineHeight} onInput={setRange("lineHeight")} onChange={setRange("lineHeight")} /><span>{current.lineHeight}%</span></label>
+            <label>Y<input type="range" min="-100" max="100" value={current.verticalOffset ?? 0} onInput={setRange("verticalOffset")} onChange={setRange("verticalOffset")} /><span>{current.verticalOffset ?? 0}</span></label>
+            {stats ? <label>Gap<input type="range" min="30" max="250" value={current.statGap} onInput={setRange("statGap")} onChange={setRange("statGap")} /><span>{current.statGap}%</span></label> : null}
           </div>
         ) : null}
       </div>

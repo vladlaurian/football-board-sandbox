@@ -4192,21 +4192,11 @@ select option {
   display: inline-block !important;
   position: relative !important;
 }
-.text-style-controls summary {
-  cursor: pointer !important;
-  border: 1px solid rgba(255,255,255,.18) !important;
-  border-radius: 999px !important;
-  padding: 4px 8px !important;
-  font-size: 11px !important;
-  list-style: none !important;
-  background: rgba(255,255,255,.06) !important;
-}
-.text-style-controls summary::-webkit-details-marker { display:none !important; }
 .text-style-panel {
   position: absolute !important;
   right: 0 !important;
   top: calc(100% + 6px) !important;
-  z-index: 50 !important;
+  z-index: 10001 !important;
   width: 220px !important;
   display: grid !important;
   gap: 7px !important;
@@ -4225,7 +4215,7 @@ select option {
   font-size: 11px !important;
 }
 .text-style-panel select { width: 100% !important; min-width: 0 !important; }
-.text-style-panel input[type="range"] { width: 100% !important; }
+.text-style-panel input[type="range"] { width: 100% !important; touch-action: pan-x !important; cursor: ew-resize !important; }
 .text-align-buttons { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 4px !important; }
 .text-align-buttons button { min-width: 0 !important; padding: 5px 0 !important; font-weight: 900 !important; }
 .text-align-buttons button.selected { outline: 2px solid rgba(56,189,248,.9) !important; background: rgba(56,189,248,.2) !important; }
@@ -4236,14 +4226,16 @@ select option {
   font-weight: var(--zone-font-weight, 800) !important;
   text-align: var(--zone-align, center) !important;
   line-height: var(--zone-line-height, 1) !important;
+  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
+  will-change: transform !important;
 }
 .card-zone-name,
 .card-zone-position {
   justify-content: var(--zone-justify, center) !important;
   text-align: var(--zone-align, center) !important;
 }
-.card-zone-name { font-size: clamp(3px, calc(min(13cqw, 62cqh) * var(--zone-font-scale, 1)), 32px) !important; }
-.card-zone-position { font-size: clamp(3px, calc(min(15cqw, 72cqh) * var(--zone-font-scale, 1)), 34px) !important; }
+.card-zone-name { font-size: clamp(3px, calc(min(15cqw, 78cqh) * var(--zone-font-scale, 1)), 52px) !important; }
+.card-zone-position { font-size: clamp(3px, calc(min(19cqw, 88cqh) * var(--zone-font-scale, 1)), 58px) !important; }
 .card-zone-formula {
   font-family: var(--zone-font-family, Inter), system-ui, sans-serif !important;
   text-align: var(--zone-align, center) !important;
@@ -4353,14 +4345,15 @@ select option {
   z-index: 10001 !important;
   pointer-events: auto !important;
   user-select: none !important;
-  touch-action: none !important;
+  touch-action: auto !important;
 }
 .text-style-panel,
 .text-style-panel * {
   pointer-events: auto !important;
 }
 .text-style-panel input[type="range"] {
-  touch-action: none !important;
+  touch-action: pan-x !important;
+  cursor: ew-resize !important;
 }
 
 /* FIX: scale only the Defensive Area arrow rendered on the card layout, not the editor arrow. */
