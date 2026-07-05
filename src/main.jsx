@@ -273,6 +273,74 @@ function zoneTextStyleVars(styles, key, hasStats = false) {
   };
 }
 
+
+function StableTextStyleControls({ cardId, styleKey, stats = false, current, isOpen, onToggle, onPatch }) {
+  if (!cardId || !CARD_TEXT_STYLE_DEFAULTS[styleKey]) return null;
+
+  const safeCurrent = current || CARD_TEXT_STYLE_DEFAULTS[styleKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
+  const [rangeDraft, setRangeDraft] = useState({});
+  const activeRangeRef = useRef(null);
+
+  useEffect(() => {
+    if (!activeRangeRef.current) setRangeDraft({});
+  }, [cardId, styleKey, safeCurrent.fontSize, safeCurrent.lineHeight, safeCurrent.verticalOffset, safeCurrent.statGap]);
+
+  const stopPanelEvent = e => e.stopPropagation();
+  const set = patch => onPatch && onPatch(patch);
+  const rangeValue = key => rangeDraft[key] ?? safeCurrent[key] ?? 0;
+
+  const setRangeDraftValue = key => e => {
+    const value = Number(e.currentTarget.value);
+    setRangeDraft(prev => ({ ...prev, [key]: value }));
+  };
+
+  const commitRangeValue = (key, rawValue) => {
+    const value = Number(rawValue);
+    activeRangeRef.current = null;
+    setRangeDraft(prev => ({ ...prev, [key]: value }));
+    set({ [key]: value });
+  };
+
+  const beginRange = key => () => {
+    activeRangeRef.current = key;
+  };
+
+  const finishRange = key => e => {
+    commitRangeValue(key, e.currentTarget.value);
+  };
+
+  const keyRange = key => e => {
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Enter"].includes(e.key)) {
+      commitRangeValue(key, e.currentTarget.value);
+    }
+  };
+
+  const renderRange = (label, key, min, max, suffix = "") => (
+    <label>{label}<input type="range" min={min} max={max} value={rangeValue(key)} onPointerDown={beginRange(key)} onInput={setRangeDraftValue(key)} onPointerUp={finishRange(key)} onPointerCancel={finishRange(key)} onMouseUp={finishRange(key)} onTouchEnd={finishRange(key)} onBlur={finishRange(key)} onKeyUp={keyRange(key)} /><span>{rangeValue(key)}{suffix}</span></label>
+  );
+
+  return (
+    <div className={`text-style-controls ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+      <button type="button" className="text-style-toggle" aria-expanded={isOpen} onClick={onToggle}>Text</button>
+      {isOpen ? (
+        <div className="text-style-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+          <div className="text-align-buttons" aria-label="Text align">
+            <button type="button" className={safeCurrent.align === "left" ? "selected" : ""} onClick={() => set({ align: "left" })}>L</button>
+            <button type="button" className={safeCurrent.align === "center" ? "selected" : ""} onClick={() => set({ align: "center" })}>C</button>
+            <button type="button" className={safeCurrent.align === "right" ? "selected" : ""} onClick={() => set({ align: "right" })}>R</button>
+            <button type="button" className={safeCurrent.bold ? "selected" : ""} onClick={() => set({ bold: !safeCurrent.bold })}>B</button>
+          </div>
+          <label>Font<select value={safeCurrent.font} onChange={e => set({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label>
+          {renderRange("Size", "fontSize", 50, 260, "%")}
+          {renderRange("Line", "lineHeight", 70, 180, "%")}
+          {renderRange("Y", "verticalOffset", -100, 100, "")}
+          {stats ? renderRange("Gap", "statGap", 30, 250, "%") : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const CARD_LAYOUT_TITLE_DEFAULTS = {
   attributes: "Attributes",
   bonuses: "Bonuses",
@@ -2527,7 +2595,7 @@ function App() {
     });
     return (
       <div className="card-edit-section front-summary-editor">
-        <div className="card-edit-section-title"><strong>{title}</strong><ColorPicker card={card} colorKey={colorKey} label="Color" /><TextStyleControls card={card} styleKey={colorKey} stats={true} /></div>
+        <div className="card-edit-section-title"><strong>{title}</strong><ColorPicker card={card} colorKey={colorKey} label="Color" />{renderTextStyleControls(card, colorKey, true)}</div>
         <div className="front-formula-list">
           {fields.map(field => (
             <div className="front-formula-row" key={field.id}>
@@ -2567,76 +2635,23 @@ function App() {
     }));
   }
 
-  function TextStyleControls({ card, styleKey, stats = false }) {
+  function renderTextStyleControls(card, styleKey, stats = false) {
     if (!card || !CARD_TEXT_STYLE_DEFAULTS[styleKey]) return null;
-    const styles = cardTextStyles(card);
-    const current = styles[styleKey] || CARD_TEXT_STYLE_DEFAULTS[styleKey];
+    const current = cardTextStyles(card)[styleKey] || CARD_TEXT_STYLE_DEFAULTS[styleKey];
     const panelKey = `${card.id}:${styleKey}`;
-    const isOpen = openTextPanelKey === panelKey;
-    const [rangeDraft, setRangeDraft] = useState({});
-    const draggingRangeRef = useRef(false);
-    const rafCommitRef = useRef(null);
-    const lastCommitRef = useRef(null);
-    const set = patch => updateCardTextStyle(card.id, styleKey, patch);
-    const stopPanelEvent = e => e.stopPropagation();
-
-    useEffect(() => {
-      if (!draggingRangeRef.current) setRangeDraft({});
-      return () => {
-        if (rafCommitRef.current) cancelAnimationFrame(rafCommitRef.current);
-      };
-    }, [card.id, styleKey, current.fontSize, current.lineHeight, current.verticalOffset, current.statGap]);
-
-    const rangeValue = key => rangeDraft[key] ?? current[key] ?? 0;
-    const commitRange = (key, value) => {
-      const numericValue = Number(value);
-      const signature = `${key}:${numericValue}`;
-      if (lastCommitRef.current === signature) return;
-      lastCommitRef.current = signature;
-      set({ [key]: numericValue });
-    };
-    const scheduleRangeCommit = (key, value) => {
-      const numericValue = Number(value);
-      if (rafCommitRef.current) cancelAnimationFrame(rafCommitRef.current);
-      rafCommitRef.current = requestAnimationFrame(() => {
-        rafCommitRef.current = null;
-        commitRange(key, numericValue);
-      });
-    };
-    const setRange = key => e => {
-      const value = Number(e.currentTarget.value);
-      setRangeDraft(prev => ({ ...prev, [key]: value }));
-      scheduleRangeCommit(key, value);
-    };
-    const finishRange = key => e => {
-      const value = Number(e.currentTarget.value);
-      draggingRangeRef.current = false;
-      setRangeDraft(prev => ({ ...prev, [key]: value }));
-      commitRange(key, value);
-    };
-    const beginRange = () => { draggingRangeRef.current = true; };
-
     return (
-      <div className={`text-style-controls ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
-        <button type="button" className="text-style-toggle" aria-expanded={isOpen} onClick={() => setOpenTextPanelKey(isOpen ? null : panelKey)}>Text</button>
-        {isOpen ? (
-          <div className="text-style-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
-            <div className="text-align-buttons" aria-label="Text align">
-              <button type="button" className={current.align === "left" ? "selected" : ""} onClick={() => set({ align: "left" })}>L</button>
-              <button type="button" className={current.align === "center" ? "selected" : ""} onClick={() => set({ align: "center" })}>C</button>
-              <button type="button" className={current.align === "right" ? "selected" : ""} onClick={() => set({ align: "right" })}>R</button>
-              <button type="button" className={current.bold ? "selected" : ""} onClick={() => set({ bold: !current.bold })}>B</button>
-            </div>
-            <label>Font<select value={current.font} onChange={e => set({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label>
-            <label>Size<input type="range" min="50" max="260" value={rangeValue("fontSize")} onPointerDown={beginRange} onInput={setRange("fontSize")} onChange={finishRange("fontSize")} onPointerUp={finishRange("fontSize")} onPointerCancel={finishRange("fontSize")} /><span>{rangeValue("fontSize")}%</span></label>
-            <label>Line<input type="range" min="70" max="180" value={rangeValue("lineHeight")} onPointerDown={beginRange} onInput={setRange("lineHeight")} onChange={finishRange("lineHeight")} onPointerUp={finishRange("lineHeight")} onPointerCancel={finishRange("lineHeight")} /><span>{rangeValue("lineHeight")}%</span></label>
-            <label>Y<input type="range" min="-100" max="100" value={rangeValue("verticalOffset")} onPointerDown={beginRange} onInput={setRange("verticalOffset")} onChange={finishRange("verticalOffset")} onPointerUp={finishRange("verticalOffset")} onPointerCancel={finishRange("verticalOffset")} /><span>{rangeValue("verticalOffset")}</span></label>
-            {stats ? <label>Gap<input type="range" min="30" max="250" value={rangeValue("statGap")} onPointerDown={beginRange} onInput={setRange("statGap")} onChange={finishRange("statGap")} onPointerUp={finishRange("statGap")} onPointerCancel={finishRange("statGap")} /><span>{rangeValue("statGap")}%</span></label> : null}
-          </div>
-        ) : null}
-      </div>
+      <StableTextStyleControls
+        cardId={card.id}
+        styleKey={styleKey}
+        stats={stats}
+        current={current}
+        isOpen={openTextPanelKey === panelKey}
+        onToggle={() => setOpenTextPanelKey(openTextPanelKey === panelKey ? null : panelKey)}
+        onPatch={patch => updateCardTextStyle(card.id, styleKey, patch)}
+      />
     );
   }
+
 
   function updateCardTextColor(cardId, key, value) {
     if (!cardId) return;
@@ -2763,16 +2778,16 @@ function App() {
         <div className="card-editor-controls">
         {CardLayoutEditor({ card })}
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
-        <div className="card-edit-section compact-color-row"><strong>Header Front</strong><ColorPicker card={card} colorKey="headerFront" label="Color" /><TextStyleControls card={card} styleKey="headerFront" /></div>
-        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Front</strong><ColorPicker card={card} colorKey="positionFront" label="Color" /><TextStyleControls card={card} styleKey="positionFront" /></div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
-        <div className="card-edit-section compact-color-row"><strong>Header Back</strong><ColorPicker card={card} colorKey="headerBack" label="Color" /><TextStyleControls card={card} styleKey="headerBack" /></div>
-        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Back</strong><ColorPicker card={card} colorKey="positionBack" label="Color" /><TextStyleControls card={card} styleKey="positionBack" /></div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
+        <div className="card-edit-section compact-color-row"><strong>Header Front</strong><ColorPicker card={card} colorKey="headerFront" label="Color" />{renderTextStyleControls(card, "headerFront")}</div>
+        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Front</strong><ColorPicker card={card} colorKey="positionFront" label="Color" />{renderTextStyleControls(card, "positionFront")}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
+        <div className="card-edit-section compact-color-row"><strong>Header Back</strong><ColorPicker card={card} colorKey="headerBack" label="Color" />{renderTextStyleControls(card, "headerBack")}</div>
+        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Back</strong><ColorPicker card={card} colorKey="positionBack" label="Color" />{renderTextStyleControls(card, "positionBack")}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
         {FrontZoneFieldsEditor({ card, storageKey: "frontAttributeFields", title: "Attributes Front", colorKey: "attributesFront", sourceSection: "passiveAttributes" })}
         {FrontZoneFieldsEditor({ card, storageKey: "frontBonusFields", title: "Bonuses Front", colorKey: "bonusesFront", sourceSection: "bonuses" })}
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><ColorPicker card={card} colorKey="attributes" label="Text Color" /><TextStyleControls card={card} styleKey="attributes" stats={true} /></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true })}</div>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><ColorPicker card={card} colorKey="bonuses" label="Text Color" /><TextStyleControls card={card} styleKey="bonuses" stats={true} /></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true })}</div>
-        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><ColorPicker card={card} colorKey="specialAbility" label="Text Color" /><TextStyleControls card={card} styleKey="specialAbility" /></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<textarea value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /><TextStyleControls card={card} styleKey="defensiveArea" /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><ColorPicker card={card} colorKey="attributes" label="Text Color" />{renderTextStyleControls(card, "attributes", true)}</div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><ColorPicker card={card} colorKey="bonuses" label="Text Color" />{renderTextStyleControls(card, "bonuses", true)}</div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true })}</div>
+        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><ColorPicker card={card} colorKey="specialAbility" label="Text Color" />{renderTextStyleControls(card, "specialAbility")}</div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<textarea value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" />{renderTextStyleControls(card, "defensiveArea")}</div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
         </div>
       </div>
     );

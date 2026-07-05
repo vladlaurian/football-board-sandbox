@@ -4243,7 +4243,7 @@ select option {
   width: 100% !important;
   min-width: 0 !important;
   cursor: ew-resize !important;
-  touch-action: pan-x !important;
+  touch-action: auto !important;
   -webkit-user-select: none !important;
   user-select: none !important;
 }
