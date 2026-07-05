@@ -207,11 +207,27 @@ const CARD_TEXT_COLOR_DEFAULTS = {
   bonusesFront: "#ffffff",
   attributes: "#ffffff",
   bonuses: "#ffffff",
+  attributesTitle: "#ffffff",
+  bonusesTitle: "#ffffff",
   defensiveArea: "#ffffff",
+  defensiveAreaTitle: "#ffffff",
   defensiveAreaActive: "#50be78",
   specialAbility: "#ffffff",
+  specialAbilityTitle: "#ffffff",
   layoutZones: "#ffffff",
 };
+const CARD_LAYOUT_TITLE_DEFAULTS = {
+  attributes: "Attributes",
+  bonuses: "Bonuses",
+  defensiveArea: "Defensive Area",
+  specialAbility: "Special Ability",
+};
+
+function cardLayoutTitle(card, key) {
+  const titles = card?.layoutTitles && typeof card.layoutTitles === "object" ? card.layoutTitles : {};
+  return String(titles[key] ?? CARD_LAYOUT_TITLE_DEFAULTS[key] ?? "");
+}
+
 const COLOR_SWATCHES = ["#ffffff", "#f8fafc", "#111827", "#ef4444", "#f97316", "#facc15", "#22c55e", "#14b8a6", "#38bdf8", "#3b82f6", "#8b5cf6", "#ec4899"];
 const CARD_FRONT_FIELDS = ["DEF", "ATT"];
 const LEGACY_THEME_MAP = {
@@ -2075,9 +2091,13 @@ function App() {
       "--card-bonuses-front-color": safeColor(colors.bonusesFront),
       "--card-attributes-color": safeColor(colors.attributes),
       "--card-bonuses-color": safeColor(colors.bonuses),
+      "--card-attributes-title-color": safeColor(colors.attributesTitle),
+      "--card-bonuses-title-color": safeColor(colors.bonusesTitle),
       "--card-area-color": safeColor(colors.defensiveArea),
+      "--card-area-title-color": safeColor(colors.defensiveAreaTitle),
       "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78"),
       "--card-special-color": safeColor(colors.specialAbility),
+      "--card-special-title-color": safeColor(colors.specialAbilityTitle),
       "--card-layout-zone-color": safeColor(colors.layoutZones),
     };
     return (
@@ -2173,31 +2193,45 @@ function App() {
       );
     };
 
-    const renderListZone = (items, colorKey) => {
+    const renderListZone = (items, colorKey, titleKey, titleColorKey) => {
       const textColor = safeColor(colors[colorKey]);
+      const titleColor = safeColor(colors[titleColorKey]);
       return (
-        <div className="card-zone-text card-zone-list zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor }}>
-          {items.length ? items.map(item => (
-            <div className="card-zone-list-row" key={item.id} style={{ color: textColor }}>
-              <span style={{ color: textColor }}>{item.name}</span>
-              <strong style={{ color: textColor }}>{normalizeStatValue(item.value)}</strong>
-            </div>
-          )) : <em style={{ color: textColor }}>—</em>}
+        <div className="card-zone-text card-zone-list-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, color: textColor }}>
+          <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, titleKey)}</div>
+          <div className="card-zone-list">
+            {items.length ? items.map(item => (
+              <div className="card-zone-list-row" key={item.id} style={{ color: textColor }}>
+                <span style={{ color: textColor }}>{item.name}</span>
+                <strong style={{ color: textColor }}>{normalizeStatValue(item.value)}</strong>
+              </div>
+            )) : <em style={{ color: textColor }}>—</em>}
+          </div>
         </div>
       );
     };
 
-    const renderSpecialAbilityZone = () => (
-      <div className="card-zone-text card-zone-special zone-color-bound" style={{ "--zone-text-color": safeColor(colors.specialAbility), color: safeColor(colors.specialAbility) }}>
-        {card?.specialAbility || ""}
-      </div>
-    );
+    const renderSpecialAbilityZone = () => {
+      const textColor = safeColor(colors.specialAbility);
+      const titleColor = safeColor(colors.specialAbilityTitle);
+      return (
+        <div className="card-zone-text card-zone-special-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, color: textColor }}>
+          <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, "specialAbility")}</div>
+          <div className="card-zone-special" style={{ color: textColor }}>{card?.specialAbility || ""}</div>
+        </div>
+      );
+    };
 
-    const renderDefensiveAreaZone = () => (
-      <div className="card-zone-text card-zone-defense zone-color-bound" style={{ "--zone-text-color": safeColor(colors.defensiveArea), color: safeColor(colors.defensiveArea), "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78") }}>
-        <AreaMiniPreview area={card?.defensiveArea || []} />
-      </div>
-    );
+    const renderDefensiveAreaZone = () => {
+      const textColor = safeColor(colors.defensiveArea);
+      const titleColor = safeColor(colors.defensiveAreaTitle);
+      return (
+        <div className="card-zone-text card-zone-defense-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, color: textColor, "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78") }}>
+          <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, "defensiveArea")}</div>
+          <div className="card-zone-defense" style={{ color: textColor }}><AreaMiniPreview area={card?.defensiveArea || []} /></div>
+        </div>
+      );
+    };
 
     const renderZoneContent = zoneKey => {
       if (side === "front") {
@@ -2208,8 +2242,8 @@ function App() {
       }
       if (zoneKey === "header") return renderNameZone("headerBack");
       if (zoneKey === "position") return renderPositionZone("positionBack");
-      if (zoneKey === "attributes") return renderListZone(visibleAttributes, "attributes");
-      if (zoneKey === "bonuses") return renderListZone(visibleBonuses, "bonuses");
+      if (zoneKey === "attributes") return renderListZone(visibleAttributes, "attributes", "attributes", "attributesTitle");
+      if (zoneKey === "bonuses") return renderListZone(visibleBonuses, "bonuses", "bonuses", "bonusesTitle");
       if (zoneKey === "specialAbility") return renderSpecialAbilityZone();
       if (zoneKey === "defensiveArea") return renderDefensiveAreaZone();
       return null;
@@ -2375,13 +2409,13 @@ function App() {
     return <div className="area-mini">{Array.from({ length: 121 }, (_, i) => { const dx = (i % 11) - 5; const dy = Math.floor(i / 11) - 5; const center = dx === 0 && dy === 0; return <span key={i} className={`${center ? "player" : ""} ${areaHasCell(area, dx, dy) ? "active" : ""}`}>{center ? "" : ""}</span>; })}</div>;
   }
 
-  function AttributeListEditor({ card, section, title }) {
+  function AttributeListEditor({ card, section, title, hideHeader = false }) {
     const items = card[section] || [];
     const moveItem = (index, dir) => updateCardList(card.id, section, list => { const next = [...list]; const to = index + dir; if (to < 0 || to >= next.length) return next; [next[index], next[to]] = [next[to], next[index]]; return next; });
     const changeValue = (itemId, delta) => updateCardList(card.id, section, list => list.map(x => x.id === itemId ? { ...x, value: clamp(normalizeStatValue(x.value) + delta, -99, 99) } : x));
     return (
       <div className="card-edit-section">
-        <div className="card-edit-section-title"><strong>{title}</strong><ColorPicker card={card} colorKey={section === "bonuses" ? "bonuses" : "attributes"} label="Color" /><button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }])}>+ Add</button></div>
+        {!hideHeader ? <div className="card-edit-section-title"><strong>{title}</strong><ColorPicker card={card} colorKey={section === "bonuses" ? "bonuses" : "attributes"} label="Color" /><button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }])}>+ Add</button></div> : <div className="card-edit-section-title sub-only"><button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }])}>+ Add</button></div>}
         {items.map((item, index) => (
           <div className="attribute-row" key={item.id}>
             <input value={item.name} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, name: e.target.value } : x))} />
@@ -2535,6 +2569,27 @@ function App() {
   }
 
 
+  function updateCardLayoutTitle(cardId, key, value) {
+    if (!cardId || !Object.prototype.hasOwnProperty.call(CARD_LAYOUT_TITLE_DEFAULTS, key)) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? {
+        ...card,
+        layoutTitles: { ...CARD_LAYOUT_TITLE_DEFAULTS, ...(card.layoutTitles || {}), [key]: value },
+        updatedAt: new Date().toISOString(),
+      } : card),
+    }));
+  }
+
+  function SectionTitleEditor({ card, titleKey, colorKey, label }) {
+    return (
+      <label className="section-title-editor">
+        <span className="editor-label-row"><span>{label}</span><ColorPicker card={card} colorKey={colorKey} label="Color" /></span>
+        <input value={cardLayoutTitle(card, titleKey)} onChange={e => updateCardLayoutTitle(card.id, titleKey, e.target.value)} />
+      </label>
+    );
+  }
+
   function CardLayoutEditor({ card }) {
     return (
       <div className="card-edit-section card-layout-editor">
@@ -2558,15 +2613,15 @@ function App() {
         {CardLayoutEditor({ card })}
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
         <div className="card-edit-section compact-color-row"><strong>Header Front</strong><ColorPicker card={card} colorKey="headerFront" label="Color" /></div>
-        <label className="editor-position-row"><span className="editor-label-row"><span>Position Front</span><ColorPicker card={card} colorKey="positionFront" label="Color" /></span><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
+        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Front</strong><ColorPicker card={card} colorKey="positionFront" label="Color" /></div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
         <div className="card-edit-section compact-color-row"><strong>Header Back</strong><ColorPicker card={card} colorKey="headerBack" label="Color" /></div>
-        <label className="editor-position-row"><span className="editor-label-row"><span>Position Back</span><ColorPicker card={card} colorKey="positionBack" label="Color" /></span><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></label>
+        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Back</strong><ColorPicker card={card} colorKey="positionBack" label="Color" /></div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
         {FrontZoneFieldsEditor({ card, storageKey: "frontAttributeFields", title: "Attributes Front", colorKey: "attributesFront", sourceSection: "passiveAttributes" })}
         {FrontZoneFieldsEditor({ card, storageKey: "frontBonusFields", title: "Bonuses Front", colorKey: "bonusesFront", sourceSection: "bonuses" })}
-        {AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes" })}
-        {AttributeListEditor({ card, section: "bonuses", title: "Bonuses" })}
-        <label className="special-ability-editor"><span className="editor-label-row"><span>Special Ability</span><ColorPicker card={card} colorKey="specialAbility" label="Color" /></span><textarea value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></label>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Writing/Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /></div>{DefensiveAreaEditor({ card })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><ColorPicker card={card} colorKey="attributes" label="Text Color" /></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><ColorPicker card={card} colorKey="bonuses" label="Text Color" /></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true })}</div>
+        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><ColorPicker card={card} colorKey="specialAbility" label="Text Color" /></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<textarea value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
         </div>
       </div>
     );

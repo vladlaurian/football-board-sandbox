@@ -3892,3 +3892,71 @@ select option {
 .card-visual-zone > .card-zone-label {
   display: none !important;
 }
+
+/* Section titles rendered inside card layout zones, editable separately from content. */
+.card-zone-list-with-title,
+.card-zone-special-with-title,
+.card-zone-defense-with-title {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 2px;
+  overflow: hidden;
+  text-align: center;
+}
+.card-zone-section-title {
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: clamp(5px, 3.1cqw, 9px);
+  line-height: 1;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: .035em;
+}
+.card-zone-list-with-title .card-zone-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  justify-content: center;
+}
+.card-zone-special-with-title .card-zone-special {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.card-zone-defense-with-title .card-zone-defense {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.section-title-editor {
+  display: grid !important;
+  gap: 5px !important;
+  padding: 7px !important;
+  margin: 6px 0 !important;
+  border-radius: 9px !important;
+  background: rgba(255,255,255,.04) !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+}
+.section-title-editor input {
+  width: 100% !important;
+}
+.editor-position-section select {
+  width: 100% !important;
+}
+.card-edit-section-title.sub-only {
+  justify-content: flex-end !important;
+  margin-bottom: 5px !important;
+}
+
+.card-zone-list-with-title.zone-color-bound .card-zone-section-title,
+.card-zone-special-with-title.zone-color-bound .card-zone-section-title,
+.card-zone-defense-with-title.zone-color-bound .card-zone-section-title {
+  color: var(--zone-title-color, var(--zone-text-color, currentColor)) !important;
+}
