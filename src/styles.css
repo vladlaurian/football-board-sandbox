@@ -4543,3 +4543,83 @@ select option {
   height: 150px !important;
   box-sizing: border-box !important;
 }
+
+/* FINAL CLEANUP: Text panel must be a real top layer and block click-through. */
+.text-style-controls.open,
+.special-text-toolbar .text-style-controls.open,
+.attribute-toolbar-left .text-style-controls.open {
+  z-index: 2147483000 !important;
+  isolation: isolate !important;
+}
+.text-style-controls.open .text-style-panel {
+  z-index: 2147483001 !important;
+  pointer-events: auto !important;
+  background: #051228 !important;
+  opacity: 1 !important;
+}
+.text-style-controls.open .text-style-panel,
+.text-style-controls.open .text-style-panel * {
+  pointer-events: auto !important;
+}
+
+/* FINAL CLEANUP: Gap slider removed; keep formulas/list spacing stable without user Gap vars. */
+.card-zone-list-row,
+.card-zone-formula {
+  gap: clamp(1px, 2.5cqw, 7px) !important;
+}
+@container (min-aspect-ratio: 2/1) {
+  .card-zone-formula { gap: clamp(1px, 2.5cqw, 7px) !important; }
+}
+
+/* FINAL CLEANUP: Front Attributes/Bonuses Text controls affect labels only. Values stay independent until Value controls are added. */
+.card-zone-formula {
+  font-family: Inter, system-ui, sans-serif !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  transform: none !important;
+}
+.card-zone-formula span {
+  font-family: var(--zone-font-family, Inter), system-ui, sans-serif !important;
+  font-weight: var(--zone-font-weight, 800) !important;
+  font-size: clamp(3px, calc(min(8cqw, 30cqh) * var(--zone-font-scale, 1)), 22px) !important;
+  line-height: var(--zone-line-height, 1) !important;
+  text-align: var(--zone-align, center) !important;
+  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
+  will-change: transform !important;
+}
+.card-zone-formula strong {
+  font-family: Inter, system-ui, sans-serif !important;
+  font-weight: 950 !important;
+  font-size: clamp(4px, min(16cqw, 48cqh), 30px) !important;
+  line-height: .85 !important;
+  text-align: center !important;
+  transform: none !important;
+}
+
+/* FINAL CLEANUP: Defensive Area Grid/Arrow color controls the visible grid and arrow; Selected Area remains separate. */
+.card-zone-defense-with-title.zone-color-bound .card-zone-defense,
+.card-zone-defense-with-title.zone-color-bound .card-zone-attack-direction,
+.card-zone-defense-with-title.zone-color-bound .card-zone-attack-direction .attack-arrow {
+  color: var(--zone-text-color, currentColor) !important;
+}
+.card-zone-defense-with-title.zone-color-bound .area-mini span:not(.active):not(.player) {
+  background: color-mix(in srgb, var(--zone-text-color, currentColor) 35%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--zone-text-color, currentColor) 75%, transparent) !important;
+  opacity: 1 !important;
+}
+.card-zone-defense-with-title.zone-color-bound .area-mini span.active {
+  background: var(--card-area-active-color, #50be78) !important;
+  border: 1px solid color-mix(in srgb, var(--card-area-active-color, #50be78) 85%, transparent) !important;
+  opacity: 1 !important;
+}
+.card-zone-defense-with-title.zone-color-bound .area-mini span.player {
+  background: var(--zone-text-color, currentColor) !important;
+  border: 1px solid var(--zone-text-color, currentColor) !important;
+  color: #111827 !important;
+}
+.card-zone-defense-with-title.zone-color-bound .card-zone-attack-direction .attack-arrow,
+.card-zone-defense-with-title.zone-color-bound .card-zone-attack-direction .attack-arrow::before,
+.card-zone-defense-with-title.zone-color-bound .card-zone-attack-direction .attack-arrow::after {
+  color: var(--zone-text-color, currentColor) !important;
+}

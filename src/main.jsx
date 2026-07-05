@@ -336,7 +336,6 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
           {renderRange("Size", "fontSize", 50, 260, "%")}
           {renderRange("Line", "lineHeight", 70, 180, "%")}
           {renderRange("Y", "verticalOffset", -100, 100, "")}
-          {stats ? renderRange("Gap", "statGap", 30, 250, "%") : null}
         </div>
       ) : null}
     </div>
@@ -2318,8 +2317,8 @@ function App() {
     const renderFrontFormulaZone = (field, colorKey) => {
       const textColor = safeColor(colors[colorKey]);
       return (
-        <div className="card-zone-text card-zone-formula zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor, ...zoneTextStyleVars(textStyles, colorKey, true) }}>
-          <span style={{ color: textColor }}>{field.label}</span>
+        <div className="card-zone-text card-zone-formula zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor }}>
+          <span style={{ color: textColor, ...zoneTextStyleVars(textStyles, colorKey, true) }}>{field.label}</span>
           <strong style={{ color: textColor }}>{computeFrontFieldValue(card, field)}</strong>
         </div>
       );
@@ -2805,7 +2804,7 @@ function App() {
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="attributes" label="Text Color" />{renderTextStyleControls(card, "attributes", true, { panelAlign: "left" })}</> })}</div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="bonuses" label="Text Color" />{renderTextStyleControls(card, "bonuses", true, { panelAlign: "left" })}</> })}</div>
         <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar"><ColorPicker card={card} colorKey="specialAbility" label="Text Color" />{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left" })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" />{renderTextStyleControls(card, "defensiveArea")}</div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
         </div>
       </div>
     );
