@@ -4094,10 +4094,10 @@ select option {
   text-overflow: clip !important;
 }
 .card-zone-formula span {
-  font-size: clamp(3px, min(7cqw, 24cqh), 12px) !important;
+  font-size: clamp(3px, min(8cqw, 30cqh), 14px) !important;
 }
 .card-zone-formula strong {
-  font-size: clamp(4px, min(14cqw, 42cqh), 30px) !important;
+  font-size: clamp(4px, min(10cqw, 38cqh), 24px) !important;
 }
 @container (min-aspect-ratio: 2/1) {
   .card-zone-formula {
@@ -4110,11 +4110,11 @@ select option {
   }
   .card-zone-formula span {
     text-align: left !important;
-    font-size: clamp(3px, min(7cqw, 48cqh), 13px) !important;
+    font-size: clamp(3px, min(8cqw, 45cqh), 14px) !important;
   }
   .card-zone-formula strong {
     text-align: right !important;
-    font-size: clamp(4px, min(10cqw, 70cqh), 30px) !important;
+    font-size: clamp(4px, min(9cqw, 55cqh), 24px) !important;
   }
 }
 
@@ -4191,6 +4191,21 @@ select option {
 .text-style-controls {
   display: inline-block !important;
   position: relative !important;
+  z-index: 1000 !important;
+  pointer-events: auto !important;
+}
+.text-style-controls.open {
+  z-index: 10000 !important;
+}
+.text-style-toggle {
+  cursor: pointer !important;
+  border: 1px solid rgba(255,255,255,.18) !important;
+  border-radius: 999px !important;
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+  color: inherit !important;
+  background: rgba(255,255,255,.06) !important;
+  pointer-events: auto !important;
 }
 .text-style-panel {
   position: absolute !important;
@@ -4205,20 +4220,51 @@ select option {
   border: 1px solid rgba(255,255,255,.16) !important;
   background: rgba(5,18,40,.98) !important;
   box-shadow: 0 12px 30px rgba(0,0,0,.35) !important;
+  pointer-events: auto !important;
+  user-select: none !important;
+}
+.text-style-panel,
+.text-style-panel * {
+  pointer-events: auto !important;
 }
 .text-style-panel label {
   display: grid !important;
-  grid-template-columns: 42px 1fr auto !important;
+  grid-template-columns: 42px minmax(0, 1fr) 38px !important;
   align-items: center !important;
   gap: 6px !important;
   margin: 0 !important;
   font-size: 11px !important;
 }
-.text-style-panel select { width: 100% !important; min-width: 0 !important; }
-.text-style-panel input[type="range"] { width: 100% !important; touch-action: pan-x !important; cursor: ew-resize !important; }
-.text-align-buttons { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 4px !important; }
-.text-align-buttons button { min-width: 0 !important; padding: 5px 0 !important; font-weight: 900 !important; }
-.text-align-buttons button.selected { outline: 2px solid rgba(56,189,248,.9) !important; background: rgba(56,189,248,.2) !important; }
+.text-style-panel select {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+.text-style-panel input[type="range"] {
+  width: 100% !important;
+  min-width: 0 !important;
+  cursor: ew-resize !important;
+  touch-action: pan-x !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+.text-style-panel label span {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums !important;
+}
+.text-align-buttons {
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 4px !important;
+}
+.text-align-buttons button {
+  min-width: 0 !important;
+  padding: 5px 0 !important;
+  font-weight: 900 !important;
+}
+.text-align-buttons button.selected {
+  outline: 2px solid rgba(56,189,248,.9) !important;
+  background: rgba(56,189,248,.2) !important;
+}
 
 /* APPLY PER-ZONE TEXT STYLE VARIABLES */
 .card-zone-text {
@@ -4253,8 +4299,8 @@ select option {
   line-height: var(--zone-line-height, 1) !important;
   text-align: var(--zone-align, center) !important;
 }
-.card-zone-formula span { font-size: clamp(3px, calc(min(7cqw, 24cqh) * var(--zone-font-scale, 1)), 24px) !important; }
-.card-zone-formula strong { font-size: clamp(4px, calc(min(14cqw, 42cqh) * var(--zone-font-scale, 1)), 44px) !important; }
+.card-zone-formula span { font-size: clamp(3px, calc(min(8cqw, 30cqh) * var(--zone-font-scale, 1)), 22px) !important; }
+.card-zone-formula strong { font-size: clamp(4px, calc(min(10cqw, 38cqh) * var(--zone-font-scale, 1)), 32px) !important; }
 .card-zone-list { font-family: var(--zone-font-family, Inter), system-ui, sans-serif !important; font-size: clamp(3px, calc(min(6cqw, calc(82cqh / var(--zone-lines, 5))) * var(--zone-font-scale, 1)), 18px) !important; line-height: var(--zone-line-height, 1) !important; }
 .card-zone-list-row { gap: var(--zone-stat-gap, clamp(1px, 2.8cqw, 8px)) !important; }
 .card-zone-list-row span { text-align: var(--zone-align, left) !important; }
@@ -4268,16 +4314,6 @@ select option {
   .card-zone-formula span { text-align: var(--zone-align, left) !important; }
 }
 
-
-/* FIX: text style controls must remain interactive; range sliders should not close/collapse parent editors. */
-.card-text-style-controls,
-.card-text-style-controls *,
-.text-style-controls,
-.text-style-controls *,
-.style-controls,
-.style-controls * {
-  pointer-events: auto;
-}
 
 /* FIX: colors applied to attributes/bonuses must affect labels and values consistently. */
 .card-zone-formula,
@@ -4321,39 +4357,6 @@ select option {
   max-height: 18% !important;
   transform-origin: center center !important;
   object-fit: contain !important;
-}
-
-/* FIX: React-controlled Text panel. It must not collapse on re-render and must block click-through. */
-.text-style-controls {
-  z-index: 1000 !important;
-  pointer-events: auto !important;
-}
-.text-style-controls.open {
-  z-index: 10000 !important;
-}
-.text-style-toggle {
-  cursor: pointer !important;
-  border: 1px solid rgba(255,255,255,.18) !important;
-  border-radius: 999px !important;
-  padding: 4px 8px !important;
-  font-size: 11px !important;
-  color: inherit !important;
-  background: rgba(255,255,255,.06) !important;
-  pointer-events: auto !important;
-}
-.text-style-panel {
-  z-index: 10001 !important;
-  pointer-events: auto !important;
-  user-select: none !important;
-  touch-action: auto !important;
-}
-.text-style-panel,
-.text-style-panel * {
-  pointer-events: auto !important;
-}
-.text-style-panel input[type="range"] {
-  touch-action: pan-x !important;
-  cursor: ew-resize !important;
 }
 
 /* FIX: scale only the Defensive Area arrow rendered on the card layout, not the editor arrow. */

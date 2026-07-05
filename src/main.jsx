@@ -2573,9 +2573,49 @@ function App() {
     const current = styles[styleKey] || CARD_TEXT_STYLE_DEFAULTS[styleKey];
     const panelKey = `${card.id}:${styleKey}`;
     const isOpen = openTextPanelKey === panelKey;
+    const [rangeDraft, setRangeDraft] = useState({});
+    const draggingRangeRef = useRef(false);
+    const rafCommitRef = useRef(null);
+    const lastCommitRef = useRef(null);
     const set = patch => updateCardTextStyle(card.id, styleKey, patch);
     const stopPanelEvent = e => e.stopPropagation();
-    const setRange = key => e => set({ [key]: Number(e.currentTarget.value) });
+
+    useEffect(() => {
+      if (!draggingRangeRef.current) setRangeDraft({});
+      return () => {
+        if (rafCommitRef.current) cancelAnimationFrame(rafCommitRef.current);
+      };
+    }, [card.id, styleKey, current.fontSize, current.lineHeight, current.verticalOffset, current.statGap]);
+
+    const rangeValue = key => rangeDraft[key] ?? current[key] ?? 0;
+    const commitRange = (key, value) => {
+      const numericValue = Number(value);
+      const signature = `${key}:${numericValue}`;
+      if (lastCommitRef.current === signature) return;
+      lastCommitRef.current = signature;
+      set({ [key]: numericValue });
+    };
+    const scheduleRangeCommit = (key, value) => {
+      const numericValue = Number(value);
+      if (rafCommitRef.current) cancelAnimationFrame(rafCommitRef.current);
+      rafCommitRef.current = requestAnimationFrame(() => {
+        rafCommitRef.current = null;
+        commitRange(key, numericValue);
+      });
+    };
+    const setRange = key => e => {
+      const value = Number(e.currentTarget.value);
+      setRangeDraft(prev => ({ ...prev, [key]: value }));
+      scheduleRangeCommit(key, value);
+    };
+    const finishRange = key => e => {
+      const value = Number(e.currentTarget.value);
+      draggingRangeRef.current = false;
+      setRangeDraft(prev => ({ ...prev, [key]: value }));
+      commitRange(key, value);
+    };
+    const beginRange = () => { draggingRangeRef.current = true; };
+
     return (
       <div className={`text-style-controls ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
         <button type="button" className="text-style-toggle" aria-expanded={isOpen} onClick={() => setOpenTextPanelKey(isOpen ? null : panelKey)}>Text</button>
@@ -2588,10 +2628,10 @@ function App() {
               <button type="button" className={current.bold ? "selected" : ""} onClick={() => set({ bold: !current.bold })}>B</button>
             </div>
             <label>Font<select value={current.font} onChange={e => set({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label>
-            <label>Size<input type="range" min="50" max="260" value={current.fontSize} onInput={setRange("fontSize")} onChange={setRange("fontSize")} /><span>{current.fontSize}%</span></label>
-            <label>Line<input type="range" min="70" max="180" value={current.lineHeight} onInput={setRange("lineHeight")} onChange={setRange("lineHeight")} /><span>{current.lineHeight}%</span></label>
-            <label>Y<input type="range" min="-100" max="100" value={current.verticalOffset ?? 0} onInput={setRange("verticalOffset")} onChange={setRange("verticalOffset")} /><span>{current.verticalOffset ?? 0}</span></label>
-            {stats ? <label>Gap<input type="range" min="30" max="250" value={current.statGap} onInput={setRange("statGap")} onChange={setRange("statGap")} /><span>{current.statGap}%</span></label> : null}
+            <label>Size<input type="range" min="50" max="260" value={rangeValue("fontSize")} onPointerDown={beginRange} onInput={setRange("fontSize")} onChange={finishRange("fontSize")} onPointerUp={finishRange("fontSize")} onPointerCancel={finishRange("fontSize")} /><span>{rangeValue("fontSize")}%</span></label>
+            <label>Line<input type="range" min="70" max="180" value={rangeValue("lineHeight")} onPointerDown={beginRange} onInput={setRange("lineHeight")} onChange={finishRange("lineHeight")} onPointerUp={finishRange("lineHeight")} onPointerCancel={finishRange("lineHeight")} /><span>{rangeValue("lineHeight")}%</span></label>
+            <label>Y<input type="range" min="-100" max="100" value={rangeValue("verticalOffset")} onPointerDown={beginRange} onInput={setRange("verticalOffset")} onChange={finishRange("verticalOffset")} onPointerUp={finishRange("verticalOffset")} onPointerCancel={finishRange("verticalOffset")} /><span>{rangeValue("verticalOffset")}</span></label>
+            {stats ? <label>Gap<input type="range" min="30" max="250" value={rangeValue("statGap")} onPointerDown={beginRange} onInput={setRange("statGap")} onChange={finishRange("statGap")} onPointerUp={finishRange("statGap")} onPointerCancel={finishRange("statGap")} /><span>{rangeValue("statGap")}%</span></label> : null}
           </div>
         ) : null}
       </div>
