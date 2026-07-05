@@ -409,6 +409,87 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
   );
 }
 
+
+function StableDefensiveGridAdjustControl({ cardId, current, isOpen, onToggle, onPatch }) {
+  if (!cardId) return null;
+  const safeCurrent = current || DEFENSIVE_GRID_ADJUST_DEFAULTS;
+  const [rangeDraft, setRangeDraft] = useState({});
+  const activeRangeRef = useRef(null);
+
+  useEffect(() => {
+    if (!activeRangeRef.current) setRangeDraft({});
+  }, [cardId, safeCurrent.width, safeCurrent.height, safeCurrent.offsetX, safeCurrent.offsetY]);
+
+  const stopPanelEvent = e => e.stopPropagation();
+  const clampGridValue = (value, min, max) => Math.max(min, Math.min(max, Number(value)));
+  const rangeValue = key => rangeDraft[key] ?? safeCurrent[key] ?? 0;
+  const setGridValue = (key, value, min, max) => {
+    const next = clampGridValue(value, min, max);
+    setRangeDraft(prev => ({ ...prev, [key]: next }));
+    onPatch && onPatch({ [key]: next });
+  };
+  const beginRange = key => e => {
+    e.stopPropagation();
+    activeRangeRef.current = key;
+  };
+  const setRangeDraftValue = (key, min, max) => e => {
+    e.stopPropagation();
+    setGridValue(key, e.currentTarget.value, min, max);
+  };
+  const finishRange = key => e => {
+    e.stopPropagation();
+    activeRangeRef.current = null;
+    setGridValue(key, e.currentTarget.value, Number(e.currentTarget.min), Number(e.currentTarget.max));
+  };
+  const nudgeRange = (key, min, max, direction) => {
+    activeRangeRef.current = null;
+    setGridValue(key, (Number(rangeValue(key)) || 0) + direction, min, max);
+  };
+  const keyRange = (key, min, max) => e => {
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Enter"].includes(e.key)) {
+      setGridValue(key, e.currentTarget.value, min, max);
+    }
+  };
+  const slider = (label, key, min, max) => (
+    <label className="text-style-range-row grid-adjust-range-row" key={key} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+      <span className="text-style-range-label">{label}</span>
+      <button type="button" className="text-style-range-step" onClick={() => nudgeRange(key, min, max, -1)} aria-label={`${label} minus`}>−</button>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step="1"
+        value={rangeValue(key)}
+        onPointerDown={beginRange(key)}
+        onInput={setRangeDraftValue(key, min, max)}
+        onChange={setRangeDraftValue(key, min, max)}
+        onPointerUp={finishRange(key)}
+        onPointerCancel={finishRange(key)}
+        onMouseUp={finishRange(key)}
+        onTouchEnd={finishRange(key)}
+        onBlur={finishRange(key)}
+        onKeyUp={keyRange(key, min, max)}
+      />
+      <button type="button" className="text-style-range-step" onClick={() => nudgeRange(key, min, max, 1)} aria-label={`${label} plus`}>+</button>
+      <span className="text-style-range-value">{rangeValue(key)}</span>
+    </label>
+  );
+
+  return (
+    <div className={`text-style-controls grid-adjust-control align-left ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+      <button type="button" className={`text-style-toggle grid-adjust-toggle ${isOpen ? "active" : ""}`} aria-expanded={isOpen} onClick={onToggle}>Adjust Grid/Arrow</button>
+      {isOpen ? (
+        <div className="text-style-panel grid-adjust-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+          {slider("Width", "width", 40, 180)}
+          {slider("Height", "height", 40, 180)}
+          {slider("Move X", "offsetX", -80, 80)}
+          {slider("Move Y", "offsetY", -80, 80)}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const CARD_LAYOUT_TITLE_DEFAULTS = {
   attributes: "Attributes",
   bonuses: "Bonuses",
@@ -1230,6 +1311,7 @@ function App() {
   const [cardsView, setCardsView] = useState("library");
   const [editingCardId, setEditingCardId] = useState(null);
   const [openTextPanelKey, setOpenTextPanelKey] = useState(null);
+  const [openGridAdjustKey, setOpenGridAdjustKey] = useState(null);
   const [previewTextStyleDraft, setPreviewTextStyleDraft] = useState(null);
   const [selectedLayout, setSelectedLayout] = useState(null);
   const [exportCardId, setExportCardId] = useState("");
@@ -3079,44 +3161,18 @@ function App() {
 
   function DefensiveGridAdjustControl({ card }) {
     if (!card) return null;
-    const [isOpen, setIsOpen] = useState(false);
-    const current = normalizeDefensiveGridAdjust(card.defensiveGridAdjust);
-    const stopGridAdjustEvent = e => e.stopPropagation();
-    const clampGridValue = (value, min, max) => Math.max(min, Math.min(max, Number(value)));
-    const setGridValue = (key, value, min, max) => updateDefensiveGridAdjust(card.id, { [key]: clampGridValue(value, min, max) });
-    const slider = (label, key, min, max) => (
-      <label className="grid-adjust-slider" key={key} onPointerDown={stopGridAdjustEvent} onMouseDown={stopGridAdjustEvent} onClick={stopGridAdjustEvent}>
-        <span className="grid-adjust-slider-label">{label}</span>
-        <button type="button" className="grid-adjust-step" onClick={() => setGridValue(key, current[key] - 1, min, max)} aria-label={`${label} minus`}>−</button>
-        <input
-          type="range"
-          min={min}
-          max={max}
-          value={current[key]}
-          onPointerDown={stopGridAdjustEvent}
-          onMouseDown={stopGridAdjustEvent}
-          onClick={stopGridAdjustEvent}
-          onInput={e => setGridValue(key, e.currentTarget.value, min, max)}
-          onChange={e => setGridValue(key, e.currentTarget.value, min, max)}
-        />
-        <button type="button" className="grid-adjust-step" onClick={() => setGridValue(key, current[key] + 1, min, max)} aria-label={`${label} plus`}>+</button>
-        <em className="grid-adjust-value">{current[key]}</em>
-      </label>
-    );
+    const panelKey = `${card.id}:defensiveGridAdjust`;
     return (
-      <div className={`grid-adjust-control ${isOpen ? "open" : ""}`} onPointerDown={stopGridAdjustEvent} onMouseDown={stopGridAdjustEvent} onClick={stopGridAdjustEvent}>
-        <button type="button" className={`grid-adjust-toggle ${isOpen ? "active" : ""}`} aria-expanded={isOpen} onClick={() => setIsOpen(open => !open)}>Adjust Grid/Arrow</button>
-        {isOpen ? (
-          <div className="grid-adjust-panel" onPointerDown={stopGridAdjustEvent} onMouseDown={stopGridAdjustEvent} onClick={stopGridAdjustEvent}>
-            {slider("Width", "width", 40, 180)}
-            {slider("Height", "height", 40, 180)}
-            {slider("Move X", "offsetX", -80, 80)}
-            {slider("Move Y", "offsetY", -80, 80)}
-          </div>
-        ) : null}
-      </div>
+      <StableDefensiveGridAdjustControl
+        cardId={card.id}
+        current={normalizeDefensiveGridAdjust(card.defensiveGridAdjust)}
+        isOpen={openGridAdjustKey === panelKey}
+        onToggle={() => setOpenGridAdjustKey(openGridAdjustKey === panelKey ? null : panelKey)}
+        onPatch={patch => updateDefensiveGridAdjust(card.id, patch)}
+      />
     );
   }
+
 
   function defensiveGridAdjustStyle(card) {
     const adjust = normalizeDefensiveGridAdjust(card?.defensiveGridAdjust);
