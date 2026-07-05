@@ -284,17 +284,21 @@ function zoneTextStyleVars(styles, key, hasStats = false) {
   };
 }
 
-function zonePairDistanceVars(styles, key) {
+function zonePairDistanceVars(styles, key, metrics = {}) {
   const s = normalizeTextStyles(styles)[key] || CARD_TEXT_STYLE_DEFAULTS[key] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
   const normalizedDistance = clamp(Number(s.statGap ?? 300), 0, 300);
   const shiftPercent = Math.max(0, Math.min(1, (300 - normalizedDistance) / 300));
+  const longestLabelChars = clamp(Number(metrics.longestLabelChars ?? 0), 0, 80);
+  const maxValueChars = clamp(Number(metrics.maxValueChars ?? 2), 1, 8);
   return {
-    // Distance now moves the Numbers column as one compact right-aligned block.
-    // 300 = default/right edge, 0 = closest safe offset toward the text.
+    // Distance moves the Numbers column as one compact right-aligned block.
+    // The closest point is capped by the longest visible label in this zone, so
+    // numbers cannot cross into the text when custom/long stats are added.
     "--zone-stat-gap": "0px",
     "--zone-stat-gap-wide": "0px",
-    "--zone-number-shift": `${(shiftPercent * 22).toFixed(2)}cqw`,
-    "--zone-number-reserve": `calc(1.8em + ${(shiftPercent * 22).toFixed(2)}cqw)`,
+    "--zone-distance-shift-raw": `${(shiftPercent * 28).toFixed(2)}cqw`,
+    "--zone-longest-label-ch": longestLabelChars,
+    "--zone-number-ch": maxValueChars,
   };
 }
 
@@ -2461,7 +2465,7 @@ function App() {
       const valueKey = `${colorKey}Value`;
       const valueColor = safeColor(colors[valueKey], textColor);
       return (
-        <div className="card-zone-text card-zone-formula zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor, ...zonePairDistanceVars(textStyles, colorKey) }}>
+        <div className="card-zone-text card-zone-formula zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor, ...zonePairDistanceVars(textStyles, colorKey, { longestLabelChars: String(field.label || "").length, maxValueChars: String(computeFrontFieldValue(card, field)).length }) }}>
           <span className="card-zone-label" style={{ color: textColor, ...zoneTextStyleVars(textStyles, colorKey) }}>{field.label}</span>
           <strong className="card-zone-value" style={{ "--zone-number-color": valueColor, color: valueColor, ...zoneNumberStyleVars(textStyles, colorKey, valueKey) }}>{computeFrontFieldValue(card, field)}</strong>
         </div>
@@ -2476,7 +2480,7 @@ function App() {
       return (
         <div className="card-zone-text card-zone-list-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": Math.max(2, items.length + 1), color: textColor }}>
           <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVars(textStyles, titleColorKey) }}>{cardLayoutTitle(card, titleKey)}</div>
-          <div className="card-zone-list" style={{ color: textColor, "--zone-lines": Math.max(2, items.length + 1), ...zoneTextStyleVars(textStyles, colorKey), ...zonePairDistanceVars(textStyles, colorKey) }}>
+          <div className="card-zone-list" style={{ color: textColor, "--zone-lines": Math.max(2, items.length + 1), ...zoneTextStyleVars(textStyles, colorKey), ...zonePairDistanceVars(textStyles, colorKey, { longestLabelChars: Math.max(0, ...items.map(item => String(item.name || "").length)), maxValueChars: Math.max(1, ...items.map(item => String(normalizeStatValue(item.value)).length)) }) }}>
             {items.length ? items.map(item => (
               <div className="card-zone-list-row" key={item.id} style={{ color: textColor }}>
                 <span className="card-zone-label" style={{ color: textColor }}>{item.name}</span>

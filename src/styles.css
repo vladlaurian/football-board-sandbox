@@ -5282,3 +5282,35 @@ select option {
   align-content: start !important;
   row-gap: 0 !important;
 }
+
+/* FINAL AUTO-SAFE DISTANCE: compute the closest allowed Numbers-column shift
+   from the longest visible label. Text stays fixed; only the compact Numbers
+   column moves. The same formula is used on front and back. */
+.card-zone-formula,
+.card-zone-list-row {
+  --zone-longest-label-width: calc(var(--zone-longest-label-ch, 0) * 0.66em);
+  --zone-number-width: calc(max(1.8em, var(--zone-number-ch, 2) * 0.72em));
+  --zone-number-min-gap: 0.28em;
+  --zone-number-safe-shift: max(0px, min(var(--zone-distance-shift-raw, 0cqw), calc(100cqw - var(--zone-longest-label-width) - var(--zone-number-width) - var(--zone-number-min-gap))));
+  padding-right: calc(var(--zone-number-width) + var(--zone-number-safe-shift) + var(--zone-number-min-gap)) !important;
+}
+.card-zone-formula .card-zone-value,
+.card-zone-list-row .card-zone-value {
+  transform: translateX(calc(-1 * var(--zone-number-safe-shift, 0px))) translateY(var(--zone-y-offset, 0cqh)) !important;
+}
+
+/* Front one-line formula counters need vertical centering against the label.
+   Back stat lists keep row-top positioning so every list row remains aligned. */
+.card-zone-formula {
+  display: block !important;
+  min-height: 1.25em !important;
+}
+.card-zone-formula .card-zone-label {
+  display: flex !important;
+  align-items: center !important;
+  min-height: 1.25em !important;
+}
+.card-zone-formula .card-zone-value {
+  top: 50% !important;
+  transform: translateX(calc(-1 * var(--zone-number-safe-shift, 0px))) translateY(calc(-50% + var(--zone-y-offset, 0cqh))) !important;
+}
