@@ -4935,3 +4935,55 @@ select option {
   grid-template-columns: auto 44px !important;
   align-items: center !important;
 }
+
+/* FINAL USER FIX: front TextStyle panels open inside the inspector instead of drifting left. */
+.text-style-controls.align-front .text-style-panel {
+  left: 0 !important;
+  right: auto !important;
+  transform: translateX(88px) !important;
+}
+@media (max-width: 900px) {
+  .text-style-controls.align-front .text-style-panel { transform: translateX(48px) !important; }
+}
+
+/* FINAL USER FIX: Layout action buttons should be smaller/lighter than the Layout Zones title. */
+.card-layout-editor .layout-action-btn {
+  font-size: 12px !important;
+  font-weight: 650 !important;
+  line-height: 1.1 !important;
+  padding: 6px 10px !important;
+  letter-spacing: 0 !important;
+}
+.card-layout-editor .layout-action-btn:disabled {
+  opacity: .42 !important;
+  cursor: not-allowed !important;
+  filter: grayscale(.35) !important;
+}
+
+/* FINAL USER FIX: make selected layout unambiguous before Delete layout is allowed. */
+.card-visual-zone.selected-layout-zone {
+  outline: 2px solid rgba(34, 211, 238, .98) !important;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, .3), 0 0 18px rgba(34, 211, 238, .55) !important;
+  z-index: 12 !important;
+}
+.card-visual-zone.selected-layout-zone > .card-zone-label {
+  background: rgba(8, 47, 73, .95) !important;
+  border-color: rgba(34, 211, 238, .95) !important;
+  color: #e0faff !important;
+  text-shadow: 0 1px 2px rgba(0,0,0,.5) !important;
+}
+.card-visual-zone.selected-layout-zone .zone-resize-handle {
+  border-color: rgba(34,211,238,.95) !important;
+  background: rgba(14,165,233,.85) !important;
+  box-shadow: 0 0 8px rgba(34,211,238,.55) !important;
+}
+
+/* FINAL USER FIX: front stat pair split. Give labels more real width; keep numbers compact and independent. */
+.card-preview.card-front .card-zone-formula .card-zone-label,
+.card-visual-canvas[data-card-side="front"] .card-zone-formula .card-zone-label {
+  flex: 2.35 1 0 !important;
+}
+.card-preview.card-front .card-zone-formula .card-zone-value,
+.card-visual-canvas[data-card-side="front"] .card-zone-formula .card-zone-value {
+  flex: .45 1 0 !important;
+}

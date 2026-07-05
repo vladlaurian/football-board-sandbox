@@ -576,6 +576,7 @@ function createPlayerCard(position = "ST") {
     graphics: { frontDataUrl: "", backDataUrl: "", previousTheme: "Style 1" },
     specialAbility: "",
     customZones: [],
+    deletedLayoutZones: [],
     textColors: { ...CARD_TEXT_COLOR_DEFAULTS },
     textStyles: normalizeTextStyles(),
     createdAt: new Date().toISOString(),
@@ -610,6 +611,7 @@ function normalizeImportedCard(card) {
     },
     specialAbility: String(card?.specialAbility ?? card?.special_ability ?? card?.special ?? ""),
     customZones: normalizeCustomZones(card),
+    deletedLayoutZones: Array.isArray(card?.deletedLayoutZones) ? card.deletedLayoutZones.map(String) : [],
     textColors: normalizeTextColors(card?.textColors || card?.colors || card?.text_colors),
     textStyles: normalizeTextStyles(card?.textStyles || card?.text_styles),
   };
@@ -1040,6 +1042,7 @@ function App() {
   const [editingCardId, setEditingCardId] = useState(null);
   const [openTextPanelKey, setOpenTextPanelKey] = useState(null);
   const [previewTextStyleDraft, setPreviewTextStyleDraft] = useState(null);
+  const [selectedLayout, setSelectedLayout] = useState(null);
   const [exportCardId, setExportCardId] = useState("");
   const graphicFrontInputRef = useRef(null);
   const graphicBackInputRef = useRef(null);
@@ -2342,7 +2345,7 @@ function App() {
           {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} alt="" /> : null}
         </div>
         <div className={`card-preview-content-layer ${showLayoutZones ? "layout-editing" : ""}`}>
-          <CardVisualCanvas card={card} side={shownSide} showZones={showLayoutZones} />
+          <CardVisualCanvas card={card} side={shownSide} showZones={showLayoutZones} selectedLayout={selectedLayout} onSelectLayout={setSelectedLayout} />
         </div>
         {flippable && (
           <button
@@ -2391,11 +2394,13 @@ function App() {
     );
   }
 
-  function CardVisualCanvas({ card, side, showZones = false }) {
+  function CardVisualCanvas({ card, side, showZones = false, selectedLayout = null, onSelectLayout = null }) {
     const canvasRef = useRef(null);
     const [activeLayoutEdit, setActiveLayoutEdit] = useState(null);
     const layout = normalizeCardVisualLayout(card?.visualLayout || card?.layout);
     const sideLayout = layout[side] || layout.back || {};
+    const deletedLayoutSet = new Set(Array.isArray(card?.deletedLayoutZones) ? card.deletedLayoutZones.map(String) : []);
+    const isSelectedLayout = (kind, zoneKey) => selectedLayout?.cardId === card?.id && selectedLayout?.side === side && selectedLayout?.kind === kind && selectedLayout?.zoneKey === zoneKey;
 
     const formatBoxCoordinates = box => `X ${Math.round(box.x * 10) / 10} · Y ${Math.round(box.y * 10) / 10} · W ${Math.round(box.w * 10) / 10} · H ${Math.round(box.h * 10) / 10}`;
 
@@ -2510,6 +2515,7 @@ function App() {
       if (!showZones || !card?.id) return;
       event.preventDefault();
       event.stopPropagation();
+      onSelectLayout && onSelectLayout({ cardId: card.id, side, kind: "base", zoneKey });
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
@@ -2576,6 +2582,7 @@ function App() {
       if (!showZones || !card?.id) return;
       event.preventDefault();
       event.stopPropagation();
+      onSelectLayout && onSelectLayout({ cardId: card.id, side, kind: "custom", zoneKey: zone.id });
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
@@ -2628,11 +2635,11 @@ function App() {
     };
 
     return (
-      <div className="card-visual-canvas" data-card-side={side} ref={canvasRef}>
-        {Object.entries(sideLayout).map(([key, box]) => (
+      <div className="card-visual-canvas" data-card-side={side} ref={canvasRef} onPointerDown={event => { if (event.target === event.currentTarget) onSelectLayout && onSelectLayout(null); }}>
+        {Object.entries(sideLayout).filter(([key]) => !deletedLayoutSet.has(`${side}:${key}`)).map(([key, box]) => (
           <div
             key={`${side}_${key}`}
-            className={`card-visual-zone card-visual-zone-${key} ${showZones ? "show-zone" : ""}`}
+            className={`card-visual-zone card-visual-zone-${key} ${showZones ? "show-zone" : ""} ${isSelectedLayout("base", key) ? "selected-layout-zone" : ""}`}
             data-zone={key}
             onPointerDown={event => beginZoneEdit(event, key, box, "move")}
             style={{
@@ -2643,7 +2650,7 @@ function App() {
             }}
           >
             <div className="card-zone-content">{renderZoneContent(key)}</div>
-            {showZones ? <span className="card-zone-label">{ZONE_LABELS[key] || key}</span> : null}
+            {showZones ? <span className="card-zone-label">{ZONE_LABELS[key] || key}{isSelectedLayout("base", key) ? " · Selected" : ""}</span> : null}
             {showZones && activeLayoutEdit?.zoneKey === key ? (
               <b className="zone-live-coordinates is-visible">{formatBoxCoordinates(activeLayoutEdit.box)}</b>
             ) : null}
@@ -2660,7 +2667,7 @@ function App() {
         {sideCustomZones.map(zone => (
           <div
             key={`${side}_${zone.id}`}
-            className={`card-visual-zone card-visual-zone-custom ${showZones ? "show-zone" : ""}`}
+            className={`card-visual-zone card-visual-zone-custom ${showZones ? "show-zone" : ""} ${isSelectedLayout("custom", zone.id) ? "selected-layout-zone" : ""}`}
             data-zone={zone.id}
             onPointerDown={event => beginCustomZoneEdit(event, zone, "move")}
             style={{
@@ -2671,7 +2678,7 @@ function App() {
             }}
           >
             <div className="card-zone-content">{renderCustomZoneContent(zone)}</div>
-            {showZones ? <span className="card-zone-label">{zone.title || "Custom Layout"}</span> : null}
+            {showZones ? <span className="card-zone-label">{zone.title || "Custom Layout"}{isSelectedLayout("custom", zone.id) ? " · Selected" : ""}</span> : null}
             {showZones && activeLayoutEdit?.zoneKey === zone.id ? <b className="zone-live-coordinates is-visible">{formatBoxCoordinates(activeLayoutEdit.box)}</b> : null}
             {showZones ? (
               <>
@@ -2798,7 +2805,7 @@ function App() {
     });
     return (
       <div className="card-edit-section front-summary-editor">
-        <div className="card-edit-section-title front-pair-toolbar"><strong>{title}</strong><ColorPicker card={card} colorKey={colorKey} label="Color" />{renderTextStyleControls(card, colorKey, false, { buttonLabel: "Text" })}{renderTextStyleControls(card, `${colorKey}Value`, false, { buttonLabel: "Numbers" })}</div>
+        <div className="card-edit-section-title front-pair-toolbar"><strong>{title}</strong><ColorPicker card={card} colorKey={colorKey} label="Color" />{renderTextStyleControls(card, colorKey, false, { buttonLabel: "Text", panelAlign: "front" })}{renderTextStyleControls(card, `${colorKey}Value`, false, { buttonLabel: "Numbers", panelAlign: "front" })}</div>
         <div className="front-formula-list">
           {fields.map(field => (
             <div className="front-formula-row" key={field.id}>
@@ -3001,6 +3008,31 @@ function App() {
     }));
   }
 
+  function deleteSelectedLayoutZone(cardId) {
+    if (!cardId || !selectedLayout || selectedLayout.cardId !== cardId) return;
+    const sideLabel = selectedLayout.side === "front" ? "front" : "back";
+    const layoutLabel = selectedLayout.kind === "custom" ? "custom layout" : (ZONE_LABELS[selectedLayout.zoneKey] || selectedLayout.zoneKey);
+    if (!window.confirm(`Delete selected ${sideLabel} layout: ${layoutLabel}?`)) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => {
+        if (card.id !== cardId) return card;
+        if (selectedLayout.kind === "custom") {
+          return {
+            ...card,
+            customZones: normalizeCustomZones(card).filter(zone => zone.id !== selectedLayout.zoneKey),
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        const key = `${selectedLayout.side}:${selectedLayout.zoneKey}`;
+        const deleted = new Set(Array.isArray(card.deletedLayoutZones) ? card.deletedLayoutZones.map(String) : []);
+        deleted.add(key);
+        return { ...card, deletedLayoutZones: Array.from(deleted), updatedAt: new Date().toISOString() };
+      }),
+    }));
+    setSelectedLayout(null);
+  }
+
   function updateCardVisualLayoutBox(cardId, side, zoneKey, patch) {
     if (!cardId || !DEFAULT_CARD_VISUAL_LAYOUT[side]?.[zoneKey]) return;
     updateCardState(prev => ({
@@ -3061,8 +3093,9 @@ function App() {
         <div className="card-edit-section-title">
           <strong>Layout Zones</strong>
           <ColorPicker card={card} colorKey="layoutZones" label="Color" />
-          <button type="button" className="mini-action-btn" onClick={() => addCardCustomZone(card.id, "front")}>New layout front</button>
-          <button type="button" className="mini-action-btn" onClick={() => addCardCustomZone(card.id, "back")}>New layout back</button>
+          <button type="button" className="mini-action-btn layout-action-btn" onClick={() => addCardCustomZone(card.id, "front")}>New layout front</button>
+          <button type="button" className="mini-action-btn layout-action-btn" onClick={() => addCardCustomZone(card.id, "back")}>New layout back</button>
+          <button type="button" className="mini-action-btn layout-action-btn danger" disabled={!selectedLayout || selectedLayout.cardId !== card.id} onClick={() => deleteSelectedLayoutZone(card.id)}>Delete layout</button>
         </div>
         {customZones.length ? (
           <div className="custom-zone-editor-list">
@@ -3097,8 +3130,8 @@ function App() {
         <div className="card-editor-controls">
         {CardLayoutEditor({ card })}
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
-        <div className="card-edit-section compact-color-row"><strong>Header Front</strong><ColorPicker card={card} colorKey="headerFront" label="Color" />{renderTextStyleControls(card, "headerFront")}</div>
-        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Front</strong><ColorPicker card={card} colorKey="positionFront" label="Color" />{renderTextStyleControls(card, "positionFront")}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
+        <div className="card-edit-section compact-color-row"><strong>Header Front</strong><ColorPicker card={card} colorKey="headerFront" label="Color" />{renderTextStyleControls(card, "headerFront", false, { panelAlign: "front" })}</div>
+        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Front</strong><ColorPicker card={card} colorKey="positionFront" label="Color" />{renderTextStyleControls(card, "positionFront", false, { panelAlign: "front" })}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
         <div className="card-edit-section compact-color-row"><strong>Header Back</strong><ColorPicker card={card} colorKey="headerBack" label="Color" />{renderTextStyleControls(card, "headerBack")}</div>
         <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Back</strong><ColorPicker card={card} colorKey="positionBack" label="Color" />{renderTextStyleControls(card, "positionBack")}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
         {FrontZoneFieldsEditor({ card, storageKey: "frontAttributeFields", title: "Attributes Front", colorKey: "attributesFront", sourceSection: "passiveAttributes" })}
