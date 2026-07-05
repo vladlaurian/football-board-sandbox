@@ -423,35 +423,45 @@ function StableDefensiveGridAdjustControl({ cardId, current, isOpen, onToggle, o
   const stopPanelEvent = e => e.stopPropagation();
   const clampGridValue = (value, min, max) => Math.max(min, Math.min(max, Number(value)));
   const rangeValue = key => rangeDraft[key] ?? safeCurrent[key] ?? 0;
-  const setGridValue = (key, value, min, max) => {
-    const next = clampGridValue(value, min, max);
-    setRangeDraft(prev => ({ ...prev, [key]: next }));
-    onPatch && onPatch({ [key]: next });
+
+  // Important: while dragging, keep the slider controlled only by local draft state.
+  // Do not update the full card state on every input event; that re-renders the editor
+  // and breaks pointer capture, so the range behaves like click-only. Commit on release.
+  const setRangeDraftValue = key => e => {
+    const value = Number(e.currentTarget.value);
+    setRangeDraft(prev => ({ ...prev, [key]: value }));
   };
-  const beginRange = key => e => {
-    e.stopPropagation();
+
+  const commitRangeValue = (key, rawValue, min, max) => {
+    const value = clampGridValue(rawValue, min, max);
+    activeRangeRef.current = null;
+    setRangeDraft(prev => ({ ...prev, [key]: value }));
+    onPatch && onPatch({ [key]: value });
+  };
+
+  const beginRange = key => () => {
     activeRangeRef.current = key;
   };
-  const setRangeDraftValue = (key, min, max) => e => {
-    e.stopPropagation();
-    setGridValue(key, e.currentTarget.value, min, max);
+
+  const finishRange = (key, min, max) => e => {
+    commitRangeValue(key, e.currentTarget.value, min, max);
   };
-  const finishRange = key => e => {
-    e.stopPropagation();
-    activeRangeRef.current = null;
-    setGridValue(key, e.currentTarget.value, Number(e.currentTarget.min), Number(e.currentTarget.max));
-  };
+
   const nudgeRange = (key, min, max, direction) => {
+    const value = clampGridValue((Number(rangeValue(key)) || 0) + direction, min, max);
     activeRangeRef.current = null;
-    setGridValue(key, (Number(rangeValue(key)) || 0) + direction, min, max);
+    setRangeDraft(prev => ({ ...prev, [key]: value }));
+    onPatch && onPatch({ [key]: value });
   };
+
   const keyRange = (key, min, max) => e => {
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Enter"].includes(e.key)) {
-      setGridValue(key, e.currentTarget.value, min, max);
+      commitRangeValue(key, e.currentTarget.value, min, max);
     }
   };
+
   const slider = (label, key, min, max) => (
-    <label className="text-style-range-row grid-adjust-range-row" key={key} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+    <label className="text-style-range-row grid-adjust-range-row" key={key}>
       <span className="text-style-range-label">{label}</span>
       <button type="button" className="text-style-range-step" onClick={() => nudgeRange(key, min, max, -1)} aria-label={`${label} minus`}>−</button>
       <input
@@ -461,13 +471,13 @@ function StableDefensiveGridAdjustControl({ cardId, current, isOpen, onToggle, o
         step="1"
         value={rangeValue(key)}
         onPointerDown={beginRange(key)}
-        onInput={setRangeDraftValue(key, min, max)}
-        onChange={setRangeDraftValue(key, min, max)}
-        onPointerUp={finishRange(key)}
-        onPointerCancel={finishRange(key)}
-        onMouseUp={finishRange(key)}
-        onTouchEnd={finishRange(key)}
-        onBlur={finishRange(key)}
+        onInput={setRangeDraftValue(key)}
+        onChange={setRangeDraftValue(key)}
+        onPointerUp={finishRange(key, min, max)}
+        onPointerCancel={finishRange(key, min, max)}
+        onMouseUp={finishRange(key, min, max)}
+        onTouchEnd={finishRange(key, min, max)}
+        onBlur={finishRange(key, min, max)}
         onKeyUp={keyRange(key, min, max)}
       />
       <button type="button" className="text-style-range-step" onClick={() => nudgeRange(key, min, max, 1)} aria-label={`${label} plus`}>+</button>
