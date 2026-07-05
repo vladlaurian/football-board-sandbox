@@ -230,6 +230,10 @@ const CARD_TEXT_STYLE_DEFAULTS = {
   attributesValue: { align: "right", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   bonuses: { align: "left", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   bonusesValue: { align: "right", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  attributesTitle: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  bonusesTitle: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  defensiveAreaTitle: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  specialAbilityTitle: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   specialAbility: { align: "center", bold: false, font: "Inter", fontSize: 100, lineHeight: 105, verticalOffset: 0, statGap: 100 },
   defensiveArea: { align: "center", bold: false, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
 };
@@ -286,7 +290,7 @@ function zonePairDistanceVars(styles, key) {
 }
 
 
-function StableTextStyleControls({ cardId, styleKey, stats = false, current, isOpen, onToggle, onPatch, onPreview, onPreviewEnd, panelAlign = "right", buttonLabel = "Text" }) {
+function StableTextStyleControls({ cardId, styleKey, stats = false, current, isOpen, onToggle, onPatch, onPreview, onPreviewEnd, panelAlign = "right", buttonLabel = "Text", titleMode = false }) {
   if (!cardId || !CARD_TEXT_STYLE_DEFAULTS[styleKey]) return null;
 
   const safeCurrent = current || CARD_TEXT_STYLE_DEFAULTS[styleKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
@@ -329,13 +333,28 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
     }
   };
 
-  const renderRange = (label, key, min, max, suffix = "") => (
-    <label>{label}<input type="range" min={min} max={max} value={rangeValue(key)} onPointerDown={beginRange(key)} onInput={setRangeDraftValue(key)} onPointerUp={finishRange(key)} onPointerCancel={finishRange(key)} onMouseUp={finishRange(key)} onTouchEnd={finishRange(key)} onBlur={finishRange(key)} onKeyUp={keyRange(key)} /><span>{rangeValue(key)}{suffix}</span></label>
+  const clampRangeValue = (value, min, max) => Math.max(min, Math.min(max, Number(value)));
+  const nudgeRange = (key, min, max, step, direction) => {
+    const value = clampRangeValue((Number(rangeValue(key)) || 0) + step * direction, min, max);
+    activeRangeRef.current = null;
+    setRangeDraft(prev => ({ ...prev, [key]: value }));
+    onPreviewEnd && onPreviewEnd();
+    onPatch && onPatch({ [key]: value });
+  };
+
+  const renderRange = (label, key, min, max, suffix = "", step = 1) => (
+    <label className="text-style-range-row">
+      <span className="text-style-range-label">{label}</span>
+      <button type="button" className="text-style-range-step" onClick={() => nudgeRange(key, min, max, step, -1)} aria-label={`${label} minus`}>−</button>
+      <input type="range" min={min} max={max} step={step} value={rangeValue(key)} onPointerDown={beginRange(key)} onInput={setRangeDraftValue(key)} onPointerUp={finishRange(key)} onPointerCancel={finishRange(key)} onMouseUp={finishRange(key)} onTouchEnd={finishRange(key)} onBlur={finishRange(key)} onKeyUp={keyRange(key)} />
+      <button type="button" className="text-style-range-step" onClick={() => nudgeRange(key, min, max, step, 1)} aria-label={`${label} plus`}>+</button>
+      <span className="text-style-range-value">{rangeValue(key)}{suffix}</span>
+    </label>
   );
 
   return (
     <div className={`text-style-controls align-${panelAlign} ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
-      <button type="button" className="text-style-toggle" aria-expanded={isOpen} onClick={onToggle}>{buttonLabel}</button>
+      <button type="button" className={`text-style-toggle ${isOpen ? "active" : ""}`} aria-expanded={isOpen} onClick={onToggle}>{buttonLabel}</button>
       {isOpen ? (
         <div className="text-style-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
           <div className="text-align-buttons" aria-label="Text align">
@@ -344,10 +363,10 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
             <button type="button" className={safeCurrent.align === "right" ? "selected" : ""} onClick={() => set({ align: "right" })}>R</button>
             <button type="button" className={safeCurrent.bold ? "selected" : ""} onClick={() => set({ bold: !safeCurrent.bold })}>B</button>
           </div>
-          <label>Font<select value={safeCurrent.font} onChange={e => set({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label>
+          {!titleMode ? <label>Font<select value={safeCurrent.font} onChange={e => set({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label> : null}
           {renderRange("Size", "fontSize", 50, 260, "%")}
-          {renderRange("Line", "lineHeight", 70, 180, "%")}
-          {renderRange("Y", "verticalOffset", -100, 100, "")}
+          {!titleMode ? renderRange("Line", "lineHeight", 70, 180, "%") : null}
+          {!titleMode ? renderRange("Y", "verticalOffset", -100, 100, "") : null}
         </div>
       ) : null}
     </div>
@@ -2342,7 +2361,7 @@ function App() {
       const titleColor = safeColor(colors[titleColorKey]);
       return (
         <div className="card-zone-text card-zone-list-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": Math.max(2, items.length + 1), color: textColor }}>
-          <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, titleKey)}</div>
+          <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVars(textStyles, titleColorKey) }}>{cardLayoutTitle(card, titleKey)}</div>
           <div className="card-zone-list" style={{ color: textColor, "--zone-lines": Math.max(2, items.length + 1), ...zoneTextStyleVars(textStyles, colorKey), ...zonePairDistanceVars(textStyles, colorKey) }}>
             {items.length ? items.map(item => (
               <div className="card-zone-list-row" key={item.id} style={{ color: textColor }}>
@@ -2360,7 +2379,7 @@ function App() {
       const titleColor = safeColor(colors.specialAbilityTitle);
       return (
         <div className="card-zone-text card-zone-special-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 3, color: textColor }}>
-          <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, "specialAbility")}</div>
+          <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVars(textStyles, "specialAbilityTitle") }}>{cardLayoutTitle(card, "specialAbility")}</div>
           <div className="card-zone-special" style={{ color: textColor, ...zoneTextStyleVars(textStyles, "specialAbility") }}>{card?.specialAbility || ""}</div>
         </div>
       );
@@ -2371,7 +2390,7 @@ function App() {
       const titleColor = safeColor(colors.defensiveAreaTitle);
       return (
         <div className="card-zone-text card-zone-defense-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 2, color: textColor, "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78") }}>
-          <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, "defensiveArea")}</div>
+          <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVars(textStyles, "defensiveAreaTitle") }}>{cardLayoutTitle(card, "defensiveArea")}</div>
           <div className="card-zone-defense card-zone-defense-row" style={{ color: textColor, ...zoneTextStyleVars(textStyles, "defensiveArea") }}><AreaMiniPreview area={card?.defensiveArea || []} /><div className="attack-direction-hint card-zone-attack-direction" aria-label="Attacking direction"><span className="attack-arrow">↑</span></div></div>
         </div>
       );
@@ -2679,6 +2698,7 @@ function App() {
         onPreviewEnd={() => setPreviewTextStyleDraft(current => current?.cardId === card.id && current?.styleKey === styleKey ? null : current)}
         panelAlign={options.panelAlign || "right"}
         buttonLabel={options.buttonLabel || "Text"}
+        titleMode={Boolean(options.titleMode)}
       />
     );
   }
@@ -2798,7 +2818,7 @@ function App() {
   function SectionTitleEditor({ card, titleKey, colorKey, label }) {
     return (
       <label className="section-title-editor">
-        <span className="editor-label-row"><span>{label}</span><ColorPicker card={card} colorKey={colorKey} label="Color" /></span>
+        <span className="editor-label-row"><span>{label}</span><ColorPicker card={card} colorKey={colorKey} label="Color" />{renderTextStyleControls(card, colorKey, false, { panelAlign: "left", buttonLabel: "Text", titleMode: true })}</span>
         <input value={cardLayoutTitle(card, titleKey)} onChange={e => updateCardLayoutTitle(card.id, titleKey, e.target.value)} />
       </label>
     );
