@@ -2038,13 +2038,13 @@ function App() {
     const firstFrontBonus = frontBonusFields[0] || makeFrontField("DEF", 0);
 
     const renderNameZone = colorKey => (
-      <div className="card-zone-text card-zone-name" style={{ color: safeColor(colors[colorKey]) }} title={card?.name || "Player"}>
+      <div className="card-zone-text card-zone-name zone-color-bound" style={{ "--zone-text-color": safeColor(colors[colorKey]), color: safeColor(colors[colorKey]) }} title={card?.name || "Player"}>
         {card?.name || "Player"}
       </div>
     );
 
     const renderPositionZone = colorKey => (
-      <div className="card-zone-text card-zone-position" style={{ color: safeColor(colors[colorKey]) }}>
+      <div className="card-zone-text card-zone-position zone-color-bound" style={{ "--zone-text-color": safeColor(colors[colorKey]), color: safeColor(colors[colorKey]) }}>
         {String(card?.position || "").toUpperCase()}
       </div>
     );
@@ -2052,7 +2052,7 @@ function App() {
     const renderFrontFormulaZone = (field, colorKey) => {
       const textColor = safeColor(colors[colorKey]);
       return (
-        <div className="card-zone-text card-zone-formula" style={{ color: textColor }}>
+        <div className="card-zone-text card-zone-formula zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor }}>
           <span style={{ color: textColor }}>{field.label}</span>
           <strong style={{ color: textColor }}>{computeFrontFieldValue(card, field)}</strong>
         </div>
@@ -2062,7 +2062,7 @@ function App() {
     const renderListZone = (items, colorKey) => {
       const textColor = safeColor(colors[colorKey]);
       return (
-        <div className="card-zone-text card-zone-list" style={{ color: textColor }}>
+        <div className="card-zone-text card-zone-list zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor }}>
           {items.length ? items.map(item => (
             <div className="card-zone-list-row" key={item.id} style={{ color: textColor }}>
               <span style={{ color: textColor }}>{item.name}</span>
@@ -2074,13 +2074,13 @@ function App() {
     };
 
     const renderSpecialAbilityZone = () => (
-      <div className="card-zone-text card-zone-special" style={{ color: safeColor(colors.specialAbility) }}>
+      <div className="card-zone-text card-zone-special zone-color-bound" style={{ "--zone-text-color": safeColor(colors.specialAbility), color: safeColor(colors.specialAbility) }}>
         {card?.specialAbility || ""}
       </div>
     );
 
     const renderDefensiveAreaZone = () => (
-      <div className="card-zone-text card-zone-defense" style={{ color: safeColor(colors.defensiveArea), "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78") }}>
+      <div className="card-zone-text card-zone-defense zone-color-bound" style={{ "--zone-text-color": safeColor(colors.defensiveArea), color: safeColor(colors.defensiveArea), "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78") }}>
         <AreaMiniPreview area={card?.defensiveArea || []} />
       </div>
     );

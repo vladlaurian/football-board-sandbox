@@ -3852,33 +3852,38 @@ select option {
   background: currentColor !important;
 }
 
-/* FIX: color pickers must color both labels and values inside bound layout content. */
-.card-zone-formula,
-.card-zone-formula span,
-.card-zone-formula strong,
-.card-zone-list,
-.card-zone-list-row,
-.card-zone-list-row span,
-.card-zone-list-row strong,
-.card-zone-list em {
-  color: inherit !important;
+
+
+/* REAL FIX: layout text colors are bound through a CSS variable on each rendered zone.
+   This keeps the layout label hidden/visible logic independent from the content color. */
+.card-zone-text.zone-color-bound,
+.card-zone-text.zone-color-bound *,
+.card-zone-formula.zone-color-bound,
+.card-zone-formula.zone-color-bound span,
+.card-zone-formula.zone-color-bound strong,
+.card-zone-list.zone-color-bound,
+.card-zone-list.zone-color-bound .card-zone-list-row,
+.card-zone-list.zone-color-bound span,
+.card-zone-list.zone-color-bound strong,
+.card-zone-list.zone-color-bound em,
+.card-zone-special.zone-color-bound,
+.card-zone-defense.zone-color-bound {
+  color: var(--zone-text-color, currentColor) !important;
 }
-.card-zone-formula span[style],
-.card-zone-formula strong[style],
-.card-zone-list-row[style],
-.card-zone-list-row span[style],
-.card-zone-list-row strong[style],
-.card-zone-list em[style] {
-  color: inherit;
+
+.card-zone-defense.zone-color-bound .area-mini {
+  color: var(--zone-text-color, currentColor) !important;
 }
-.card-zone-defense .area-mini span:not(.active):not(.player) {
-  background: currentColor !important;
-  opacity: .28 !important;
-}
-.card-zone-defense .area-mini span.active {
+.card-zone-defense.zone-color-bound .area-mini span:not(.active):not(.player) {
+  background: color-mix(in srgb, var(--zone-text-color, currentColor) 28%, transparent) !important;
   opacity: 1 !important;
 }
-.card-zone-defense .area-mini span.player {
-  background: currentColor !important;
+.card-zone-defense.zone-color-bound .area-mini span.active {
+  background: var(--card-area-active-color, var(--zone-text-color, currentColor)) !important;
+  opacity: 1 !important;
+}
+.card-zone-defense.zone-color-bound .area-mini span.player {
+  background: var(--zone-text-color, currentColor) !important;
+  color: #111827 !important;
   opacity: 1 !important;
 }
