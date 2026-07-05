@@ -235,10 +235,11 @@ const CARD_TEXT_STYLE_DEFAULTS = {
   bonusesValue: { align: "right", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   attributesTitle: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   bonusesTitle: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
-  defensiveAreaTitle: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  defensiveAreaTitle: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, horizontalOffset: 0, statGap: 100 },
+  defensiveAreaGoal: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, horizontalOffset: 0, statGap: 100 },
   specialAbilityTitle: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   specialAbility: { align: "center", bold: false, font: "Inter", fontSize: 100, lineHeight: 105, verticalOffset: 0, statGap: 100 },
-  defensiveArea: { align: "center", bold: false, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  defensiveArea: { align: "center", bold: false, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, horizontalOffset: 0, statGap: 100 },
 };
 
 const CARD_FONT_OPTIONS = ["Inter", "Arial", "Verdana", "Tahoma", "Georgia", "Times New Roman", "Trebuchet MS", "Courier New"];
@@ -257,6 +258,7 @@ function normalizeTextStyles(raw = {}) {
       fontSize: clamp(Number(current.fontSize ?? defaults.fontSize), 50, 260),
       lineHeight: clamp(Number(current.lineHeight ?? defaults.lineHeight), 70, 180),
       verticalOffset: clamp(Number(current.verticalOffset ?? defaults.verticalOffset ?? 0), -100, 100),
+      horizontalOffset: clamp(Number(current.horizontalOffset ?? defaults.horizontalOffset ?? 0), -100, 100),
       statGap: clamp(Number(current.statGap ?? defaults.statGap), 0, 300),
     };
   };
@@ -281,6 +283,17 @@ function zoneTextStyleVars(styles, key, hasStats = false) {
     "--zone-line-height": s.lineHeight / 100,
     "--zone-y-offset": `${s.verticalOffset * 0.4}cqh`,
     ...(hasStats ? { "--zone-stat-gap": `${Math.round(s.statGap / 100 * 4)}px`, "--zone-stat-gap-wide": `${Math.round(s.statGap / 100 * 8)}px` } : {}),
+  };
+}
+
+function opponentGoalStyleVars(styles) {
+  const s = normalizeTextStyles(styles).defensiveAreaGoal || CARD_TEXT_STYLE_DEFAULTS.defensiveAreaGoal;
+  return {
+    "--goal-font-family": s.font,
+    "--goal-font-weight": s.bold ? 950 : 650,
+    "--goal-font-scale": s.fontSize / 100,
+    "--goal-x-offset": `${s.horizontalOffset * 0.42}cqw`,
+    "--goal-y-offset": `${s.verticalOffset * 0.28}cqh`,
   };
 }
 
@@ -412,6 +425,103 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
 }
 
 
+function StableOpponentGoalTextControl({ cardId, current, isOpen, onToggle, onPatch, onPreview }) {
+  if (!cardId) return null;
+  const safeCurrent = current || CARD_TEXT_STYLE_DEFAULTS.defensiveAreaGoal;
+  const [rangeDraft, setRangeDraft] = useState({});
+  const activeRangeRef = useRef(null);
+
+  useEffect(() => {
+    if (!activeRangeRef.current) setRangeDraft({});
+  }, [cardId, safeCurrent.fontSize, safeCurrent.verticalOffset, safeCurrent.horizontalOffset]);
+
+  const stopPanelEvent = e => e.stopPropagation();
+  const clampTextValue = (value, min, max) => Math.max(min, Math.min(max, Number(value)));
+  const rangeValue = key => rangeDraft[key] ?? safeCurrent[key] ?? 0;
+
+  const setDirect = patch => {
+    activeRangeRef.current = null;
+    setRangeDraft({});
+    onPatch && onPatch(patch);
+  };
+
+  const setRangeDraftValue = key => e => {
+    const value = Number(e.currentTarget.value);
+    const nextDraft = { ...rangeDraft, [key]: value };
+    setRangeDraft(nextDraft);
+    onPreview && onPreview({ ...safeCurrent, ...nextDraft });
+  };
+
+  const commitRangeValue = (key, rawValue, min, max) => {
+    const value = clampTextValue(rawValue, min, max);
+    activeRangeRef.current = null;
+    setRangeDraft(prev => ({ ...prev, [key]: value }));
+    onPatch && onPatch({ [key]: value });
+  };
+
+  const beginRange = key => () => {
+    activeRangeRef.current = key;
+  };
+
+  const finishRange = (key, min, max) => e => {
+    commitRangeValue(key, e.currentTarget.value, min, max);
+  };
+
+  const nudgeRange = (key, min, max, direction) => {
+    const value = clampTextValue((Number(rangeValue(key)) || 0) + direction, min, max);
+    activeRangeRef.current = null;
+    setRangeDraft(prev => ({ ...prev, [key]: value }));
+    onPatch && onPatch({ [key]: value });
+  };
+
+  const keyRange = (key, min, max) => e => {
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Enter"].includes(e.key)) {
+      commitRangeValue(key, e.currentTarget.value, min, max);
+    }
+  };
+
+  const slider = (label, key, min, max, suffix = "") => (
+    <label className="text-style-range-row grid-adjust-range-row" key={key}>
+      <span className="text-style-range-label">{label}</span>
+      <button type="button" className="text-style-range-step" onClick={() => nudgeRange(key, min, max, -1)} aria-label={`${label} minus`}>−</button>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step="1"
+        value={rangeValue(key)}
+        onPointerDown={beginRange(key)}
+        onInput={setRangeDraftValue(key)}
+        onPointerUp={finishRange(key, min, max)}
+        onPointerCancel={finishRange(key, min, max)}
+        onMouseUp={finishRange(key, min, max)}
+        onTouchEnd={finishRange(key, min, max)}
+        onBlur={finishRange(key, min, max)}
+        onKeyUp={keyRange(key, min, max)}
+      />
+      <button type="button" className="text-style-range-step" onClick={() => nudgeRange(key, min, max, 1)} aria-label={`${label} plus`}>+</button>
+      <span className="text-style-range-value">{rangeValue(key)}{suffix}</span>
+    </label>
+  );
+
+  return (
+    <div className={`grid-adjust-control opponent-goal-text-control ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+      <button type="button" className={`text-style-toggle grid-adjust-toggle ${isOpen ? "active" : ""}`} aria-expanded={isOpen} onClick={onToggle}>Text</button>
+      {isOpen ? (
+        <div className="text-style-panel grid-adjust-panel opponent-goal-text-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+          <div className="text-align-buttons" aria-label="Opponent goal text style">
+            <button type="button" className={safeCurrent.bold ? "selected" : ""} onClick={() => setDirect({ bold: !safeCurrent.bold })}>B</button>
+          </div>
+          <label>Font<select value={safeCurrent.font} onChange={e => setDirect({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label>
+          {slider("Size", "fontSize", 50, 260, "%")}
+          {slider("Y", "verticalOffset", -100, 100, "")}
+          {slider("X", "horizontalOffset", -100, 100, "")}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function StableDefensiveGridAdjustControl({ cardId, current, isOpen, onToggle, onPatch, onPreview }) {
   if (!cardId) return null;
   const safeCurrent = current || DEFENSIVE_GRID_ADJUST_DEFAULTS;
@@ -491,7 +601,7 @@ function StableDefensiveGridAdjustControl({ cardId, current, isOpen, onToggle, o
 
   return (
     <div className={`text-style-controls grid-adjust-control align-left ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
-      <button type="button" className={`text-style-toggle grid-adjust-toggle ${isOpen ? "active" : ""}`} aria-expanded={isOpen} onClick={onToggle}>Adjust Grid/Arrow</button>
+      <button type="button" className={`text-style-toggle grid-adjust-toggle ${isOpen ? "active" : ""}`} aria-expanded={isOpen} onClick={onToggle}>Adjust Grid</button>
       {isOpen ? (
         <div className="text-style-panel grid-adjust-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
           {slider("Width", "width", 40, 220)}
@@ -2856,8 +2966,8 @@ function App() {
           <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVars(textStyles, "defensiveAreaTitle") }}>{cardLayoutTitle(card, "defensiveArea")}</div>
           <div className="card-zone-defense card-zone-defense-row" style={{ color: textColor, ...zoneTextStyleVars(textStyles, "defensiveArea") }}>
             <div className="card-zone-defense-grid-adjust" data-defensive-grid-card-id={card.id} style={defensiveGridAdjustStyle(card)}>
+              <div className="card-zone-opponent-goal" data-defensive-goal-label-card-id={card.id} style={opponentGoalStyleVars(textStyles)} aria-hidden="true">OPPONENT GOAL</div>
               <AreaMiniPreview area={card?.defensiveArea || []} />
-              <div className="card-zone-opponent-goal" aria-hidden="true">OPPONENT GOAL</div>
             </div>
           </div>
         </div>
@@ -3144,7 +3254,6 @@ function App() {
                 <div className="area-mini-title">Defensive Area</div>
                 <div className="area-mini-row">
                   {AreaMiniPreview({ area: card.defensiveArea })}
-                  <div className="attack-direction-hint" aria-label="Attacking direction"><span className="attack-arrow">↑</span></div>
                 </div>
               </div>
               <div className={`card-special-block ${String(card.specialAbility || "").length > 280 ? "special-dense-4" : String(card.specialAbility || "").length > 200 ? "special-dense-3" : String(card.specialAbility || "").length > 130 ? "special-dense-2" : String(card.specialAbility || "").length > 70 ? "special-dense-1" : ""}`}>
@@ -3212,10 +3321,6 @@ function App() {
         <div className="area-actions"><button onClick={() => setArea([])}>Clear Area</button><button onClick={() => setArea(Array.from({ length: 121 }, (_, i) => ({ dx: (i % 11) - 5, dy: Math.floor(i / 11) - 5 })).filter(c => !(c.dx === 0 && c.dy === 0)))}>Fill Area</button><button onClick={() => setArea(area.map(c => ({ dx: -Number(c.dx), dy: Number(c.dy) })))}>Mirror Left/Right</button><button onClick={() => setArea(area.map(c => ({ dx: Number(c.dx), dy: -Number(c.dy) })))}>Mirror Up/Down</button></div>
         <div className="def-area-editor-row">
           <div className="def-grid">{Array.from({ length: 121 }, (_, i) => { const dx = (i % 11) - 5; const dy = Math.floor(i / 11) - 5; const center = dx === 0 && dy === 0; return <button key={i} className={`${center ? "player" : ""} ${areaHasCell(area, dx, dy) ? "active" : ""}`} onClick={() => toggle(dx, dy)}>{center ? "P" : ""}</button>; })}</div>
-          <div className="attack-direction-hint editor-attack-direction" aria-label="Attacking direction">
-            <span className="attack-arrow">↑</span>
-            <span>Attacking<br />direction</span>
-          </div>
         </div>
       </div>
     );
@@ -3301,6 +3406,36 @@ function App() {
     );
   }
 
+
+  function previewOpponentGoalText(cardId, nextStyle) {
+    if (!cardId || typeof document === "undefined") return;
+    const selector = `[data-defensive-goal-label-card-id="${String(cardId).replace(/"/g, '\"')}"]`;
+    document.querySelectorAll(selector).forEach(node => {
+      const style = normalizeTextStyles({ defensiveAreaGoal: nextStyle }).defensiveAreaGoal;
+      node.style.setProperty("--goal-font-family", style.font);
+      node.style.setProperty("--goal-font-weight", style.bold ? "950" : "650");
+      node.style.setProperty("--goal-font-scale", String(style.fontSize / 100));
+      node.style.setProperty("--goal-x-offset", `${style.horizontalOffset * 0.42}cqw`);
+      node.style.setProperty("--goal-y-offset", `${style.verticalOffset * 0.28}cqh`);
+    });
+  }
+
+  function OpponentGoalTextControl({ card }) {
+    if (!card) return null;
+    const styleKey = "defensiveAreaGoal";
+    const current = effectiveTextStylesForCard(card)[styleKey] || CARD_TEXT_STYLE_DEFAULTS[styleKey];
+    const panelKey = `${card.id}:${styleKey}`;
+    return (
+      <StableOpponentGoalTextControl
+        cardId={card.id}
+        current={current}
+        isOpen={openTextPanelKey === panelKey}
+        onToggle={() => setOpenTextPanelKey(openTextPanelKey === panelKey ? null : panelKey)}
+        onPatch={patch => updateCardTextStyle(card.id, styleKey, patch)}
+        onPreview={nextStyle => previewOpponentGoalText(card.id, nextStyle)}
+      />
+    );
+  }
 
   function defensiveGridAdjustStyle(card) {
     const adjust = normalizeDefensiveGridAdjust(card?.defensiveGridAdjust);
@@ -3769,7 +3904,7 @@ function App() {
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "attributesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="attributes" label="Text Color" />{renderTextStyleControls(card, "attributes", false, { panelAlign: "left", buttonLabel: "Text" })}{renderPairDistanceControl(card, "attributes")}<ColorPicker card={card} colorKey="attributesValue" label="Numbers Color" />{renderTextStyleControls(card, "attributesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "bonusesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="bonuses" label="Text Color" />{renderTextStyleControls(card, "bonuses", false, { panelAlign: "left", buttonLabel: "Text" })}{renderPairDistanceControl(card, "bonuses")}<ColorPicker card={card} colorKey="bonusesValue" label="Numbers Color" />{renderTextStyleControls(card, "bonusesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
         <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "specialAbility")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar"><ColorPicker card={card} colorKey="specialAbility" label="Text Color" />{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left" })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /><DefensiveGridAdjustControl card={card} /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /><DefensiveGridAdjustControl card={card} /><OpponentGoalTextControl card={card} /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
         </div>
       </div>
     );
