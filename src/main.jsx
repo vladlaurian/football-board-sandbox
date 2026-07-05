@@ -4,6 +4,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { getFirestore } from "firebase/firestore";
+import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import { RotateCcw, Plus, Minus, Undo2, Edit3, X, Dices } from "lucide-react";
 import "./styles.css";
 
@@ -19,6 +20,7 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
 
 function userStateRef(uid) {
@@ -280,6 +282,32 @@ function computeFrontFieldValue(card, field) {
 
 function hasCustomGraphics(card) {
   return Boolean(card?.graphics?.frontDataUrl || card?.graphics?.backDataUrl);
+}
+
+
+function isInlineImageDataUrl(value) {
+  return typeof value === "string" && /^data:image\//i.test(value);
+}
+
+function stripInlineGraphicsFromCardState(state) {
+  if (!state || !Array.isArray(state.cards)) return state;
+  let changed = false;
+  const cards = state.cards.map(card => {
+    const graphics = card?.graphics || {};
+    const frontInline = isInlineImageDataUrl(graphics.frontDataUrl);
+    const backInline = isInlineImageDataUrl(graphics.backDataUrl);
+    if (!frontInline && !backInline) return card;
+    changed = true;
+    return {
+      ...card,
+      graphics: {
+        ...graphics,
+        frontDataUrl: frontInline ? "" : (graphics.frontDataUrl || ""),
+        backDataUrl: backInline ? "" : (graphics.backDataUrl || ""),
+      },
+    };
+  });
+  return changed ? { ...state, cards } : state;
 }
 
 function getCardTheme(card, fallback = "Style 1") {
@@ -857,6 +885,59 @@ function App() {
     }
   }, [cardState]);
 
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const cardsWithInlineGraphics = (cardState.cards || []).flatMap(card => {
+      const graphics = card.graphics || {};
+      const items = [];
+      if (isInlineImageDataUrl(graphics.frontDataUrl)) items.push({ cardId: card.id, side: "front", dataUrl: graphics.frontDataUrl });
+      if (isInlineImageDataUrl(graphics.backDataUrl)) items.push({ cardId: card.id, side: "back", dataUrl: graphics.backDataUrl });
+      return items;
+    });
+    if (!cardsWithInlineGraphics.length) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        setCloudStatus("Uploading old images...");
+        for (const item of cardsWithInlineGraphics) {
+          if (cancelled) return;
+          const url = await uploadCardGraphicDataUrl(item.cardId, item.side, item.dataUrl);
+          if (cancelled) return;
+          updateCardState(prev => ({
+            ...prev,
+            cards: prev.cards.map(card => {
+              if (card.id !== item.cardId) return card;
+              const graphics = card.graphics || {};
+              const key = item.side === "front" ? "frontDataUrl" : "backDataUrl";
+              if (graphics[key] !== item.dataUrl) return card;
+              return {
+                ...card,
+                graphics: { ...graphics, [key]: url },
+                updatedAt: new Date().toISOString(),
+              };
+            }),
+          }));
+        }
+        if (!cancelled) {
+          setCloudStatus("Images uploaded");
+          setCloudError("");
+        }
+      } catch (error) {
+        console.error(error);
+        if (!cancelled) {
+          setCloudStatus("Image upload error");
+          setCloudError(error.message || String(error));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid, cardState.cards]);
+
   function buildCloudState(overrides = {}) {
     return {
       version: "pitch-44-goal-5x2",
@@ -873,7 +954,7 @@ function App() {
       touchMode,
       snapToGrid,
       showCoordinates,
-      cardState,
+      cardState: stripInlineGraphicsFromCardState(cardState),
       ...overrides,
     };
   }
@@ -908,7 +989,7 @@ function App() {
       blueFormationId,
       redFormationId,
       actionLog,
-      cardState,
+      cardState: stripInlineGraphicsFromCardState(cardState),
       ...overrides,
     };
   }
@@ -1794,6 +1875,39 @@ function App() {
   }
 
 
+  async function uploadCardGraphicDataUrl(cardId, side, dataUrl) {
+    if (!isInlineImageDataUrl(dataUrl)) return dataUrl;
+    if (!user?.uid) return dataUrl;
+
+    const extension = /^data:image\/png/i.test(dataUrl) ? "png" : "jpg";
+    const safeCardId = String(cardId || "card").replace(/[^a-z0-9_-]+/gi, "_");
+    const safeSide = String(side || "graphic").replace(/[^a-z0-9_-]+/gi, "_");
+    const path = `users/${user.uid}/cardGraphics/${safeCardId}/${safeSide}-${Date.now()}.${extension}`;
+    const ref = storageRef(storage, path);
+    await uploadString(ref, dataUrl, "data_url");
+    return getDownloadURL(ref);
+  }
+
+  async function uploadAndApplyGraphic(cardId, side, dataUrl, pairedBackDataUrl = null) {
+    try {
+      setCloudStatus("Uploading image...");
+      const uploadedFront = side === "front" || side === "both"
+        ? await uploadCardGraphicDataUrl(cardId, side === "both" ? "front" : side, dataUrl)
+        : dataUrl;
+      const uploadedBack = side === "both" && pairedBackDataUrl
+        ? await uploadCardGraphicDataUrl(cardId, "back", pairedBackDataUrl)
+        : pairedBackDataUrl;
+      applyGraphicToCard(cardId, side, uploadedFront, uploadedBack);
+      setCloudStatus("Image uploaded");
+      setCloudError("");
+    } catch (error) {
+      console.error(error);
+      setCloudStatus("Image upload error");
+      setCloudError(error.message || String(error));
+      alert("Image upload failed. Check Firebase Storage is enabled and Storage rules allow your signed-in user to write.");
+    }
+  }
+
   function readGraphicFile(file, callback) {
     if (!file) return;
     const okTypes = ["image/png", "image/jpeg", "image/jpg"];
@@ -1887,7 +2001,7 @@ function App() {
         setTimeout(() => graphicBackInputRef.current?.click(), 0);
         return;
       }
-      applyGraphicToCard(targetCardId, "front", dataUrl);
+      uploadAndApplyGraphic(targetCardId, "front", dataUrl);
       pendingGraphicFrontRef.current = null;
       setGraphicImportCardId("");
     });
@@ -1900,9 +2014,9 @@ function App() {
       if (graphicImportSide === "both") {
         const frontDataUrl = pendingGraphicFrontRef.current;
         if (!frontDataUrl) return;
-        applyGraphicToCard(targetCardId, "both", frontDataUrl, backDataUrl);
+        uploadAndApplyGraphic(targetCardId, "both", frontDataUrl, backDataUrl);
       } else {
-        applyGraphicToCard(targetCardId, "back", backDataUrl);
+        uploadAndApplyGraphic(targetCardId, "back", backDataUrl);
       }
       pendingGraphicFrontRef.current = null;
       setGraphicImportCardId("");
