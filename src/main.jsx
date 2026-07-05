@@ -917,17 +917,62 @@ function createDefaultCardState() {
 function normalizeCardState(raw) {
   const base = createDefaultCardState();
   if (!raw || typeof raw !== "object") return base;
-  const normalizeTeam = (team, fallback) => {
-    const source = Array.isArray(team) ? team : [];
-    return fallback.map((slot, index) => ({ ...slot, ...(source[index] || {}), id: slot.id, position: (source[index]?.position || slot.position), cardId: source[index]?.cardId || null }));
+  const cards = Array.isArray(raw.cards) ? raw.cards.map(card => normalizeImportedCard(card)) : [];
+  const validCardIds = new Set(cards.map(card => String(card.id)));
+
+  // Strong data invariant: one player card can be attached to one puck only.
+  // Older saves could keep stale references after moving/deleting cards, so normalize
+  // aggressively on load, save and every card-state update. Last assignment wins,
+  // which preserves the most recent target in object-spread based updates.
+  const normalizeAssignments = (assignments) => {
+    if (!assignments || typeof assignments !== "object") return {};
+    const result = {};
+    const cardToPiece = new Map();
+
+    Object.entries(assignments).forEach(([rawPieceId, rawCardId]) => {
+      const pieceId = String(rawPieceId || "").trim();
+      const cardId = String(rawCardId || "").trim();
+      if (!pieceId || !cardId || !validCardIds.has(cardId)) return;
+
+      const previousPieceId = cardToPiece.get(cardId);
+      if (previousPieceId && previousPieceId !== pieceId) {
+        delete result[previousPieceId];
+      }
+      cardToPiece.set(cardId, pieceId);
+      result[pieceId] = cardId;
+    });
+
+    return result;
   };
+
+  const assignments = normalizeAssignments(raw.assignments);
+
+  const normalizeTeam = (team, fallback, usedTeamCardIds) => {
+    const source = Array.isArray(team) ? team : [];
+    return fallback.map((slot, index) => {
+      const sourceSlot = source[index] || {};
+      const cardId = String(sourceSlot.cardId || "").trim();
+      const keepCardId = cardId && validCardIds.has(cardId) && !usedTeamCardIds.has(cardId);
+      if (keepCardId) usedTeamCardIds.add(cardId);
+      return {
+        ...slot,
+        ...sourceSlot,
+        id: slot.id,
+        position: sourceSlot.position || slot.position,
+        cardId: keepCardId ? cardId : null,
+      };
+    });
+  };
+
+  const usedTeamCardIds = new Set(Object.values(assignments).map(String));
+
   return {
-    cards: Array.isArray(raw.cards) ? raw.cards.map(card => normalizeImportedCard(card)) : [],
+    cards,
     teams: {
-      blue: normalizeTeam(raw.teams?.blue, base.teams.blue),
-      red: normalizeTeam(raw.teams?.red, base.teams.red),
+      blue: normalizeTeam(raw.teams?.blue, base.teams.blue, usedTeamCardIds),
+      red: normalizeTeam(raw.teams?.red, base.teams.red, usedTeamCardIds),
     },
-    assignments: raw.assignments && typeof raw.assignments === "object" ? raw.assignments : {},
+    assignments,
     theme: CARD_THEMES.includes(raw.theme) ? raw.theme : (LEGACY_THEME_MAP[raw.theme] || base.theme),
   };
 }
