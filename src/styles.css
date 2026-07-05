@@ -3960,3 +3960,75 @@ select option {
 .card-zone-defense-with-title.zone-color-bound .card-zone-section-title {
   color: var(--zone-title-color, var(--zone-text-color, currentColor)) !important;
 }
+
+/* AUTO-FIT TEXT INSIDE LAYOUT ZONES
+   Each layout zone is a CSS size container, so all cqw/cqh font sizes react live
+   while the user drags/resizes the zone. */
+.card-visual-zone {
+  container-type: size !important;
+  container-name: card-layout-zone !important;
+}
+.card-zone-content {
+  overflow: hidden !important;
+}
+.card-zone-text {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  padding: clamp(1px, min(2cqw, 5cqh), 4px) !important;
+}
+.card-zone-name {
+  font-size: clamp(3px, min(13cqw, 62cqh), 18px) !important;
+  line-height: .95 !important;
+  white-space: nowrap !important;
+}
+.card-zone-position {
+  font-size: clamp(3px, min(15cqw, 72cqh), 20px) !important;
+  line-height: .95 !important;
+  white-space: nowrap !important;
+}
+.card-zone-formula {
+  gap: clamp(0px, 2cqh, 2px) !important;
+}
+.card-zone-formula span {
+  font-size: clamp(3px, min(8cqw, 28cqh), 12px) !important;
+  line-height: .95 !important;
+  max-width: 100% !important;
+}
+.card-zone-formula strong {
+  font-size: clamp(4px, min(16cqw, 48cqh), 30px) !important;
+  line-height: .85 !important;
+}
+.card-zone-list-with-title,
+.card-zone-special-with-title,
+.card-zone-defense-with-title {
+  gap: clamp(0px, 1.5cqh, 2px) !important;
+}
+.card-zone-section-title {
+  font-size: clamp(3px, min(7cqw, calc(72cqh / var(--zone-lines, 4))), 9px) !important;
+  line-height: .95 !important;
+}
+.card-zone-list {
+  gap: clamp(0px, .8cqh, 2px) !important;
+  font-size: clamp(3px, min(6cqw, calc(82cqh / var(--zone-lines, 5))), 9px) !important;
+  line-height: 1 !important;
+}
+.card-zone-list-row {
+  gap: clamp(1px, 3cqw, 4px) !important;
+  min-height: 0 !important;
+}
+.card-zone-list-row span,
+.card-zone-list-row strong {
+  line-height: 1 !important;
+}
+.card-zone-special {
+  font-size: clamp(3px, min(5.8cqw, 24cqh), 10px) !important;
+  line-height: 1.02 !important;
+}
+.card-zone-defense {
+  padding: clamp(0px, 2cqh, 2px) !important;
+}
+.card-zone-defense .area-mini {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  transform: scale(clamp(.42, min(18cqw, 18cqh), .82)) !important;
+}

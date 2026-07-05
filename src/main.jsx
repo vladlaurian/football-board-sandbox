@@ -2197,7 +2197,7 @@ function App() {
       const textColor = safeColor(colors[colorKey]);
       const titleColor = safeColor(colors[titleColorKey]);
       return (
-        <div className="card-zone-text card-zone-list-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, color: textColor }}>
+        <div className="card-zone-text card-zone-list-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": Math.max(2, items.length + 1), color: textColor }}>
           <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, titleKey)}</div>
           <div className="card-zone-list">
             {items.length ? items.map(item => (
@@ -2215,7 +2215,7 @@ function App() {
       const textColor = safeColor(colors.specialAbility);
       const titleColor = safeColor(colors.specialAbilityTitle);
       return (
-        <div className="card-zone-text card-zone-special-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, color: textColor }}>
+        <div className="card-zone-text card-zone-special-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 3, color: textColor }}>
           <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, "specialAbility")}</div>
           <div className="card-zone-special" style={{ color: textColor }}>{card?.specialAbility || ""}</div>
         </div>
@@ -2226,7 +2226,7 @@ function App() {
       const textColor = safeColor(colors.defensiveArea);
       const titleColor = safeColor(colors.defensiveAreaTitle);
       return (
-        <div className="card-zone-text card-zone-defense-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, color: textColor, "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78") }}>
+        <div className="card-zone-text card-zone-defense-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 2, color: textColor, "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78") }}>
           <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, "defensiveArea")}</div>
           <div className="card-zone-defense" style={{ color: textColor }}><AreaMiniPreview area={card?.defensiveArea || []} /></div>
         </div>
