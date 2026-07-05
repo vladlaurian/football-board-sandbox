@@ -3851,3 +3851,34 @@ select option {
 .card-zone-defense .area-mini span.player {
   background: currentColor !important;
 }
+
+/* FIX: color pickers must color both labels and values inside bound layout content. */
+.card-zone-formula,
+.card-zone-formula span,
+.card-zone-formula strong,
+.card-zone-list,
+.card-zone-list-row,
+.card-zone-list-row span,
+.card-zone-list-row strong,
+.card-zone-list em {
+  color: inherit !important;
+}
+.card-zone-formula span[style],
+.card-zone-formula strong[style],
+.card-zone-list-row[style],
+.card-zone-list-row span[style],
+.card-zone-list-row strong[style],
+.card-zone-list em[style] {
+  color: inherit;
+}
+.card-zone-defense .area-mini span:not(.active):not(.player) {
+  background: currentColor !important;
+  opacity: .28 !important;
+}
+.card-zone-defense .area-mini span.active {
+  opacity: 1 !important;
+}
+.card-zone-defense .area-mini span.player {
+  background: currentColor !important;
+  opacity: 1 !important;
+}
