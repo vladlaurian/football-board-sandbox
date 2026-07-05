@@ -4489,3 +4489,57 @@ select option {
   transform: translateY(var(--zone-y-offset, 0cqh)) !important;
   will-change: transform !important;
 }
+
+
+/* USER FIX: final toolbar alignment and safe Text panel anchoring. */
+.card-edit-section-title.sub-only.attribute-toolbar-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  width: 100% !important;
+  gap: 8px !important;
+}
+.card-edit-section-title.sub-only.attribute-toolbar-row .attribute-toolbar-left {
+  margin-right: auto !important;
+  justify-content: flex-start !important;
+}
+.card-edit-section-title.sub-only.attribute-toolbar-row > button {
+  margin-left: auto !important;
+  flex: 0 0 auto !important;
+}
+.text-style-controls.align-left .text-style-panel {
+  left: 0 !important;
+  right: auto !important;
+}
+.text-style-controls.align-right .text-style-panel {
+  right: 0 !important;
+  left: auto !important;
+}
+
+/* USER FIX: position badges should be visually centered at Y=0; Y remains a fine offset. */
+.card-zone-position {
+  transform: translateY(calc(-0.08em + var(--zone-y-offset, 0cqh))) !important;
+}
+
+/* USER FIX: Special Ability editor gets full available width and the Text panel opens inside the editor. */
+.special-ability-editor {
+  overflow: visible !important;
+}
+.special-text-toolbar {
+  width: 100% !important;
+  max-width: none !important;
+  justify-content: flex-start !important;
+}
+.special-text-toolbar .text-style-controls.align-left .text-style-panel {
+  left: 0 !important;
+  right: auto !important;
+}
+.special-ability-editor textarea,
+.special-ability-editor .special-ability-textarea {
+  display: block !important;
+  width: min(100%, 680px) !important;
+  max-width: 100% !important;
+  min-height: 150px !important;
+  height: 150px !important;
+  box-sizing: border-box !important;
+}
