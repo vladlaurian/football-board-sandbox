@@ -2183,7 +2183,6 @@ function App() {
             }}
           >
             <div className="card-zone-content">{renderZoneContent(key)}</div>
-            {showZones ? <span className="card-zone-label">{ZONE_LABELS[key] || key}</span> : null}
             {showZones && activeLayoutEdit?.zoneKey === key ? (
               <b className="zone-live-coordinates is-visible">{formatBoxCoordinates(activeLayoutEdit.box)}</b>
             ) : null}

@@ -3851,3 +3851,39 @@ select option {
 .card-zone-defense .area-mini span.player {
   background: currentColor !important;
 }
+
+
+/* Fix: field colors apply to labels and values, and layout names are hidden. */
+.card-zone-formula,
+.card-zone-formula span,
+.card-zone-formula strong,
+.card-zone-list,
+.card-zone-list-row,
+.card-zone-list-row span,
+.card-zone-list-row strong {
+  color: inherit !important;
+}
+
+.card-visual-zone .card-zone-label {
+  display: none !important;
+}
+
+/* Fix: Defensive Area color picker controls the visible grid inside layout zones. */
+.card-zone-defense,
+.card-zone-defense .area-mini,
+.card-zone-defense .area-mini span {
+  color: inherit !important;
+}
+.card-zone-defense .area-mini span:not(.active):not(.player) {
+  background: color-mix(in srgb, currentColor 22%, transparent) !important;
+  border: 1px solid color-mix(in srgb, currentColor 70%, transparent) !important;
+}
+.card-zone-defense .area-mini span.active {
+  background: var(--card-area-active-color, #50be78) !important;
+  border: 1px solid var(--card-area-active-color, #50be78) !important;
+}
+.card-zone-defense .area-mini span.player {
+  background: currentColor !important;
+  border: 1px solid currentColor !important;
+  color: #111827 !important;
+}
