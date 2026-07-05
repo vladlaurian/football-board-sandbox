@@ -389,7 +389,7 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
   );
 
   return (
-    <div className={`text-style-controls align-${panelAlign} ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+    <div className={`text-style-controls align-${panelAlign} ${numbersMode ? "numbers-mode" : ""} ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
       <button type="button" className={`text-style-toggle ${isOpen ? "active" : ""}`} aria-expanded={isOpen} onClick={onToggle}>{buttonLabel}</button>
       {isOpen ? (
         <div className="text-style-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>

@@ -5407,3 +5407,45 @@ select option {
   width: 100%;
   height: 100%;
 }
+
+/* FINAL UI FIX: use the same top-layer behavior for every Color picker.
+   Prevents Header/Position color panels from sitting under the following rows. */
+.card-editor,
+.card-edit-section,
+.card-edit-section-title,
+.compact-color-row,
+.editor-position-section,
+.editor-label-row,
+.attribute-toolbar-left,
+.special-text-toolbar {
+  overflow: visible !important;
+}
+.card-color-picker[open] {
+  z-index: 2147483000 !important;
+  isolation: isolate !important;
+}
+.card-color-picker[open] > summary {
+  position: relative !important;
+  z-index: 2147483001 !important;
+}
+.card-color-picker[open] .color-panel {
+  z-index: 2147483002 !important;
+  pointer-events: auto !important;
+  background: #051228 !important;
+  opacity: 1 !important;
+}
+.card-color-picker[open] .color-panel,
+.card-color-picker[open] .color-panel * {
+  pointer-events: auto !important;
+}
+
+/* FINAL UI FIX: only Numbers panels open toward the left edge of their button.
+   Text panels keep their existing per-zone positioning. */
+.text-style-controls.numbers-mode .text-style-panel,
+.text-style-controls.numbers-mode.align-front .text-style-panel,
+.text-style-controls.numbers-mode.align-left .text-style-panel,
+.text-style-controls.numbers-mode.align-right .text-style-panel {
+  left: auto !important;
+  right: 0 !important;
+  transform: none !important;
+}
