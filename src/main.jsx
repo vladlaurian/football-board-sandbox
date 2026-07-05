@@ -952,9 +952,12 @@ function sanitizePiecesCardIds(rawPieces, cardStateLike, settingsLike = DEFAULT_
     const legacyCardId = String(legacyAssignments?.[piece.id] || "").trim();
     const nextCardId = directCardId || legacyCardId;
 
+    // Important invariant for Firestore merge saves:
+    // cardId must always be present. Use null for empty, never omit the field.
+    // If the field is omitted, setDoc(..., { merge: true }) may keep an older
+    // nested cardId and make the card jump back to the previous puck after reload.
     if (piece.team === "BALL" || !nextCardId || !validCardIds.has(nextCardId) || usedCardIds.has(nextCardId)) {
-      const { cardId, ...cleanPiece } = piece;
-      return cleanPiece;
+      return { ...piece, cardId: null };
     }
 
     usedCardIds.add(nextCardId);
@@ -1427,6 +1430,13 @@ function App() {
   const clientIdRef = useRef(`client_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
   const sessionSaveTimerRef = useRef(null);
   const isApplyingSessionRef = useRef(false);
+  const piecesRef = useRef(pieces);
+  const settingsRef = useRef(settings);
+  const cardStateRef = useRef(cardState);
+
+  useEffect(() => { piecesRef.current = pieces; }, [pieces]);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => { cardStateRef.current = cardState; }, [cardState]);
 
   const [sessionCode, setSessionCode] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -1518,23 +1528,27 @@ function App() {
   }, [user?.uid, cardState.cards]);
 
   function buildCloudState(overrides = {}) {
+    const effectiveSettings = overrides.settings ? normalizeSettingsForApp(overrides.settings) : settingsRef.current;
+    const effectiveCardState = overrides.cardState ? normalizeCardState(overrides.cardState) : cardStateRef.current;
+    const effectivePieces = overrides.pieces || piecesRef.current;
+    const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, ...restOverrides } = overrides;
     return {
       version: "pitch-44-goal-5x2",
-      settings,
       formations,
       gameSituations,
       activeSituationId,
       activeSituationName,
       blueFormationId,
       redFormationId,
-      pieces: sanitizePiecesCardIds(pieces, cardState, settings),
       dieType,
       dieResult,
       touchMode,
       snapToGrid,
       showCoordinates,
-      cardState: buildCardLibraryState(cardState),
-      ...overrides,
+      ...restOverrides,
+      settings: effectiveSettings,
+      pieces: sanitizePiecesCardIds(effectivePieces, effectiveCardState, effectiveSettings),
+      cardState: buildCardLibraryState(effectiveCardState),
     };
   }
 
@@ -1554,7 +1568,10 @@ function App() {
     if (data.activeSituationName) setActiveSituationName(data.activeSituationName);
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
-    if (data.pieces) setPieces(nextPieces);
+    if (data.pieces) {
+      piecesRef.current = nextPieces;
+      setPieces(nextPieces);
+    }
     if (typeof data.dieType === "number") setDieType(data.dieType);
     if (data.dieResult !== undefined) setDieResult(data.dieResult);
     if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
@@ -1564,10 +1581,12 @@ function App() {
   }
 
   function buildLiveBoardState(overrides = {}) {
+    const effectiveSettings = overrides.settings ? normalizeSettingsForApp(overrides.settings) : settingsRef.current;
+    const effectiveCardState = overrides.cardState ? normalizeCardState(overrides.cardState) : cardStateRef.current;
+    const effectivePieces = overrides.pieces || piecesRef.current;
+    const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, ...restOverrides } = overrides;
     return {
       version: "pitch-44-goal-5x2",
-      settings,
-      pieces: sanitizePiecesCardIds(pieces, cardState, settings),
       dieType,
       dieResult,
       snapToGrid,
@@ -1575,8 +1594,10 @@ function App() {
       blueFormationId,
       redFormationId,
       actionLog,
-      cardState: buildCardLibraryState(cardState),
-      ...overrides,
+      ...restOverrides,
+      settings: effectiveSettings,
+      pieces: sanitizePiecesCardIds(effectivePieces, effectiveCardState, effectiveSettings),
+      cardState: buildCardLibraryState(effectiveCardState),
     };
   }
 
@@ -1590,7 +1611,10 @@ function App() {
       : sanitizePiecesCardIds(pieces, nextCardState, nextSettings);
 
     if (data.settings) setSettings(nextSettings);
-    if (data.pieces) setPieces(nextPieces);
+    if (data.pieces) {
+      piecesRef.current = nextPieces;
+      setPieces(nextPieces);
+    }
     if (typeof data.dieType === "number") setDieType(data.dieType);
     if (data.dieResult !== undefined) setDieResult(data.dieResult);
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
@@ -1943,7 +1967,8 @@ function App() {
         team === "A" ? formation : getFormationById(blueFormationId),
         team === "B" ? formation : getFormationById(redFormationId)
       ).filter(p => p.team === team);
-      const next = normalizePiecesForBoard([...others, ...temp, ball].filter(Boolean), settings);
+      const next = sanitizePiecesCardIds([...others, ...temp, ball].filter(Boolean), cardStateRef.current, settingsRef.current);
+      piecesRef.current = next;
       logSnapshot(`${team === "A" ? "Blue" : "Red"} formation: ${formation.name}`, next);
       return next;
     });
@@ -2006,6 +2031,7 @@ function App() {
       snapshotSettings
     );
     setSettings(snapshotSettings);
+    piecesRef.current = snapshotPieces;
     setPieces(snapshotPieces);
     setZoom(situation.snapshot.zoom ?? 0.9);
     setBlueFormationId(situation.snapshot.blueFormationId ?? 1);
@@ -2033,7 +2059,8 @@ function App() {
 
   function resetPieces() {
     pushHistory();
-    const fresh = createInitialPieces(settings.cols, settings.rows, getFormationById(blueFormationId), getFormationById(redFormationId));
+    const fresh = sanitizePiecesCardIds(createInitialPieces(settings.cols, settings.rows, getFormationById(blueFormationId), getFormationById(redFormationId)), cardStateRef.current, settingsRef.current);
+    piecesRef.current = fresh;
     setPieces(fresh);
     logSnapshot("Reset poziții", fresh);
   }
@@ -2089,6 +2116,7 @@ function App() {
       loadedSettings
     );
     setSettings(loadedSettings);
+    piecesRef.current = loadedPieces;
     setPieces(loadedPieces);
     if (saved.cardState) setCardState(loadedCardState);
     setZoom(saved.zoom ?? 1);
@@ -2346,17 +2374,22 @@ function App() {
 
   function deleteCard(cardId) {
     if (!window.confirm("Ștergi cardul? Va fi scos și din echipe/pucuri.")) return;
-    updateCardState(prev => ({
-      ...prev,
-      cards: prev.cards.filter(c => c.id !== cardId),
+    const nextCardState = {
+      ...cardStateRef.current,
+      cards: (cardStateRef.current.cards || []).filter(c => c.id !== cardId),
       teams: createDefaultCardState().teams,
       assignments: {},
-    }));
-    setPieces(prev => prev.map(piece => {
-      if (piece.cardId !== cardId) return piece;
-      const { cardId: _removedCardId, ...cleanPiece } = piece;
-      return cleanPiece;
-    }));
+    };
+    cardStateRef.current = normalizeCardState(nextCardState);
+    updateCardState(() => cardStateRef.current);
+
+    const nextPieces = sanitizePiecesCardIds(
+      piecesRef.current.map(piece => piece.cardId === cardId ? { ...piece, cardId: null } : piece),
+      cardStateRef.current,
+      settingsRef.current
+    );
+    piecesRef.current = nextPieces;
+    setPieces(nextPieces);
     if (editingCardId === cardId) setEditingCardId(null);
   }
 
@@ -2368,34 +2401,36 @@ function App() {
       return;
     }
 
-    const existingPiece = pieces.find(piece => piece.cardId === cardId && piece.id !== targetPieceId);
+    const currentPieces = piecesRef.current || pieces;
+    const existingPiece = currentPieces.find(piece => piece.cardId === cardId && piece.id !== targetPieceId);
     if (existingPiece) {
       const shouldReassign = window.confirm("This card is already assigned to another puck. Do you want to reassign it?");
       if (!shouldReassign) return;
     }
 
-    setPieces(prev => sanitizePiecesCardIds(
-      prev.map(piece => {
-        if (piece.team === "BALL") return piece;
+    const nextPieces = sanitizePiecesCardIds(
+      currentPieces.map(piece => {
+        if (piece.team === "BALL") return { ...piece, cardId: null };
         if (piece.id === targetPieceId) return { ...piece, cardId };
-        if (piece.cardId === cardId) {
-          const { cardId: _removedCardId, ...cleanPiece } = piece;
-          return cleanPiece;
-        }
-        return piece;
+        if (piece.cardId === cardId) return { ...piece, cardId: null };
+        return { ...piece, cardId: piece.cardId || null };
       }),
-      cardState,
-      settings
-    ));
+      cardStateRef.current,
+      settingsRef.current
+    );
+    piecesRef.current = nextPieces;
+    setPieces(nextPieces);
     setAssignTarget(null);
   }
 
   function removePieceCard(pieceId) {
-    setPieces(prev => prev.map(piece => {
-      if (piece.id !== pieceId) return piece;
-      const { cardId: _removedCardId, ...cleanPiece } = piece;
-      return cleanPiece;
-    }));
+    const nextPieces = sanitizePiecesCardIds(
+      (piecesRef.current || pieces).map(piece => piece.id === pieceId ? { ...piece, cardId: null } : { ...piece, cardId: piece.cardId || null }),
+      cardStateRef.current,
+      settingsRef.current
+    );
+    piecesRef.current = nextPieces;
+    setPieces(nextPieces);
   }
 
 
