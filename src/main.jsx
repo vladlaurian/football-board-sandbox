@@ -163,7 +163,7 @@ const DEFAULT_CARD_VISUAL_LAYOUT = {
     position: { x: 76, y: 5, w: 12, h: 10 },
     attributes: { x: 12, y: 18, w: 34, h: 34 },
     bonuses: { x: 54, y: 18, w: 34, h: 34 },
-    defensiveArea: { x: 12, y: 66, w: 34, h: 26 },
+    defensiveArea: { x: 12, y: 62, w: 38, h: 30 },
     specialAbility: { x: 54, y: 66, w: 34, h: 26 },
   },
 };
@@ -2857,11 +2857,7 @@ function App() {
           <div className="card-zone-defense card-zone-defense-row" style={{ color: textColor, ...zoneTextStyleVars(textStyles, "defensiveArea") }}>
             <div className="card-zone-defense-grid-adjust" data-defensive-grid-card-id={card.id} style={defensiveGridAdjustStyle(card)}>
               <AreaMiniPreview area={card?.defensiveArea || []} />
-              <div className="attack-direction-hint card-zone-attack-direction" aria-label="Attacking direction">
-                <span className="attack-direction-label attack-direction-label-left" aria-hidden="true">{Array.from("ATTACKING").map((letter, index) => <span key={`attack-${index}`}>{letter}</span>)}</span>
-                <span className="attack-arrow">↑</span>
-                <span className="attack-direction-label attack-direction-label-right" aria-hidden="true">{Array.from("DIRECTION").map((letter, index) => <span key={`direction-${index}`}>{letter}</span>)}</span>
-              </div>
+              <div className="card-zone-opponent-goal" aria-hidden="true">OPPONENT GOAL</div>
             </div>
           </div>
         </div>
