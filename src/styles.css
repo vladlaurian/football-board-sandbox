@@ -4623,3 +4623,79 @@ select option {
 .card-zone-defense-with-title.zone-color-bound .card-zone-attack-direction .attack-arrow::after {
   color: var(--zone-text-color, currentColor) !important;
 }
+
+/* FINAL VALUE CONTROLS: paired zones use separate Text / Value controls and a dedicated Distance slider. */
+.card-zone-formula {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-rows: none !important;
+  align-items: center !important;
+  justify-items: stretch !important;
+  column-gap: var(--zone-stat-gap, clamp(1px, 2.5cqw, 7px)) !important;
+  row-gap: 0 !important;
+  text-align: initial !important;
+  transform: none !important;
+}
+.card-zone-formula .card-zone-label {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-family: var(--zone-font-family, Inter), system-ui, sans-serif !important;
+  font-weight: var(--zone-font-weight, 800) !important;
+  font-size: clamp(3px, calc(min(8cqw, 30cqh) * var(--zone-font-scale, 1)), 22px) !important;
+  line-height: var(--zone-line-height, 1) !important;
+  text-align: var(--zone-align, left) !important;
+  justify-self: stretch !important;
+  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
+}
+.card-zone-formula .card-zone-value {
+  flex: 0 0 auto !important;
+  min-width: max-content !important;
+  font-family: var(--zone-font-family, Inter), system-ui, sans-serif !important;
+  font-weight: var(--zone-font-weight, 950) !important;
+  font-size: clamp(4px, calc(min(10cqw, 38cqh) * var(--zone-font-scale, 1)), 32px) !important;
+  line-height: var(--zone-line-height, .9) !important;
+  text-align: right !important;
+  justify-self: end !important;
+  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
+}
+.card-zone-list-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: baseline !important;
+  column-gap: var(--zone-stat-gap, clamp(1px, 2.8cqw, 8px)) !important;
+}
+.card-zone-list-row .card-zone-label {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  text-align: var(--zone-align, left) !important;
+}
+.card-zone-list-row .card-zone-value {
+  min-width: max-content !important;
+  font-family: var(--zone-font-family, Inter), system-ui, sans-serif !important;
+  font-weight: var(--zone-font-weight, 950) !important;
+  font-size: clamp(3px, calc(min(6cqw, calc(82cqh / var(--zone-lines, 5))) * var(--zone-font-scale, 1)), 18px) !important;
+  line-height: var(--zone-line-height, 1) !important;
+  text-align: right !important;
+  justify-self: end !important;
+  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
+}
+.pair-distance-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  opacity: .95;
+}
+.pair-distance-control input[type="range"] {
+  width: 92px;
+}
+.front-pair-toolbar,
+.attribute-toolbar-left {
+  gap: 8px;
+  flex-wrap: wrap;
+}

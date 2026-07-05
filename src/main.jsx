@@ -222,10 +222,14 @@ const CARD_TEXT_STYLE_DEFAULTS = {
   positionFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   headerBack: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   positionBack: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
-  attributesFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
-  bonusesFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
-  attributes: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
-  bonuses: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  attributesFront: { align: "left", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  attributesFrontValue: { align: "right", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  bonusesFront: { align: "left", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  bonusesFrontValue: { align: "right", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  attributes: { align: "left", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  attributesValue: { align: "right", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  bonuses: { align: "left", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  bonusesValue: { align: "right", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   specialAbility: { align: "center", bold: false, font: "Inter", fontSize: 100, lineHeight: 105, verticalOffset: 0, statGap: 100 },
   defensiveArea: { align: "center", bold: false, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
 };
@@ -273,8 +277,16 @@ function zoneTextStyleVars(styles, key, hasStats = false) {
   };
 }
 
+function zonePairDistanceVars(styles, key) {
+  const s = normalizeTextStyles(styles)[key] || CARD_TEXT_STYLE_DEFAULTS[key] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
+  return {
+    "--zone-stat-gap": `${Math.round(s.statGap / 100 * 6)}px`,
+    "--zone-stat-gap-wide": `${Math.round(s.statGap / 100 * 12)}px`,
+  };
+}
 
-function StableTextStyleControls({ cardId, styleKey, stats = false, current, isOpen, onToggle, onPatch, onPreview, onPreviewEnd, panelAlign = "right" }) {
+
+function StableTextStyleControls({ cardId, styleKey, stats = false, current, isOpen, onToggle, onPatch, onPreview, onPreviewEnd, panelAlign = "right", buttonLabel = "Text" }) {
   if (!cardId || !CARD_TEXT_STYLE_DEFAULTS[styleKey]) return null;
 
   const safeCurrent = current || CARD_TEXT_STYLE_DEFAULTS[styleKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
@@ -323,7 +335,7 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
 
   return (
     <div className={`text-style-controls align-${panelAlign} ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
-      <button type="button" className="text-style-toggle" aria-expanded={isOpen} onClick={onToggle}>Text</button>
+      <button type="button" className="text-style-toggle" aria-expanded={isOpen} onClick={onToggle}>{buttonLabel}</button>
       {isOpen ? (
         <div className="text-style-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
           <div className="text-align-buttons" aria-label="Text align">
@@ -2316,10 +2328,11 @@ function App() {
 
     const renderFrontFormulaZone = (field, colorKey) => {
       const textColor = safeColor(colors[colorKey]);
+      const valueKey = `${colorKey}Value`;
       return (
-        <div className="card-zone-text card-zone-formula zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor }}>
-          <span style={{ color: textColor, ...zoneTextStyleVars(textStyles, colorKey, true) }}>{field.label}</span>
-          <strong style={{ color: textColor }}>{computeFrontFieldValue(card, field)}</strong>
+        <div className="card-zone-text card-zone-formula zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor, ...zonePairDistanceVars(textStyles, colorKey) }}>
+          <span className="card-zone-label" style={{ color: textColor, ...zoneTextStyleVars(textStyles, colorKey) }}>{field.label}</span>
+          <strong className="card-zone-value" style={{ color: textColor, ...zoneTextStyleVars(textStyles, valueKey) }}>{computeFrontFieldValue(card, field)}</strong>
         </div>
       );
     };
@@ -2330,11 +2343,11 @@ function App() {
       return (
         <div className="card-zone-text card-zone-list-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": Math.max(2, items.length + 1), color: textColor }}>
           <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, titleKey)}</div>
-          <div className="card-zone-list" style={{ color: textColor, "--zone-lines": Math.max(2, items.length + 1), ...zoneTextStyleVars(textStyles, colorKey, true) }}>
+          <div className="card-zone-list" style={{ color: textColor, "--zone-lines": Math.max(2, items.length + 1), ...zoneTextStyleVars(textStyles, colorKey), ...zonePairDistanceVars(textStyles, colorKey) }}>
             {items.length ? items.map(item => (
               <div className="card-zone-list-row" key={item.id} style={{ color: textColor }}>
-                <span style={{ color: textColor }}>{item.name}</span>
-                <strong style={{ color: textColor }}>{normalizeStatValue(item.value)}</strong>
+                <span className="card-zone-label" style={{ color: textColor }}>{item.name}</span>
+                <strong className="card-zone-value" style={{ color: textColor, ...zoneTextStyleVars(textStyles, `${colorKey}Value`) }}>{normalizeStatValue(item.value)}</strong>
               </div>
             )) : <em style={{ color: textColor }}>—</em>}
           </div>
@@ -2597,7 +2610,7 @@ function App() {
     });
     return (
       <div className="card-edit-section front-summary-editor">
-        <div className="card-edit-section-title"><strong>{title}</strong><ColorPicker card={card} colorKey={colorKey} label="Color" />{renderTextStyleControls(card, colorKey, true)}</div>
+        <div className="card-edit-section-title front-pair-toolbar"><strong>{title}</strong><ColorPicker card={card} colorKey={colorKey} label="Color" />{renderTextStyleControls(card, colorKey, false, { buttonLabel: "Text" })}{renderTextStyleControls(card, `${colorKey}Value`, false, { buttonLabel: "Value" })}{renderPairDistanceControl(card, colorKey)}</div>
         <div className="front-formula-list">
           {fields.map(field => (
             <div className="front-formula-row" key={field.id}>
@@ -2665,7 +2678,25 @@ function App() {
         onPreview={patch => setPreviewTextStyleDraft({ cardId: card.id, styleKey, patch })}
         onPreviewEnd={() => setPreviewTextStyleDraft(current => current?.cardId === card.id && current?.styleKey === styleKey ? null : current)}
         panelAlign={options.panelAlign || "right"}
+        buttonLabel={options.buttonLabel || "Text"}
       />
+    );
+  }
+
+  function renderPairDistanceControl(card, styleKey) {
+    if (!card || !CARD_TEXT_STYLE_DEFAULTS[styleKey]) return null;
+    const current = effectiveTextStylesForCard(card)[styleKey] || CARD_TEXT_STYLE_DEFAULTS[styleKey];
+    return (
+      <label className="pair-distance-control" title="Distance between text and value">
+        <span>Distance</span>
+        <input
+          type="range"
+          min="30"
+          max="250"
+          value={current.statGap ?? 100}
+          onChange={e => updateCardTextStyle(card.id, styleKey, { statGap: Number(e.currentTarget.value) })}
+        />
+      </label>
     );
   }
 
@@ -2801,8 +2832,8 @@ function App() {
         <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Back</strong><ColorPicker card={card} colorKey="positionBack" label="Color" />{renderTextStyleControls(card, "positionBack")}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
         {FrontZoneFieldsEditor({ card, storageKey: "frontAttributeFields", title: "Attributes Front", colorKey: "attributesFront", sourceSection: "passiveAttributes" })}
         {FrontZoneFieldsEditor({ card, storageKey: "frontBonusFields", title: "Bonuses Front", colorKey: "bonusesFront", sourceSection: "bonuses" })}
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="attributes" label="Text Color" />{renderTextStyleControls(card, "attributes", true, { panelAlign: "left" })}</> })}</div>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="bonuses" label="Text Color" />{renderTextStyleControls(card, "bonuses", true, { panelAlign: "left" })}</> })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="attributes" label="Text Color" />{renderTextStyleControls(card, "attributes", false, { panelAlign: "left", buttonLabel: "Text" })}{renderTextStyleControls(card, "attributesValue", false, { panelAlign: "left", buttonLabel: "Value" })}{renderPairDistanceControl(card, "attributes")}</> })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="bonuses" label="Text Color" />{renderTextStyleControls(card, "bonuses", false, { panelAlign: "left", buttonLabel: "Text" })}{renderTextStyleControls(card, "bonusesValue", false, { panelAlign: "left", buttonLabel: "Value" })}{renderPairDistanceControl(card, "bonuses")}</> })}</div>
         <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar"><ColorPicker card={card} colorKey="specialAbility" label="Text Color" />{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left" })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid/Arrow" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
         </div>
