@@ -977,6 +977,68 @@ function normalizeCardState(raw) {
   };
 }
 
+
+function pieceAssignmentSignature(piece, settingsLike = DEFAULT_SETTINGS) {
+  if (!piece || piece.team === "BALL") return null;
+  const positioned = withBoardPosition(piece, settingsLike);
+  return {
+    team: String(positioned.team || ""),
+    label: String(positioned.label || ""),
+    coord: String(positioned.coord || ""),
+  };
+}
+
+function samePieceAssignmentSignature(a, b) {
+  if (!a || !b) return false;
+  return String(a.team || "") === String(b.team || "")
+    && String(a.label || "") === String(b.label || "")
+    && String(a.coord || "") === String(b.coord || "");
+}
+
+function reconcileCardStateWithPieces(rawCardState, piecesLike = [], settingsLike = DEFAULT_SETTINGS, options = {}) {
+  const normalized = normalizeCardState(rawCardState);
+  const boardPieces = normalizePiecesForBoard(piecesLike || [], settingsLike).filter(piece => piece.team !== "BALL");
+  const pieceById = new Map(boardPieces.map(piece => [String(piece.id), piece]));
+  const rawMeta = rawCardState && typeof rawCardState === "object" && rawCardState.assignmentMeta && typeof rawCardState.assignmentMeta === "object"
+    ? rawCardState.assignmentMeta
+    : {};
+  const resultAssignments = {};
+  const resultMeta = {};
+  const usedCardIds = new Set();
+
+  Object.entries(normalized.assignments || {}).forEach(([rawPieceId, rawCardId]) => {
+    const pieceId = String(rawPieceId || "").trim();
+    const cardId = String(rawCardId || "").trim();
+    const piece = pieceById.get(pieceId);
+    if (!piece || !cardId || usedCardIds.has(cardId)) return;
+
+    const currentSignature = pieceAssignmentSignature(piece, settingsLike);
+    const savedSignature = rawMeta[pieceId];
+
+    // New saves carry assignmentMeta. If the same volatile id now points to another
+    // puck/slot, drop the stale assignment instead of silently attaching the card to it.
+    if (savedSignature && !samePieceAssignmentSignature(savedSignature, currentSignature)) return;
+
+    // Legacy saves did not have assignmentMeta. Keep them only when explicitly allowed;
+    // every new save will add metadata and become strict from then on.
+    if (!savedSignature && options.dropLegacyAssignments) return;
+
+    usedCardIds.add(cardId);
+    resultAssignments[pieceId] = cardId;
+    resultMeta[pieceId] = currentSignature;
+  });
+
+  return {
+    ...normalized,
+    assignments: resultAssignments,
+    assignmentMeta: resultMeta,
+  };
+}
+
+function buildPersistedCardState(cardStateLike, piecesLike = [], settingsLike = DEFAULT_SETTINGS) {
+  return reconcileCardStateWithPieces(cardStateLike, piecesLike, settingsLike);
+}
+
 function cleanTwoDigitValue(value) {
   const raw = String(value ?? "").trim();
   const negative = raw.startsWith("-");
@@ -1541,27 +1603,29 @@ function App() {
       touchMode,
       snapToGrid,
       showCoordinates,
-      cardState: stripInlineGraphicsFromCardState(cardStateRef.current),
+      cardState: stripInlineGraphicsFromCardState(buildPersistedCardState(cardStateRef.current, pieces, settings)),
       ...overrides,
     };
   }
 
   function applyCloudState(data) {
     if (!data) return;
-    if (data.settings) setSettings(normalizeSettingsForApp(data.settings));
+    const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settings;
+    const nextPieces = data.pieces ? ensureBenchReserveCount(data.pieces, nextSettings) : pieces;
+    if (data.settings) setSettings(nextSettings);
     if (data.formations) setFormations(data.formations);
     if (data.gameSituations) setGameSituations(data.gameSituations);
     if (typeof data.activeSituationId === "number") setActiveSituationId(data.activeSituationId);
     if (data.activeSituationName) setActiveSituationName(data.activeSituationName);
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
-    if (data.pieces) setPieces(ensureBenchReserveCount(data.pieces, data.settings ? normalizeSettingsForApp(data.settings) : settings));
+    if (data.pieces) setPieces(nextPieces);
     if (typeof data.dieType === "number") setDieType(data.dieType);
     if (data.dieResult !== undefined) setDieResult(data.dieResult);
     if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
-    if (data.cardState) commitCardState(data.cardState);
+    if (data.cardState) commitCardState(reconcileCardStateWithPieces(data.cardState, nextPieces, nextSettings));
   }
 
   function buildLiveBoardState(overrides = {}) {
@@ -1576,7 +1640,7 @@ function App() {
       blueFormationId,
       redFormationId,
       actionLog,
-      cardState: stripInlineGraphicsFromCardState(cardState),
+      cardState: stripInlineGraphicsFromCardState(buildPersistedCardState(cardState, pieces, settings)),
       ...overrides,
     };
   }
@@ -1584,8 +1648,9 @@ function App() {
   function applyLiveBoardState(data) {
     if (!data) return;
     const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settings;
+    const nextPieces = data.pieces ? ensureBenchReserveCount(data.pieces, nextSettings) : pieces;
     if (data.settings) setSettings(nextSettings);
-    if (data.pieces) setPieces(ensureBenchReserveCount(data.pieces, nextSettings));
+    if (data.pieces) setPieces(nextPieces);
     if (typeof data.dieType === "number") setDieType(data.dieType);
     if (data.dieResult !== undefined) setDieResult(data.dieResult);
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
@@ -1593,7 +1658,7 @@ function App() {
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
     if (data.actionLog) setActionLog(data.actionLog);
-    if (data.cardState) commitCardState(data.cardState);
+    if (data.cardState) commitCardState(reconcileCardStateWithPieces(data.cardState, nextPieces, nextSettings));
   }
 
   async function saveSessionState(overrides = {}) {
@@ -1939,6 +2004,15 @@ function App() {
         team === "B" ? formation : getFormationById(redFormationId)
       ).filter(p => p.team === team);
       const next = normalizePiecesForBoard([...others, ...temp, ball].filter(Boolean), settings);
+      updateCardState(prevCardState => {
+        const keptAssignments = Object.fromEntries(
+          Object.entries(prevCardState.assignments || {}).filter(([pieceId]) => {
+            const piece = next.find(p => p.id === pieceId);
+            return piece && piece.team !== team;
+          })
+        );
+        return reconcileCardStateWithPieces({ ...prevCardState, assignments: keptAssignments }, next, settings);
+      });
       logSnapshot(`${team === "A" ? "Blue" : "Red"} formation: ${formation.name}`, next);
       return next;
     });
@@ -2000,7 +2074,7 @@ function App() {
     setRedFormationId(situation.snapshot.redFormationId ?? 2);
     setDieType(situation.snapshot.dieType ?? 20);
     setDieResult(situation.snapshot.dieResult ?? null);
-    if (situation.snapshot.cardState) commitCardState(situation.snapshot.cardState);
+    if (situation.snapshot.cardState) commitCardState(reconcileCardStateWithPieces(situation.snapshot.cardState, situation.snapshot.pieces || pieces, situation.snapshot.settings || settings));
     logSnapshot(`Load situație: ${situation.name}`, situation.snapshot.pieces);
   }
 
@@ -2023,11 +2097,12 @@ function App() {
     pushHistory();
     const fresh = createInitialPieces(settings.cols, settings.rows, getFormationById(blueFormationId), getFormationById(redFormationId));
     setPieces(fresh);
+    updateCardState(prevCardState => reconcileCardStateWithPieces({ ...prevCardState, assignments: {} }, fresh, settings));
     logSnapshot("Reset poziții", fresh);
   }
 
   function saveBoard() {
-    localStorage.setItem("football-board-sandbox-v35", JSON.stringify({ settings, pieces, zoom, cardState }));
+    localStorage.setItem("football-board-sandbox-v35", JSON.stringify({ settings, pieces, zoom, cardState: buildPersistedCardState(cardState, pieces, settings) }));
     alert("Salvat în browser.");
   }
 
@@ -2072,7 +2147,7 @@ function App() {
     setSettings(normalizeLoadedSettings(saved.settings));
     const loadedSettings = normalizeLoadedSettings(saved.settings);
     setPieces(ensureBenchReserveCount(saved.pieces, loadedSettings));
-    if (saved.cardState) commitCardState(saved.cardState);
+    if (saved.cardState) commitCardState(reconcileCardStateWithPieces(saved.cardState, saved.pieces || pieces, loadedSettings));
     setZoom(saved.zoom ?? 1);
   }
 
@@ -2303,7 +2378,7 @@ function App() {
     let committedState = null;
     setCardState(prev => {
       const source = cardStateRef.current || prev;
-      committedState = normalizeCardState(typeof updater === "function" ? updater(source) : updater);
+      committedState = reconcileCardStateWithPieces(typeof updater === "function" ? updater(source) : updater, pieces, settings);
       cardStateRef.current = committedState;
       return committedState;
     });
@@ -2354,6 +2429,13 @@ function App() {
   function assignCard(cardId) {
     if (!assignTarget) return;
     const targetPieceId = assignTarget.pieceId || null;
+    if (assignTarget.type === "piece" || assignTarget.pieceId) {
+      const targetPiece = pieces.find(piece => piece.id === targetPieceId && piece.team !== "BALL");
+      if (!targetPiece) {
+        setAssignTarget(null);
+        return;
+      }
+    }
     const existingPieceIds = Object.entries(cardState.assignments || {})
       .filter(([pieceId, assignedCardId]) => assignedCardId === cardId && pieceId !== targetPieceId)
       .map(([pieceId]) => pieceId);
