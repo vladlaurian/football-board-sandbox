@@ -274,7 +274,7 @@ function zoneTextStyleVars(styles, key, hasStats = false) {
 }
 
 
-function StableTextStyleControls({ cardId, styleKey, stats = false, current, isOpen, onToggle, onPatch }) {
+function StableTextStyleControls({ cardId, styleKey, stats = false, current, isOpen, onToggle, onPatch, onPreview, onPreviewEnd }) {
   if (!cardId || !CARD_TEXT_STYLE_DEFAULTS[styleKey]) return null;
 
   const safeCurrent = current || CARD_TEXT_STYLE_DEFAULTS[styleKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
@@ -286,19 +286,21 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
   }, [cardId, styleKey, safeCurrent.fontSize, safeCurrent.lineHeight, safeCurrent.verticalOffset, safeCurrent.statGap]);
 
   const stopPanelEvent = e => e.stopPropagation();
-  const set = patch => onPatch && onPatch(patch);
+  const set = patch => { onPreviewEnd && onPreviewEnd(); onPatch && onPatch(patch); };
   const rangeValue = key => rangeDraft[key] ?? safeCurrent[key] ?? 0;
 
   const setRangeDraftValue = key => e => {
     const value = Number(e.currentTarget.value);
     setRangeDraft(prev => ({ ...prev, [key]: value }));
+    onPreview && onPreview({ [key]: value });
   };
 
   const commitRangeValue = (key, rawValue) => {
     const value = Number(rawValue);
     activeRangeRef.current = null;
     setRangeDraft(prev => ({ ...prev, [key]: value }));
-    set({ [key]: value });
+    onPreviewEnd && onPreviewEnd();
+    onPatch && onPatch({ [key]: value });
   };
 
   const beginRange = key => () => {
@@ -932,6 +934,7 @@ function App() {
   const [cardsView, setCardsView] = useState("library");
   const [editingCardId, setEditingCardId] = useState(null);
   const [openTextPanelKey, setOpenTextPanelKey] = useState(null);
+  const [previewTextStyleDraft, setPreviewTextStyleDraft] = useState(null);
   const [exportCardId, setExportCardId] = useState("");
   const graphicFrontInputRef = useRef(null);
   const graphicBackInputRef = useRef(null);
@@ -2292,7 +2295,7 @@ function App() {
     const formatBoxCoordinates = box => `X ${Math.round(box.x * 10) / 10} · Y ${Math.round(box.y * 10) / 10} · W ${Math.round(box.w * 10) / 10} · H ${Math.round(box.h * 10) / 10}`;
 
     const colors = cardTextColors(card);
-    const textStyles = cardTextStyles(card);
+    const textStyles = effectiveTextStylesForCard(card);
     const visibleAttributes = (card?.passiveAttributes || []).filter(item => item.showOnCard !== false);
     const visibleBonuses = (card?.bonuses || []).filter(item => item.showOnCard !== false);
     const frontAttributeFields = normalizeFrontFields(card?.frontAttributeFields || card?.frontFields || card?.frontSummary);
@@ -2326,9 +2329,9 @@ function App() {
       const textColor = safeColor(colors[colorKey]);
       const titleColor = safeColor(colors[titleColorKey]);
       return (
-        <div className="card-zone-text card-zone-list-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": Math.max(2, items.length + 1), color: textColor, ...zoneTextStyleVars(textStyles, colorKey, true) }}>
+        <div className="card-zone-text card-zone-list-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": Math.max(2, items.length + 1), color: textColor }}>
           <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, titleKey)}</div>
-          <div className="card-zone-list">
+          <div className="card-zone-list" style={{ color: textColor, "--zone-lines": Math.max(2, items.length + 1), ...zoneTextStyleVars(textStyles, colorKey, true) }}>
             {items.length ? items.map(item => (
               <div className="card-zone-list-row" key={item.id} style={{ color: textColor }}>
                 <span style={{ color: textColor }}>{item.name}</span>
@@ -2344,9 +2347,9 @@ function App() {
       const textColor = safeColor(colors.specialAbility);
       const titleColor = safeColor(colors.specialAbilityTitle);
       return (
-        <div className="card-zone-text card-zone-special-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 3, color: textColor, ...zoneTextStyleVars(textStyles, "specialAbility") }}>
+        <div className="card-zone-text card-zone-special-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 3, color: textColor }}>
           <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, "specialAbility")}</div>
-          <div className="card-zone-special" style={{ color: textColor }}>{card?.specialAbility || ""}</div>
+          <div className="card-zone-special" style={{ color: textColor, ...zoneTextStyleVars(textStyles, "specialAbility") }}>{card?.specialAbility || ""}</div>
         </div>
       );
     };
@@ -2355,9 +2358,9 @@ function App() {
       const textColor = safeColor(colors.defensiveArea);
       const titleColor = safeColor(colors.defensiveAreaTitle);
       return (
-        <div className="card-zone-text card-zone-defense-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 2, color: textColor, "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78"), ...zoneTextStyleVars(textStyles, "defensiveArea") }}>
+        <div className="card-zone-text card-zone-defense-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 2, color: textColor, "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78") }}>
           <div className="card-zone-section-title" style={{ color: titleColor }}>{cardLayoutTitle(card, "defensiveArea")}</div>
-          <div className="card-zone-defense card-zone-defense-row" style={{ color: textColor }}><AreaMiniPreview area={card?.defensiveArea || []} /><div className="attack-direction-hint card-zone-attack-direction" aria-label="Attacking direction"><span className="attack-arrow">↑</span></div></div>
+          <div className="card-zone-defense card-zone-defense-row" style={{ color: textColor, ...zoneTextStyleVars(textStyles, "defensiveArea") }}><AreaMiniPreview area={card?.defensiveArea || []} /><div className="attack-direction-hint card-zone-attack-direction" aria-label="Attacking direction"><span className="attack-arrow">↑</span></div></div>
         </div>
       );
     };
@@ -2635,9 +2638,21 @@ function App() {
     }));
   }
 
+  function effectiveTextStylesForCard(card) {
+    const base = cardTextStyles(card);
+    if (previewTextStyleDraft?.cardId === card?.id && CARD_TEXT_STYLE_DEFAULTS[previewTextStyleDraft.styleKey]) {
+      const key = previewTextStyleDraft.styleKey;
+      return {
+        ...base,
+        [key]: { ...base[key], ...(previewTextStyleDraft.patch || {}) },
+      };
+    }
+    return base;
+  }
+
   function renderTextStyleControls(card, styleKey, stats = false) {
     if (!card || !CARD_TEXT_STYLE_DEFAULTS[styleKey]) return null;
-    const current = cardTextStyles(card)[styleKey] || CARD_TEXT_STYLE_DEFAULTS[styleKey];
+    const current = effectiveTextStylesForCard(card)[styleKey] || CARD_TEXT_STYLE_DEFAULTS[styleKey];
     const panelKey = `${card.id}:${styleKey}`;
     return (
       <StableTextStyleControls
@@ -2648,6 +2663,8 @@ function App() {
         isOpen={openTextPanelKey === panelKey}
         onToggle={() => setOpenTextPanelKey(openTextPanelKey === panelKey ? null : panelKey)}
         onPatch={patch => updateCardTextStyle(card.id, styleKey, patch)}
+        onPreview={patch => setPreviewTextStyleDraft({ cardId: card.id, styleKey, patch })}
+        onPreviewEnd={() => setPreviewTextStyleDraft(current => current?.cardId === card.id && current?.styleKey === styleKey ? null : current)}
       />
     );
   }
