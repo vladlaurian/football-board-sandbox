@@ -1363,6 +1363,7 @@ function App() {
       return normalizeCardState();
     }
   });
+  const cardStateRef = useRef(cardState);
   const [cardsPanelOpen, setCardsPanelOpen] = useState(false);
   const [inspectorVisible, setInspectorVisible] = useState(true);
   const [inspectorMinimized, setInspectorMinimized] = useState(false);
@@ -1463,6 +1464,7 @@ function App() {
   }, [boardApi]);
 
   useEffect(() => {
+    cardStateRef.current = cardState;
     try {
       localStorage.setItem("football-board-player-cards-v1", JSON.stringify(cardState));
     } catch (error) {
@@ -1539,7 +1541,7 @@ function App() {
       touchMode,
       snapToGrid,
       showCoordinates,
-      cardState: stripInlineGraphicsFromCardState(cardState),
+      cardState: stripInlineGraphicsFromCardState(cardStateRef.current),
       ...overrides,
     };
   }
@@ -1559,7 +1561,7 @@ function App() {
     if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
-    if (data.cardState) setCardState(normalizeCardState(data.cardState));
+    if (data.cardState) commitCardState(data.cardState);
   }
 
   function buildLiveBoardState(overrides = {}) {
@@ -1591,7 +1593,7 @@ function App() {
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
     if (data.actionLog) setActionLog(data.actionLog);
-    if (data.cardState) setCardState(normalizeCardState(data.cardState));
+    if (data.cardState) commitCardState(data.cardState);
   }
 
   async function saveSessionState(overrides = {}) {
@@ -1998,7 +2000,7 @@ function App() {
     setRedFormationId(situation.snapshot.redFormationId ?? 2);
     setDieType(situation.snapshot.dieType ?? 20);
     setDieResult(situation.snapshot.dieResult ?? null);
-    if (situation.snapshot.cardState) setCardState(normalizeCardState(situation.snapshot.cardState));
+    if (situation.snapshot.cardState) commitCardState(situation.snapshot.cardState);
     logSnapshot(`Load situație: ${situation.name}`, situation.snapshot.pieces);
   }
 
@@ -2070,7 +2072,7 @@ function App() {
     setSettings(normalizeLoadedSettings(saved.settings));
     const loadedSettings = normalizeLoadedSettings(saved.settings);
     setPieces(ensureBenchReserveCount(saved.pieces, loadedSettings));
-    if (saved.cardState) setCardState(normalizeCardState(saved.cardState));
+    if (saved.cardState) commitCardState(saved.cardState);
     setZoom(saved.zoom ?? 1);
   }
 
@@ -2297,8 +2299,19 @@ function App() {
     return { blue: build("A"), red: build("B") };
   }, [pieces, cardState.assignments, cardById]);
 
+  function commitCardState(updater) {
+    let committedState = null;
+    setCardState(prev => {
+      const source = cardStateRef.current || prev;
+      committedState = normalizeCardState(typeof updater === "function" ? updater(source) : updater);
+      cardStateRef.current = committedState;
+      return committedState;
+    });
+    return committedState;
+  }
+
   function updateCardState(updater) {
-    setCardState(prev => normalizeCardState(typeof updater === "function" ? updater(prev) : updater));
+    return commitCardState(updater);
   }
 
   function saveCard(card) {
@@ -2423,7 +2436,7 @@ function App() {
           return;
         }
 
-        setCardState(prev => {
+        commitCardState(prev => {
           const existingSourceIds = new Set(prev.cards.map(card => String(card.importSourceId || card.id)));
           const now = new Date().toISOString();
           const importedCards = incomingCards
