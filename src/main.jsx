@@ -2049,23 +2049,29 @@ function App() {
       </div>
     );
 
-    const renderFrontFormulaZone = (field, colorKey) => (
-      <div className="card-zone-text card-zone-formula" style={{ color: safeColor(colors[colorKey]) }}>
-        <span>{field.label}</span>
-        <strong>{computeFrontFieldValue(card, field)}</strong>
-      </div>
-    );
+    const renderFrontFormulaZone = (field, colorKey) => {
+      const textColor = safeColor(colors[colorKey]);
+      return (
+        <div className="card-zone-text card-zone-formula" style={{ color: textColor }}>
+          <span style={{ color: textColor }}>{field.label}</span>
+          <strong style={{ color: textColor }}>{computeFrontFieldValue(card, field)}</strong>
+        </div>
+      );
+    };
 
-    const renderListZone = (items, colorKey) => (
-      <div className="card-zone-text card-zone-list" style={{ color: safeColor(colors[colorKey]) }}>
-        {items.length ? items.map(item => (
-          <div className="card-zone-list-row" key={item.id}>
-            <span>{item.name}</span>
-            <strong>{normalizeStatValue(item.value)}</strong>
-          </div>
-        )) : <em>—</em>}
-      </div>
-    );
+    const renderListZone = (items, colorKey) => {
+      const textColor = safeColor(colors[colorKey]);
+      return (
+        <div className="card-zone-text card-zone-list" style={{ color: textColor }}>
+          {items.length ? items.map(item => (
+            <div className="card-zone-list-row" key={item.id}>
+              <span style={{ color: textColor }}>{item.name}</span>
+              <strong style={{ color: textColor }}>{normalizeStatValue(item.value)}</strong>
+            </div>
+          )) : <em style={{ color: textColor }}>—</em>}
+        </div>
+      );
+    };
 
     const renderSpecialAbilityZone = () => (
       <div className="card-zone-text card-zone-special" style={{ color: safeColor(colors.specialAbility) }}>

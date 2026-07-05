@@ -3887,3 +3887,39 @@ select option {
   border: 1px solid currentColor !important;
   color: #111827 !important;
 }
+
+
+/* Fix v2: do not let editable layout-zone overlay color override actual field text. */
+.card-visual-zone.show-zone .card-zone-content,
+.card-visual-zone.show-zone .card-zone-content *,
+.card-zone-content .card-zone-formula,
+.card-zone-content .card-zone-formula span,
+.card-zone-content .card-zone-formula strong,
+.card-zone-content .card-zone-list,
+.card-zone-content .card-zone-list-row,
+.card-zone-content .card-zone-list-row span,
+.card-zone-content .card-zone-list-row strong {
+  color: inherit;
+}
+
+.card-zone-content .card-zone-formula span,
+.card-zone-content .card-zone-formula strong,
+.card-zone-content .card-zone-list-row span,
+.card-zone-content .card-zone-list-row strong {
+  display: initial !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.card-zone-content .card-zone-list-row {
+  display: grid !important;
+}
+
+.card-zone-content .card-zone-formula {
+  display: grid !important;
+}
+
+/* Keep layout-zone names hidden, but never hide field labels/values. */
+.card-visual-zone > .card-zone-label {
+  display: none !important;
+}
