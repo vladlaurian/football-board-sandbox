@@ -2415,8 +2415,21 @@ function App() {
     return Math.min(2.5, Math.max(1, numeric));
   }
 
+  function setInspectorCardZoomClamped(valueOrUpdater) {
+    setInspectorCardZoom(prev => {
+      const raw = typeof valueOrUpdater === "function" ? valueOrUpdater(prev) : valueOrUpdater;
+      const next = clampInspectorCardZoom(raw);
+      if (next <= 1) {
+        setInspectorCardPan({ x: 0, y: 0 });
+        inspectorTouchPanRef.current = null;
+        inspectorMousePanRef.current = null;
+      }
+      return next;
+    });
+  }
+
   function bumpInspectorCardZoom(delta) {
-    setInspectorCardZoom(prev => clampInspectorCardZoom(prev + delta));
+    setInspectorCardZoomClamped(prev => prev + delta);
   }
 
   function resetInspectorCardView() {
@@ -2439,9 +2452,10 @@ function App() {
 
   function onInspectorCardWheel(e) {
     if (!inspectedCard || isInspectorCardGestureBlocked(e.target)) return;
-    if (e.deltaY >= 0) return;
+    const direction = e.deltaY < 0 ? 1 : -1;
+    if (direction < 0 && inspectorCardZoom <= 1) return;
     e.preventDefault();
-    bumpInspectorCardZoom(0.12);
+    bumpInspectorCardZoom(direction * 0.12);
   }
 
   function onInspectorCardPointerDown(e) {
@@ -2503,8 +2517,9 @@ function App() {
       e.preventDefault();
       const nextDistance = getTouchDistance(e.touches);
       const ratio = nextDistance / start.distance;
-      if (ratio <= 1) return;
-      setInspectorCardZoom(clampInspectorCardZoom(start.zoom * ratio));
+      const nextZoom = clampInspectorCardZoom(start.zoom * ratio);
+      if (nextZoom === inspectorCardZoom) return;
+      setInspectorCardZoomClamped(nextZoom);
       return;
     }
     const panStart = inspectorTouchPanRef.current;
