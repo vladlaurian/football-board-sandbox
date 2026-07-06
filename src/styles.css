@@ -6090,3 +6090,44 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
     grid-template-columns: var(--card-canonical-render-width) !important;
   }
 }
+
+
+/* CARD LIBRARY CONTROLS COMPACT FIX (2026-07-07)
+   Keep editor card previews at the same canonical 360px width as Inspector.
+   Only align the editor grid to the real two-card preview strip and remove the
+   old horizontal resize/RTL controls hack that made the right menu unstable. */
+.card-editor {
+  grid-template-columns: calc((var(--card-canonical-render-width) * 2) + 10px) minmax(280px, 1fr) !important;
+  align-items: start !important;
+}
+.card-editor-controls {
+  grid-column: 2 !important;
+  min-width: 280px !important;
+  max-width: none !important;
+  min-height: 320px !important;
+  max-height: calc(100vh - 170px) !important;
+  overflow: auto !important;
+  resize: vertical !important;
+  direction: ltr !important;
+  padding: 0 10px 18px 12px !important;
+  border-left: 1px solid rgba(255,255,255,.10) !important;
+}
+.card-editor-controls > * {
+  direction: ltr !important;
+}
+.card-editor-controls:after {
+  display: none !important;
+}
+@media (max-width: 900px) {
+  .card-editor {
+    grid-template-columns: 1fr !important;
+  }
+  .card-editor-controls {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    resize: vertical !important;
+  }
+}
