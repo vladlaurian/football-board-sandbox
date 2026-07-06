@@ -6085,7 +6085,9 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
    Only the surrounding editor layout is changed here.
    Do not change CardPreview, inspector zoom, or the canonical 360px card width. */
 .cards-panel {
-  max-width: none !important;
+  width: calc(100vw - 16px) !important;
+  max-width: calc(100vw - 16px) !important;
+  box-sizing: border-box !important;
   overflow-x: auto !important;
   overflow-y: auto !important;
 }
@@ -6104,16 +6106,16 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 }
 .card-editor {
   display: grid !important;
-  grid-template-columns: max-content 310px !important;
+  grid-template-columns: max-content 1fr 310px !important;
   gap: 10px !important;
   align-items: start !important;
-  justify-content: start !important;
-  justify-self: start !important;
-  width: fit-content !important;
+  justify-content: stretch !important;
+  width: 100% !important;
   max-width: none !important;
   overflow: visible !important;
 }
 .card-editor-previews {
+  grid-column: 1 !important;
   display: grid !important;
   grid-template-columns: repeat(2, var(--card-canonical-render-width)) !important;
   gap: 10px !important;
@@ -6125,8 +6127,9 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   overflow: visible !important;
 }
 .card-editor-controls {
-  grid-column: 2 !important;
+  grid-column: 3 !important;
   grid-row: 1 !important;
+  justify-self: end !important;
   width: 310px !important;
   min-width: 310px !important;
   max-width: 310px !important;
@@ -6136,6 +6139,10 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   direction: ltr !important;
 }
 @media (max-width: 900px) {
+  .cards-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
   .cards-layout {
     grid-template-columns: 1fr !important;
     width: 100% !important;
@@ -6149,9 +6156,13 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
     grid-template-columns: 1fr !important;
     width: 100% !important;
   }
+  .card-editor-previews {
+    grid-column: 1 !important;
+  }
   .card-editor-controls {
     grid-column: 1 !important;
     grid-row: auto !important;
+    justify-self: stretch !important;
     width: 100% !important;
     min-width: 0 !important;
     max-width: none !important;
