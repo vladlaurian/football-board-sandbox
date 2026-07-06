@@ -5773,3 +5773,21 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   transform: translateY(var(--zone-y-offset, 0cqh)) !important;
   font-variant-numeric: tabular-nums !important;
 }
+
+/* CANONICAL CARD RENDER SIZE
+   Editor and Inspector now render CardPreview at the same internal width.
+   The Inspector only scales the already-rendered card to fit its viewport, so
+   container-query text/layout calculations match what is seen in the editor. */
+:root {
+  --card-canonical-render-width: 360px;
+}
+.card-editor-previews > div {
+  min-width: 0;
+}
+.card-editor-previews .card-preview {
+  width: var(--card-canonical-render-width) !important;
+  max-width: 100% !important;
+}
+.inspector-card-zoom-inner {
+  width: var(--card-canonical-render-width);
+}

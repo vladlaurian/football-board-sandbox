@@ -1492,9 +1492,12 @@ function App() {
   const [inspectorSize, setInspectorSize] = useState({ w: 320, h: 520 });
   const [inspectorDragging, setInspectorDragging] = useState(null);
   const [inspectorResizing, setInspectorResizing] = useState(null);
+  const INSPECTOR_CARD_CANONICAL_WIDTH = 360;
   const [inspectorCardZoom, setInspectorCardZoom] = useState(1);
   const [inspectorCardPan, setInspectorCardPan] = useState({ x: 0, y: 0 });
   const [inspectorCardSide, setInspectorCardSide] = useState("front");
+  const [inspectorCardFitScale, setInspectorCardFitScale] = useState(1);
+  const inspectorCardViewportRef = useRef(null);
   const inspectorCardPointersRef = useRef(new Map());
   const inspectorCardGestureRef = useRef(null);
   const inspectorCardZoomRef = useRef(1);
@@ -2416,6 +2419,27 @@ function App() {
   useEffect(() => {
     inspectorCardPanRef.current = inspectorCardPan;
   }, [inspectorCardPan]);
+
+  useEffect(() => {
+    const viewport = inspectorCardViewportRef.current;
+    if (!viewport || typeof ResizeObserver === "undefined") return;
+    const updateFit = () => {
+      const rect = viewport.getBoundingClientRect();
+      const canonicalHeight = INSPECTOR_CARD_CANONICAL_WIDTH * 1.5;
+      const availableWidth = Math.max(1, rect.width - 8);
+      const availableHeight = Math.max(1, rect.height - 8);
+      const nextFit = Math.min(1, availableWidth / INSPECTOR_CARD_CANONICAL_WIDTH, availableHeight / canonicalHeight);
+      setInspectorCardFitScale(Number.isFinite(nextFit) && nextFit > 0 ? nextFit : 1);
+    };
+    updateFit();
+    const observer = new ResizeObserver(updateFit);
+    observer.observe(viewport);
+    window.addEventListener("resize", updateFit);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateFit);
+    };
+  }, [inspectorVisible, inspectorMinimized, inspectorSize.w, inspectorSize.h, inspectedCardId]);
 
   function clampInspectorCardZoom(value) {
     const numeric = Number(value);
@@ -5118,6 +5142,7 @@ function App() {
                       <button type="button" onClick={resetInspectorCardView} disabled={inspectorCardZoom <= 1 && inspectorCardPan.x === 0 && inspectorCardPan.y === 0}>Reset</button>
                     </div>
                     <div
+                      ref={inspectorCardViewportRef}
                       className="inspector-card-zoom-viewport"
                       onWheel={onInspectorCardWheel}
                       onPointerDown={onInspectorCardPointerDown}
@@ -5128,8 +5153,8 @@ function App() {
                       <div
                         className="inspector-card-zoom-inner"
                         style={{
-                          width: "280px",
-                          transform: `translate(${inspectorCardPan.x}px, ${inspectorCardPan.y}px) scale(${inspectorCardZoom})`,
+                          width: `${INSPECTOR_CARD_CANONICAL_WIDTH}px`,
+                          transform: `translate(${inspectorCardPan.x}px, ${inspectorCardPan.y}px) scale(${inspectorCardFitScale * inspectorCardZoom})`,
                         }}
                       >
                         <CardPreview
