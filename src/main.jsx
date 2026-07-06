@@ -1495,9 +1495,10 @@ function App() {
   const [inspectorCardZoom, setInspectorCardZoom] = useState(1);
   const [inspectorCardPan, setInspectorCardPan] = useState({ x: 0, y: 0 });
   const [inspectorCardSide, setInspectorCardSide] = useState("front");
-  const inspectorTouchZoomRef = useRef(null);
-  const inspectorTouchPanRef = useRef(null);
-  const inspectorMousePanRef = useRef(null);
+  const inspectorCardPointersRef = useRef(new Map());
+  const inspectorCardGestureRef = useRef(null);
+  const inspectorCardZoomRef = useRef(1);
+  const inspectorCardPanRef = useRef({ x: 0, y: 0 });
   const [editingPiece, setEditingPiece] = useState(null);
   const [editLabel, setEditLabel] = useState("");
   const [zoom, setZoom] = useState(0.8);
@@ -2404,10 +2405,17 @@ function App() {
     setInspectorCardZoom(1);
     setInspectorCardPan({ x: 0, y: 0 });
     setInspectorCardSide("front");
-    inspectorTouchZoomRef.current = null;
-    inspectorTouchPanRef.current = null;
-    inspectorMousePanRef.current = null;
+    inspectorCardPointersRef.current.clear();
+    inspectorCardGestureRef.current = null;
   }, [inspectedCardId]);
+
+  useEffect(() => {
+    inspectorCardZoomRef.current = inspectorCardZoom;
+  }, [inspectorCardZoom]);
+
+  useEffect(() => {
+    inspectorCardPanRef.current = inspectorCardPan;
+  }, [inspectorCardPan]);
 
   function clampInspectorCardZoom(value) {
     const numeric = Number(value);
@@ -2421,8 +2429,7 @@ function App() {
       const next = clampInspectorCardZoom(raw);
       if (next <= 1) {
         setInspectorCardPan({ x: 0, y: 0 });
-        inspectorTouchPanRef.current = null;
-        inspectorMousePanRef.current = null;
+        inspectorCardGestureRef.current = null;
       }
       return next;
     });
@@ -2435,15 +2442,46 @@ function App() {
   function resetInspectorCardView() {
     setInspectorCardZoom(1);
     setInspectorCardPan({ x: 0, y: 0 });
-    inspectorTouchZoomRef.current = null;
-    inspectorTouchPanRef.current = null;
-    inspectorMousePanRef.current = null;
+    inspectorCardPointersRef.current.clear();
+    inspectorCardGestureRef.current = null;
   }
 
-  function getTouchDistance(touches) {
-    if (!touches || touches.length < 2) return 0;
-    const [a, b] = touches;
-    return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  function getInspectorPointerPair() {
+    const pointers = Array.from(inspectorCardPointersRef.current.values());
+    if (pointers.length < 2) return null;
+    const [a, b] = pointers;
+    return {
+      distance: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+      centerX: (a.clientX + b.clientX) / 2,
+      centerY: (a.clientY + b.clientY) / 2,
+    };
+  }
+
+  function startInspectorPinchGesture() {
+    const pair = getInspectorPointerPair();
+    if (!pair || pair.distance <= 0) return;
+    inspectorCardGestureRef.current = {
+      mode: "pinch",
+      distance: pair.distance,
+      centerX: pair.centerX,
+      centerY: pair.centerY,
+      zoom: inspectorCardZoomRef.current,
+      pan: inspectorCardPanRef.current,
+    };
+  }
+
+  function startInspectorPanGesture(pointer) {
+    if (!pointer || inspectorCardZoomRef.current <= 1) {
+      inspectorCardGestureRef.current = null;
+      return;
+    }
+    inspectorCardGestureRef.current = {
+      mode: "pan",
+      pointerId: pointer.pointerId,
+      clientX: pointer.clientX,
+      clientY: pointer.clientY,
+      pan: inspectorCardPanRef.current,
+    };
   }
 
   function isInspectorCardGestureBlocked(target) {
@@ -2459,83 +2497,85 @@ function App() {
   }
 
   function onInspectorCardPointerDown(e) {
-    if (!inspectedCard || inspectorCardZoom <= 1 || isInspectorCardGestureBlocked(e.target)) return;
-    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    if (!inspectedCard || isInspectorCardGestureBlocked(e.target)) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
     e.preventDefault();
-    inspectorMousePanRef.current = {
+    e.stopPropagation();
+
+    const pointer = {
       pointerId: e.pointerId,
+      pointerType: e.pointerType,
       clientX: e.clientX,
       clientY: e.clientY,
-      pan: inspectorCardPan,
     };
+    inspectorCardPointersRef.current.set(e.pointerId, pointer);
     e.currentTarget.setPointerCapture?.(e.pointerId);
+
+    if (inspectorCardPointersRef.current.size >= 2) {
+      startInspectorPinchGesture();
+      return;
+    }
+    startInspectorPanGesture(pointer);
   }
 
   function onInspectorCardPointerMove(e) {
-    const start = inspectorMousePanRef.current;
-    if (!start || start.pointerId !== e.pointerId) return;
+    if (!inspectorCardPointersRef.current.has(e.pointerId)) return;
     e.preventDefault();
+    e.stopPropagation();
+
+    inspectorCardPointersRef.current.set(e.pointerId, {
+      pointerId: e.pointerId,
+      pointerType: e.pointerType,
+      clientX: e.clientX,
+      clientY: e.clientY,
+    });
+
+    if (inspectorCardPointersRef.current.size >= 2) {
+      let gesture = inspectorCardGestureRef.current;
+      if (!gesture || gesture.mode !== "pinch") {
+        startInspectorPinchGesture();
+        gesture = inspectorCardGestureRef.current;
+      }
+      const pair = getInspectorPointerPair();
+      if (!gesture || !pair || gesture.distance <= 0) return;
+      const ratio = pair.distance / gesture.distance;
+      const nextZoom = clampInspectorCardZoom(gesture.zoom * ratio);
+      const nextPan = {
+        x: gesture.pan.x + (pair.centerX - gesture.centerX),
+        y: gesture.pan.y + (pair.centerY - gesture.centerY),
+      };
+      if (nextZoom <= 1) {
+        setInspectorCardPan({ x: 0, y: 0 });
+      } else {
+        setInspectorCardPan(nextPan);
+      }
+      setInspectorCardZoomClamped(nextZoom);
+      return;
+    }
+
+    const gesture = inspectorCardGestureRef.current;
+    if (!gesture || gesture.mode !== "pan" || gesture.pointerId !== e.pointerId || inspectorCardZoomRef.current <= 1) return;
     setInspectorCardPan({
-      x: start.pan.x + (e.clientX - start.clientX),
-      y: start.pan.y + (e.clientY - start.clientY),
+      x: gesture.pan.x + (e.clientX - gesture.clientX),
+      y: gesture.pan.y + (e.clientY - gesture.clientY),
     });
   }
 
   function onInspectorCardPointerEnd(e) {
-    const start = inspectorMousePanRef.current;
-    if (start && start.pointerId === e.pointerId) {
-      inspectorMousePanRef.current = null;
-      e.currentTarget.releasePointerCapture?.(e.pointerId);
-    }
-  }
+    if (!inspectorCardPointersRef.current.has(e.pointerId)) return;
+    inspectorCardPointersRef.current.delete(e.pointerId);
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
 
-  function onInspectorCardTouchStart(e) {
-    if (!inspectedCard || isInspectorCardGestureBlocked(e.target)) return;
-    if (e.touches.length >= 2) {
-      inspectorTouchPanRef.current = null;
-      inspectorTouchZoomRef.current = {
-        distance: getTouchDistance(e.touches),
-        zoom: inspectorCardZoom,
-      };
+    if (inspectorCardPointersRef.current.size >= 2) {
+      startInspectorPinchGesture();
       return;
     }
-    if (e.touches.length === 1 && inspectorCardZoom > 1) {
-      const touch = e.touches[0];
-      inspectorTouchPanRef.current = {
-        clientX: touch.clientX,
-        clientY: touch.clientY,
-        pan: inspectorCardPan,
-      };
-    }
-  }
-
-  function onInspectorCardTouchMove(e) {
-    if (!inspectedCard) return;
-    if (e.touches.length >= 2) {
-      const start = inspectorTouchZoomRef.current;
-      if (!start || start.distance <= 0) return;
-      e.preventDefault();
-      const nextDistance = getTouchDistance(e.touches);
-      const ratio = nextDistance / start.distance;
-      const nextZoom = clampInspectorCardZoom(start.zoom * ratio);
-      if (nextZoom === inspectorCardZoom) return;
-      setInspectorCardZoomClamped(nextZoom);
+    if (inspectorCardPointersRef.current.size === 1) {
+      const remainingPointer = Array.from(inspectorCardPointersRef.current.values())[0];
+      startInspectorPanGesture(remainingPointer);
       return;
     }
-    const panStart = inspectorTouchPanRef.current;
-    if (e.touches.length === 1 && panStart && inspectorCardZoom > 1) {
-      e.preventDefault();
-      const touch = e.touches[0];
-      setInspectorCardPan({
-        x: panStart.pan.x + (touch.clientX - panStart.clientX),
-        y: panStart.pan.y + (touch.clientY - panStart.clientY),
-      });
-    }
-  }
-
-  function onInspectorCardTouchEnd(e) {
-    if (e.touches.length < 2) inspectorTouchZoomRef.current = null;
-    if (e.touches.length === 0) inspectorTouchPanRef.current = null;
+    inspectorCardGestureRef.current = null;
   }
 
   const defensiveAreaOverlays = useMemo(() => {
@@ -5084,10 +5124,6 @@ function App() {
                       onPointerMove={onInspectorCardPointerMove}
                       onPointerUp={onInspectorCardPointerEnd}
                       onPointerCancel={onInspectorCardPointerEnd}
-                      onTouchStart={onInspectorCardTouchStart}
-                      onTouchMove={onInspectorCardTouchMove}
-                      onTouchEnd={onInspectorCardTouchEnd}
-                      onTouchCancel={onInspectorCardTouchEnd}
                     >
                       <div
                         className="inspector-card-zoom-inner"

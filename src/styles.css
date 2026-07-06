@@ -5699,6 +5699,8 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   justify-content: center;
   cursor: grab;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 .inspector-card-zoom-viewport:active {
   cursor: grabbing;
