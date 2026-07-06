@@ -6086,15 +6086,16 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
    Do not change CardPreview, inspector zoom, or the canonical 360px card width. */
 .cards-panel {
   max-width: none !important;
+  width: 100% !important;
   overflow-x: auto !important;
   overflow-y: auto !important;
 }
 .cards-layout {
   display: grid !important;
-  grid-template-columns: 230px max-content !important;
+  grid-template-columns: 230px minmax(0, 1fr) !important;
   gap: 10px !important;
   align-items: start !important;
-  width: max-content !important;
+  width: 100% !important;
   max-width: none !important;
 }
 .card-library-list {
@@ -6107,8 +6108,9 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   grid-template-columns: max-content 310px !important;
   gap: 10px !important;
   align-items: start !important;
-  justify-content: start !important;
-  width: max-content !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  min-width: calc((2 * var(--card-canonical-render-width)) + 10px + 310px) !important;
   max-width: none !important;
   overflow: visible !important;
 }
@@ -6126,6 +6128,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .card-editor-controls {
   grid-column: 2 !important;
   grid-row: 1 !important;
+  justify-self: end !important;
   width: 310px !important;
   min-width: 310px !important;
   max-width: 310px !important;
@@ -6146,11 +6149,14 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   }
   .card-editor {
     grid-template-columns: 1fr !important;
+    justify-content: start !important;
     width: 100% !important;
+    min-width: 0 !important;
   }
   .card-editor-controls {
     grid-column: 1 !important;
     grid-row: auto !important;
+    justify-self: stretch !important;
     width: 100% !important;
     min-width: 0 !important;
     max-width: none !important;
