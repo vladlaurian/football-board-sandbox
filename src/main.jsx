@@ -138,7 +138,7 @@ function normalizeSettingsForApp(rawSettings = {}) {
 }
 
 const POSITION_OPTIONS = [
-  "GK", "TTT", "LB", "CB", "RB", "RWB",
+  "GK", "LWB", "LB", "CB", "RB", "RWB",
   "LW", "LM", "CDM", "CAM", "CM", "RM", "RW", "ST"
 ];
 
@@ -3409,15 +3409,14 @@ function App() {
       window.addEventListener("pointercancel", onUp, { once: true });
     };
 
-    const baseZoneEntries = Object.entries(sideLayout).filter(([key]) => !deletedLayoutSet.has(`${side}:${key}`));
-
     return (
       <div className="card-visual-canvas" data-card-side={side} ref={canvasRef} onPointerDown={event => { if (event.target === event.currentTarget) onSelectLayout && onSelectLayout(null); }}>
-        {baseZoneEntries.map(([key, box]) => (
+        {Object.entries(sideLayout).filter(([key]) => !deletedLayoutSet.has(`${side}:${key}`)).map(([key, box]) => (
           <div
-            key={`render_${side}_${key}`}
-            className={`card-visual-zone card-visual-zone-${key}`}
+            key={`${side}_${key}`}
+            className={`card-visual-zone card-visual-zone-${key} ${showZones ? "editable-zone" : ""} ${isSelectedLayout("base", key) ? "selected-layout-zone" : ""}`}
             data-zone={key}
+            onPointerDown={event => beginZoneEdit(event, key, box, "move")}
             style={{
               left: `${box.x}%`,
               top: `${box.y}%`,
@@ -3426,13 +3425,26 @@ function App() {
             }}
           >
             <div className="card-zone-content">{renderZoneContent(key)}</div>
+            {showZones ? <span className="card-zone-edit-label">{ZONE_LABELS[key] || key}{isSelectedLayout("base", key) ? " · Selected" : ""}</span> : null}
+            {showZones && activeLayoutEdit?.zoneKey === key ? (
+              <b className="zone-live-coordinates is-visible">{formatBoxCoordinates(activeLayoutEdit.box)}</b>
+            ) : null}
+            {showZones ? (
+              <>
+                <i className="zone-resize-handle zone-resize-tl" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "tl")} />
+                <i className="zone-resize-handle zone-resize-tr" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "tr")} />
+                <i className="zone-resize-handle zone-resize-bl" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "bl")} />
+                <i className="zone-resize-handle zone-resize-br" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "br")} />
+              </>
+            ) : null}
           </div>
         ))}
         {sideCustomZones.map(zone => (
           <div
-            key={`render_${side}_${zone.id}`}
-            className="card-visual-zone card-visual-zone-custom"
+            key={`${side}_${zone.id}`}
+            className={`card-visual-zone card-visual-zone-custom ${showZones ? "editable-zone" : ""} ${isSelectedLayout("custom", zone.id) ? "selected-layout-zone" : ""}`}
             data-zone={zone.id}
+            onPointerDown={event => beginCustomZoneEdit(event, zone, "move")}
             style={{
               left: `${zone.box.x}%`,
               top: `${zone.box.y}%`,
@@ -3441,55 +3453,18 @@ function App() {
             }}
           >
             <div className="card-zone-content">{renderCustomZoneContent(zone)}</div>
-          </div>
-        ))}
-
-        {showZones ? (
-          <div className="card-editor-overlay-layer" aria-hidden="true">
-            {baseZoneEntries.map(([key, box]) => (
-              <div
-                key={`edit_${side}_${key}`}
-                className={`card-edit-overlay-zone card-edit-overlay-zone-${key} editable-zone ${isSelectedLayout("base", key) ? "selected-layout-zone" : ""}`}
-                data-zone={key}
-                onPointerDown={event => beginZoneEdit(event, key, box, "move")}
-                style={{
-                  left: `${box.x}%`,
-                  top: `${box.y}%`,
-                  width: `${box.w}%`,
-                  height: `${box.h}%`,
-                }}
-              >
-                {showZones && activeLayoutEdit?.zoneKey === key ? (
-                  <b className="zone-live-coordinates is-visible">{formatBoxCoordinates(activeLayoutEdit.box)}</b>
-                ) : null}
-                <i className="zone-resize-handle zone-resize-tl" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "tl")} />
-                <i className="zone-resize-handle zone-resize-tr" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "tr")} />
-                <i className="zone-resize-handle zone-resize-bl" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "bl")} />
-                <i className="zone-resize-handle zone-resize-br" onPointerDown={event => beginZoneEdit(event, key, box, "resize", "br")} />
-              </div>
-            ))}
-            {sideCustomZones.map(zone => (
-              <div
-                key={`edit_${side}_${zone.id}`}
-                className={`card-edit-overlay-zone card-edit-overlay-zone-custom editable-zone ${isSelectedLayout("custom", zone.id) ? "selected-layout-zone" : ""}`}
-                data-zone={zone.id}
-                onPointerDown={event => beginCustomZoneEdit(event, zone, "move")}
-                style={{
-                  left: `${zone.box.x}%`,
-                  top: `${zone.box.y}%`,
-                  width: `${zone.box.w}%`,
-                  height: `${zone.box.h}%`,
-                }}
-              >
-                {showZones && activeLayoutEdit?.zoneKey === zone.id ? <b className="zone-live-coordinates is-visible">{formatBoxCoordinates(activeLayoutEdit.box)}</b> : null}
+            {showZones ? <span className="card-zone-edit-label">{zone.name || "Custom Layout"}{isSelectedLayout("custom", zone.id) ? " · Selected" : ""}</span> : null}
+            {showZones && activeLayoutEdit?.zoneKey === zone.id ? <b className="zone-live-coordinates is-visible">{formatBoxCoordinates(activeLayoutEdit.box)}</b> : null}
+            {showZones ? (
+              <>
                 <i className="zone-resize-handle zone-resize-tl" onPointerDown={event => beginCustomZoneEdit(event, zone, "resize", "tl")} />
                 <i className="zone-resize-handle zone-resize-tr" onPointerDown={event => beginCustomZoneEdit(event, zone, "resize", "tr")} />
                 <i className="zone-resize-handle zone-resize-bl" onPointerDown={event => beginCustomZoneEdit(event, zone, "resize", "bl")} />
                 <i className="zone-resize-handle zone-resize-br" onPointerDown={event => beginCustomZoneEdit(event, zone, "resize", "br")} />
-              </div>
-            ))}
+              </>
+            ) : null}
           </div>
-        ) : null}
+        ))}
       </div>
     );
   }
@@ -4928,13 +4903,13 @@ function App() {
           History {historyVisible ? "ON" : "OFF"}
         </button>
         <button className={dicePanelVisible ? "toggle-on" : ""} onClick={() => setDicePanelVisible(v => !v)}>
-          Pula {dicePanelVisible ? "ON" : "OFF"}
+          Zaruri {dicePanelVisible ? "ON" : "OFF"}
         </button>
         <button className={cardsPanelOpen ? "toggle-on" : ""} onClick={() => setCardsPanelOpen(v => !v)}>
           Cards
         </button>
         <button className={inspectorVisible ? "toggle-on" : ""} onClick={() => { setInspectorVisible(v => !v); if (!inspectorVisible) setInspectorMinimized(false); }}>
-          Muie
+          Insp
         </button>
         <button className={defAreaMode ? "toggle-on" : ""} onClick={() => setDefAreaMode(v => (v + 1) % 3)}>
           {defAreaButtonLabel}
