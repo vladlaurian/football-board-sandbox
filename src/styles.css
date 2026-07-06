@@ -6015,3 +6015,17 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
     resize: vertical !important;
   }
 }
+
+
+/* CARD LIBRARY VIEWPORT HEIGHT FIX (2026-07-07)
+   Safe change: give the Card Library editor more vertical room before the pitch starts.
+   This does not move/scale cards, does not touch card coordinates, and does not alter
+   card preview rendering or editor overlay math. */
+.cards-panel {
+  max-height: min(76vh, 860px) !important;
+}
+@media (max-width: 1050px) {
+  .cards-panel {
+    max-height: 70vh !important;
+  }
+}
