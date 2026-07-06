@@ -6090,3 +6090,97 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
     grid-template-columns: var(--card-canonical-render-width) !important;
   }
 }
+
+/* PANEL WIDTH TUNING (2026-07-06)
+   Keep the canonical 360px card render untouched. Reclaim horizontal space by
+   narrowing the library and right edit controls so Front + Back can fit fully. */
+.cards-panel {
+  padding: 8px !important;
+  margin: 6px !important;
+}
+.cards-layout {
+  grid-template-columns: 220px minmax(0, 1fr) !important;
+  gap: 8px !important;
+}
+.card-library-list {
+  max-height: 500px !important;
+}
+.card-library-actions {
+  grid-template-columns: 1fr 1fr !important;
+  gap: 5px !important;
+}
+.card-library-actions .filter-card-select {
+  grid-column: 1 / -1 !important;
+}
+.library-row {
+  gap: 5px !important;
+  padding: 6px !important;
+}
+.library-row span {
+  min-width: 0 !important;
+}
+.library-row b,
+.library-row small {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.library-row div {
+  display: flex !important;
+  gap: 4px !important;
+  flex: 0 0 auto !important;
+}
+.library-row button,
+.create-card-btn,
+.sort-card-btn,
+.filter-card-select {
+  font-size: 10px !important;
+  padding: 4px 5px !important;
+}
+.card-editor {
+  grid-template-columns: calc((var(--card-canonical-render-width) * 2) + 10px) 240px !important;
+  gap: 8px !important;
+  max-width: 100% !important;
+  overflow: visible !important;
+}
+.card-editor-controls {
+  min-width: 220px !important;
+  width: 240px !important;
+  max-width: 260px !important;
+  padding: 0 3px 18px 10px !important;
+}
+.card-editor-controls .card-edit-section {
+  padding: 8px !important;
+}
+.card-editor-controls input,
+.card-editor-controls select,
+.card-editor-controls textarea {
+  font-size: 12px !important;
+}
+@media (max-width: 1240px) {
+  .cards-layout {
+    grid-template-columns: 200px minmax(0, 1fr) !important;
+  }
+  .card-editor {
+    grid-template-columns: calc((var(--card-canonical-render-width) * 2) + 10px) 220px !important;
+  }
+  .card-editor-controls {
+    width: 220px !important;
+    max-width: 230px !important;
+  }
+}
+@media (max-width: 1120px) {
+  .cards-layout {
+    grid-template-columns: 1fr !important;
+  }
+  .card-editor {
+    grid-template-columns: calc((var(--card-canonical-render-width) * 2) + 10px) !important;
+  }
+  .card-editor-controls {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    width: min(100%, 520px) !important;
+    max-width: 100% !important;
+    resize: vertical !important;
+  }
+}
