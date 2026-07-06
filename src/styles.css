@@ -6091,18 +6091,25 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   }
 }
 
-/* PANEL WIDTH TUNING (2026-07-06)
-   Keep the canonical 360px card render untouched. Reclaim horizontal space by
-   narrowing the library and right edit controls so Front + Back can fit fully. */
+/* EDITOR PANEL REFLOW (2026-07-06)
+   Keep the canonical 360px card render untouched. The preview cards have priority:
+   Front + Back stay fully visible at canonical size. The edit controls move below
+   the previews instead of forcing the whole editor into an over-wide right column. */
 .cards-panel {
   padding: 8px !important;
   margin: 6px !important;
+  overflow: auto !important;
 }
 .cards-layout {
-  grid-template-columns: 220px minmax(0, 1fr) !important;
+  grid-template-columns: 220px max-content !important;
   gap: 8px !important;
+  align-items: start !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  min-width: max-content !important;
 }
 .card-library-list {
+  width: 220px !important;
   max-height: 500px !important;
 }
 .card-library-actions {
@@ -6138,16 +6145,34 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   padding: 4px 5px !important;
 }
 .card-editor {
-  grid-template-columns: calc((var(--card-canonical-render-width) * 2) + 10px) 240px !important;
+  grid-template-columns: calc((var(--card-canonical-render-width) * 2) + 10px) !important;
+  grid-auto-rows: auto !important;
   gap: 8px !important;
-  max-width: 100% !important;
+  width: calc((var(--card-canonical-render-width) * 2) + 10px) !important;
+  min-width: calc((var(--card-canonical-render-width) * 2) + 10px) !important;
+  max-width: none !important;
+  overflow: visible !important;
+  align-items: start !important;
+}
+.card-editor-previews {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
   overflow: visible !important;
 }
 .card-editor-controls {
-  min-width: 220px !important;
-  width: 240px !important;
-  max-width: 260px !important;
-  padding: 0 3px 18px 10px !important;
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+  min-width: 0 !important;
+  width: calc((var(--card-canonical-render-width) * 2) + 10px) !important;
+  max-width: calc((var(--card-canonical-render-width) * 2) + 10px) !important;
+  min-height: 240px !important;
+  max-height: 44vh !important;
+  overflow: auto !important;
+  resize: vertical !important;
+  direction: ltr !important;
+  padding: 0 4px 18px 10px !important;
+  border-left: 0 !important;
+  border-top: 1px solid rgba(255,255,255,.10) !important;
 }
 .card-editor-controls .card-edit-section {
   padding: 8px !important;
@@ -6157,30 +6182,27 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .card-editor-controls textarea {
   font-size: 12px !important;
 }
-@media (max-width: 1240px) {
-  .cards-layout {
-    grid-template-columns: 200px minmax(0, 1fr) !important;
-  }
-  .card-editor {
-    grid-template-columns: calc((var(--card-canonical-render-width) * 2) + 10px) 220px !important;
-  }
-  .card-editor-controls {
-    width: 220px !important;
-    max-width: 230px !important;
-  }
-}
 @media (max-width: 1120px) {
   .cards-layout {
     grid-template-columns: 1fr !important;
+    min-width: 0 !important;
+  }
+  .card-library-list {
+    width: min(100%, 360px) !important;
   }
   .card-editor {
-    grid-template-columns: calc((var(--card-canonical-render-width) * 2) + 10px) !important;
+    width: calc((var(--card-canonical-render-width) * 2) + 10px) !important;
+    min-width: calc((var(--card-canonical-render-width) * 2) + 10px) !important;
   }
+}
+@media (max-width: 760px) {
+  .card-editor,
   .card-editor-controls {
-    grid-column: 1 !important;
-    grid-row: auto !important;
-    width: min(100%, 520px) !important;
-    max-width: 100% !important;
-    resize: vertical !important;
+    width: var(--card-canonical-render-width) !important;
+    min-width: var(--card-canonical-render-width) !important;
+    max-width: var(--card-canonical-render-width) !important;
+  }
+  .card-editor-previews {
+    grid-template-columns: var(--card-canonical-render-width) !important;
   }
 }
