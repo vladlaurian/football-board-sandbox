@@ -1488,8 +1488,8 @@ function App() {
   const [graphicImportCardId, setGraphicImportCardId] = useState("");
   const [graphicImportSide, setGraphicImportSide] = useState("front");
   const [assignTarget, setAssignTarget] = useState(null);
-  const [inspectorPosition, setInspectorPosition] = useState({ x: Math.max(12, window.innerWidth - 350), y: 150 });
-  const [inspectorSize, setInspectorSize] = useState({ w: 320, h: 520 });
+  const [inspectorPosition, setInspectorPosition] = useState({ x: Math.max(12, window.innerWidth - 450), y: 150 });
+  const [inspectorSize, setInspectorSize] = useState({ w: 420, h: 650 });
   const [inspectorDragging, setInspectorDragging] = useState(null);
   const [inspectorResizing, setInspectorResizing] = useState(null);
   const INSPECTOR_CARD_CANONICAL_WIDTH = 360;

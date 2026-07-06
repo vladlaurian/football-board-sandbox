@@ -5954,3 +5954,54 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .card-visual-zone.selected-layout-zone > .card-zone-content {
   pointer-events: none !important;
 }
+
+
+/* FINAL BACK CONSISTENCY PATCH: same stable stat layout on front and back, no Distance influence. */
+.pair-distance-control {
+  display: none !important;
+}
+.card-zone-formula,
+.card-zone-list-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) max-content !important;
+  align-items: baseline !important;
+  justify-content: stretch !important;
+  column-gap: clamp(2px, 2.2cqw, 8px) !important;
+  row-gap: 0 !important;
+}
+.card-zone-formula .card-zone-label,
+.card-zone-list-row .card-zone-label {
+  display: block !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  text-align: var(--zone-align, left) !important;
+}
+.card-zone-formula .card-zone-value,
+.card-zone-list-row .card-zone-value {
+  display: block !important;
+  justify-self: end !important;
+  min-width: max-content !important;
+  width: max-content !important;
+  max-width: max-content !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+  text-align: right !important;
+  font-variant-numeric: tabular-nums !important;
+}
+/* Hide only editor overlay names, never real card text labels. */
+.card-zone-edit-label,
+.card-visual-zone > .card-zone-edit-label {
+  display: none !important;
+}
+.card-visual-zone .card-zone-content .card-zone-label {
+  display: block !important;
+}
+/* Inspector opens larger by default, but still fits the same canonical card via transform. */
+.card-inspector {
+  min-width: 320px !important;
+  min-height: 420px !important;
+}
