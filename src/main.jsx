@@ -1492,6 +1492,8 @@ function App() {
   const [inspectorSize, setInspectorSize] = useState({ w: 320, h: 520 });
   const [inspectorDragging, setInspectorDragging] = useState(null);
   const [inspectorResizing, setInspectorResizing] = useState(null);
+  const [inspectorCardZoom, setInspectorCardZoom] = useState(1);
+  const inspectorTouchZoomRef = useRef(null);
   const [editingPiece, setEditingPiece] = useState(null);
   const [editLabel, setEditLabel] = useState("");
   const [zoom, setZoom] = useState(0.8);
@@ -2393,6 +2395,56 @@ function App() {
   const inspectedPiece = pieces.find(p => p.id === inspectedPieceId);
   const inspectedCardId = inspectedPiece ? inspectedPiece.cardId : null;
   const inspectedCard = inspectedCardId ? cardById[inspectedCardId] : null;
+
+  useEffect(() => {
+    setInspectorCardZoom(1);
+    inspectorTouchZoomRef.current = null;
+  }, [inspectedCardId]);
+
+  function clampInspectorCardZoom(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 1;
+    return Math.min(2.5, Math.max(1, numeric));
+  }
+
+  function bumpInspectorCardZoom(delta) {
+    setInspectorCardZoom(prev => clampInspectorCardZoom(prev + delta));
+  }
+
+  function getTouchDistance(touches) {
+    if (!touches || touches.length < 2) return 0;
+    const [a, b] = touches;
+    return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  }
+
+  function onInspectorCardWheel(e) {
+    if (!inspectedCard) return;
+    if (e.deltaY >= 0) return;
+    e.preventDefault();
+    bumpInspectorCardZoom(0.12);
+  }
+
+  function onInspectorCardTouchStart(e) {
+    if (!inspectedCard || e.touches.length < 2) return;
+    inspectorTouchZoomRef.current = {
+      distance: getTouchDistance(e.touches),
+      zoom: inspectorCardZoom,
+    };
+  }
+
+  function onInspectorCardTouchMove(e) {
+    const start = inspectorTouchZoomRef.current;
+    if (!inspectedCard || !start || e.touches.length < 2 || start.distance <= 0) return;
+    e.preventDefault();
+    const nextDistance = getTouchDistance(e.touches);
+    const ratio = nextDistance / start.distance;
+    if (ratio <= 1) return;
+    setInspectorCardZoom(clampInspectorCardZoom(start.zoom * ratio));
+  }
+
+  function onInspectorCardTouchEnd(e) {
+    if (e.touches.length < 2) inspectorTouchZoomRef.current = null;
+  }
 
   const defensiveAreaOverlays = useMemo(() => {
     if (defAreaMode === 0) return [];
@@ -4923,7 +4975,26 @@ function App() {
             ) : (
               <>
                 <div className="inspector-piece-line"><b>Post puc:</b> {inspectedPiece.label || "—"}</div>
-                {inspectedCard ? <CardPreview card={inspectedCard} team={inspectedPiece.team === "A" ? "blue" : "red"} side="front" flippable /> : <div className="card-preview empty">Niciun card atașat</div>}
+                {inspectedCard ? (
+                  <div className="inspector-card-zoom-block">
+                    <div className="inspector-card-zoom-tools">
+                      <span>Zoom {Math.round(inspectorCardZoom * 100)}%</span>
+                      <button type="button" onClick={() => setInspectorCardZoom(1)} disabled={inspectorCardZoom <= 1}>Reset</button>
+                    </div>
+                    <div
+                      className="inspector-card-zoom-viewport"
+                      onWheel={onInspectorCardWheel}
+                      onTouchStart={onInspectorCardTouchStart}
+                      onTouchMove={onInspectorCardTouchMove}
+                      onTouchEnd={onInspectorCardTouchEnd}
+                      onTouchCancel={onInspectorCardTouchEnd}
+                    >
+                      <div className="inspector-card-zoom-inner" style={{ width: `${280 * inspectorCardZoom}px` }}>
+                        <CardPreview card={inspectedCard} team={inspectedPiece.team === "A" ? "blue" : "red"} side="front" flippable />
+                      </div>
+                    </div>
+                  </div>
+                ) : <div className="card-preview empty">Niciun card atașat</div>}
                 <div className="inspector-actions">
                   <button onClick={() => setAssignTarget({ type: "piece", pieceId: inspectedPiece.id })}>Assign Card</button>
                   {inspectedCard && <button onClick={() => { setCardsPanelOpen(true); setCardsView("library"); setEditingCardId(inspectedCard.id); }}>Edit Card</button>}

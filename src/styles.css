@@ -5659,3 +5659,44 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .opponent-goal-text-panel label select {
   max-width: 170px;
 }
+
+/* Inspector card zoom: local view-only zoom, does not affect saved card data */
+.inspector-card-zoom-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.inspector-card-zoom-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(238,244,255,.72);
+}
+.inspector-card-zoom-tools button {
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: rgba(255,255,255,.08);
+  color: inherit;
+}
+.inspector-card-zoom-tools button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.inspector-card-zoom-viewport {
+  width: 100%;
+  max-height: min(70vh, 760px);
+  overflow: auto;
+  touch-action: none;
+  overscroll-behavior: contain;
+  border-radius: 18px;
+}
+.inspector-card-zoom-inner {
+  max-width: none;
+}
+.inspector-card-zoom-inner .card-preview {
+  width: 100% !important;
+  max-width: none !important;
+}
