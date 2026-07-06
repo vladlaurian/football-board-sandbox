@@ -6091,19 +6091,19 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   }
 }
 
-/* FINAL FIX: Card Library editor controls stay narrow and never overlap previews.
-   Keep canonical 360px card previews intact. The whole library/editor area scrolls
-   horizontally when the viewport is not wide enough. */
-.cards-layout {
-  grid-template-columns: 330px max-content !important;
-  align-items: start !important;
+/* FINAL APPROVED CARD LIBRARY EDITOR LAYOUT FIX (2026-07-07)
+   Keep CardPreview / Inspector / canonical 360px render untouched.
+   Make Card Library use three real desktop columns:
+   library list | canonical card previews | narrow controls.
+   If the viewport cannot contain the full editor, scroll horizontally instead
+   of shrinking the repaired 360px card previews. */
+.cards-panel {
   overflow-x: auto !important;
-  overflow-y: visible !important;
 }
 
-.card-editor {
+.cards-layout {
   display: grid !important;
-  grid-template-columns: max-content 310px !important;
+  grid-template-columns: 250px max-content 310px !important;
   gap: 12px !important;
   align-items: start !important;
   justify-content: start !important;
@@ -6113,8 +6113,33 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   overflow: visible !important;
 }
 
-.card-editor-previews {
+.card-library-list {
   grid-column: 1 !important;
+  width: 250px !important;
+  min-width: 250px !important;
+  max-width: 250px !important;
+  min-height: 0 !important;
+}
+
+.card-library-actions {
+  grid-template-columns: .75fr .6fr .95fr !important;
+}
+
+.library-row {
+  gap: 6px !important;
+}
+
+.library-row button {
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
+
+.card-editor {
+  display: contents !important;
+}
+
+.card-editor-previews {
+  grid-column: 2 !important;
   grid-row: 1 !important;
   display: grid !important;
   grid-template-columns: repeat(2, var(--card-canonical-render-width)) !important;
@@ -6123,51 +6148,66 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   min-width: max-content !important;
   max-width: none !important;
   overflow: visible !important;
+  justify-content: start !important;
+  align-items: start !important;
 }
 
 .card-editor-controls {
-  grid-column: 2 !important;
-  grid-row: 1 / span 50 !important;
+  grid-column: 3 !important;
+  grid-row: 1 !important;
   width: 310px !important;
-  min-width: 300px !important;
+  min-width: 310px !important;
   max-width: 310px !important;
-  box-sizing: border-box !important;
-  justify-self: start !important;
-  align-self: start !important;
-  min-height: 320px !important;
-  max-height: calc(100vh - 170px) !important;
+  min-height: 0 !important;
+  max-height: min(72vh, 720px) !important;
   overflow: auto !important;
-  resize: none !important;
-  direction: ltr !important;
-  padding: 0 4px 18px 10px !important;
-  border-left: 1px solid rgba(255,255,255,.10) !important;
+  align-self: start !important;
+}
+
+.card-editor-controls .card-edit-section,
+.card-editor-controls label,
+.card-editor-controls input,
+.card-editor-controls select,
+.card-editor-controls button {
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.card-editor-controls .card-edit-section {
+  grid-column: auto !important;
+}
+
+.card-editor-controls .attribute-row {
+  grid-template-columns: minmax(82px, 1fr) 42px 28px 28px 28px !important;
+  gap: 5px !important;
 }
 
 @media (max-width: 900px) {
   .cards-layout {
     grid-template-columns: 1fr !important;
+    width: 100% !important;
+    min-width: 0 !important;
   }
 
-  .card-editor {
-    grid-template-columns: 1fr !important;
-    width: auto !important;
+  .card-library-list,
+  .card-editor-previews,
+  .card-editor-controls {
+    grid-column: 1 !important;
+    width: 100% !important;
     min-width: 0 !important;
-    max-width: 100% !important;
-    overflow-x: auto !important;
+    max-width: none !important;
   }
 
   .card-editor-previews {
-    grid-column: 1 !important;
     grid-row: auto !important;
-    grid-template-columns: var(--card-canonical-render-width) !important;
+    width: max-content !important;
+    min-width: max-content !important;
+    overflow-x: auto !important;
   }
 
   .card-editor-controls {
-    grid-column: 1 !important;
     grid-row: auto !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
     max-height: none !important;
   }
 }
