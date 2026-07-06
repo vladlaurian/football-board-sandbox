@@ -1493,7 +1493,10 @@ function App() {
   const [inspectorDragging, setInspectorDragging] = useState(null);
   const [inspectorResizing, setInspectorResizing] = useState(null);
   const [inspectorCardZoom, setInspectorCardZoom] = useState(1);
+  const [inspectorCardPan, setInspectorCardPan] = useState({ x: 0, y: 0 });
   const inspectorTouchZoomRef = useRef(null);
+  const inspectorTouchPanRef = useRef(null);
+  const inspectorMousePanRef = useRef(null);
   const [editingPiece, setEditingPiece] = useState(null);
   const [editLabel, setEditLabel] = useState("");
   const [zoom, setZoom] = useState(0.8);
@@ -2398,7 +2401,10 @@ function App() {
 
   useEffect(() => {
     setInspectorCardZoom(1);
+    setInspectorCardPan({ x: 0, y: 0 });
     inspectorTouchZoomRef.current = null;
+    inspectorTouchPanRef.current = null;
+    inspectorMousePanRef.current = null;
   }, [inspectedCardId]);
 
   function clampInspectorCardZoom(value) {
@@ -2409,6 +2415,14 @@ function App() {
 
   function bumpInspectorCardZoom(delta) {
     setInspectorCardZoom(prev => clampInspectorCardZoom(prev + delta));
+  }
+
+  function resetInspectorCardView() {
+    setInspectorCardZoom(1);
+    setInspectorCardPan({ x: 0, y: 0 });
+    inspectorTouchZoomRef.current = null;
+    inspectorTouchPanRef.current = null;
+    inspectorMousePanRef.current = null;
   }
 
   function getTouchDistance(touches) {
@@ -2424,26 +2438,83 @@ function App() {
     bumpInspectorCardZoom(0.12);
   }
 
-  function onInspectorCardTouchStart(e) {
-    if (!inspectedCard || e.touches.length < 2) return;
-    inspectorTouchZoomRef.current = {
-      distance: getTouchDistance(e.touches),
-      zoom: inspectorCardZoom,
+  function onInspectorCardPointerDown(e) {
+    if (!inspectedCard || inspectorCardZoom <= 1) return;
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    e.preventDefault();
+    inspectorMousePanRef.current = {
+      pointerId: e.pointerId,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      pan: inspectorCardPan,
     };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+
+  function onInspectorCardPointerMove(e) {
+    const start = inspectorMousePanRef.current;
+    if (!start || start.pointerId !== e.pointerId) return;
+    e.preventDefault();
+    setInspectorCardPan({
+      x: start.pan.x + (e.clientX - start.clientX),
+      y: start.pan.y + (e.clientY - start.clientY),
+    });
+  }
+
+  function onInspectorCardPointerEnd(e) {
+    const start = inspectorMousePanRef.current;
+    if (start && start.pointerId === e.pointerId) {
+      inspectorMousePanRef.current = null;
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+    }
+  }
+
+  function onInspectorCardTouchStart(e) {
+    if (!inspectedCard) return;
+    if (e.touches.length >= 2) {
+      inspectorTouchPanRef.current = null;
+      inspectorTouchZoomRef.current = {
+        distance: getTouchDistance(e.touches),
+        zoom: inspectorCardZoom,
+      };
+      return;
+    }
+    if (e.touches.length === 1 && inspectorCardZoom > 1) {
+      const touch = e.touches[0];
+      inspectorTouchPanRef.current = {
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        pan: inspectorCardPan,
+      };
+    }
   }
 
   function onInspectorCardTouchMove(e) {
-    const start = inspectorTouchZoomRef.current;
-    if (!inspectedCard || !start || e.touches.length < 2 || start.distance <= 0) return;
-    e.preventDefault();
-    const nextDistance = getTouchDistance(e.touches);
-    const ratio = nextDistance / start.distance;
-    if (ratio <= 1) return;
-    setInspectorCardZoom(clampInspectorCardZoom(start.zoom * ratio));
+    if (!inspectedCard) return;
+    if (e.touches.length >= 2) {
+      const start = inspectorTouchZoomRef.current;
+      if (!start || start.distance <= 0) return;
+      e.preventDefault();
+      const nextDistance = getTouchDistance(e.touches);
+      const ratio = nextDistance / start.distance;
+      if (ratio <= 1) return;
+      setInspectorCardZoom(clampInspectorCardZoom(start.zoom * ratio));
+      return;
+    }
+    const panStart = inspectorTouchPanRef.current;
+    if (e.touches.length === 1 && panStart && inspectorCardZoom > 1) {
+      e.preventDefault();
+      const touch = e.touches[0];
+      setInspectorCardPan({
+        x: panStart.pan.x + (touch.clientX - panStart.clientX),
+        y: panStart.pan.y + (touch.clientY - panStart.clientY),
+      });
+    }
   }
 
   function onInspectorCardTouchEnd(e) {
     if (e.touches.length < 2) inspectorTouchZoomRef.current = null;
+    if (e.touches.length === 0) inspectorTouchPanRef.current = null;
   }
 
   const defensiveAreaOverlays = useMemo(() => {
@@ -4979,17 +5050,27 @@ function App() {
                   <div className="inspector-card-zoom-block">
                     <div className="inspector-card-zoom-tools">
                       <span>Zoom {Math.round(inspectorCardZoom * 100)}%</span>
-                      <button type="button" onClick={() => setInspectorCardZoom(1)} disabled={inspectorCardZoom <= 1}>Reset</button>
+                      <button type="button" onClick={resetInspectorCardView} disabled={inspectorCardZoom <= 1 && inspectorCardPan.x === 0 && inspectorCardPan.y === 0}>Reset</button>
                     </div>
                     <div
                       className="inspector-card-zoom-viewport"
                       onWheel={onInspectorCardWheel}
+                      onPointerDown={onInspectorCardPointerDown}
+                      onPointerMove={onInspectorCardPointerMove}
+                      onPointerUp={onInspectorCardPointerEnd}
+                      onPointerCancel={onInspectorCardPointerEnd}
                       onTouchStart={onInspectorCardTouchStart}
                       onTouchMove={onInspectorCardTouchMove}
                       onTouchEnd={onInspectorCardTouchEnd}
                       onTouchCancel={onInspectorCardTouchEnd}
                     >
-                      <div className="inspector-card-zoom-inner" style={{ width: `${280 * inspectorCardZoom}px` }}>
+                      <div
+                        className="inspector-card-zoom-inner"
+                        style={{
+                          width: "280px",
+                          transform: `translate(${inspectorCardPan.x}px, ${inspectorCardPan.y}px) scale(${inspectorCardZoom})`,
+                        }}
+                      >
                         <CardPreview card={inspectedCard} team={inspectedPiece.team === "A" ? "blue" : "red"} side="front" flippable />
                       </div>
                     </div>

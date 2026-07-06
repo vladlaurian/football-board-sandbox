@@ -5688,13 +5688,25 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .inspector-card-zoom-viewport {
   width: 100%;
   max-height: min(70vh, 760px);
-  overflow: auto;
+  min-height: 390px;
+  max-height: min(70vh, 760px);
+  overflow: hidden;
   touch-action: none;
   overscroll-behavior: contain;
   border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  user-select: none;
+}
+.inspector-card-zoom-viewport:active {
+  cursor: grabbing;
 }
 .inspector-card-zoom-inner {
   max-width: none;
+  transform-origin: center center;
+  will-change: transform;
 }
 .inspector-card-zoom-inner .card-preview {
   width: 100% !important;
