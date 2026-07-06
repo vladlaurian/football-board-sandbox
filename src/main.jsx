@@ -138,7 +138,7 @@ function normalizeSettingsForApp(rawSettings = {}) {
 }
 
 const POSITION_OPTIONS = [
-  "GK", "LWB", "LB", "CB", "RB", "RWB",
+  "GK", "TTT", "LB", "CB", "RB", "RWB",
   "LW", "LM", "CDM", "CAM", "CM", "RM", "RW", "ST"
 ];
 
@@ -4928,13 +4928,13 @@ function App() {
           History {historyVisible ? "ON" : "OFF"}
         </button>
         <button className={dicePanelVisible ? "toggle-on" : ""} onClick={() => setDicePanelVisible(v => !v)}>
-          Zaruri {dicePanelVisible ? "ON" : "OFF"}
+          Pula {dicePanelVisible ? "ON" : "OFF"}
         </button>
         <button className={cardsPanelOpen ? "toggle-on" : ""} onClick={() => setCardsPanelOpen(v => !v)}>
           Cards
         </button>
         <button className={inspectorVisible ? "toggle-on" : ""} onClick={() => { setInspectorVisible(v => !v); if (!inspectorVisible) setInspectorMinimized(false); }}>
-          Insp
+          Muie
         </button>
         <button className={defAreaMode ? "toggle-on" : ""} onClick={() => setDefAreaMode(v => (v + 1) % 3)}>
           {defAreaButtonLabel}
