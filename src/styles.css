@@ -3636,39 +3636,26 @@ select option {
   }
 }
 
-/* Current request: right-side card edit menus are resizable from bottom-left. */
+/* Card Library editor layout: keep the repaired 360px card previews intact, and make only the right controls column narrower. */
 .card-editor {
-  grid-template-columns: minmax(420px, 520px) minmax(260px, 1fr) !important;
+  grid-template-columns: max-content 280px !important;
+  gap: 12px !important;
   align-items: start !important;
+  justify-content: start !important;
 }
 .card-editor-controls {
   grid-column: 2 !important;
   grid-row: 1 / span 50 !important;
-  min-width: 260px !important;
-  max-width: calc(100vw - 560px) !important;
+  width: 280px !important;
+  min-width: 280px !important;
+  max-width: 280px !important;
   min-height: 320px !important;
   max-height: calc(100vh - 170px) !important;
   overflow: auto !important;
-  resize: both !important;
-  direction: rtl !important;
-  padding: 0 4px 18px 14px !important;
-  border-left: 1px solid rgba(255,255,255,.10) !important;
-}
-.card-editor-controls > * {
+  resize: none !important;
   direction: ltr !important;
-}
-.card-editor-controls:after {
-  content: "";
-  position: sticky;
-  left: 0;
-  bottom: 0;
-  display: block;
-  width: 18px;
-  height: 18px;
-  margin-top: -18px;
-  pointer-events: none;
-  background: linear-gradient(45deg, transparent 50%, rgba(255,255,255,.45) 50%, rgba(255,255,255,.45) 60%, transparent 60%);
-  opacity: .85;
+  padding: 0 4px 18px 8px !important;
+  border-left: 1px solid rgba(255,255,255,.10) !important;
 }
 
 /* Current request: live layout coordinates stay inside card, next to the edited zone, during the whole drag/resize. */
@@ -6088,45 +6075,5 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 @media (max-width: 620px) {
   .card-editor-previews {
     grid-template-columns: var(--card-canonical-render-width) !important;
-  }
-}
-
-
-/* CARD LIBRARY MENU FIX (2026-07-07)
-   Keep card rendering untouched. Only move the editor controls into a fixed right column:
-   column 1 = existing previews, column 2 = flexible empty space, column 3 = narrow controls. */
-.card-editor {
-  grid-template-columns: minmax(420px, 520px) minmax(0, 1fr) 320px !important;
-  gap: 10px !important;
-  align-items: start !important;
-}
-.card-editor-controls {
-  grid-column: 3 !important;
-  grid-row: 1 / span 50 !important;
-  width: 320px !important;
-  min-width: 320px !important;
-  max-width: 320px !important;
-  min-height: 320px !important;
-  max-height: calc(100vh - 170px) !important;
-  overflow: auto !important;
-  resize: none !important;
-  direction: ltr !important;
-  padding: 0 4px 18px 14px !important;
-  border-left: 1px solid rgba(255,255,255,.10) !important;
-  justify-self: end !important;
-}
-.card-editor-controls > * {
-  direction: ltr !important;
-}
-@media (max-width: 900px) {
-  .card-editor {
-    grid-template-columns: 1fr !important;
-  }
-  .card-editor-controls {
-    grid-column: 1 !important;
-    grid-row: auto !important;
-    width: auto !important;
-    min-width: 0 !important;
-    max-width: none !important;
   }
 }
