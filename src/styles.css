@@ -5294,8 +5294,8 @@ select option {
 .card-zone-formula,
 .card-zone-list-row {
   --zone-longest-label-width: calc(var(--zone-longest-label-ch, 0) * 0.66em);
-  --zone-number-width: calc(max(1.8em, var(--zone-number-ch, 2) * 0.72em));
-  --zone-number-min-gap: 0.28em;
+  --zone-number-width: calc(max(2.2em, var(--zone-number-ch, 2) * 0.85em));
+  --zone-number-min-gap: 0.45em;
   --zone-number-safe-shift: max(0px, min(var(--zone-distance-shift-raw, 0cqw), calc(100cqw - var(--zone-longest-label-width) - var(--zone-number-width) - var(--zone-number-min-gap))));
   padding-right: calc(var(--zone-number-width) + var(--zone-number-safe-shift) + var(--zone-number-min-gap)) !important;
 }
