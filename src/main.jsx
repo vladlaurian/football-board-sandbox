@@ -1475,6 +1475,7 @@ function App() {
   const [inspectorMinimized, setInspectorMinimized] = useState(false);
   const [defAreaMode, setDefAreaMode] = useState(0);
   const [cardsView, setCardsView] = useState("library");
+  const [libraryPositionFilter, setLibraryPositionFilter] = useState("ALL");
   const [editingCardId, setEditingCardId] = useState(null);
   const [openTextPanelKey, setOpenTextPanelKey] = useState(null);
   const [openGridAdjustKey, setOpenGridAdjustKey] = useState(null);
@@ -2368,6 +2369,27 @@ function App() {
   }
 
   const cardById = useMemo(() => Object.fromEntries(cardState.cards.map(card => [card.id, card])), [cardState.cards]);
+  const libraryPositionOptions = useMemo(() => Array.from(new Set((cardState.cards || []).map(card => card.position).filter(Boolean))).sort((a, b) => {
+    const rankA = CARD_POSITION_OPTIONS.indexOf(a);
+    const rankB = CARD_POSITION_OPTIONS.indexOf(b);
+    const safeRankA = rankA >= 0 ? rankA : 999;
+    const safeRankB = rankB >= 0 ? rankB : 999;
+    if (safeRankA !== safeRankB) return safeRankA - safeRankB;
+    return String(a).localeCompare(String(b));
+  }), [cardState.cards]);
+
+  useEffect(() => {
+    if (libraryPositionFilter !== "ALL" && !libraryPositionOptions.includes(libraryPositionFilter)) {
+      setLibraryPositionFilter("ALL");
+    }
+  }, [libraryPositionFilter, libraryPositionOptions]);
+
+  const visibleLibraryCards = useMemo(() => {
+    const cards = cardState.cards || [];
+    if (libraryPositionFilter === "ALL") return cards;
+    return cards.filter(card => card.position === libraryPositionFilter);
+  }, [cardState.cards, libraryPositionFilter]);
+
   const inspectedPiece = pieces.find(p => p.id === inspectedPieceId);
   const inspectedCardId = inspectedPiece ? inspectedPiece.cardId : null;
   const inspectedCard = inspectedCardId ? cardById[inspectedCardId] : null;
@@ -3945,7 +3967,7 @@ function App() {
         <div className="cards-tabs"><button className={cardsView === "library" ? "toggle-on" : ""} onClick={() => setCardsView("library")}>Card Library</button><button className={cardsView === "blue" ? "toggle-on" : ""} onClick={() => setCardsView("blue")}>Blue Team</button><button className={cardsView === "red" ? "toggle-on" : ""} onClick={() => setCardsView("red")}>Red Team</button></div>
         {cardsView === "library" ? (
           <div className="cards-layout">
-            <div className="card-library-list"><div className="card-library-actions"><button className="create-card-btn" onClick={() => createCardFromPosition("ST")}>+ Create Card</button><button className="sort-card-btn" onClick={sortCardsByPosition} disabled={cardState.cards.length < 2}>Sort by Position</button></div>{cardState.cards.map(card => <div key={card.id} className={`library-row ${editingCardId === card.id ? "selected" : ""}`} onClick={() => setEditingCardId(card.id)}><span><b>{card.name}</b><small>{card.position}</small></span><div><button onClick={(e) => { e.stopPropagation(); cloneCard(card.id); }}>Clone</button><button onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }}>Delete</button></div></div>)}</div>
+            <div className="card-library-list"><div className="card-library-actions"><button className="create-card-btn" onClick={() => createCardFromPosition("ST")}>+ Create</button><button className="sort-card-btn" onClick={sortCardsByPosition} disabled={cardState.cards.length < 2}>Sort</button><select className="filter-card-select" value={libraryPositionFilter} onChange={e => setLibraryPositionFilter(e.target.value)} disabled={cardState.cards.length === 0}><option value="ALL">Filter: All</option>{libraryPositionOptions.map(position => <option key={position} value={position}>{position}</option>)}</select></div>{visibleLibraryCards.map(card => <div key={card.id} className={`library-row ${editingCardId === card.id ? "selected" : ""}`} onClick={() => setEditingCardId(card.id)}><span><b>{card.name}</b><small>{card.position}</small></span><div><button onClick={(e) => { e.stopPropagation(); cloneCard(card.id); }}>Clone</button><button onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }}>Delete</button></div></div>)}{visibleLibraryCards.length === 0 && <div className="library-empty">No cards for this filter.</div>}</div>
             {CardEditor({ card: editingCard })}
           </div>
         ) : (
