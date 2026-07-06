@@ -950,7 +950,7 @@ input[type="number"] {
   box-shadow: 0 18px 50px rgba(0,0,0,.32);
 }
 .cards-panel-head, .cards-tabs, .card-edit-section-title, .area-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
-.cards-panel-head select, .cards-panel-head button, .cards-tabs button, .create-card-btn, .import-btn {
+.cards-panel-head select, .cards-panel-head button, .cards-tabs button, .create-card-btn, .sort-card-btn, .import-btn {
   border: 1px solid rgba(255,255,255,.16);
   border-radius: 8px;
   padding: 6px 8px;
@@ -961,6 +961,8 @@ input[type="number"] {
 .cards-tabs { justify-content:flex-start; margin-top:8px; }
 .cards-layout { display:grid; grid-template-columns: 330px minmax(0, 1fr); gap:12px; margin-top:10px; }
 .card-library-list { display:flex; flex-direction:column; gap:7px; max-height:520px; overflow:auto; }
+.card-library-actions { display:grid; grid-template-columns: 1fr 1fr; gap:7px; }
+.sort-card-btn:disabled { opacity:.45; cursor:not-allowed; }
 .library-row { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:8px; border:1px solid rgba(255,255,255,.12); border-radius:10px; background:rgba(255,255,255,.055); }
 .library-row.selected { outline: 2px solid rgba(93, 170, 255, .8); }
 .library-row span { display:flex; flex-direction:column; }

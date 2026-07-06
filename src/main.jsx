@@ -3915,6 +3915,20 @@ function App() {
     const teamKey = cardsView === "red" ? "red" : "blue";
     const themeOptions = editingCard && hasCustomGraphics(editingCard) ? [...CARD_THEMES, CUSTOM_CARD_THEME] : CARD_THEMES;
     const selectedTheme = editingCard ? getCardTheme(editingCard, cardState.theme) : "Style 1";
+
+    const sortCardsByPosition = () => {
+      const positionRank = new Map(CARD_POSITION_OPTIONS.map((position, index) => [position, index]));
+      updateCardState(prev => ({
+        ...prev,
+        cards: [...(prev.cards || [])].map((card, index) => ({ card, index })).sort((a, b) => {
+          const rankA = positionRank.has(a.card.position) ? positionRank.get(a.card.position) : 999;
+          const rankB = positionRank.has(b.card.position) ? positionRank.get(b.card.position) : 999;
+          if (rankA !== rankB) return rankA - rankB;
+          return a.index - b.index;
+        }).map(entry => entry.card),
+      }));
+    };
+
     return (
       <div className="cards-panel">
         <div className="cards-panel-head"><strong>Player Cards</strong><div>
@@ -3931,7 +3945,7 @@ function App() {
         <div className="cards-tabs"><button className={cardsView === "library" ? "toggle-on" : ""} onClick={() => setCardsView("library")}>Card Library</button><button className={cardsView === "blue" ? "toggle-on" : ""} onClick={() => setCardsView("blue")}>Blue Team</button><button className={cardsView === "red" ? "toggle-on" : ""} onClick={() => setCardsView("red")}>Red Team</button></div>
         {cardsView === "library" ? (
           <div className="cards-layout">
-            <div className="card-library-list"><button className="create-card-btn" onClick={() => createCardFromPosition("ST")}>+ Create Card</button>{cardState.cards.map(card => <div key={card.id} className={`library-row ${editingCardId === card.id ? "selected" : ""}`} onClick={() => setEditingCardId(card.id)}><span><b>{card.name}</b><small>{card.position}</small></span><div><button onClick={(e) => { e.stopPropagation(); cloneCard(card.id); }}>Clone</button><button onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }}>Delete</button></div></div>)}</div>
+            <div className="card-library-list"><div className="card-library-actions"><button className="create-card-btn" onClick={() => createCardFromPosition("ST")}>+ Create Card</button><button className="sort-card-btn" onClick={sortCardsByPosition} disabled={cardState.cards.length < 2}>Sort by Position</button></div>{cardState.cards.map(card => <div key={card.id} className={`library-row ${editingCardId === card.id ? "selected" : ""}`} onClick={() => setEditingCardId(card.id)}><span><b>{card.name}</b><small>{card.position}</small></span><div><button onClick={(e) => { e.stopPropagation(); cloneCard(card.id); }}>Clone</button><button onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }}>Delete</button></div></div>)}</div>
             {CardEditor({ card: editingCard })}
           </div>
         ) : (
