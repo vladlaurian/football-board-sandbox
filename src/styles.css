@@ -5869,3 +5869,88 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .card-visual-zone.editable-zone .zone-resize-handle {
   z-index: 6 !important;
 }
+
+/* FINAL FIX: Inspector and Editor must use the same real card render.
+   The base card zones are now render-only. Edit visuals live only in .editable-zone overlays. */
+.card-preview .card-preview-content-layer,
+.card-preview .card-visual-canvas {
+  pointer-events: none !important;
+}
+.card-visual-zone {
+  position: absolute !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  background: transparent !important;
+  border: 0 !important;
+  outline: 0 !important;
+  color: inherit !important;
+  display: block !important;
+  align-items: initial !important;
+  justify-content: initial !important;
+  text-align: initial !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  padding: 0 !important;
+  pointer-events: none !important;
+}
+.card-visual-zone > .card-zone-content {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 1 !important;
+  pointer-events: none !important;
+}
+.card-visual-zone > .card-zone-content,
+.card-visual-zone > .card-zone-content * {
+  text-transform: none !important;
+}
+
+/* Editing behavior stays on the same zone boxes; only the visible frame/handles are overlay. */
+.card-visual-zone.editable-zone {
+  cursor: move !important;
+  pointer-events: auto !important;
+  user-select: none !important;
+  touch-action: none !important;
+  overflow: visible !important;
+}
+.card-visual-zone.editable-zone::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 3 !important;
+  border: 1px dashed color-mix(in srgb, var(--card-layout-zone-color, #ffffff) 72%, transparent) !important;
+  background: rgba(0,0,0,.16) !important;
+  pointer-events: none !important;
+  box-sizing: border-box !important;
+}
+.card-visual-zone.editable-zone.selected-layout-zone::before {
+  border-color: rgba(34, 211, 238, .98) !important;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, .3), 0 0 18px rgba(34, 211, 238, .55) !important;
+}
+.card-visual-zone.editable-zone > .card-zone-content {
+  z-index: 2 !important;
+}
+.card-visual-zone.editable-zone .zone-resize-handle {
+  z-index: 6 !important;
+  pointer-events: auto !important;
+}
+
+/* User preference: layout names must not be visible on the card editor. */
+.card-zone-label,
+.card-zone-edit-label,
+.card-visual-zone > .card-zone-label,
+.card-visual-zone > .card-zone-edit-label {
+  display: none !important;
+}
+
+/* Avoid the old selected-zone outline changing the real card render; selection is drawn by ::before above. */
+.card-visual-zone.selected-layout-zone {
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+.card-visual-zone.selected-layout-zone > .card-zone-content {
+  pointer-events: none !important;
+}
