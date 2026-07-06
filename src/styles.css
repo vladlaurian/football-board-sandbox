@@ -6090,3 +6090,48 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
     grid-template-columns: var(--card-canonical-render-width) !important;
   }
 }
+
+/* FINAL CARD LIBRARY EDITOR WIDTH FIX (2026-07-07)
+   Keep the repaired canonical card previews unchanged and make only the right
+   editor controls column fixed/narrow on desktop. The editor scrolls horizontally
+   if the viewport cannot fit previews + controls, instead of shrinking cards. */
+.card-editor {
+  grid-template-columns: max-content 320px !important;
+  gap: 12px !important;
+  align-items: start !important;
+  justify-content: start !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+
+.card-editor-controls {
+  grid-column: 2 !important;
+  grid-row: 1 / span 50 !important;
+  width: 320px !important;
+  min-width: 300px !important;
+  max-width: 320px !important;
+  min-height: 320px !important;
+  max-height: calc(100vh - 170px) !important;
+  overflow: auto !important;
+  resize: none !important;
+  direction: ltr !important;
+  box-sizing: border-box !important;
+  padding: 0 4px 18px 10px !important;
+  border-left: 1px solid rgba(255,255,255,.10) !important;
+}
+
+@media (max-width: 900px) {
+  .card-editor {
+    grid-template-columns: 1fr !important;
+    overflow-x: auto !important;
+  }
+
+  .card-editor-controls {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    max-height: none !important;
+  }
+}
