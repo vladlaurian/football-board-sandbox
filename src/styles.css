@@ -6261,3 +6261,90 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
     max-width: none !important;
   }
 }
+
+/* COMPACT CARD LIBRARY LAYOUT (2026-07-07)
+   Keep the panel full-width, but keep the editor group compact:
+   list | front/back previews | controls | remaining free space.
+   Layout containers only; card rendering is untouched. */
+.cards-panel {
+  width: calc(100vw - 16px) !important;
+  max-width: calc(100vw - 16px) !important;
+  box-sizing: border-box !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+.cards-layout {
+  display: grid !important;
+  grid-template-columns: 230px max-content 1fr !important;
+  gap: 10px !important;
+  align-items: start !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+.card-library-list {
+  width: 230px !important;
+  min-width: 230px !important;
+  max-width: 230px !important;
+}
+.card-editor {
+  display: grid !important;
+  grid-template-columns: max-content 310px !important;
+  gap: 10px !important;
+  width: max-content !important;
+  max-width: none !important;
+  justify-content: start !important;
+  justify-self: start !important;
+  align-items: start !important;
+  overflow: visible !important;
+}
+.card-editor-previews {
+  justify-self: start !important;
+  align-self: start !important;
+  width: max-content !important;
+  min-width: max-content !important;
+  max-width: none !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, var(--card-canonical-render-width)) !important;
+  gap: 10px !important;
+  overflow: visible !important;
+}
+.card-editor-controls {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  justify-self: start !important;
+  width: 310px !important;
+  min-width: 310px !important;
+  max-width: 310px !important;
+  max-height: calc(100vh - 170px) !important;
+  overflow: auto !important;
+  resize: none !important;
+  direction: ltr !important;
+}
+@media (max-width: 900px) {
+  .cards-layout {
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+  }
+  .card-library-list {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  .card-editor {
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+  }
+  .card-editor-previews {
+    justify-self: start !important;
+    overflow-x: auto !important;
+    max-width: 100% !important;
+  }
+  .card-editor-controls {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    justify-self: stretch !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+}
