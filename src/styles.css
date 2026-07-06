@@ -5791,3 +5791,81 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .inspector-card-zoom-inner {
   width: var(--card-canonical-render-width);
 }
+
+
+/* EDITOR OVERLAY REFACTOR: visual card content must render identically in Editor and Inspector.
+   Editable zones now use .editable-zone and .card-zone-edit-label so the editor border/label
+   no longer changes font-size, color, spacing or ellipsis of the real card text. */
+.card-visual-zone.editable-zone {
+  cursor: move !important;
+  pointer-events: auto !important;
+  user-select: none !important;
+  touch-action: none !important;
+  overflow: visible !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
+  display: block !important;
+  align-items: initial !important;
+  justify-content: initial !important;
+  text-align: initial !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  padding: 0 !important;
+}
+.card-visual-zone.editable-zone::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 3 !important;
+  border: 1px dashed color-mix(in srgb, var(--card-layout-zone-color, #ffffff) 72%, transparent) !important;
+  background: rgba(0,0,0,.16) !important;
+  pointer-events: none !important;
+  box-sizing: border-box !important;
+}
+.card-visual-zone.editable-zone.selected-layout-zone::before {
+  border-color: rgba(34, 211, 238, .98) !important;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, .3), 0 0 18px rgba(34, 211, 238, .55) !important;
+}
+.card-zone-edit-label {
+  position: absolute !important;
+  left: 3px !important;
+  top: 2px !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: calc(100% - 6px) !important;
+  padding: 1px 3px !important;
+  border-radius: 4px !important;
+  background: rgba(0,0,0,.45) !important;
+  border: 1px solid transparent !important;
+  color: var(--card-layout-zone-color, rgba(255,255,255,.72)) !important;
+  font-family: Inter, system-ui, sans-serif !important;
+  font-size: 5.5px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .04em !important;
+  text-align: left !important;
+  text-shadow: 0 1px 2px rgba(0,0,0,.9) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  pointer-events: none !important;
+  z-index: 5 !important;
+}
+.card-visual-zone.editable-zone.selected-layout-zone > .card-zone-edit-label {
+  background: rgba(8, 47, 73, .95) !important;
+  border-color: rgba(34, 211, 238, .95) !important;
+  color: #e0faff !important;
+}
+.card-visual-zone.editable-zone > .card-zone-content {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 2 !important;
+  pointer-events: none !important;
+}
+.card-visual-zone.editable-zone .zone-resize-handle {
+  z-index: 6 !important;
+}

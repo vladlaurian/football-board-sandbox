@@ -3414,7 +3414,7 @@ function App() {
         {Object.entries(sideLayout).filter(([key]) => !deletedLayoutSet.has(`${side}:${key}`)).map(([key, box]) => (
           <div
             key={`${side}_${key}`}
-            className={`card-visual-zone card-visual-zone-${key} ${showZones ? "show-zone" : ""} ${isSelectedLayout("base", key) ? "selected-layout-zone" : ""}`}
+            className={`card-visual-zone card-visual-zone-${key} ${showZones ? "editable-zone" : ""} ${isSelectedLayout("base", key) ? "selected-layout-zone" : ""}`}
             data-zone={key}
             onPointerDown={event => beginZoneEdit(event, key, box, "move")}
             style={{
@@ -3425,7 +3425,7 @@ function App() {
             }}
           >
             <div className="card-zone-content">{renderZoneContent(key)}</div>
-            {showZones ? <span className="card-zone-label">{ZONE_LABELS[key] || key}{isSelectedLayout("base", key) ? " · Selected" : ""}</span> : null}
+            {showZones ? <span className="card-zone-edit-label">{ZONE_LABELS[key] || key}{isSelectedLayout("base", key) ? " · Selected" : ""}</span> : null}
             {showZones && activeLayoutEdit?.zoneKey === key ? (
               <b className="zone-live-coordinates is-visible">{formatBoxCoordinates(activeLayoutEdit.box)}</b>
             ) : null}
@@ -3442,7 +3442,7 @@ function App() {
         {sideCustomZones.map(zone => (
           <div
             key={`${side}_${zone.id}`}
-            className={`card-visual-zone card-visual-zone-custom ${showZones ? "show-zone" : ""} ${isSelectedLayout("custom", zone.id) ? "selected-layout-zone" : ""}`}
+            className={`card-visual-zone card-visual-zone-custom ${showZones ? "editable-zone" : ""} ${isSelectedLayout("custom", zone.id) ? "selected-layout-zone" : ""}`}
             data-zone={zone.id}
             onPointerDown={event => beginCustomZoneEdit(event, zone, "move")}
             style={{
@@ -3453,7 +3453,7 @@ function App() {
             }}
           >
             <div className="card-zone-content">{renderCustomZoneContent(zone)}</div>
-            {showZones ? <span className="card-zone-label">{zone.name || "Custom Layout"}{isSelectedLayout("custom", zone.id) ? " · Selected" : ""}</span> : null}
+            {showZones ? <span className="card-zone-edit-label">{zone.name || "Custom Layout"}{isSelectedLayout("custom", zone.id) ? " · Selected" : ""}</span> : null}
             {showZones && activeLayoutEdit?.zoneKey === zone.id ? <b className="zone-live-coordinates is-visible">{formatBoxCoordinates(activeLayoutEdit.box)}</b> : null}
             {showZones ? (
               <>
