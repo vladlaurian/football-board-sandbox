@@ -1494,6 +1494,7 @@ function App() {
   const [inspectorResizing, setInspectorResizing] = useState(null);
   const [inspectorCardZoom, setInspectorCardZoom] = useState(1);
   const [inspectorCardPan, setInspectorCardPan] = useState({ x: 0, y: 0 });
+  const [inspectorCardSide, setInspectorCardSide] = useState("front");
   const inspectorTouchZoomRef = useRef(null);
   const inspectorTouchPanRef = useRef(null);
   const inspectorMousePanRef = useRef(null);
@@ -2402,6 +2403,7 @@ function App() {
   useEffect(() => {
     setInspectorCardZoom(1);
     setInspectorCardPan({ x: 0, y: 0 });
+    setInspectorCardSide("front");
     inspectorTouchZoomRef.current = null;
     inspectorTouchPanRef.current = null;
     inspectorMousePanRef.current = null;
@@ -2431,15 +2433,19 @@ function App() {
     return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
   }
 
+  function isInspectorCardGestureBlocked(target) {
+    return !!(target && target.closest && target.closest("button, input, select, textarea, .card-preview-flip-btn"));
+  }
+
   function onInspectorCardWheel(e) {
-    if (!inspectedCard) return;
+    if (!inspectedCard || isInspectorCardGestureBlocked(e.target)) return;
     if (e.deltaY >= 0) return;
     e.preventDefault();
     bumpInspectorCardZoom(0.12);
   }
 
   function onInspectorCardPointerDown(e) {
-    if (!inspectedCard || inspectorCardZoom <= 1) return;
+    if (!inspectedCard || inspectorCardZoom <= 1 || isInspectorCardGestureBlocked(e.target)) return;
     if (e.pointerType !== "mouse" || e.button !== 0) return;
     e.preventDefault();
     inspectorMousePanRef.current = {
@@ -2470,7 +2476,7 @@ function App() {
   }
 
   function onInspectorCardTouchStart(e) {
-    if (!inspectedCard) return;
+    if (!inspectedCard || isInspectorCardGestureBlocked(e.target)) return;
     if (e.touches.length >= 2) {
       inspectorTouchPanRef.current = null;
       inspectorTouchZoomRef.current = {
@@ -2946,13 +2952,15 @@ function App() {
     }));
   }
 
-  function CardPreview({ card, compact = false, team = "neutral", side = "back", flippable = false, showLayoutZones = false }) {
+  function CardPreview({ card, compact = false, team = "neutral", side = "back", flippable = false, controlledSide = null, onSideChange = null, showLayoutZones = false }) {
     const [currentSide, setCurrentSide] = useState(side);
-    useEffect(() => setCurrentSide(side), [side, card?.id]);
+    useEffect(() => {
+      if (controlledSide == null) setCurrentSide(side);
+    }, [side, card?.id, controlledSide]);
     if (!card) return <div className="card-preview empty">No card</div>;
     const activeTheme = getCardTheme(card, cardState.theme);
     const themeClass = activeTheme === CUSTOM_CARD_THEME ? "theme-custom" : `theme-${activeTheme.toLowerCase().replace(/\s+/g, "-")}`;
-    const shownSide = flippable ? currentSide : side;
+    const shownSide = flippable ? (controlledSide || currentSide) : side;
     const graphicUrl = shownSide === "front" ? card?.graphics?.frontDataUrl : card?.graphics?.backDataUrl;
     const colors = cardTextColors(card);
     const previewStyle = {
@@ -2990,7 +2998,9 @@ function App() {
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              setCurrentSide(v => v === "front" ? "back" : "front");
+              const nextSide = shownSide === "front" ? "back" : "front";
+              if (onSideChange) onSideChange(nextSide);
+              else setCurrentSide(nextSide);
             }}
           >
             {shownSide === "front" ? "↻" : "↺"}
@@ -5071,7 +5081,14 @@ function App() {
                           transform: `translate(${inspectorCardPan.x}px, ${inspectorCardPan.y}px) scale(${inspectorCardZoom})`,
                         }}
                       >
-                        <CardPreview card={inspectedCard} team={inspectedPiece.team === "A" ? "blue" : "red"} side="front" flippable />
+                        <CardPreview
+                          card={inspectedCard}
+                          team={inspectedPiece.team === "A" ? "blue" : "red"}
+                          side="front"
+                          flippable
+                          controlledSide={inspectorCardSide}
+                          onSideChange={setInspectorCardSide}
+                        />
                       </div>
                     </div>
                   </div>
