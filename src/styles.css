@@ -6092,113 +6092,39 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 }
 
 
-/* CARDS MODE LAYOUT FIX (2026-07-07)
-   When Card Library is open, the floating Inspector is not rendered from JSX.
-   Give the card editor the full working width and keep the editor as:
-   left list | fixed canonical previews | narrow controls.
-   CardPreview rendering, inspector zoom, and --card-canonical-render-width stay untouched. */
-.app.cards-mode .cards-panel {
-  width: calc(100vw - 16px) !important;
-  max-width: none !important;
-  max-height: min(66vh, 720px) !important;
-  overflow: auto !important;
-  margin: 8px !important;
+
+/* CHATGPT FIX - cards editor layout */
+.cards-layout{
+  grid-template-columns:230px minmax(0,1fr) !important;
+}
+.card-library-list{
+  max-width:230px !important;
 }
 
-.app.cards-mode .cards-layout {
-  display: grid !important;
-  grid-template-columns: 240px max-content !important;
-  gap: 12px !important;
-  align-items: start !important;
-  width: max-content !important;
-  min-width: 0 !important;
-  overflow: visible !important;
+.card-editor{
+  display:grid !important;
+  grid-template-columns:minmax(740px,max-content) 310px !important;
+  justify-content:space-between !important;
+  align-items:start !important;
+  gap:12px !important;
+  width:100% !important;
 }
 
-.app.cards-mode .card-library-list {
-  width: 240px !important;
-  min-width: 220px !important;
-  max-width: 240px !important;
-  max-height: calc(66vh - 95px) !important;
-  overflow: auto !important;
+.card-editor-previews{
+  grid-template-columns:360px 360px !important;
+  width:max-content !important;
+  flex:none !important;
 }
 
-.app.cards-mode .card-library-actions {
-  grid-template-columns: 1fr 0.75fr 1fr !important;
-  gap: 5px !important;
+.card-editor-controls{
+  grid-column:2 !important;
+  width:310px !important;
+  min-width:310px !important;
+  max-width:310px !important;
+  justify-self:end !important;
+  resize:none !important;
 }
 
-.app.cards-mode .library-row {
-  gap: 5px !important;
-  padding: 7px !important;
-}
-
-.app.cards-mode .library-row div {
-  display: flex !important;
-  gap: 4px !important;
-  flex-shrink: 0 !important;
-}
-
-.app.cards-mode .library-row button {
-  padding: 4px 5px !important;
-  font-size: 10px !important;
-}
-
-.app.cards-mode .card-editor {
-  display: grid !important;
-  grid-template-columns: max-content 310px !important;
-  gap: 12px !important;
-  align-items: start !important;
-  width: max-content !important;
-  min-width: 0 !important;
-  overflow: visible !important;
-}
-
-.app.cards-mode .card-editor-previews {
-  grid-column: 1 !important;
-  grid-row: 1 !important;
-  position: sticky !important;
-  left: 0 !important;
-  top: 10px !important;
-  width: max-content !important;
-  max-width: none !important;
-  overflow: visible !important;
-}
-
-.app.cards-mode .card-editor-controls {
-  grid-column: 2 !important;
-  grid-row: 1 / span 50 !important;
-  width: 310px !important;
-  min-width: 300px !important;
-  max-width: 310px !important;
-  max-height: calc(66vh - 95px) !important;
-  overflow: auto !important;
-  resize: none !important;
-  direction: ltr !important;
-  padding: 0 4px 18px 4px !important;
-  border-left: 1px solid rgba(255,255,255,.10) !important;
-}
-
-.app.cards-mode .card-editor-controls:after {
-  display: none !important;
-}
-
-@media (max-width: 900px) {
-  .app.cards-mode .cards-layout,
-  .app.cards-mode .card-editor {
-    grid-template-columns: 1fr !important;
-    width: auto !important;
-  }
-
-  .app.cards-mode .card-library-list,
-  .app.cards-mode .card-editor-controls {
-    width: auto !important;
-    min-width: 0 !important;
-    max-width: none !important;
-  }
-
-  .app.cards-mode .card-editor-controls {
-    grid-column: 1 !important;
-    grid-row: auto !important;
-  }
+.cards-panel{
+  overflow-x:auto !important;
 }

@@ -4793,7 +4793,7 @@ function App() {
   }
 
   return (
-    <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""} ${cardsPanelOpen ? "cards-mode" : ""}`}>
+    <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
         <strong>Sandbox</strong>
         <div className="authbox">
@@ -5137,7 +5137,7 @@ function App() {
         </div>
       </div>
 
-      {inspectorVisible && !lockUI && !cardsPanelOpen && (
+      {inspectorVisible && !lockUI && (
       <aside
         className={`card-inspector ${inspectorMinimized ? "minimized" : ""}`}
         style={{ "--inspector-x": `${inspectorPosition.x}px`, "--inspector-y": `${inspectorPosition.y}px`, "--inspector-w": `${inspectorSize.w}px`, "--inspector-h": `${inspectorSize.h}px` }}
