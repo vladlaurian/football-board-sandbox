@@ -5714,3 +5714,62 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   width: 100% !important;
   max-width: none !important;
 }
+
+/* FINAL FRONT-ONLY UNIFORM STAT PAIRS
+   Front card formula zones no longer use the automatic Distance/safe-shift model.
+   The label and number are real grid columns: label on the left, number pinned to
+   the right edge of its own zone. This avoids Safari/Chrome differences from
+   absolute positioning, cqw/ch estimates and transform rounding. Back card stat
+   lists keep the existing Distance model unchanged. */
+.card-preview.card-front .card-zone-formula,
+.card-visual-canvas[data-card-side="front"] .card-zone-formula {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-rows: 1fr !important;
+  align-items: center !important;
+  justify-items: stretch !important;
+  column-gap: var(--zone-front-stat-gap, clamp(3px, 2.4cqw, 10px)) !important;
+  row-gap: 0 !important;
+  padding-right: 0 !important;
+  min-height: 100% !important;
+  text-align: initial !important;
+  overflow: hidden !important;
+}
+.card-preview.card-front .card-zone-formula .card-zone-label,
+.card-visual-canvas[data-card-side="front"] .card-zone-formula .card-zone-label {
+  position: static !important;
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  display: block !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  text-align: var(--zone-align, left) !important;
+  align-self: center !important;
+  justify-self: stretch !important;
+  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
+}
+.card-preview.card-front .card-zone-formula .card-zone-value,
+.card-visual-canvas[data-card-side="front"] .card-zone-formula .card-zone-value {
+  position: static !important;
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  display: block !important;
+  width: auto !important;
+  min-width: max-content !important;
+  max-width: max-content !important;
+  margin-left: 0 !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  text-align: right !important;
+  align-self: center !important;
+  justify-self: end !important;
+  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
+  font-variant-numeric: tabular-nums !important;
+}
