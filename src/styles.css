@@ -4689,16 +4689,6 @@ select option {
   justify-self: end !important;
   transform: translateY(var(--zone-y-offset, 0cqh)) !important;
 }
-.pair-distance-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  opacity: .95;
-}
-.pair-distance-control input[type="range"] {
-  width: 92px;
-}
 .front-pair-toolbar,
 .attribute-toolbar-left {
   gap: 8px;
@@ -5041,34 +5031,6 @@ select option {
 .text-style-controls.open > .text-style-toggle {
   border-color: rgba(79, 209, 255, .95) !important;
 }
-.pair-distance-control {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 5px !important;
-  font-size: 11px !important;
-  font-weight: 600 !important;
-  opacity: .95 !important;
-}
-.pair-distance-control span {
-  white-space: nowrap !important;
-}
-.pair-distance-control input[type="range"] {
-  width: 78px !important;
-  min-width: 62px !important;
-}
-.pair-distance-control button {
-  min-width: 22px !important;
-  width: 22px !important;
-  height: 22px !important;
-  padding: 0 !important;
-  border-radius: 7px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  font-size: 13px !important;
-  font-weight: 800 !important;
-  line-height: 1 !important;
-}
 
 /* Header Back / Position Back use the same safe in-panel offset as the front controls. */
 .text-style-controls.align-front .text-style-panel {
@@ -5121,44 +5083,6 @@ select option {
   align-content: start !important;
   row-gap: 0 !important;
 }
-.card-editor .pair-distance-control,
-.pair-distance-control {
-  display: inline-grid !important;
-  grid-template-columns: auto 22px minmax(72px, 110px) 22px !important;
-  grid-template-rows: 22px !important;
-  align-items: center !important;
-  justify-content: start !important;
-  gap: 5px !important;
-  font-size: 11px !important;
-  font-weight: 600 !important;
-  opacity: .95 !important;
-  flex-direction: row !important;
-  width: auto !important;
-  max-width: 100% !important;
-}
-.card-editor .pair-distance-control span,
-.pair-distance-control span {
-  white-space: nowrap !important;
-}
-.card-editor .pair-distance-control input[type="range"],
-.pair-distance-control input[type="range"] {
-  width: 100% !important;
-  min-width: 72px !important;
-}
-.card-editor .pair-distance-control button,
-.pair-distance-control button {
-  min-width: 22px !important;
-  width: 22px !important;
-  height: 22px !important;
-  padding: 0 !important;
-  border-radius: 7px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  font-size: 13px !important;
-  font-weight: 800 !important;
-  line-height: 1 !important;
-}
 
 /* FINAL FIX: numbers are row-aligned, independently styled, and moved by Distance.
    Distance belongs to the number itself, not the row gap, so the label stays put
@@ -5195,43 +5119,6 @@ select option {
 .card-zone-formula .card-zone-value[style],
 .card-zone-list-row .card-zone-value[style] {
   color: var(--zone-number-color, currentColor) !important;
-}
-
-/* Distance slider: keep - / slider / + on one horizontal row. */
-.card-editor .pair-distance-control,
-.pair-distance-control {
-  display: inline-grid !important;
-  grid-template-columns: auto 24px minmax(92px, 130px) 24px !important;
-  grid-template-rows: 24px !important;
-  grid-auto-flow: column !important;
-  align-items: center !important;
-  column-gap: 6px !important;
-  row-gap: 0 !important;
-  width: auto !important;
-  max-width: 100% !important;
-  white-space: nowrap !important;
-}
-.card-editor .pair-distance-control > span,
-.pair-distance-control > span {
-  grid-column: 1 !important;
-  grid-row: 1 !important;
-}
-.card-editor .pair-distance-control > button:first-of-type,
-.pair-distance-control > button:first-of-type {
-  grid-column: 2 !important;
-  grid-row: 1 !important;
-}
-.card-editor .pair-distance-control > input[type="range"],
-.pair-distance-control > input[type="range"] {
-  grid-column: 3 !important;
-  grid-row: 1 !important;
-  width: 100% !important;
-  min-width: 92px !important;
-}
-.card-editor .pair-distance-control > button:last-of-type,
-.pair-distance-control > button:last-of-type {
-  grid-column: 4 !important;
-  grid-row: 1 !important;
 }
 
 /* FINAL DISTANCE MODEL: labels stay fixed; Numbers move as one compact column.
@@ -5957,9 +5844,6 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 
 
 /* FINAL BACK CONSISTENCY PATCH: same stable stat layout on front and back, no Distance influence. */
-.pair-distance-control {
-  display: none !important;
-}
 .card-zone-formula,
 .card-zone-list-row {
   display: grid !important;
