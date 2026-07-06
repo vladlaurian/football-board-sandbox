@@ -6005,3 +6005,88 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   min-width: 320px !important;
   min-height: 420px !important;
 }
+
+/* STRUCTURAL EDITOR OVERLAY FIX:
+   The real card zones are render-only everywhere. Editor controls live in a separate overlay layer. */
+.card-preview-content-layer.layout-editing,
+.card-preview-content-layer.layout-editing .card-visual-canvas {
+  pointer-events: auto !important;
+}
+.card-editor-overlay-layer {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 20 !important;
+  pointer-events: none !important;
+}
+.card-edit-overlay-zone {
+  position: absolute !important;
+  box-sizing: border-box !important;
+  cursor: move !important;
+  pointer-events: auto !important;
+  user-select: none !important;
+  touch-action: none !important;
+  background: transparent !important;
+  border: 0 !important;
+  outline: 0 !important;
+  overflow: visible !important;
+}
+.card-edit-overlay-zone::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 1 !important;
+  border: 1px dashed color-mix(in srgb, var(--card-layout-zone-color, #ffffff) 72%, transparent) !important;
+  background: rgba(0,0,0,.12) !important;
+  pointer-events: none !important;
+  box-sizing: border-box !important;
+}
+.card-edit-overlay-zone.selected-layout-zone::before {
+  border-color: rgba(34, 211, 238, .98) !important;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, .3), 0 0 18px rgba(34, 211, 238, .55) !important;
+}
+.card-edit-overlay-zone .zone-resize-handle {
+  z-index: 6 !important;
+  pointer-events: auto !important;
+}
+.card-edit-overlay-zone .zone-live-coordinates {
+  z-index: 7 !important;
+  pointer-events: none !important;
+}
+
+/* CANONICAL CARD PREVIEW CLEANUP (2026-07-06)
+   The editor must not shrink the real CardPreview below the same internal render
+   width used by the Inspector. If the editor column is narrow, the preview strip
+   scrolls instead of changing the card's container-query/layout calculations. */
+.card-editor-previews {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  grid-template-columns: repeat(2, var(--card-canonical-render-width)) !important;
+  justify-content: start !important;
+  align-items: start !important;
+}
+.card-editor-previews > div {
+  width: var(--card-canonical-render-width) !important;
+  min-width: var(--card-canonical-render-width) !important;
+  max-width: var(--card-canonical-render-width) !important;
+}
+.card-editor-previews .card-preview,
+.card-editor-previews .card-preview.card-front,
+.card-editor-previews .card-preview.card-back {
+  width: var(--card-canonical-render-width) !important;
+  min-width: var(--card-canonical-render-width) !important;
+  max-width: none !important;
+  flex: 0 0 var(--card-canonical-render-width) !important;
+}
+.inspector-card-zoom-inner,
+.inspector-card-zoom-inner .card-preview,
+.inspector-card-zoom-inner .card-preview.card-front,
+.inspector-card-zoom-inner .card-preview.card-back {
+  width: var(--card-canonical-render-width) !important;
+  min-width: var(--card-canonical-render-width) !important;
+  max-width: none !important;
+}
+@media (max-width: 620px) {
+  .card-editor-previews {
+    grid-template-columns: var(--card-canonical-render-width) !important;
+  }
+}
