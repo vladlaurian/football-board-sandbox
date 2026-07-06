@@ -959,8 +959,8 @@ input[type="number"] {
 }
 .import-btn input { display:none; }
 .cards-tabs { justify-content:flex-start; margin-top:8px; }
-.cards-layout { display:grid; grid-template-columns: 230px max-content; gap:10px; margin-top:10px; align-items:start; }
-.card-library-list { display:flex; flex-direction:column; gap:7px; width:230px; min-width:230px; max-height:520px; overflow:auto; }
+.cards-layout { display:grid; grid-template-columns: 330px minmax(0, 1fr); gap:12px; margin-top:10px; }
+.card-library-list { display:flex; flex-direction:column; gap:7px; max-height:520px; overflow:auto; }
 .card-library-actions { display:grid; grid-template-columns: .9fr .55fr .95fr; gap:6px; }
 .create-card-btn, .sort-card-btn, .filter-card-select { font-size: 11px; padding: 5px 6px; min-width: 0; }
 .filter-card-select { width: 100%; }
@@ -970,7 +970,7 @@ input[type="number"] {
 .library-row.selected { outline: 2px solid rgba(93, 170, 255, .8); }
 .library-row span { display:flex; flex-direction:column; }
 .library-row small, .team-slot small { color:rgba(238,244,255,.66); }
-.card-editor { display:grid; grid-template-columns: max-content 310px; width:max-content; gap:10px; align-items:start; justify-content:start; }
+.card-editor { display:grid; grid-template-columns: 240px minmax(220px, 1fr); gap:10px; align-items:start; }
 .card-editor label { display:flex; flex-direction:column; gap:4px; font-size:12px; }
 .card-editor input, .card-editor select, .attribute-row input { border:1px solid rgba(255,255,255,.18); border-radius:8px; padding:8px; background:rgba(255,255,255,.08); color:#eef4ff; }
 .card-edit-section { grid-column: 1 / -1; padding:10px; border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(255,255,255,.04); }
@@ -1333,18 +1333,15 @@ select option {
   }
 }
 
-/* front/back player card pass: layout only; card render size is protected later by canonical rules. */
+/* front/back player card pass */
 .card-editor {
-  grid-template-columns: max-content 310px;
-  width: max-content;
-  justify-content: start;
+  grid-template-columns: minmax(420px, 520px) minmax(240px, 1fr);
 }
 .card-editor-previews {
   display: grid;
-  grid-template-columns: repeat(2, var(--card-canonical-render-width));
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
   align-items: start;
-  width: max-content;
 }
 .card-editor-previews .card-preview {
   min-height: 360px;
@@ -3639,25 +3636,24 @@ select option {
   }
 }
 
-/* Card Library editor layout: controls are fixed-width, not resizable. */
+/* Card Library editor layout: keep repaired card previews intact, make the right controls column fixed and narrow. */
 .card-editor {
-  grid-template-columns: max-content 310px !important;
-  width: max-content !important;
-  justify-content: start !important;
+  grid-template-columns: max-content 320px !important;
+  gap: 12px !important;
   align-items: start !important;
 }
 .card-editor-controls {
   grid-column: 2 !important;
-  grid-row: 1 !important;
-  width: 310px !important;
-  min-width: 310px !important;
-  max-width: 310px !important;
+  grid-row: 1 / span 50 !important;
+  width: 320px !important;
+  min-width: 320px !important;
+  max-width: 320px !important;
   min-height: 320px !important;
   max-height: calc(100vh - 170px) !important;
   overflow: auto !important;
   resize: none !important;
   direction: ltr !important;
-  padding: 0 4px 18px 10px !important;
+  padding: 0 4px 18px 14px !important;
   border-left: 1px solid rgba(255,255,255,.10) !important;
 }
 
@@ -3711,7 +3707,7 @@ select option {
     grid-row: auto !important;
     max-width: 100% !important;
     max-height: none !important;
-    resize: none !important;
+    resize: vertical !important;
   }
 }
 
@@ -4428,7 +4424,7 @@ select option {
 .special-ability-editor .special-ability-textarea {
   min-height: 142px !important;
   height: 142px !important;
-  resize: none !important;
+  resize: vertical !important;
 }
 
 /* USER FIX: Position zones are badges, not body text; allow large sizes to overflow their layout box. */
@@ -4924,7 +4920,7 @@ select option {
 }
 .custom-zone-editor-row textarea {
   min-height: 72px !important;
-  resize: none !important;
+  resize: vertical !important;
 }
 .custom-zone-color-row label {
   grid-template-columns: auto 44px !important;
@@ -6078,273 +6074,5 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 @media (max-width: 620px) {
   .card-editor-previews {
     grid-template-columns: var(--card-canonical-render-width) !important;
-  }
-}
-
-/* AUTHORITATIVE CARD LIBRARY LAYOUT CLEANUP (2026-07-07)
-   Only the surrounding editor layout is changed here.
-   Do not change CardPreview, inspector zoom, or the canonical 360px card width. */
-.cards-panel {
-  max-width: none !important;
-  overflow-x: auto !important;
-  overflow-y: auto !important;
-}
-.cards-layout {
-  display: grid !important;
-  grid-template-columns: 230px max-content !important;
-  gap: 10px !important;
-  align-items: start !important;
-  width: max-content !important;
-  max-width: none !important;
-}
-.card-library-list {
-  width: 230px !important;
-  min-width: 230px !important;
-  max-width: 230px !important;
-}
-.card-editor {
-  display: grid !important;
-  grid-template-columns: max-content 310px !important;
-  gap: 10px !important;
-  align-items: start !important;
-  justify-content: start !important;
-  width: max-content !important;
-  max-width: none !important;
-  overflow: visible !important;
-}
-.card-editor-previews {
-  display: grid !important;
-  grid-template-columns: repeat(2, var(--card-canonical-render-width)) !important;
-  gap: 10px !important;
-  width: max-content !important;
-  min-width: max-content !important;
-  max-width: none !important;
-  justify-content: start !important;
-  align-items: start !important;
-  overflow: visible !important;
-}
-.card-editor-controls {
-  grid-column: 2 !important;
-  grid-row: 1 !important;
-  width: 310px !important;
-  min-width: 310px !important;
-  max-width: 310px !important;
-  max-height: calc(100vh - 170px) !important;
-  overflow: auto !important;
-  resize: none !important;
-  direction: ltr !important;
-}
-@media (max-width: 900px) {
-  .cards-layout {
-    grid-template-columns: 1fr !important;
-    width: 100% !important;
-  }
-  .card-library-list {
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-  }
-  .card-editor {
-    grid-template-columns: 1fr !important;
-    width: 100% !important;
-  }
-  .card-editor-controls {
-    grid-column: 1 !important;
-    grid-row: auto !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-  }
-}
-
-/* FINAL CARD LIBRARY LAYOUT: controls right, previews centered in remaining editor space.
-   Layout containers only. CardPreview, inspector zoom and canonical 360px render width are untouched. */
-.cards-panel {
-  width: calc(100vw - 16px) !important;
-  max-width: calc(100vw - 16px) !important;
-  box-sizing: border-box !important;
-  overflow-x: auto !important;
-  overflow-y: auto !important;
-}
-.cards-layout {
-  display: grid !important;
-  grid-template-columns: 230px minmax(0, 1fr) !important;
-  gap: 10px !important;
-  align-items: start !important;
-  width: 100% !important;
-  max-width: none !important;
-}
-.card-library-list {
-  width: 230px !important;
-  min-width: 230px !important;
-  max-width: 230px !important;
-}
-.card-editor {
-  display: grid !important;
-  grid-template-columns: minmax(calc((var(--card-canonical-render-width) * 2) + 10px), 1fr) 310px !important;
-  gap: 10px !important;
-  width: 100% !important;
-  max-width: none !important;
-  align-items: start !important;
-  justify-content: stretch !important;
-  overflow: visible !important;
-}
-.card-editor-previews {
-  justify-self: center !important;
-  align-self: start !important;
-  width: max-content !important;
-  min-width: max-content !important;
-  max-width: none !important;
-  display: grid !important;
-  grid-template-columns: repeat(2, var(--card-canonical-render-width)) !important;
-  gap: 10px !important;
-  overflow: visible !important;
-}
-.card-editor-controls {
-  grid-column: 2 !important;
-  grid-row: 1 !important;
-  justify-self: end !important;
-  width: 310px !important;
-  min-width: 310px !important;
-  max-width: 310px !important;
-  max-height: calc(100vh - 170px) !important;
-  overflow: auto !important;
-  resize: none !important;
-  direction: ltr !important;
-}
-@media (max-width: 1180px) {
-  .cards-panel {
-    width: max-content !important;
-    max-width: none !important;
-  }
-  .cards-layout {
-    grid-template-columns: 230px max-content !important;
-    width: max-content !important;
-  }
-  .card-editor {
-    grid-template-columns: max-content 310px !important;
-    width: max-content !important;
-  }
-  .card-editor-previews {
-    justify-self: start !important;
-  }
-}
-@media (max-width: 900px) {
-  .cards-panel {
-    width: calc(100vw - 16px) !important;
-    max-width: calc(100vw - 16px) !important;
-  }
-  .cards-layout {
-    grid-template-columns: 1fr !important;
-    width: 100% !important;
-  }
-  .card-library-list {
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-  }
-  .card-editor {
-    grid-template-columns: 1fr !important;
-    width: 100% !important;
-  }
-  .card-editor-previews {
-    justify-self: start !important;
-    overflow-x: auto !important;
-    max-width: 100% !important;
-  }
-  .card-editor-controls {
-    grid-column: 1 !important;
-    grid-row: auto !important;
-    justify-self: stretch !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-  }
-}
-
-/* COMPACT CARD LIBRARY LAYOUT (2026-07-07)
-   Keep the panel full-width, but keep the editor group compact:
-   list | front/back previews | controls | remaining free space.
-   Layout containers only; card rendering is untouched. */
-.cards-panel {
-  width: calc(100vw - 16px) !important;
-  max-width: calc(100vw - 16px) !important;
-  box-sizing: border-box !important;
-  overflow-x: auto !important;
-  overflow-y: auto !important;
-}
-.cards-layout {
-  display: grid !important;
-  grid-template-columns: 230px max-content 1fr !important;
-  gap: 10px !important;
-  align-items: start !important;
-  width: 100% !important;
-  max-width: none !important;
-}
-.card-library-list {
-  width: 230px !important;
-  min-width: 230px !important;
-  max-width: 230px !important;
-}
-.card-editor {
-  display: grid !important;
-  grid-template-columns: max-content 310px !important;
-  gap: 10px !important;
-  width: max-content !important;
-  max-width: none !important;
-  justify-content: start !important;
-  justify-self: start !important;
-  align-items: start !important;
-  overflow: visible !important;
-}
-.card-editor-previews {
-  justify-self: start !important;
-  align-self: start !important;
-  width: max-content !important;
-  min-width: max-content !important;
-  max-width: none !important;
-  display: grid !important;
-  grid-template-columns: repeat(2, var(--card-canonical-render-width)) !important;
-  gap: 10px !important;
-  overflow: visible !important;
-}
-.card-editor-controls {
-  grid-column: 2 !important;
-  grid-row: 1 !important;
-  justify-self: start !important;
-  width: 310px !important;
-  min-width: 310px !important;
-  max-width: 310px !important;
-  max-height: calc(100vh - 170px) !important;
-  overflow: auto !important;
-  resize: none !important;
-  direction: ltr !important;
-}
-@media (max-width: 900px) {
-  .cards-layout {
-    grid-template-columns: 1fr !important;
-    width: 100% !important;
-  }
-  .card-library-list {
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-  }
-  .card-editor {
-    grid-template-columns: 1fr !important;
-    width: 100% !important;
-  }
-  .card-editor-previews {
-    justify-self: start !important;
-    overflow-x: auto !important;
-    max-width: 100% !important;
-  }
-  .card-editor-controls {
-    grid-column: 1 !important;
-    grid-row: auto !important;
-    justify-self: stretch !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
   }
 }
