@@ -6129,11 +6129,12 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   color: #ffffff !important;
 }
 
-/* PNG export: capture the real editor card while hiding only editing chrome. */
+/* PNG export: capture the real editor card while hiding only editing chrome.
+   Do NOT hide .card-zone-label globally: that is also used for real stat labels. */
 .card-preview.is-card-png-export .png-export-hidden-control,
 .card-preview.is-card-png-export .zone-resize-handle,
 .card-preview.is-card-png-export .card-zone-edit-label,
-.card-preview.is-card-png-export .card-zone-label,
+.card-preview.is-card-png-export .card-visual-zone > .card-zone-label,
 .card-preview.is-card-png-export .layout-zone-arrow-list,
 .card-preview.is-card-png-export .layout-zone-row,
 .card-preview.is-card-png-export .layout-zone-head {

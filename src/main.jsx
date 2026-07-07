@@ -3080,6 +3080,31 @@ function App() {
     return String(value || fallback).replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || fallback;
   }
 
+  function getInlineGraphicForPng(card, exportSide = "front") {
+    const graphics = card?.graphics || {};
+    const raw = exportSide === "front"
+      ? (graphics.frontExportDataUrl || graphics.frontLocalDataUrl || graphics.frontDataUrl || "")
+      : (graphics.backExportDataUrl || graphics.backLocalDataUrl || graphics.backDataUrl || "");
+    return isInlineImageDataUrl(raw) ? raw : "";
+  }
+
+  function temporarilyPatchExportGraphic(node, card, exportSide = "front") {
+    const safeGraphic = getInlineGraphicForPng(card, exportSide);
+    if (!safeGraphic) return () => {};
+    const images = Array.from(node?.querySelectorAll?.(".card-custom-graphic") || []);
+    const previous = images.map(img => ({ img, src: img.getAttribute("src") || "" }));
+    for (const img of images) {
+      img.setAttribute("src", safeGraphic);
+      img.src = safeGraphic;
+    }
+    return () => {
+      for (const item of previous) {
+        if (item.src) item.img.setAttribute("src", item.src);
+        else item.img.removeAttribute("src");
+      }
+    };
+  }
+
   function makePngSafeCard(card, exportSide = "front") {
     const graphics = card?.graphics || {};
     const safeFront = graphics.frontExportDataUrl || graphics.frontLocalDataUrl || graphics.frontDataUrl || "";
@@ -3135,7 +3160,18 @@ function App() {
   }
 
   function sanitizeHtml2CanvasUnsupportedColors(node) {
+    const restoreItems = [];
     const elements = [node, ...Array.from(node?.querySelectorAll?.("*") || [])].filter(Boolean);
+    const rememberSet = (el, cssProp, value, priority = "important") => {
+      restoreItems.push({
+        el,
+        cssProp,
+        value: el.style.getPropertyValue(cssProp),
+        priority: el.style.getPropertyPriority(cssProp),
+      });
+      el.style.setProperty(cssProp, value, priority);
+    };
+
     const colorProps = [
       "color",
       "backgroundColor",
@@ -3155,21 +3191,30 @@ function App() {
         const value = String(style[prop] || "");
         if (value.includes("color(") || value.includes("color-mix(")) {
           const cssProp = prop.replace(/[A-Z]/g, match => `-${match.toLowerCase()}`);
-          if (prop === "backgroundColor") el.style.setProperty(cssProp, "transparent", "important");
-          else if (prop === "caretColor") el.style.setProperty(cssProp, "auto", "important");
-          else el.style.setProperty(cssProp, prop.toLowerCase().includes("border") || prop === "outlineColor" ? "transparent" : "#ffffff", "important");
+          if (prop === "backgroundColor") rememberSet(el, cssProp, "transparent");
+          else if (prop === "caretColor") rememberSet(el, cssProp, "auto");
+          else rememberSet(el, cssProp, prop.toLowerCase().includes("border") || prop === "outlineColor" ? "transparent" : "currentColor");
         }
       }
 
       const boxShadow = String(style.boxShadow || "");
-      if (boxShadow.includes("color(") || boxShadow.includes("color-mix(")) el.style.setProperty("box-shadow", "none", "important");
+      if (boxShadow.includes("color(") || boxShadow.includes("color-mix(")) rememberSet(el, "box-shadow", "none");
 
       const textShadow = String(style.textShadow || "");
-      if (textShadow.includes("color(") || textShadow.includes("color-mix(")) el.style.setProperty("text-shadow", "none", "important");
+      if (textShadow.includes("color(") || textShadow.includes("color-mix(")) rememberSet(el, "text-shadow", "none");
 
-      const backgroundImage = String(style.backgroundImage || "");
-      if (backgroundImage.includes("color(") || backgroundImage.includes("color-mix(")) el.style.setProperty("background-image", "none", "important");
+      // Do not wipe background-image on visible export nodes. Imported graphics are an <img>,
+      // but some card layers can report modern color syntax in gradients; removing those on
+      // the live DOM makes the export look like a grey blank card.
     }
+
+    return () => {
+      for (let index = restoreItems.length - 1; index >= 0; index -= 1) {
+        const item = restoreItems[index];
+        if (item.value) item.el.style.setProperty(item.cssProp, item.value, item.priority || "");
+        else item.el.style.removeProperty(item.cssProp);
+      }
+    };
   }
 
   function getVisibleCardNodeForPngExport(card, exportSide) {
@@ -3179,13 +3224,15 @@ function App() {
     return previews.find(node => node && node.offsetWidth > 0 && node.offsetHeight > 0) || null;
   }
 
-  async function captureCardNodePng(node) {
+  async function captureCardNodePng(node, card, exportSide) {
     if (!node) throw new Error("Card preview was not available for export.");
+    let restoreUnsupportedColors = () => {};
+    const restoreGraphic = temporarilyPatchExportGraphic(node, card, exportSide);
     node.classList.add("is-card-png-export");
     node.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.classList.add("png-export-hidden-control"));
     try {
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      sanitizeHtml2CanvasUnsupportedColors(node);
+      restoreUnsupportedColors = sanitizeHtml2CanvasUnsupportedColors(node);
       await waitForExportImages(node);
       await (document.fonts?.ready || Promise.resolve());
       const rect = node.getBoundingClientRect();
@@ -3203,6 +3250,8 @@ function App() {
         windowHeight: Math.max(window.innerHeight || 0, height),
       });
     } finally {
+      restoreUnsupportedColors();
+      restoreGraphic();
       node.querySelectorAll?.(".png-export-hidden-control").forEach(el => el.classList.remove("png-export-hidden-control"));
       node.classList.remove("is-card-png-export");
     }
@@ -3240,7 +3289,7 @@ function App() {
         stripUnsafeExportImages(node);
       }
 
-      const canvas = await captureCardNodePng(node);
+      const canvas = await captureCardNodePng(node, selectedCard, exportSide);
 
       const blob = await new Promise((resolve, reject) => {
         try {
