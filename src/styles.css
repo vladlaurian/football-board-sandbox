@@ -6316,3 +6316,110 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   color: #111827 !important;
   opacity: 1 !important;
 }
+
+/* BACK SHARED RENDERER CLEANUP v4
+   Calibration only. Keeps Editor, Inspector and Export on CardVisualCanvas.
+   Back zones avoid cqw/cqh-dependent content metrics; px fallback vars are
+   generated in main.jsx and used by the same shared renderer everywhere. */
+.card-visual-canvas[data-card-side="back"] .card-visual-zone,
+.card-visual-canvas[data-card-side="back"] .card-visual-zone > .card-zone-content {
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list-with-title,
+.card-visual-canvas[data-card-side="back"] .card-zone-special-with-title,
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-with-title {
+  gap: 2px !important;
+  overflow: visible !important;
+  contain: none !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-section-title {
+  overflow: visible !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+  line-height: calc(1.16 * var(--zone-line-height, 1)) !important;
+  min-height: calc(8px * var(--zone-font-scale, 1)) !important;
+  transform: translateY(var(--zone-y-offset-px, 0px)) !important;
+  padding-bottom: 1px !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list {
+  justify-content: flex-start !important;
+  overflow: visible !important;
+  row-gap: 1px !important;
+  padding-top: 2px !important;
+  transform: none !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row {
+  grid-template-columns: minmax(0, 1fr) max-content !important;
+  column-gap: var(--zone-distance-shift-px, 12px) !important;
+  min-height: calc(8px * var(--zone-font-scale, 1)) !important;
+  overflow: visible !important;
+  line-height: calc(1.18 * var(--zone-line-height, 1)) !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row .card-zone-label,
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row .card-zone-value {
+  overflow: visible !important;
+  text-overflow: clip !important;
+  line-height: calc(1.18 * var(--zone-line-height, 1)) !important;
+  min-height: calc(8px * var(--zone-font-scale, 1)) !important;
+  transform: translateY(var(--zone-y-offset-px, 0px)) !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row .card-zone-label {
+  white-space: nowrap !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-special {
+  overflow: visible !important;
+  line-height: calc(1.18 * var(--zone-line-height, 1)) !important;
+  min-height: calc(10px * var(--zone-font-scale, 1)) !important;
+  transform: translateY(var(--zone-y-offset-px, 0px)) !important;
+  padding: 2px 0 !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense {
+  overflow: visible !important;
+  padding-top: 1px !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-grid-adjust {
+  gap: 2px !important;
+  transform: translate(-50%, -50%) translate(var(--goal-x-offset-px, 0px), var(--goal-y-offset-px, 0px)) !important;
+  overflow: visible !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-grid-adjust .card-zone-opponent-goal {
+  overflow: visible !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+  line-height: 1.12 !important;
+  min-height: 7px !important;
+  transform: translate(var(--goal-x-offset-px, 0px), var(--goal-y-offset-px, 0px)) !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-grid-adjust .area-mini {
+  gap: 1px !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-grid-adjust .area-mini span {
+  overflow: hidden !important;
+  border-radius: 1px !important;
+}
+
+/* Export host should not add a second hidden clipping layer around calibrated text. */
+.card-png-export-host .card-visual-canvas[data-card-side="back"] .card-zone-section-title,
+.card-png-export-host .card-visual-canvas[data-card-side="back"] .card-zone-list,
+.card-png-export-host .card-visual-canvas[data-card-side="back"] .card-zone-list-row,
+.card-png-export-host .card-visual-canvas[data-card-side="back"] .card-zone-label,
+.card-png-export-host .card-visual-canvas[data-card-side="back"] .card-zone-value,
+.card-png-export-host .card-visual-canvas[data-card-side="back"] .card-zone-special,
+.card-png-export-host .card-visual-canvas[data-card-side="back"] .card-zone-defense {
+  overflow: visible !important;
+}
