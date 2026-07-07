@@ -26,6 +26,8 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 280;
 const CARD_EXPORT_HEIGHT = 420;
 const CARD_EXPORT_PIXEL_RATIO = 4;
+const CARD_EXPORT_IMAGE_CACHE_PREFIX = "football-board-card-export-image:";
+
 
 function userStateRef(uid) {
   return doc(db, "users", uid, "footballBoard", "mainState");
@@ -3101,19 +3103,51 @@ function App() {
     });
   }
 
+  function cardExportImageCacheKey(src) {
+    return `${CARD_EXPORT_IMAGE_CACHE_PREFIX}${encodeURIComponent(String(src || ""))}`;
+  }
+
+  function getCachedCardExportImage(src) {
+    if (!src || /^data:image\//i.test(src)) return src || "";
+    try {
+      const cached = localStorage.getItem(cardExportImageCacheKey(src));
+      return isInlineImageDataUrl(cached) ? cached : "";
+    } catch {
+      return "";
+    }
+  }
+
+  function rememberCardExportImage(src, dataUrl) {
+    if (!src || !isInlineImageDataUrl(dataUrl)) return;
+    try {
+      localStorage.setItem(cardExportImageCacheKey(src), dataUrl);
+    } catch (error) {
+      console.warn("Could not cache card image for PNG export.", error);
+    }
+  }
+
   async function fetchImageAsDataUrl(src) {
     if (!src || /^data:image\//i.test(src)) return src;
+
+    const cached = getCachedCardExportImage(src);
+    if (cached) return cached;
+
     if (src.startsWith("blob:") || src.startsWith(window.location.origin)) {
       const response = await fetch(src);
       if (!response.ok) throw new Error(`Could not read local image for export (${response.status}).`);
-      return blobToDataUrl(await response.blob());
+      const dataUrl = await blobToDataUrl(await response.blob());
+      rememberCardExportImage(src, dataUrl);
+      return dataUrl;
     }
+
     try {
       const response = await fetch(src, { mode: "cors", credentials: "omit", cache: "force-cache" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return blobToDataUrl(await response.blob());
+      const dataUrl = await blobToDataUrl(await response.blob());
+      rememberCardExportImage(src, dataUrl);
+      return dataUrl;
     } catch (error) {
-      throw new Error("Card PNG export is blocked by a remote image without CORS. Re-upload the card artwork locally, or enable CORS for the image host/Firebase Storage, then try again.");
+      throw new Error("Card PNG export is blocked because this card only has a remote graphic URL without CORS and no local export-safe copy. Re-import this card graphic once with this build, then export again. For old remote graphics, Firebase Storage CORS must be enabled or the original image must be re-uploaded locally.");
     }
   }
 
@@ -3215,13 +3249,24 @@ function App() {
     }
 
     const exportSide = side === "front" ? "front" : "back";
+    const graphics = selectedCard.graphics || {};
+    const frontCached = getCachedCardExportImage(graphics.frontDataUrl);
+    const backCached = getCachedCardExportImage(graphics.backDataUrl);
+    const exportCard = {
+      ...selectedCard,
+      graphics: {
+        ...graphics,
+        frontDataUrl: frontCached || graphics.frontDataUrl || "",
+        backDataUrl: backCached || graphics.backDataUrl || "",
+      },
+    };
     const host = document.createElement("div");
     host.className = "card-png-export-host";
     document.body.appendChild(host);
     const root = createRoot(host);
 
     try {
-      root.render(<CardPreview card={selectedCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
+      root.render(<CardPreview card={exportCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const node = host.querySelector(".card-preview");
       if (!node) throw new Error("Card preview was not rendered for export.");
@@ -3311,6 +3356,14 @@ function App() {
       const uploadedBack = side === "both" && pairedBackDataUrl
         ? await uploadCardGraphicDataUrl(cardId, "back", pairedBackDataUrl)
         : pairedBackDataUrl;
+
+      if ((side === "front" || side === "both") && uploadedFront !== dataUrl) {
+        rememberCardExportImage(uploadedFront, dataUrl);
+      }
+      if (side === "both" && uploadedBack && pairedBackDataUrl && uploadedBack !== pairedBackDataUrl) {
+        rememberCardExportImage(uploadedBack, pairedBackDataUrl);
+      }
+
       applyGraphicToCard(cardId, side, uploadedFront, uploadedBack);
       setCloudStatus("Image uploaded");
       setCloudError("");
