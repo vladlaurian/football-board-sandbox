@@ -2829,11 +2829,11 @@ select option {
   color: var(--card-area-color, #fff) !important;
 }
 .card-preview .card-area-block .area-mini span:not(.active):not(.player) {
-  background: color-mix(in srgb, var(--card-area-color, #ffffff) 18%, transparent) !important;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-area-color, #ffffff) 42%, transparent) !important;
+  background: rgba(var(--card-area-rgb, 255, 255, 255), .18) !important;
+  box-shadow: inset 0 0 0 1px rgba(var(--card-area-rgb, 255, 255, 255), .42) !important;
 }
 .card-preview .card-area-block .area-mini span.player {
-  background: color-mix(in srgb, var(--card-area-color, #ffffff) 86%, #ffffff 14%) !important;
+  background: rgb(var(--card-area-rgb, 255, 255, 255)) !important;
   color: #111827 !important;
 }
 .card-preview .card-area-block .area-mini span.active {
@@ -2865,14 +2865,14 @@ select option {
 
 /* Defensive Area custom colors */
 .card-preview .area-mini span:not(.active):not(.player) {
-  background: color-mix(in srgb, var(--card-area-color, #fff) 18%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--card-area-color, #fff) 14%, transparent) inset;
+  background: rgba(var(--card-area-rgb, 255, 255, 255), .18);
+  box-shadow: 0 0 0 1px rgba(var(--card-area-rgb, 255, 255, 255), .14) inset;
 }
 .card-preview .area-mini span.active {
   background: var(--card-area-active-color, #50be78) !important;
 }
 .card-preview .area-mini span.player {
-  background: color-mix(in srgb, var(--card-area-color, #fff) 92%, white 8%) !important;
+  background: rgb(var(--card-area-rgb, 255, 255, 255)) !important;
 }
 .card-preview .card-area-block .attack-arrow::before {
   background: var(--card-area-color, #fff) !important;
@@ -2979,8 +2979,8 @@ select option {
 
 /* First Defensive Area color controls the writing, arrow and inactive grid cells. */
 .card-preview .card-area-block .area-mini span:not(.active):not(.player) {
-  background: color-mix(in srgb, var(--card-area-color, #fff) 42%, transparent) !important;
-  border: 1px solid color-mix(in srgb, var(--card-area-color, #fff) 55%, transparent) !important;
+  background: rgba(var(--card-area-rgb, 255, 255, 255), .42) !important;
+  border: 1px solid rgba(var(--card-area-rgb, 255, 255, 255), .55) !important;
 }
 .card-preview .card-area-block .area-mini span.active {
   background: var(--card-area-active-color, rgba(80,190,120,.95)) !important;
@@ -2995,7 +2995,7 @@ select option {
   background: var(--card-area-active-color, rgba(80,190,120,.95)) !important;
 }
 .card-preview.theme-custom .card-area-block .area-mini span:not(.active):not(.player) {
-  background: color-mix(in srgb, var(--card-area-color, #fff) 42%, transparent) !important;
+  background: rgba(var(--card-area-rgb, 255, 255, 255), .42) !important;
 }
 
 
@@ -3027,8 +3027,8 @@ select option {
 /* USER FIX: custom artwork keeps Defensive Area grid color visible on card only */
 .card-preview.theme-custom .card-area-block .area-mini span:not(.active):not(.player),
 .card-preview .card-area-block .area-mini span:not(.active):not(.player) {
-  background: color-mix(in srgb, var(--card-area-color, #fff) 42%, transparent) !important;
-  border: 1px solid color-mix(in srgb, var(--card-area-color, #fff) 55%, transparent) !important;
+  background: rgba(var(--card-area-rgb, 255, 255, 255), .42) !important;
+  border: 1px solid rgba(var(--card-area-rgb, 255, 255, 255), .55) !important;
 }
 .card-preview.theme-custom .card-area-block .area-mini span.active,
 .card-preview .card-area-block .area-mini span.active {
@@ -3111,8 +3111,8 @@ select option {
 /* USER FIX FINAL: imported/custom artwork must not cancel Defensive Area card grid colors */
 .card-preview.theme-custom .card-area-block .area-mini span:not(.active):not(.player),
 .card-preview .card-area-block .area-mini span:not(.active):not(.player) {
-  background: color-mix(in srgb, var(--card-area-color, #fff) 42%, transparent) !important;
-  border: 1px solid color-mix(in srgb, var(--card-area-color, #fff) 55%, transparent) !important;
+  background: rgba(var(--card-area-rgb, 255, 255, 255), .42) !important;
+  border: 1px solid rgba(var(--card-area-rgb, 255, 255, 255), .55) !important;
 }
 .card-preview.theme-custom .card-area-block .area-mini span.active,
 .card-preview .card-area-block .area-mini span.active {
@@ -3137,7 +3137,7 @@ select option {
   min-height: 4.5px !important;
   border-radius: 1.3px !important;
   background: var(--card-area-color, #fff) !important;
-  border: 1px solid color-mix(in srgb, var(--card-area-color, #fff) 70%, transparent) !important;
+  border: 1px solid rgba(var(--card-area-rgb, 255, 255, 255), .70) !important;
   box-shadow: none !important;
   color: transparent !important;
   font-size: 0 !important;
@@ -3147,7 +3147,7 @@ select option {
 /* USER FIX: keep custom/imported graphics using the same filled center square */
 .card-preview.theme-custom .card-area-block .area-mini span.player {
   background: var(--card-area-color, #fff) !important;
-  border: 1px solid color-mix(in srgb, var(--card-area-color, #fff) 70%, transparent) !important;
+  border: 1px solid rgba(var(--card-area-rgb, 255, 255, 255), .70) !important;
   color: transparent !important;
 }
 
@@ -3521,7 +3521,7 @@ select option {
 
 /* Current request: Layout Zones color button controls the visible editor zone color. */
 .card-visual-zone.show-zone {
-  border-color: color-mix(in srgb, var(--card-layout-zone-color, #ffffff) 72%, transparent) !important;
+  border-color: rgba(var(--card-layout-zone-rgb, 255, 255, 255), .72) !important;
   color: var(--card-layout-zone-color, #ffffff) !important;
 }
 .card-visual-zone.show-zone span {
@@ -3801,7 +3801,7 @@ select option {
   color: var(--zone-text-color, currentColor) !important;
 }
 .card-zone-defense.zone-color-bound .area-mini span:not(.active):not(.player) {
-  background: color-mix(in srgb, var(--zone-text-color, currentColor) 28%, transparent) !important;
+  background: rgba(var(--zone-text-rgb, 255, 255, 255), .28) !important;
   opacity: 1 !important;
 }
 .card-zone-defense.zone-color-bound .area-mini span.active {
@@ -4524,13 +4524,13 @@ select option {
   color: var(--zone-text-color, currentColor) !important;
 }
 .card-zone-defense-with-title.zone-color-bound .area-mini span:not(.active):not(.player) {
-  background: color-mix(in srgb, var(--zone-text-color, currentColor) 35%, transparent) !important;
-  border: 1px solid color-mix(in srgb, var(--zone-text-color, currentColor) 75%, transparent) !important;
+  background: rgba(var(--zone-text-rgb, 255, 255, 255), .35) !important;
+  border: 1px solid rgba(var(--zone-text-rgb, 255, 255, 255), .75) !important;
   opacity: 1 !important;
 }
 .card-zone-defense-with-title.zone-color-bound .area-mini span.active {
   background: var(--card-area-active-color, #50be78) !important;
-  border: 1px solid color-mix(in srgb, var(--card-area-active-color, #50be78) 85%, transparent) !important;
+  border: 1px solid rgba(var(--card-area-active-rgb, 80, 190, 120), .85) !important;
   opacity: 1 !important;
 }
 .card-zone-defense-with-title.zone-color-bound .area-mini span.player {
@@ -5594,7 +5594,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   position: absolute !important;
   inset: 0 !important;
   z-index: 3 !important;
-  border: 1px dashed color-mix(in srgb, var(--card-layout-zone-color, #ffffff) 72%, transparent) !important;
+  border: 1px dashed rgba(var(--card-layout-zone-rgb, 255, 255, 255), .72) !important;
   background: rgba(0,0,0,.16) !important;
   pointer-events: none !important;
   box-sizing: border-box !important;
@@ -5695,7 +5695,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   position: absolute !important;
   inset: 0 !important;
   z-index: 3 !important;
-  border: 1px dashed color-mix(in srgb, var(--card-layout-zone-color, #ffffff) 72%, transparent) !important;
+  border: 1px dashed rgba(var(--card-layout-zone-rgb, 255, 255, 255), .72) !important;
   background: rgba(0,0,0,.16) !important;
   pointer-events: none !important;
   box-sizing: border-box !important;
@@ -5806,7 +5806,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   position: absolute !important;
   inset: 0 !important;
   z-index: 1 !important;
-  border: 1px dashed color-mix(in srgb, var(--card-layout-zone-color, #ffffff) 72%, transparent) !important;
+  border: 1px dashed rgba(var(--card-layout-zone-rgb, 255, 255, 255), .72) !important;
   background: rgba(0,0,0,.12) !important;
   pointer-events: none !important;
   box-sizing: border-box !important;

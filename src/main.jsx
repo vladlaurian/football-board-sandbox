@@ -1436,6 +1436,14 @@ function safeColor(value, fallback = "#ffffff") {
   return /^#[0-9a-fA-F]{6}$/.test(clean) ? clean : fallback;
 }
 
+function colorToRgbTriplet(value, fallback = "#ffffff") {
+  const hex = safeColor(value, fallback).slice(1);
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  return `${r}, ${g}, ${b}`;
+}
+
 function cardTextColors(card) {
   return normalizeTextColors(card?.textColors);
 }
@@ -3565,8 +3573,10 @@ function App() {
       "--card-attributes-title-color": safeColor(colors.attributesTitle),
       "--card-bonuses-title-color": safeColor(colors.bonusesTitle),
       "--card-area-color": safeColor(colors.defensiveArea),
+      "--card-area-rgb": colorToRgbTriplet(colors.defensiveArea),
       "--card-area-title-color": safeColor(colors.defensiveAreaTitle),
       "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78"),
+      "--card-area-active-rgb": colorToRgbTriplet(colors.defensiveAreaActive, "#50be78"),
       "--card-special-color": safeColor(colors.specialAbility),
       "--card-special-title-color": safeColor(colors.specialAbilityTitle),
     };
@@ -3705,7 +3715,7 @@ function App() {
       const textColor = safeColor(colors.defensiveArea);
       const titleColor = safeColor(colors.defensiveAreaTitle);
       return (
-        <div className="card-zone-text card-zone-defense-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 2, color: textColor, "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78") }}>
+        <div className="card-zone-text card-zone-defense-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-text-rgb": colorToRgbTriplet(textColor), "--zone-title-color": titleColor, "--zone-lines": 2, color: textColor, "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78"), "--card-area-active-rgb": colorToRgbTriplet(colors.defensiveAreaActive, "#50be78") }}>
           <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVarsStable(textStyles, "defensiveAreaTitle") }}>{cardLayoutTitle(card, "defensiveArea")}</div>
           <div className="card-zone-defense card-zone-defense-row" style={{ color: textColor, ...zoneTextStyleVarsStable(textStyles, "defensiveArea") }}>
             <div className="card-zone-defense-grid-adjust" data-defensive-grid-card-id={card.id} style={defensiveGridAdjustStyle(card)}>
