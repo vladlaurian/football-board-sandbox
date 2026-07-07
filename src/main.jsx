@@ -425,44 +425,211 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
 }
 
 
-function StableColorPicker({ current, label, isOpen, onToggle, onChange }) {
-  const stopPanelEvent = e => e.stopPropagation();
-  const commitColor = value => {
-    if (!value) return;
-    onChange && onChange(value);
+function hexToRgbParts(value) {
+  const clean = safeColor(value, "#ffffff").slice(1);
+  return {
+    r: parseInt(clean.slice(0, 2), 16),
+    g: parseInt(clean.slice(2, 4), 16),
+    b: parseInt(clean.slice(4, 6), 16),
   };
+}
+
+function rgbPartsToHex(r, g, b) {
+  const toHex = n => clamp(Math.round(Number(n) || 0), 0, 255).toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function rgbToHsv({ r, g, b }) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  let h = 0;
+  if (delta) {
+    if (max === r) h = ((g - b) / delta) % 6;
+    else if (max === g) h = (b - r) / delta + 2;
+    else h = (r - g) / delta + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return {
+    h: Math.round(h),
+    s: max === 0 ? 0 : delta / max,
+    v: max,
+  };
+}
+
+function hsvToRgbParts(h, s, v) {
+  h = ((Number(h) || 0) % 360 + 360) % 360;
+  s = clamp(Number(s) || 0, 0, 1);
+  v = clamp(Number(v) || 0, 0, 1);
+  const c = v * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = v - c;
+  let r1 = 0, g1 = 0, b1 = 0;
+  if (h < 60) [r1, g1, b1] = [c, x, 0];
+  else if (h < 120) [r1, g1, b1] = [x, c, 0];
+  else if (h < 180) [r1, g1, b1] = [0, c, x];
+  else if (h < 240) [r1, g1, b1] = [0, x, c];
+  else if (h < 300) [r1, g1, b1] = [x, 0, c];
+  else [r1, g1, b1] = [c, 0, x];
+  return {
+    r: Math.round((r1 + m) * 255),
+    g: Math.round((g1 + m) * 255),
+    b: Math.round((b1 + m) * 255),
+  };
+}
+
+function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepOpen }) {
+  const stopPanelEvent = e => e.stopPropagation();
+  const safeCurrent = safeColor(current);
+  const [draftColor, setDraftColor] = useState(safeCurrent);
+  const activeDragRef = useRef(null);
+  const draftColorRef = useRef(safeCurrent);
+  const svRef = useRef(null);
+  const hueRef = useRef(null);
+
+  useEffect(() => {
+    if (!activeDragRef.current) {
+      const next = safeColor(current);
+      setDraftColor(next);
+      draftColorRef.current = next;
+    }
+  }, [current, isOpen]);
+
+  const safeDraft = safeColor(draftColor, safeCurrent);
+  const hsv = useMemo(() => rgbToHsv(hexToRgbParts(safeDraft)), [safeDraft]);
+  const rgb = useMemo(() => hexToRgbParts(safeDraft), [safeDraft]);
+
+  const setDraft = value => {
+    const next = safeColor(value, draftColorRef.current || safeCurrent);
+    draftColorRef.current = next;
+    setDraftColor(next);
+    return next;
+  };
+
+  const commitColor = value => {
+    const next = setDraft(value);
+    onChange && onChange(next);
+    // Re-assert the same open panel after React updates the card state.
+    // This prevents the color panel from collapsing right after a selection.
+    window.setTimeout(() => onKeepOpen && onKeepOpen(), 0);
+  };
+
+  const hsvToHex = patch => {
+    const base = rgbToHsv(hexToRgbParts(draftColorRef.current || safeDraft));
+    const nextHsv = { ...base, ...patch };
+    const nextRgb = hsvToRgbParts(nextHsv.h, nextHsv.s, nextHsv.v);
+    return rgbPartsToHex(nextRgb.r, nextRgb.g, nextRgb.b);
+  };
+
+  const colorFromSaturationValueEvent = e => {
+    if (!svRef.current) return draftColorRef.current || safeDraft;
+    const rect = svRef.current.getBoundingClientRect();
+    const x = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+    const y = clamp((e.clientY - rect.top) / rect.height, 0, 1);
+    return hsvToHex({ s: x, v: 1 - y });
+  };
+
+  const colorFromHueEvent = e => {
+    if (!hueRef.current) return draftColorRef.current || safeDraft;
+    const rect = hueRef.current.getBoundingClientRect();
+    const x = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+    return hsvToHex({ h: Math.round(x * 359) });
+  };
+
+  const beginDrag = picker => e => {
+    e.preventDefault();
+    e.stopPropagation();
+    activeDragRef.current = picker;
+    e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
+    setDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
+  };
+
+  const drag = picker => e => {
+    if (activeDragRef.current !== picker) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
+  };
+
+  const finishDrag = picker => e => {
+    if (activeDragRef.current !== picker) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const next = setDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
+    activeDragRef.current = null;
+    onChange && onChange(next);
+    window.setTimeout(() => onKeepOpen && onKeepOpen(), 0);
+  };
+
+  const cancelDrag = e => {
+    e.preventDefault();
+    e.stopPropagation();
+    activeDragRef.current = null;
+    window.setTimeout(() => onKeepOpen && onKeepOpen(), 0);
+  };
+
+  const setRgbChannel = key => e => {
+    const value = clamp(Number(e.currentTarget.value) || 0, 0, 255);
+    const next = { ...rgb, [key]: value };
+    commitColor(rgbPartsToHex(next.r, next.g, next.b));
+  };
+
   return (
     <div className={`stable-color-picker ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
-      <button type="button" className={`color-picker-toggle ${isOpen ? "active" : ""}`} title={`${label} text color`} aria-expanded={isOpen} onClick={onToggle}>
-        <span className="color-current" style={{ background: current }} /> <em>{label}</em>
+      <button type="button" className={`color-picker-toggle ${isOpen ? "active" : ""}`} title={`${label} color`} aria-expanded={isOpen} onClick={onToggle}>
+        <span className="color-current" style={{ background: safeDraft }} /> <em>{label}</em>
       </button>
       {isOpen ? (
-        <div className="color-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
-          {COLOR_SWATCHES.map(color => (
-            <button
-              type="button"
-              key={color}
-              className={current.toLowerCase() === color.toLowerCase() ? "selected" : ""}
-              style={{ background: color }}
-              onClick={() => commitColor(color)}
-              title={color}
-            />
-          ))}
-          <input
-            type="color"
-            value={current}
-            onPointerDown={stopPanelEvent}
-            onMouseDown={stopPanelEvent}
-            onClick={stopPanelEvent}
-            onInput={e => commitColor(e.currentTarget.value)}
-            onChange={e => commitColor(e.currentTarget.value)}
-          />
+        <div className="color-panel custom-color-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+          <div
+            ref={svRef}
+            className="color-sv-plane"
+            style={{ backgroundColor: `hsl(${hsv.h}, 100%, 50%)` }}
+            onPointerDown={beginDrag("sv")}
+            onPointerMove={drag("sv")}
+            onPointerUp={finishDrag("sv")}
+            onPointerCancel={cancelDrag}
+            role="slider"
+            aria-label={`${label} saturation and brightness`}
+          >
+            <span className="color-sv-cursor" style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }} />
+          </div>
+          <div
+            ref={hueRef}
+            className="color-hue-bar"
+            onPointerDown={beginDrag("hue")}
+            onPointerMove={drag("hue")}
+            onPointerUp={finishDrag("hue")}
+            onPointerCancel={cancelDrag}
+            role="slider"
+            aria-label={`${label} hue`}
+          >
+            <span className="color-hue-cursor" style={{ left: `${(hsv.h / 359) * 100}%` }} />
+          </div>
+          <div className="color-rgb-row">
+            <label><span>R</span><input type="number" min="0" max="255" value={rgb.r} onChange={setRgbChannel("r")} /></label>
+            <label><span>G</span><input type="number" min="0" max="255" value={rgb.g} onChange={setRgbChannel("g")} /></label>
+            <label><span>B</span><input type="number" min="0" max="255" value={rgb.b} onChange={setRgbChannel("b")} /></label>
+          </div>
+          <div className="color-swatch-grid">
+            {COLOR_SWATCHES.map(color => (
+              <button
+                type="button"
+                key={color}
+                className={safeDraft.toLowerCase() === color.toLowerCase() ? "selected" : ""}
+                style={{ background: color }}
+                onClick={() => commitColor(color)}
+                title={color}
+              />
+            ))}
+          </div>
         </div>
       ) : null}
     </div>
   );
 }
-
 
 function StableOpponentGoalTextControl({ cardId, current, isOpen, onToggle, onPatch, onPreview }) {
   if (!cardId) return null;
@@ -3822,7 +3989,24 @@ function App() {
         label={label}
         isOpen={openColorPanelKey === panelKey}
         onToggle={() => setOpenColorPanelKey(openColorPanelKey === panelKey ? null : panelKey)}
+        onKeepOpen={() => setOpenColorPanelKey(panelKey)}
         onChange={value => updateCardTextColor(card.id, colorKey, value)}
+      />
+    );
+  }
+
+  function DuplicateColorPicker({ card, block, field, label }) {
+    if (!card || !block) return null;
+    const current = safeColor(block[field]);
+    const panelKey = `${card.id}:duplicate:${block.id}:${field}`;
+    return (
+      <StableColorPicker
+        current={current}
+        label={label}
+        isOpen={openColorPanelKey === panelKey}
+        onToggle={() => setOpenColorPanelKey(openColorPanelKey === panelKey ? null : panelKey)}
+        onKeepOpen={() => setOpenColorPanelKey(panelKey)}
+        onChange={value => updateDuplicateBlock(card.id, block.id, { [field]: value })}
       />
     );
   }
@@ -4101,24 +4285,24 @@ function App() {
         <div className="duplicate-block-title"><strong>{block.name}</strong><button type="button" onClick={() => deleteDuplicateBlock(card.id, block.id)}>Delete copy</button></div>
         <label>Name<input value={block.name} onChange={e => updateDuplicateBlock(card.id, block.id, { name: e.target.value })} /></label>
         <label>Title<input value={block.title} onChange={e => updateDuplicateBlock(card.id, block.id, { title: e.target.value })} /></label>
-        {block.kind !== "frontPair" ? <label>Title color<input type="color" value={safeColor(block.titleColor)} onChange={e => updateDuplicateBlock(card.id, block.id, { titleColor: e.target.value })} /></label> : null}
+        {block.kind !== "frontPair" ? <DuplicateColorPicker card={card} block={block} field="titleColor" label="Title Color" /> : null}
         {block.kind !== "frontPair" ? <DuplicateStyleMiniControls card={card} block={block} styleKey="titleStyle" titleMode /> : null}
         {block.kind === "special" ? (
           <>
-            <label>Text color<input type="color" value={safeColor(block.textColor)} onChange={e => updateDuplicateBlock(card.id, block.id, { textColor: e.target.value })} /></label>
+            <DuplicateColorPicker card={card} block={block} field="textColor" label="Text Color" />
             <DuplicateStyleMiniControls card={card} block={block} styleKey="textStyle" />
             <textarea className="special-ability-textarea" value={block.text} onChange={e => updateDuplicateBlock(card.id, block.id, { text: e.target.value })} />
           </>
         ) : block.kind === "frontPair" ? (
           <>
-            <div className="duplicate-inline-tools"><label>Text color<input type="color" value={safeColor(block.textColor)} onChange={e => updateDuplicateBlock(card.id, block.id, { textColor: e.target.value })} /></label><label>Numbers color<input type="color" value={safeColor(block.numberColor)} onChange={e => updateDuplicateBlock(card.id, block.id, { numberColor: e.target.value })} /></label></div>
+            <div className="duplicate-inline-tools"><DuplicateColorPicker card={card} block={block} field="textColor" label="Text Color" /><DuplicateColorPicker card={card} block={block} field="numberColor" label="Numbers Color" /></div>
             <DuplicateStyleMiniControls card={card} block={block} styleKey="textStyle" />
             <DuplicateStyleMiniControls card={card} block={block} styleKey="numberStyle" numbersMode />
             <label>Value<input className="attr-value" value={block.value} onChange={e => updateDuplicateBlock(card.id, block.id, { value: cleanTwoDigitValue(e.target.value) })} /></label>
           </>
         ) : (
           <>
-            <div className="duplicate-inline-tools"><label>Text color<input type="color" value={safeColor(block.textColor)} onChange={e => updateDuplicateBlock(card.id, block.id, { textColor: e.target.value })} /></label><label>Numbers color<input type="color" value={safeColor(block.numberColor)} onChange={e => updateDuplicateBlock(card.id, block.id, { numberColor: e.target.value })} /></label></div>
+            <div className="duplicate-inline-tools"><DuplicateColorPicker card={card} block={block} field="textColor" label="Text Color" /><DuplicateColorPicker card={card} block={block} field="numberColor" label="Numbers Color" /></div>
             <DuplicateStyleMiniControls card={card} block={block} styleKey="textStyle" />
             <DuplicateStyleMiniControls card={card} block={block} styleKey="numberStyle" numbersMode />
             <button type="button" onClick={() => addDuplicateItem(card.id, block.id)}>+ Add row</button>
