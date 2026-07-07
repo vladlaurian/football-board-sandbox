@@ -3160,19 +3160,9 @@ function App() {
     const artwork = { ...(card?.artwork || {}) };
     if (artwork.customDataUrl && !isInlineImageDataUrl(artwork.customDataUrl)) artwork.customDataUrl = "";
 
-    // For print export, do not let a custom front-only graphic force the back side
-    // into theme-custom. That path triggers html2canvas color() parsing issues and
-    // is not needed when the back has no imported artwork of its own.
-    if (exportSide === "back" && !inlineBack) {
-      const previousTheme = CARD_THEMES.includes(graphics.previousTheme) ? graphics.previousTheme : "Style 1";
-      return {
-        ...card,
-        theme: previousTheme,
-        graphics: { frontDataUrl: "", backDataUrl: "", previousTheme },
-        artwork,
-      };
-    }
-
+    // Keep the visual card object identical to the editor/inspector path.
+    // PNG export may only sanitize image sources that html2canvas cannot read;
+    // it must not swap themes or rebuild the card for the back side.
     return {
       ...card,
       graphics: {
