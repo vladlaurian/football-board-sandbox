@@ -480,23 +480,21 @@ function hsvToRgbParts(h, s, v) {
   };
 }
 
-function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepOpen, onPreview, onPreviewEnd }) {
+function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepOpen }) {
   const stopPanelEvent = e => e.stopPropagation();
   const safeCurrent = safeColor(current);
   const [draftColor, setDraftColor] = useState(safeCurrent);
   const activeDragRef = useRef(null);
   const draftColorRef = useRef(safeCurrent);
+  const liveCommitFrameRef = useRef(null);
   const svRef = useRef(null);
   const hueRef = useRef(null);
-  const svCursorRef = useRef(null);
-  const hueCursorRef = useRef(null);
 
   useEffect(() => {
     if (!activeDragRef.current) {
       const next = safeColor(current);
       setDraftColor(next);
       draftColorRef.current = next;
-      window.requestAnimationFrame(() => updateMarkerVisual(next));
     }
   }, [current, isOpen]);
 
@@ -504,35 +502,33 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
   const hsv = useMemo(() => rgbToHsv(hexToRgbParts(safeDraft)), [safeDraft]);
   const rgb = useMemo(() => hexToRgbParts(safeDraft), [safeDraft]);
 
-  const updateMarkerVisual = value => {
-    const nextHsv = rgbToHsv(hexToRgbParts(safeColor(value, draftColorRef.current || safeCurrent)));
-    if (svCursorRef.current) {
-      svCursorRef.current.style.left = `${nextHsv.s * 100}%`;
-      svCursorRef.current.style.top = `${(1 - nextHsv.v) * 100}%`;
-    }
-    if (hueCursorRef.current) {
-      hueCursorRef.current.style.left = `${(nextHsv.h / 359) * 100}%`;
-    }
-    if (svRef.current) {
-      svRef.current.style.backgroundColor = `hsl(${nextHsv.h}, 100%, 50%)`;
-    }
-  };
-
-  const setDraft = (value, preview = false) => {
+  const setDraft = value => {
     const next = safeColor(value, draftColorRef.current || safeCurrent);
     draftColorRef.current = next;
     setDraftColor(next);
-    updateMarkerVisual(next);
-    if (preview && onPreview) onPreview(next);
     return next;
   };
 
   const commitColor = value => {
     const next = setDraft(value);
+    if (liveCommitFrameRef.current) {
+      window.cancelAnimationFrame(liveCommitFrameRef.current);
+      liveCommitFrameRef.current = null;
+    }
     onChange && onChange(next);
     // Re-assert the same open panel after React updates the card state.
     // This prevents the color panel from collapsing right after a selection.
     window.setTimeout(() => onKeepOpen && onKeepOpen(), 0);
+  };
+
+  const scheduleLiveCommit = value => {
+    const next = safeColor(value, draftColorRef.current || safeCurrent);
+    if (liveCommitFrameRef.current) return;
+    liveCommitFrameRef.current = window.requestAnimationFrame(() => {
+      liveCommitFrameRef.current = null;
+      onChange && onChange(draftColorRef.current || next);
+      onKeepOpen && onKeepOpen();
+    });
   };
 
   const hsvToHex = patch => {
@@ -562,37 +558,41 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
     e.stopPropagation();
     activeDragRef.current = picker;
     e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
-    setDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e), true);
+    const next = setDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
+    scheduleLiveCommit(next);
   };
 
   const drag = picker => e => {
     if (activeDragRef.current !== picker) return;
     e.preventDefault();
     e.stopPropagation();
-    setDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e), true);
+    const next = setDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
+    scheduleLiveCommit(next);
   };
 
   const finishDrag = picker => e => {
     if (activeDragRef.current !== picker) return;
     e.preventDefault();
     e.stopPropagation();
-    const next = setDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e), true);
+    const next = setDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
     activeDragRef.current = null;
+    if (liveCommitFrameRef.current) {
+      window.cancelAnimationFrame(liveCommitFrameRef.current);
+      liveCommitFrameRef.current = null;
+    }
     onChange && onChange(next);
-    window.setTimeout(() => {
-      onPreviewEnd && onPreviewEnd();
-      onKeepOpen && onKeepOpen();
-    }, 0);
+    window.setTimeout(() => onKeepOpen && onKeepOpen(), 0);
   };
 
   const cancelDrag = e => {
     e.preventDefault();
     e.stopPropagation();
     activeDragRef.current = null;
-    window.setTimeout(() => {
-      onPreviewEnd && onPreviewEnd();
-      onKeepOpen && onKeepOpen();
-    }, 0);
+    if (liveCommitFrameRef.current) {
+      window.cancelAnimationFrame(liveCommitFrameRef.current);
+      liveCommitFrameRef.current = null;
+    }
+    window.setTimeout(() => onKeepOpen && onKeepOpen(), 0);
   };
 
   const setRgbChannel = key => e => {
@@ -619,7 +619,7 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
             role="slider"
             aria-label={`${label} saturation and brightness`}
           >
-            <span ref={svCursorRef} className="color-sv-cursor" style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }} />
+            <span className="color-sv-cursor" style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }} />
           </div>
           <div
             ref={hueRef}
@@ -631,7 +631,7 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
             role="slider"
             aria-label={`${label} hue`}
           >
-            <span ref={hueCursorRef} className="color-hue-cursor" style={{ left: `${(hsv.h / 359) * 100}%` }} />
+            <span className="color-hue-cursor" style={{ left: `${(hsv.h / 359) * 100}%` }} />
           </div>
           <div className="color-rgb-row">
             <label><span>R</span><input type="number" min="0" max="255" value={rgb.r} onChange={setRgbChannel("r")} /></label>
@@ -1710,7 +1710,6 @@ function App() {
   const [editingCardId, setEditingCardId] = useState(null);
   const [openTextPanelKey, setOpenTextPanelKey] = useState(null);
   const [openColorPanelKey, setOpenColorPanelKey] = useState(null);
-  const [colorPreviewDraft, setColorPreviewDraft] = useState(null);
   const [openGridAdjustKey, setOpenGridAdjustKey] = useState(null);
   const [previewTextStyleDraft, setPreviewTextStyleDraft] = useState(null);
   const [selectedLayout, setSelectedLayout] = useState(null);
@@ -4005,28 +4004,6 @@ function App() {
     }));
   }
 
-  function previewCardColors(card) {
-    if (!card || !colorPreviewDraft || colorPreviewDraft.cardId !== card.id) return card;
-    if (colorPreviewDraft.kind === "textColor") {
-      return {
-        ...card,
-        textColors: {
-          ...(card.textColors || {}),
-          [colorPreviewDraft.colorKey]: colorPreviewDraft.value,
-        },
-      };
-    }
-    if (colorPreviewDraft.kind === "duplicateColor") {
-      return {
-        ...card,
-        duplicateBlocks: normalizeDuplicateBlocks(card).map(block => (
-          block.id === colorPreviewDraft.blockId ? { ...block, [colorPreviewDraft.field]: colorPreviewDraft.value } : block
-        )),
-      };
-    }
-    return card;
-  }
-
   function ColorPicker({ card, colorKey, label }) {
     if (!card) return null;
     const current = safeColor((card.textColors || {})[colorKey], CARD_TEXT_COLOR_DEFAULTS[colorKey] || "#ffffff");
@@ -4038,8 +4015,6 @@ function App() {
         isOpen={openColorPanelKey === panelKey}
         onToggle={() => setOpenColorPanelKey(openColorPanelKey === panelKey ? null : panelKey)}
         onKeepOpen={() => setOpenColorPanelKey(panelKey)}
-        onPreview={value => setColorPreviewDraft({ kind: "textColor", cardId: card.id, colorKey, value })}
-        onPreviewEnd={() => setColorPreviewDraft(prev => prev?.cardId === card.id && prev?.kind === "textColor" && prev?.colorKey === colorKey ? null : prev)}
         onChange={value => updateCardTextColor(card.id, colorKey, value)}
       />
     );
@@ -4056,8 +4031,6 @@ function App() {
         isOpen={openColorPanelKey === panelKey}
         onToggle={() => setOpenColorPanelKey(openColorPanelKey === panelKey ? null : panelKey)}
         onKeepOpen={() => setOpenColorPanelKey(panelKey)}
-        onPreview={value => setColorPreviewDraft({ kind: "duplicateColor", cardId: card.id, blockId: block.id, field, value })}
-        onPreviewEnd={() => setColorPreviewDraft(prev => prev?.cardId === card.id && prev?.kind === "duplicateColor" && prev?.blockId === block.id && prev?.field === field ? null : prev)}
         onChange={value => updateDuplicateBlock(card.id, block.id, { [field]: value })}
       />
     );
@@ -4400,12 +4373,11 @@ function App() {
 
   function CardEditor({ card }) {
     if (!card) return <div className="empty-panel">Alege sau creează un card.</div>;
-    const previewCard = previewCardColors(card);
     return (
       <div className="card-editor">
         <div className="card-editor-previews">
-          <div><div className="card-preview-label">Front</div><CardPreview card={previewCard} team="neutral" side="front" showLayoutZones={true} /></div>
-          <div><div className="card-preview-label">Back</div><CardPreview card={previewCard} team="neutral" side="back" showLayoutZones={true} /></div>
+          <div><div className="card-preview-label">Front</div><CardPreview card={card} team="neutral" side="front" showLayoutZones={true} /></div>
+          <div><div className="card-preview-label">Back</div><CardPreview card={card} team="neutral" side="back" showLayoutZones={true} /></div>
         </div>
         <div className="card-editor-controls">
         {CardLayoutEditor({ card })}
