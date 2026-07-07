@@ -3124,103 +3124,6 @@ function App() {
     };
   }
 
-
-  function normalizeCanvasColorValue(value, fallback = "rgba(255,255,255,0.35)") {
-    const raw = String(value || "").trim();
-    if (!raw || raw === "none" || raw === "transparent" || raw === "initial" || raw === "inherit") return raw || fallback;
-    if (!raw.includes("color(")) return raw;
-    return raw.replace(/color\(([^)]*)\)/gi, (_, body) => {
-      const parts = String(body || "").trim().split(/\s+\/\s+|\s+/).filter(Boolean);
-      const nums = parts.slice(1).map(part => Number(String(part).replace(/%$/, "")));
-      if (nums.length < 3 || nums.slice(0, 3).some(n => !Number.isFinite(n))) return fallback;
-      const pct = parts.slice(1, 4).some(part => String(part).trim().endsWith("%"));
-      const r = Math.max(0, Math.min(255, Math.round(pct ? nums[0] * 2.55 : nums[0] * 255)));
-      const g = Math.max(0, Math.min(255, Math.round(pct ? nums[1] * 2.55 : nums[1] * 255)));
-      const b = Math.max(0, Math.min(255, Math.round(pct ? nums[2] * 2.55 : nums[2] * 255)));
-      const a = Number.isFinite(nums[3]) ? Math.max(0, Math.min(1, nums[3])) : 1;
-      return `rgba(${r}, ${g}, ${b}, ${a})`;
-    });
-  }
-
-  function forceHtml2CanvasSafeStyles(rootNode) {
-    if (!rootNode) return;
-    const doc = rootNode.ownerDocument || document;
-    const style = doc.createElement("style");
-    style.setAttribute("data-card-png-export-safety", "true");
-    style.textContent = `
-      .card-png-export-host .card-preview .area-mini span:not(.active):not(.player),
-      .card-png-export-host .card-preview.theme-custom .area-mini span:not(.active):not(.player),
-      .card-png-export-host .card-preview .card-area-block .area-mini span:not(.active):not(.player),
-      .card-png-export-host .card-preview.theme-custom .card-area-block .area-mini span:not(.active):not(.player),
-      .card-png-export-host .card-preview .card-zone-defense-with-title.zone-color-bound .area-mini span:not(.active):not(.player),
-      .card-png-export-host .card-preview .card-zone-defense.zone-color-bound .area-mini span:not(.active):not(.player) {
-        background: rgba(255,255,255,.22) !important;
-        border: 1px solid rgba(255,255,255,.46) !important;
-        box-shadow: none !important;
-      }
-      .card-png-export-host .card-preview .area-mini span.player,
-      .card-png-export-host .card-preview.theme-custom .area-mini span.player,
-      .card-png-export-host .card-preview .card-area-block .area-mini span.player,
-      .card-png-export-host .card-preview.theme-custom .card-area-block .area-mini span.player,
-      .card-png-export-host .card-preview .card-zone-defense-with-title.zone-color-bound .area-mini span.player,
-      .card-png-export-host .card-preview .card-zone-defense.zone-color-bound .area-mini span.player {
-        background: #ffffff !important;
-        border: 1px solid rgba(255,255,255,.80) !important;
-        box-shadow: none !important;
-        color: transparent !important;
-      }
-      .card-png-export-host .card-preview .area-mini span.active,
-      .card-png-export-host .card-preview .card-area-block .area-mini span.active,
-      .card-png-export-host .card-preview .card-zone-defense-with-title.zone-color-bound .area-mini span.active,
-      .card-png-export-host .card-preview .card-zone-defense.zone-color-bound .area-mini span.active {
-        background: #50be78 !important;
-        border: 1px solid rgba(210,255,225,.70) !important;
-        box-shadow: none !important;
-      }
-      .card-png-export-host .card-preview .attack-arrow,
-      .card-png-export-host .card-preview .card-zone-attack-direction,
-      .card-png-export-host .card-preview .card-zone-defense-with-title {
-        color: #ffffff !important;
-      }
-      .card-png-export-host .card-preview .attack-arrow::before,
-      .card-png-export-host .card-preview .card-zone-attack-direction .attack-arrow::before {
-        background: #ffffff !important;
-        box-shadow: none !important;
-      }
-      .card-png-export-host .card-preview .attack-arrow::after,
-      .card-png-export-host .card-preview .card-zone-attack-direction .attack-arrow::after {
-        border-bottom-color: #ffffff !important;
-        box-shadow: none !important;
-      }
-    `;
-    doc.head.appendChild(style);
-
-    const elements = [rootNode, ...Array.from(rootNode.querySelectorAll?.("*") || [])];
-    const colorProps = [
-      "color", "backgroundColor", "borderTopColor", "borderRightColor",
-      "borderBottomColor", "borderLeftColor", "outlineColor",
-      "textDecorationColor", "fill", "stroke"
-    ];
-    for (const el of elements) {
-      const computed = (rootNode.ownerDocument?.defaultView || window).getComputedStyle(el);
-      for (const prop of colorProps) {
-        const value = computed[prop];
-        if (value && String(value).includes("color(")) {
-          const cssProp = prop.replace(/[A-Z]/g, m => `-${m.toLowerCase()}`);
-          el.style.setProperty(cssProp, normalizeCanvasColorValue(value), "important");
-          if (prop === "backgroundColor") el.style.setProperty("background", normalizeCanvasColorValue(value), "important");
-        }
-      }
-      for (const prop of ["boxShadow", "textShadow"]) {
-        const value = computed[prop];
-        if (value && String(value).includes("color(")) {
-          const cssProp = prop.replace(/[A-Z]/g, m => `-${m.toLowerCase()}`);
-          el.style.setProperty(cssProp, normalizeCanvasColorValue(value, prop === "boxShadow" ? "none" : "rgba(0,0,0,.45)"), "important");
-        }
-      }
-    }
-  }
-
   async function waitForExportImages(node) {
     const images = Array.from(node?.querySelectorAll?.("img") || []);
     await Promise.all(images.map(img => {
@@ -3239,6 +3142,101 @@ function App() {
       if (!src || isInlineImageDataUrl(src)) continue;
       img.remove();
     }
+  }
+
+
+  function inlineComputedExportStyles(source, clone) {
+    if (!source || !clone || source.nodeType !== 1 || clone.nodeType !== 1) return;
+    const computed = window.getComputedStyle(source);
+    const styleText = Array.from(computed).map(name => {
+      const value = computed.getPropertyValue(name);
+      const priority = computed.getPropertyPriority(name);
+      return `${name}:${value}${priority ? " !important" : ""};`;
+    }).join("");
+    clone.style.cssText = styleText;
+    clone.removeAttribute("id");
+    clone.removeAttribute("data-reactroot");
+    if (clone.classList?.contains("card-preview")) {
+      clone.style.width = `${CARD_EXPORT_WIDTH}px`;
+      clone.style.height = `${CARD_EXPORT_HEIGHT}px`;
+      clone.style.minWidth = `${CARD_EXPORT_WIDTH}px`;
+      clone.style.minHeight = `${CARD_EXPORT_HEIGHT}px`;
+      clone.style.maxWidth = `${CARD_EXPORT_WIDTH}px`;
+      clone.style.maxHeight = `${CARD_EXPORT_HEIGHT}px`;
+      clone.style.margin = "0";
+      clone.style.transform = "none";
+      clone.style.boxSizing = "border-box";
+    }
+    const sourceChildren = Array.from(source.children || []);
+    const cloneChildren = Array.from(clone.children || []);
+    sourceChildren.forEach((child, index) => inlineComputedExportStyles(child, cloneChildren[index]));
+  }
+
+  async function exportNodeViaSvg(node, pixelRatio = CARD_EXPORT_PIXEL_RATIO) {
+    if (!node) throw new Error("Missing export node.");
+    await (document.fonts?.ready || Promise.resolve());
+    await waitForExportImages(node);
+
+    const width = CARD_EXPORT_WIDTH;
+    const height = CARD_EXPORT_HEIGHT;
+    const clone = node.cloneNode(true);
+    clone.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, .card-editor-overlay-layer, .zone-resize-handle, button, input, select, textarea").forEach(el => el.remove());
+    inlineComputedExportStyles(node, clone);
+    clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+
+    const serialized = new XMLSerializer().serializeToString(clone);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width * pixelRatio}" height="${height * pixelRatio}" viewBox="0 0 ${width} ${height}"><foreignObject x="0" y="0" width="${width}" height="${height}">${serialized}</foreignObject></svg>`;
+    const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    try {
+      const image = new Image();
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = () => reject(new Error("Browser could not render the card SVG export."));
+        image.src = svgUrl;
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width * pixelRatio;
+      canvas.height = height * pixelRatio;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not create export canvas.");
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+      return await new Promise((resolve, reject) => {
+        try {
+          canvas.toBlob(result => result ? resolve(result) : reject(new Error("Could not create PNG blob.")), "image/png");
+        } catch (error) {
+          reject(error);
+        }
+      });
+    } finally {
+      URL.revokeObjectURL(svgUrl);
+    }
+  }
+
+  async function exportNodeViaHtml2Canvas(node) {
+    const canvas = await html2canvas(node, {
+      backgroundColor: null,
+      scale: CARD_EXPORT_PIXEL_RATIO,
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      width: CARD_EXPORT_WIDTH,
+      height: CARD_EXPORT_HEIGHT,
+      windowWidth: CARD_EXPORT_WIDTH,
+      windowHeight: CARD_EXPORT_HEIGHT,
+    });
+    return await new Promise((resolve, reject) => {
+      try {
+        canvas.toBlob(result => result ? resolve(result) : reject(new Error("Could not create PNG blob.")), "image/png");
+      } catch (error) {
+        reject(error);
+      }
+    });
   }
 
   async function exportSelectedCardPng(side) {
@@ -3265,31 +3263,17 @@ function App() {
       stripUnsafeExportImages(node);
       await waitForExportImages(node);
       await (document.fonts?.ready || Promise.resolve());
-      forceHtml2CanvasSafeStyles(host);
 
-      const canvas = await html2canvas(node, {
-        backgroundColor: null,
-        scale: CARD_EXPORT_PIXEL_RATIO,
-        useCORS: true,
-        allowTaint: false,
-        logging: false,
-        width: CARD_EXPORT_WIDTH,
-        height: CARD_EXPORT_HEIGHT,
-        windowWidth: CARD_EXPORT_WIDTH,
-        windowHeight: CARD_EXPORT_HEIGHT,
-        onclone: (clonedDocument) => {
-          const clonedHost = clonedDocument.querySelector(".card-png-export-host");
-          if (clonedHost) forceHtml2CanvasSafeStyles(clonedHost);
-        },
-      });
-
-      const blob = await new Promise((resolve, reject) => {
-        try {
-          canvas.toBlob(result => result ? resolve(result) : reject(new Error("Could not create PNG blob.")), "image/png");
-        } catch (error) {
-          reject(error);
-        }
-      });
+      let blob;
+      try {
+        // SVG/foreignObject is used first because it preserves the exact browser-rendered
+        // back layout for imported card artwork and avoids html2canvas' unsupported
+        // CSS color() parser path. All unsafe remote images were stripped above.
+        blob = await exportNodeViaSvg(node, CARD_EXPORT_PIXEL_RATIO);
+      } catch (svgError) {
+        console.warn("SVG card export failed; falling back to html2canvas", svgError);
+        blob = await exportNodeViaHtml2Canvas(node);
+      }
 
       const sideLabel = exportSide === "front" ? "Front" : "Back";
       const filename = `${safeCardExportName(selectedCard)}-${safeExportPart(selectedCard.position)}-${sideLabel}.png`;
