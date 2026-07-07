@@ -3093,31 +3093,33 @@ function App() {
     }));
   }
 
-  async function prepareCardExportImages(node, exportCard, exportSide) {
-    const images = Array.from(node?.querySelectorAll?.("img") || []);
-    const graphics = exportCard?.graphics || {};
-    const safeGraphic = exportSide === "front"
-      ? (graphics.frontExportDataUrl || graphics.frontLocalDataUrl || graphics.frontDataUrl)
-      : (graphics.backExportDataUrl || graphics.backLocalDataUrl || graphics.backDataUrl);
+  function makePngSafeCard(card, exportSide) {
+    const graphics = card?.graphics || {};
+    const safeFront = graphics.frontExportDataUrl || graphics.frontLocalDataUrl || graphics.frontDataUrl || "";
+    const safeBack = graphics.backExportDataUrl || graphics.backLocalDataUrl || graphics.backDataUrl || "";
+    const nextGraphics = { ...graphics };
 
+    // Render the export with an inline/data URL when one exists. If an old card only
+    // has a remote URL, do not render that remote image into the export canvas, because
+    // it taints the canvas. This keeps blank/default cards exportable.
+    nextGraphics.frontDataUrl = isInlineImageDataUrl(safeFront) ? safeFront : "";
+    nextGraphics.backDataUrl = isInlineImageDataUrl(safeBack) ? safeBack : "";
+
+    const artwork = { ...(card?.artwork || {}) };
+    if (artwork.customDataUrl && !isInlineImageDataUrl(artwork.customDataUrl)) {
+      artwork.customDataUrl = "";
+    }
+
+    return { ...card, graphics: nextGraphics, artwork };
+  }
+
+  async function prepareCardExportImages(node) {
+    const images = Array.from(node?.querySelectorAll?.("img") || []);
     for (const img of images) {
       const src = img.getAttribute("src") || img.currentSrc || img.src || "";
       if (!src) continue;
       if (isInlineImageDataUrl(src)) continue;
-
-      if (img.classList?.contains("card-custom-graphic") && isInlineImageDataUrl(safeGraphic)) {
-        img.setAttribute("src", safeGraphic);
-        continue;
-      }
-
-      // Old cards may only have a Firebase/remote URL. That displays in the browser,
-      // but cannot be painted into an exportable PNG without CORS or the original local file.
-      if (img.classList?.contains("card-custom-graphic")) {
-        throw new Error("This card graphic is still remote-only. Re-import the graphic once with this build, then export again.");
-      }
-
-      // For any incidental UI/image that should not be part of the card export, remove it
-      // instead of letting it taint the export canvas.
+      // Never let a remote/incidental image taint the PNG export.
       img.remove();
     }
     await waitForExportImages(node);
@@ -3137,13 +3139,14 @@ function App() {
     const root = createRoot(host);
 
     try {
-      root.render(<CardPreview card={selectedCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
+      const pngSafeCard = makePngSafeCard(selectedCard, exportSide);
+      root.render(<CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const node = host.querySelector(".card-preview");
       if (!node) throw new Error("Card preview was not rendered for export.");
 
       node.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
-      await prepareCardExportImages(node, selectedCard, exportSide);
+      await prepareCardExportImages(node);
       await (document.fonts?.ready || Promise.resolve());
 
       const canvas = await html2canvas(node, {
