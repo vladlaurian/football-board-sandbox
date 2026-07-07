@@ -498,6 +498,15 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
     }
   }, [current, isOpen]);
 
+  useEffect(() => {
+    return () => {
+      if (liveCommitFrameRef.current) {
+        window.cancelAnimationFrame(liveCommitFrameRef.current);
+        liveCommitFrameRef.current = null;
+      }
+    };
+  }, []);
+
   const safeDraft = safeColor(draftColor, safeCurrent);
   const hsv = useMemo(() => rgbToHsv(hexToRgbParts(safeDraft)), [safeDraft]);
   const rgb = useMemo(() => hexToRgbParts(safeDraft), [safeDraft]);
@@ -507,18 +516,6 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
     draftColorRef.current = next;
     setDraftColor(next);
     return next;
-  };
-
-  const commitColor = value => {
-    const next = setDraft(value);
-    if (liveCommitFrameRef.current) {
-      window.cancelAnimationFrame(liveCommitFrameRef.current);
-      liveCommitFrameRef.current = null;
-    }
-    onChange && onChange(next);
-    // Re-assert the same open panel after React updates the card state.
-    // This prevents the color panel from collapsing right after a selection.
-    window.setTimeout(() => onKeepOpen && onKeepOpen(), 0);
   };
 
   const scheduleLiveCommit = value => {
@@ -531,51 +528,8 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
     });
   };
 
-  const hsvToHex = patch => {
-    const base = rgbToHsv(hexToRgbParts(draftColorRef.current || safeDraft));
-    const nextHsv = { ...base, ...patch };
-    const nextRgb = hsvToRgbParts(nextHsv.h, nextHsv.s, nextHsv.v);
-    return rgbPartsToHex(nextRgb.r, nextRgb.g, nextRgb.b);
-  };
-
-  const colorFromSaturationValueEvent = e => {
-    if (!svRef.current) return draftColorRef.current || safeDraft;
-    const rect = svRef.current.getBoundingClientRect();
-    const x = clamp((e.clientX - rect.left) / rect.width, 0, 1);
-    const y = clamp((e.clientY - rect.top) / rect.height, 0, 1);
-    return hsvToHex({ s: x, v: 1 - y });
-  };
-
-  const colorFromHueEvent = e => {
-    if (!hueRef.current) return draftColorRef.current || safeDraft;
-    const rect = hueRef.current.getBoundingClientRect();
-    const x = clamp((e.clientX - rect.left) / rect.width, 0, 1);
-    return hsvToHex({ h: Math.round(x * 359) });
-  };
-
-  const beginDrag = picker => e => {
-    e.preventDefault();
-    e.stopPropagation();
-    activeDragRef.current = picker;
-    e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
-    const next = setDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
-    scheduleLiveCommit(next);
-  };
-
-  const drag = picker => e => {
-    if (activeDragRef.current !== picker) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const next = setDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
-    scheduleLiveCommit(next);
-  };
-
-  const finishDrag = picker => e => {
-    if (activeDragRef.current !== picker) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const next = setDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
-    activeDragRef.current = null;
+  const commitColor = value => {
+    const next = setDraft(value);
     if (liveCommitFrameRef.current) {
       window.cancelAnimationFrame(liveCommitFrameRef.current);
       liveCommitFrameRef.current = null;
@@ -584,7 +538,62 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
     window.setTimeout(() => onKeepOpen && onKeepOpen(), 0);
   };
 
-  const cancelDrag = e => {
+  const hsvToHex = patch => {
+    const base = rgbToHsv(hexToRgbParts(draftColorRef.current || safeDraft));
+    const nextHsv = { ...base, ...patch };
+    const nextRgb = hsvToRgbParts(nextHsv.h, nextHsv.s, nextHsv.v);
+    return rgbPartsToHex(nextRgb.r, nextRgb.g, nextRgb.b);
+  };
+
+  const colorFromSaturationValuePoint = (clientX, clientY) => {
+    if (!svRef.current) return draftColorRef.current || safeDraft;
+    const rect = svRef.current.getBoundingClientRect();
+    const x = clamp((clientX - rect.left) / rect.width, 0, 1);
+    const y = clamp((clientY - rect.top) / rect.height, 0, 1);
+    return hsvToHex({ s: x, v: 1 - y });
+  };
+
+  const colorFromHuePoint = clientX => {
+    if (!hueRef.current) return draftColorRef.current || safeDraft;
+    const rect = hueRef.current.getBoundingClientRect();
+    const x = clamp((clientX - rect.left) / rect.width, 0, 1);
+    return hsvToHex({ h: Math.round(x * 359) });
+  };
+
+  const colorFromDragEvent = e => {
+    const picker = activeDragRef.current;
+    if (picker === "sv") return colorFromSaturationValuePoint(e.clientX, e.clientY);
+    if (picker === "hue") return colorFromHuePoint(e.clientX);
+    return draftColorRef.current || safeDraft;
+  };
+
+  const endWindowDrag = e => {
+    if (!activeDragRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const next = setDraft(colorFromDragEvent(e));
+    activeDragRef.current = null;
+    if (liveCommitFrameRef.current) {
+      window.cancelAnimationFrame(liveCommitFrameRef.current);
+      liveCommitFrameRef.current = null;
+    }
+    onChange && onChange(next);
+    window.removeEventListener("pointermove", moveWindowDrag, true);
+    window.removeEventListener("pointerup", endWindowDrag, true);
+    window.removeEventListener("pointercancel", cancelWindowDrag, true);
+    window.setTimeout(() => onKeepOpen && onKeepOpen(), 0);
+  };
+
+  const moveWindowDrag = e => {
+    if (!activeDragRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const next = setDraft(colorFromDragEvent(e));
+    scheduleLiveCommit(next);
+  };
+
+  const cancelWindowDrag = e => {
+    if (!activeDragRef.current) return;
     e.preventDefault();
     e.stopPropagation();
     activeDragRef.current = null;
@@ -592,7 +601,21 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
       window.cancelAnimationFrame(liveCommitFrameRef.current);
       liveCommitFrameRef.current = null;
     }
+    window.removeEventListener("pointermove", moveWindowDrag, true);
+    window.removeEventListener("pointerup", endWindowDrag, true);
+    window.removeEventListener("pointercancel", cancelWindowDrag, true);
     window.setTimeout(() => onKeepOpen && onKeepOpen(), 0);
+  };
+
+  const beginDrag = picker => e => {
+    e.preventDefault();
+    e.stopPropagation();
+    activeDragRef.current = picker;
+    const next = setDraft(picker === "sv" ? colorFromSaturationValuePoint(e.clientX, e.clientY) : colorFromHuePoint(e.clientX));
+    scheduleLiveCommit(next);
+    window.addEventListener("pointermove", moveWindowDrag, true);
+    window.addEventListener("pointerup", endWindowDrag, true);
+    window.addEventListener("pointercancel", cancelWindowDrag, true);
   };
 
   const setRgbChannel = key => e => {
@@ -613,9 +636,6 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
             className="color-sv-plane"
             style={{ backgroundColor: `hsl(${hsv.h}, 100%, 50%)` }}
             onPointerDown={beginDrag("sv")}
-            onPointerMove={drag("sv")}
-            onPointerUp={finishDrag("sv")}
-            onPointerCancel={cancelDrag}
             role="slider"
             aria-label={`${label} saturation and brightness`}
           >
@@ -625,9 +645,6 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
             ref={hueRef}
             className="color-hue-bar"
             onPointerDown={beginDrag("hue")}
-            onPointerMove={drag("hue")}
-            onPointerUp={finishDrag("hue")}
-            onPointerCancel={cancelDrag}
             role="slider"
             aria-label={`${label} hue`}
           >
@@ -655,6 +672,7 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
     </div>
   );
 }
+
 
 function StableOpponentGoalTextControl({ cardId, current, isOpen, onToggle, onPatch, onPreview }) {
   if (!cardId) return null;
