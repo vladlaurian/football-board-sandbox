@@ -3234,6 +3234,66 @@ function App() {
     });
   }
 
+
+
+  function freezePngExportTypography(node) {
+    const selectors = [
+      ".card-zone-text",
+      ".card-zone-section-title",
+      ".card-zone-list",
+      ".card-zone-list-row",
+      ".card-zone-list-row span",
+      ".card-zone-list-row strong",
+      ".card-zone-special",
+      ".card-zone-defense",
+      ".card-zone-defense-row",
+      ".card-zone-formula",
+      ".card-zone-formula span",
+      ".card-zone-formula strong",
+      ".card-zone-name",
+      ".card-zone-position",
+      ".duplicate-content-zone",
+      ".duplicate-content-zone *",
+    ];
+    const elements = Array.from(node?.querySelectorAll?.(selectors.join(",")) || []);
+    for (const el of elements) {
+      const cs = window.getComputedStyle(el);
+      const props = [
+        "fontFamily",
+        "fontSize",
+        "fontWeight",
+        "fontStyle",
+        "lineHeight",
+        "letterSpacing",
+        "textAlign",
+        "textTransform",
+        "whiteSpace",
+        "wordSpacing",
+        "gap",
+        "rowGap",
+        "columnGap",
+        "justifyContent",
+        "alignItems",
+        "alignContent",
+        "justifyItems",
+        "paddingTop",
+        "paddingRight",
+        "paddingBottom",
+        "paddingLeft",
+      ];
+      for (const prop of props) {
+        const value = cs[prop];
+        if (value && !String(value).includes("color(") && !String(value).includes("color-mix")) {
+          el.style[prop] = value;
+        }
+      }
+      const transform = cs.transform;
+      el.style.transform = (!transform || transform === "none") ? "none" : transform;
+      el.style.maxHeight = cs.maxHeight && cs.maxHeight !== "none" ? cs.maxHeight : el.style.maxHeight;
+      el.style.minHeight = cs.minHeight && cs.minHeight !== "auto" ? cs.minHeight : el.style.minHeight;
+    }
+  }
+
   async function exportSelectedCardPng(side) {
     const selectedCard = getSelectedExportCard();
     if (!selectedCard) {
@@ -3258,6 +3318,7 @@ function App() {
       node.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
       stripUnsafeExportImages(node);
       forceDefensiveAreaPngSafeStyles(node);
+      freezePngExportTypography(node);
       sanitizeHtml2CanvasUnsupportedColors(node);
       await waitForExportImages(node);
       await (document.fonts?.ready || Promise.resolve());
