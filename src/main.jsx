@@ -3080,17 +3080,38 @@ function App() {
     return String(value || fallback).replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || fallback;
   }
 
-  function makePngSafeCard(card) {
+  function makePngSafeCard(card, exportSide = "front") {
     const graphics = card?.graphics || {};
-    const nextGraphics = { ...graphics };
     const safeFront = graphics.frontExportDataUrl || graphics.frontLocalDataUrl || graphics.frontDataUrl || "";
     const safeBack = graphics.backExportDataUrl || graphics.backLocalDataUrl || graphics.backDataUrl || "";
-    nextGraphics.frontDataUrl = isInlineImageDataUrl(safeFront) ? safeFront : "";
-    nextGraphics.backDataUrl = isInlineImageDataUrl(safeBack) ? safeBack : "";
+    const inlineFront = isInlineImageDataUrl(safeFront) ? safeFront : "";
+    const inlineBack = isInlineImageDataUrl(safeBack) ? safeBack : "";
 
     const artwork = { ...(card?.artwork || {}) };
     if (artwork.customDataUrl && !isInlineImageDataUrl(artwork.customDataUrl)) artwork.customDataUrl = "";
-    return { ...card, graphics: nextGraphics, artwork };
+
+    // For print export, do not let a custom front-only graphic force the back side
+    // into theme-custom. That path triggers html2canvas color() parsing issues and
+    // is not needed when the back has no imported artwork of its own.
+    if (exportSide === "back" && !inlineBack) {
+      const previousTheme = CARD_THEMES.includes(graphics.previousTheme) ? graphics.previousTheme : "Style 1";
+      return {
+        ...card,
+        theme: previousTheme,
+        graphics: { frontDataUrl: "", backDataUrl: "", previousTheme },
+        artwork,
+      };
+    }
+
+    return {
+      ...card,
+      graphics: {
+        ...graphics,
+        frontDataUrl: inlineFront,
+        backDataUrl: inlineBack,
+      },
+      artwork,
+    };
   }
 
   async function waitForExportImages(node) {
@@ -3113,6 +3134,43 @@ function App() {
     }
   }
 
+  function sanitizeHtml2CanvasUnsupportedColors(node) {
+    const elements = [node, ...Array.from(node?.querySelectorAll?.("*") || [])].filter(Boolean);
+    const colorProps = [
+      "color",
+      "backgroundColor",
+      "borderTopColor",
+      "borderRightColor",
+      "borderBottomColor",
+      "borderLeftColor",
+      "outlineColor",
+      "textDecorationColor",
+      "columnRuleColor",
+      "caretColor",
+    ];
+
+    for (const el of elements) {
+      const style = window.getComputedStyle(el);
+      for (const prop of colorProps) {
+        const value = String(style[prop] || "");
+        if (value.includes("color(")) {
+          if (prop === "backgroundColor") el.style[prop] = "transparent";
+          else if (prop === "caretColor") el.style[prop] = "auto";
+          else el.style[prop] = prop.toLowerCase().includes("border") || prop === "outlineColor" ? "transparent" : "#ffffff";
+        }
+      }
+
+      const boxShadow = String(style.boxShadow || "");
+      if (boxShadow.includes("color(")) el.style.boxShadow = "none";
+
+      const textShadow = String(style.textShadow || "");
+      if (textShadow.includes("color(")) el.style.textShadow = "none";
+
+      const backgroundImage = String(style.backgroundImage || "");
+      if (backgroundImage.includes("color(")) el.style.backgroundImage = "none";
+    }
+  }
+
   async function exportSelectedCardPng(side) {
     const selectedCard = getSelectedExportCard();
     if (!selectedCard) {
@@ -3127,7 +3185,7 @@ function App() {
     const root = createRoot(host);
 
     try {
-      const pngSafeCard = makePngSafeCard(selectedCard);
+      const pngSafeCard = makePngSafeCard(selectedCard, exportSide);
       root.render(<CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const node = host.querySelector(".card-preview");
@@ -3135,6 +3193,7 @@ function App() {
 
       node.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
       stripUnsafeExportImages(node);
+      sanitizeHtml2CanvasUnsupportedColors(node);
       await waitForExportImages(node);
       await (document.fonts?.ready || Promise.resolve());
 
