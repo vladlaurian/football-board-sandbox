@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import html2canvas from "html2canvas";
 import { initializeApp } from "firebase/app";
@@ -285,8 +285,7 @@ function zoneTextStyleVars(styles, key, hasStats = false) {
     "--zone-font-weight": s.bold ? 950 : 650,
     "--zone-font-scale": s.fontSize / 100,
     "--zone-line-height": s.lineHeight / 100,
-    "--zone-y-offset": `${(s.verticalOffset * 0.24).toFixed(2)}px`,
-    "--zone-y-offset-px": `${(s.verticalOffset * 0.24).toFixed(2)}px`,
+    "--zone-y-offset": `${s.verticalOffset * 0.4}cqh`,
     ...(hasStats ? { "--zone-stat-gap": `${Math.round(s.statGap / 100 * 4)}px`, "--zone-stat-gap-wide": `${Math.round(s.statGap / 100 * 8)}px` } : {}),
   };
 }
@@ -297,10 +296,8 @@ function opponentGoalStyleVars(styles) {
     "--goal-font-family": s.font,
     "--goal-font-weight": s.bold ? 950 : 650,
     "--goal-font-scale": s.fontSize / 100,
-    "--goal-x-offset": `${(s.horizontalOffset * 0.28).toFixed(2)}px`,
-    "--goal-y-offset": `${(s.verticalOffset * 0.18).toFixed(2)}px`,
-    "--goal-x-offset-px": `${(s.horizontalOffset * 0.28).toFixed(2)}px`,
-    "--goal-y-offset-px": `${(s.verticalOffset * 0.18).toFixed(2)}px`,
+    "--goal-x-offset": `${s.horizontalOffset * 0.42}cqw`,
+    "--goal-y-offset": `${s.verticalOffset * 0.28}cqh`,
   };
 }
 
@@ -316,10 +313,71 @@ function zonePairDistanceVars(styles, key, metrics = {}) {
     // numbers cannot cross into the text when custom/long stats are added.
     "--zone-stat-gap": "0px",
     "--zone-stat-gap-wide": "0px",
-    "--zone-distance-shift-raw": `${(shiftPercent * 26).toFixed(2)}px`,
-    "--zone-distance-shift-px": `${(shiftPercent * 26).toFixed(2)}px`,
+    "--zone-distance-shift-raw": `${(shiftPercent * 28).toFixed(2)}cqw`,
     "--zone-longest-label-ch": longestLabelChars,
     "--zone-number-ch": maxValueChars,
+  };
+}
+
+
+function zoneTextStyleVarsStable(styles, key, hasStats = false) {
+  const s = normalizeTextStyles(styles)[key] || CARD_TEXT_STYLE_DEFAULTS[key] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
+  const justify = s.align === "left" ? "flex-start" : s.align === "right" ? "flex-end" : "center";
+  const gridJustify = s.align === "left" ? "start" : s.align === "right" ? "end" : "center";
+  return {
+    "--zone-align": s.align,
+    "--zone-justify": justify,
+    "--zone-grid-justify": gridJustify,
+    "--zone-font-family": s.font,
+    "--zone-font-weight": s.bold ? 950 : 650,
+    "--zone-font-scale": s.fontSize / 100,
+    "--zone-line-height": s.lineHeight / 100,
+    "--zone-y-offset": `${s.verticalOffset * 0.14}px`,
+    ...(hasStats ? { "--zone-stat-gap": `${Math.round(s.statGap / 100 * 4)}px`, "--zone-stat-gap-wide": `${Math.round(s.statGap / 100 * 8)}px` } : {}),
+  };
+}
+
+function zoneNumberStyleVarsStable(styles, textKey, numberKey) {
+  const normalized = normalizeTextStyles(styles);
+  const base = normalized[textKey] || CARD_TEXT_STYLE_DEFAULTS[textKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
+  const number = normalized[numberKey] || CARD_TEXT_STYLE_DEFAULTS[numberKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
+  const defaultNumber = CARD_TEXT_STYLE_DEFAULTS[numberKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
+  const font = number.font && number.font !== defaultNumber.font ? number.font : base.font;
+  const fontScale = (base.fontSize / 100) * (number.fontSize / 100);
+  return {
+    "--zone-align": base.align,
+    "--zone-justify": base.align === "left" ? "flex-start" : base.align === "right" ? "flex-end" : "center",
+    "--zone-grid-justify": base.align === "left" ? "start" : base.align === "right" ? "end" : "center",
+    "--zone-font-family": font,
+    "--zone-font-weight": number.bold ? 950 : 650,
+    "--zone-font-scale": fontScale,
+    "--zone-number-font-scale": fontScale,
+    "--zone-line-height": base.lineHeight / 100,
+    "--zone-y-offset": `${base.verticalOffset * 0.14}px`,
+  };
+}
+
+function zonePairDistanceVarsStable(styles, key, metrics = {}) {
+  const s = normalizeTextStyles(styles)[key] || CARD_TEXT_STYLE_DEFAULTS[key] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
+  const normalizedDistance = clamp(Number(s.statGap ?? 300), 0, 300);
+  const gapPx = Math.round((normalizedDistance / 300) * 10);
+  return {
+    "--zone-stat-gap": `${gapPx}px`,
+    "--zone-stat-gap-wide": `${gapPx}px`,
+    "--zone-distance-shift-raw": "0px",
+    "--zone-longest-label-ch": clamp(Number(metrics.longestLabelChars ?? 0), 0, 80),
+    "--zone-number-ch": clamp(Number(metrics.maxValueChars ?? 2), 1, 8),
+  };
+}
+
+function opponentGoalStyleVarsStable(styles) {
+  const s = normalizeTextStyles(styles).defensiveAreaGoal || CARD_TEXT_STYLE_DEFAULTS.defensiveAreaGoal;
+  return {
+    "--goal-font-family": s.font,
+    "--goal-font-weight": s.bold ? 950 : 650,
+    "--goal-font-scale": s.fontSize / 100,
+    "--goal-x-offset": `${s.horizontalOffset * 0.12}px`,
+    "--goal-y-offset": `${s.verticalOffset * 0.12}px`,
   };
 }
 
@@ -342,7 +400,7 @@ function zoneNumberStyleVars(styles, textKey, numberKey) {
     "--zone-font-scale": fontScale,
     "--zone-number-font-scale": fontScale,
     "--zone-line-height": base.lineHeight / 100,
-    "--zone-y-offset": `${(base.verticalOffset * 0.24).toFixed(2)}px`,
+    "--zone-y-offset": `${base.verticalOffset * 0.4}cqh`,
   };
 }
 
@@ -927,8 +985,7 @@ function customTextStyleVars(style = {}, titleMode = false) {
     "--zone-font-weight": s.bold ? 950 : 650,
     "--zone-font-scale": s.fontSize / 100,
     "--zone-line-height": s.lineHeight / 100,
-    "--zone-y-offset": `${(s.verticalOffset * 0.24).toFixed(2)}px`,
-    "--zone-y-offset-px": `${(s.verticalOffset * 0.24).toFixed(2)}px`,
+    "--zone-y-offset": `${s.verticalOffset * 0.4}cqh`,
   };
 }
 
@@ -995,8 +1052,7 @@ function duplicateStyleVars(style = {}) {
     "--zone-font-weight": s.bold ? 950 : 650,
     "--zone-font-scale": s.fontSize / 100,
     "--zone-line-height": s.lineHeight / 100,
-    "--zone-y-offset": `${(s.verticalOffset * 0.24).toFixed(2)}px`,
-    "--zone-y-offset-px": `${(s.verticalOffset * 0.24).toFixed(2)}px`,
+    "--zone-y-offset": `${s.verticalOffset * 0.4}cqh`,
   };
 }
 
@@ -1011,7 +1067,7 @@ function duplicateNumberStyleVars(textStyle = {}, numberStyle = {}) {
     "--zone-font-scale": fontScale,
     "--zone-number-font-scale": fontScale,
     "--zone-line-height": base.lineHeight / 100,
-    "--zone-y-offset": `${(base.verticalOffset * 0.24).toFixed(2)}px`,
+    "--zone-y-offset": `${base.verticalOffset * 0.4}cqh`,
   };
 }
 
@@ -1022,8 +1078,7 @@ function duplicateDistanceVars(style = {}, items = []) {
   return {
     "--zone-stat-gap": "0px",
     "--zone-stat-gap-wide": "0px",
-    "--zone-distance-shift-raw": `${(shiftPercent * 26).toFixed(2)}px`,
-    "--zone-distance-shift-px": `${(shiftPercent * 26).toFixed(2)}px`,
+    "--zone-distance-shift-raw": `${(shiftPercent * 28).toFixed(2)}cqw`,
     "--zone-longest-label-ch": Math.max(0, ...items.map(item => String(item?.name || item?.label || "").length)),
     "--zone-number-ch": Math.max(1, ...items.map(item => String(normalizeStatValue(item?.value ?? 0)).length)),
   };
@@ -3161,24 +3216,20 @@ function App() {
       for (const prop of colorProps) {
         const value = String(style[prop] || "");
         if (value.includes("color(")) {
-          if (prop === "backgroundColor") el.style.setProperty("background-color", "transparent", "important");
-          else if (prop === "caretColor") el.style.setProperty("caret-color", "auto", "important");
-          else {
-            const cssProp = prop.replace(/[A-Z]/g, match => `-${match.toLowerCase()}`);
-            const fallback = prop.toLowerCase().includes("border") || prop === "outlineColor" ? "transparent" : "#ffffff";
-            el.style.setProperty(cssProp, fallback, "important");
-          }
+          if (prop === "backgroundColor") el.style[prop] = "transparent";
+          else if (prop === "caretColor") el.style[prop] = "auto";
+          else el.style[prop] = prop.toLowerCase().includes("border") || prop === "outlineColor" ? "transparent" : "#ffffff";
         }
       }
 
       const boxShadow = String(style.boxShadow || "");
-      if (boxShadow.includes("color(")) el.style.setProperty("box-shadow", "none", "important");
+      if (boxShadow.includes("color(")) el.style.boxShadow = "none";
 
       const textShadow = String(style.textShadow || "");
-      if (textShadow.includes("color(")) el.style.setProperty("text-shadow", "none", "important");
+      if (textShadow.includes("color(")) el.style.textShadow = "none";
 
       const backgroundImage = String(style.backgroundImage || "");
-      if (backgroundImage.includes("color(")) el.style.setProperty("background-image", "none", "important");
+      if (backgroundImage.includes("color(")) el.style.backgroundImage = "none";
     }
   }
 
@@ -3579,25 +3630,6 @@ function App() {
   function CardVisualCanvas({ card, side, showZones = false, selectedLayout = null, onSelectLayout = null }) {
     const canvasRef = useRef(null);
     const [activeLayoutEdit, setActiveLayoutEdit] = useState(null);
-
-    // Back card text/grid metrics must scale with the actual rendered card size.
-    // Fixed px values made the editor preview and the 280px PNG export drift apart.
-    // This variable is set on the shared canvas, so Editor, Inspector and Export still
-    // use the same renderer; only the internal metrics are normalized to card width.
-    useLayoutEffect(() => {
-      const node = canvasRef.current;
-      if (!node) return undefined;
-      const applyScale = () => {
-        const width = node.getBoundingClientRect?.().width || 280;
-        const scale = Math.max(0.35, Math.min(3, width / 280));
-        node.style.setProperty("--card-canvas-scale", String(scale));
-      };
-      applyScale();
-      if (typeof ResizeObserver === "undefined") return undefined;
-      const observer = new ResizeObserver(applyScale);
-      observer.observe(node);
-      return () => observer.disconnect();
-    }, [side, card?.id]);
     const layout = normalizeCardVisualLayout(card?.visualLayout || card?.layout);
     const sideLayout = layout[side] || layout.back || {};
     const deletedLayoutSet = new Set(Array.isArray(card?.deletedLayoutZones) ? card.deletedLayoutZones.map(String) : []);
@@ -3645,12 +3677,12 @@ function App() {
       const titleColor = safeColor(colors[titleColorKey]);
       return (
         <div className="card-zone-text card-zone-list-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": Math.max(2, items.length + 1), color: textColor }}>
-          <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVars(textStyles, titleColorKey) }}>{cardLayoutTitle(card, titleKey)}</div>
-          <div className="card-zone-list" style={{ color: textColor, "--zone-lines": Math.max(2, items.length + 1), ...zoneTextStyleVars(textStyles, colorKey), ...zonePairDistanceVars(textStyles, colorKey, { longestLabelChars: Math.max(0, ...items.map(item => String(item.name || "").length)), maxValueChars: Math.max(1, ...items.map(item => String(normalizeStatValue(item.value)).length)) }) }}>
+          <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVarsStable(textStyles, titleColorKey) }}>{cardLayoutTitle(card, titleKey)}</div>
+          <div className="card-zone-list" style={{ color: textColor, "--zone-lines": Math.max(2, items.length + 1), ...zoneTextStyleVarsStable(textStyles, colorKey), ...zonePairDistanceVarsStable(textStyles, colorKey, { longestLabelChars: Math.max(0, ...items.map(item => String(item.name || "").length)), maxValueChars: Math.max(1, ...items.map(item => String(normalizeStatValue(item.value)).length)) }) }}>
             {items.length ? items.map(item => (
               <div className="card-zone-list-row" key={item.id} style={{ color: textColor }}>
                 <span className="card-zone-label" style={{ color: textColor }}>{item.name}</span>
-                <strong className="card-zone-value" style={{ "--zone-number-color": valueColor, color: valueColor, ...zoneNumberStyleVars(textStyles, colorKey, valueKey) }}>{normalizeStatValue(item.value)}</strong>
+                <strong className="card-zone-value" style={{ "--zone-number-color": valueColor, color: valueColor, ...zoneNumberStyleVarsStable(textStyles, colorKey, valueKey) }}>{normalizeStatValue(item.value)}</strong>
               </div>
             )) : <em style={{ color: textColor }}>—</em>}
           </div>
@@ -3663,8 +3695,8 @@ function App() {
       const titleColor = safeColor(colors.specialAbilityTitle);
       return (
         <div className="card-zone-text card-zone-special-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 3, color: textColor }}>
-          <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVars(textStyles, "specialAbilityTitle") }}>{cardLayoutTitle(card, "specialAbility")}</div>
-          <div className="card-zone-special" style={{ color: textColor, ...zoneTextStyleVars(textStyles, "specialAbility") }}>{card?.specialAbility || ""}</div>
+          <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVarsStable(textStyles, "specialAbilityTitle") }}>{cardLayoutTitle(card, "specialAbility")}</div>
+          <div className="card-zone-special" style={{ color: textColor, ...zoneTextStyleVarsStable(textStyles, "specialAbility") }}>{card?.specialAbility || ""}</div>
         </div>
       );
     };
@@ -3674,10 +3706,10 @@ function App() {
       const titleColor = safeColor(colors.defensiveAreaTitle);
       return (
         <div className="card-zone-text card-zone-defense-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 2, color: textColor, "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78") }}>
-          <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVars(textStyles, "defensiveAreaTitle") }}>{cardLayoutTitle(card, "defensiveArea")}</div>
-          <div className="card-zone-defense card-zone-defense-row" style={{ color: textColor, ...zoneTextStyleVars(textStyles, "defensiveArea") }}>
+          <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVarsStable(textStyles, "defensiveAreaTitle") }}>{cardLayoutTitle(card, "defensiveArea")}</div>
+          <div className="card-zone-defense card-zone-defense-row" style={{ color: textColor, ...zoneTextStyleVarsStable(textStyles, "defensiveArea") }}>
             <div className="card-zone-defense-grid-adjust" data-defensive-grid-card-id={card.id} style={defensiveGridAdjustStyle(card)}>
-              <div className="card-zone-opponent-goal" data-defensive-goal-label-card-id={card.id} style={opponentGoalStyleVars(textStyles)} aria-hidden="true">OPPONENT GOAL</div>
+              <div className="card-zone-opponent-goal" data-defensive-goal-label-card-id={card.id} style={opponentGoalStyleVarsStable(textStyles)} aria-hidden="true">OPPONENT GOAL</div>
               <AreaMiniPreview area={card?.defensiveArea || []} />
             </div>
           </div>
@@ -3902,7 +3934,7 @@ function App() {
               height: `${box.h}%`,
             }}
           >
-            <div className="card-zone-content">{renderZoneContent(key)}</div>
+            <div className={`card-zone-content card-zone-content-${key}`}>{renderZoneContent(key)}</div>
           </div>
         ))}
         {sideCustomZones.map(zone => (
@@ -4123,7 +4155,7 @@ function App() {
       const adjust = normalizeDefensiveGridAdjust(nextAdjust);
       node.style.width = `${adjust.width}%`;
       node.style.height = `${adjust.height}%`;
-      node.style.transform = `translate(-50%, -50%) translate(${adjust.offsetX}%, ${adjust.offsetY}%)`;
+      node.style.transform = `translate(${adjust.offsetX * 0.12}px, ${adjust.offsetY * 0.12}px)`;
     });
   }
 
@@ -4151,10 +4183,8 @@ function App() {
       node.style.setProperty("--goal-font-family", style.font);
       node.style.setProperty("--goal-font-weight", style.bold ? "950" : "650");
       node.style.setProperty("--goal-font-scale", String(style.fontSize / 100));
-      node.style.setProperty("--goal-x-offset", `${(style.horizontalOffset * 0.28).toFixed(2)}px`);
-      node.style.setProperty("--goal-y-offset", `${(style.verticalOffset * 0.18).toFixed(2)}px`);
-      node.style.setProperty("--goal-x-offset-px", `${(style.horizontalOffset * 0.28).toFixed(2)}px`);
-      node.style.setProperty("--goal-y-offset-px", `${(style.verticalOffset * 0.18).toFixed(2)}px`);
+      node.style.setProperty("--goal-x-offset", `${style.horizontalOffset * 0.12}px`);
+      node.style.setProperty("--goal-y-offset", `${style.verticalOffset * 0.12}px`);
     });
   }
 
@@ -4178,8 +4208,9 @@ function App() {
   function defensiveGridAdjustStyle(card) {
     const adjust = normalizeDefensiveGridAdjust(card?.defensiveGridAdjust);
     return {
-      "--grid-offset-x-px": `${(adjust.offsetX * 0.35).toFixed(2)}px`,
-      "--grid-offset-y-px": `${(adjust.offsetY * 0.35).toFixed(2)}px`,
+      width: `${adjust.width}%`,
+      height: `${adjust.height}%`,
+      transform: `translate(${adjust.offsetX * 0.12}px, ${adjust.offsetY * 0.12}px)`,
     };
   }
 
