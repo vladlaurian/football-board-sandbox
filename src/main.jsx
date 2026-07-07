@@ -3134,6 +3134,254 @@ function App() {
     }
   }
 
+
+  function imageDataUrlForCardSide(card, side) {
+    const graphics = card?.graphics || {};
+    const value = side === "back"
+      ? (graphics.backExportDataUrl || graphics.backLocalDataUrl || graphics.backDataUrl || "")
+      : (graphics.frontExportDataUrl || graphics.frontLocalDataUrl || graphics.frontDataUrl || "");
+    return isInlineImageDataUrl(value) ? value : "";
+  }
+
+  function loadExportImage(src) {
+    return new Promise((resolve, reject) => {
+      if (!src) {
+        reject(new Error("No export-safe card graphic found."));
+        return;
+      }
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Could not load the local card graphic for PNG export."));
+      img.src = src;
+    });
+  }
+
+  function drawCoverImage(ctx, img, x, y, w, h) {
+    const iw = img.naturalWidth || img.width || 1;
+    const ih = img.naturalHeight || img.height || 1;
+    const scale = Math.max(w / iw, h / ih);
+    const sw = w / scale;
+    const sh = h / scale;
+    const sx = Math.max(0, (iw - sw) / 2);
+    const sy = Math.max(0, (ih - sh) / 2);
+    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  }
+
+  function canvasFontFromStyle(style, basePx = 10) {
+    const s = style || {};
+    const weight = s.bold ? 900 : 650;
+    const family = s.font || "Inter";
+    const size = Math.max(3, basePx * (Number(s.fontSize || 100) / 100));
+    return `${weight} ${size}px ${family}, Arial, sans-serif`;
+  }
+
+  function drawFittedText(ctx, text, x, y, maxWidth, font, color, align = "left", baseline = "alphabetic", shadow = true) {
+    const raw = String(text ?? "");
+    ctx.save();
+    ctx.font = font;
+    ctx.fillStyle = color || "#ffffff";
+    ctx.textAlign = align;
+    ctx.textBaseline = baseline;
+    if (shadow) {
+      ctx.shadowColor = "rgba(0,0,0,.55)";
+      ctx.shadowBlur = 1.4;
+      ctx.shadowOffsetY = 1.1;
+    }
+    let out = raw;
+    if (ctx.measureText(out).width > maxWidth) {
+      while (out.length > 1 && ctx.measureText(out + "…").width > maxWidth) out = out.slice(0, -1);
+      out = out.length > 1 ? out + "…" : out;
+    }
+    const drawX = align === "center" ? x + maxWidth / 2 : align === "right" ? x + maxWidth : x;
+    ctx.fillText(out, drawX, y, maxWidth);
+    ctx.restore();
+  }
+
+  function drawWrappedText(ctx, text, x, y, maxWidth, maxHeight, font, color, align = "center", lineHeight = 1.12) {
+    const words = String(text || "").trim().split(/\s+/).filter(Boolean);
+    ctx.save();
+    ctx.font = font;
+    const fontSizeMatch = / (\d+(?:\.\d+)?)px /.exec(font);
+    const fontSize = fontSizeMatch ? Number(fontSizeMatch[1]) : 8;
+    const lh = Math.max(1, fontSize * lineHeight);
+    const lines = [];
+    let current = "";
+    for (const word of words) {
+      const test = current ? `${current} ${word}` : word;
+      if (ctx.measureText(test).width <= maxWidth || !current) current = test;
+      else { lines.push(current); current = word; }
+    }
+    if (current) lines.push(current);
+    const maxLines = Math.max(1, Math.floor(maxHeight / lh));
+    const shown = lines.slice(0, maxLines);
+    ctx.fillStyle = color || "#ffffff";
+    ctx.textAlign = align;
+    ctx.textBaseline = "top";
+    ctx.shadowColor = "rgba(0,0,0,.45)";
+    ctx.shadowBlur = 1.2;
+    ctx.shadowOffsetY = 1;
+    const tx = align === "center" ? x + maxWidth / 2 : align === "right" ? x + maxWidth : x;
+    shown.forEach((line, index) => ctx.fillText(line, tx, y + index * lh, maxWidth));
+    ctx.restore();
+  }
+
+  function manualBackExportBlob(card) {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const dataUrl = imageDataUrlForCardSide(card, "back");
+        if (!dataUrl) throw new Error("This card back has no local export-safe graphic. Re-import the back graphic once, then export again.");
+        await (document.fonts?.ready || Promise.resolve());
+        const img = await loadExportImage(dataUrl);
+        const ratio = CARD_EXPORT_PIXEL_RATIO;
+        const w = CARD_EXPORT_WIDTH;
+        const h = CARD_EXPORT_HEIGHT;
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(w * ratio);
+        canvas.height = Math.round(h * ratio);
+        const ctx = canvas.getContext("2d");
+        ctx.scale(ratio, ratio);
+        ctx.clearRect(0, 0, w, h);
+        drawCoverImage(ctx, img, 0, 0, w, h);
+
+        const layout = normalizeCardVisualLayout(card?.visualLayout || card?.layout).back;
+        const deleted = new Set(Array.isArray(card?.deletedLayoutZones) ? card.deletedLayoutZones.map(String) : []);
+        const colors = cardTextColors(card);
+        const styles = effectiveTextStylesForCard(card);
+        const box = key => {
+          const b = layout[key] || DEFAULT_CARD_VISUAL_LAYOUT.back[key];
+          return { x: b.x / 100 * w, y: b.y / 100 * h, w: b.w / 100 * w, h: b.h / 100 * h };
+        };
+
+        const drawName = () => {
+          if (deleted.has("back:header")) return;
+          const b = box("header");
+          const st = styles.headerBack || CARD_TEXT_STYLE_DEFAULTS.headerBack;
+          const base = Math.min(b.w * .18, b.h * .78);
+          const font = canvasFontFromStyle(st, base);
+          const color = safeColor(colors.headerBack || colors.header, "#ffffff");
+          drawFittedText(ctx, card?.name || "Player", b.x + 2, b.y + b.h * .58, b.w - 4, font, color, st.align || "left", "middle");
+        };
+
+        const drawPosition = () => {
+          if (deleted.has("back:position")) return;
+          const b = box("position");
+          const st = styles.positionBack || CARD_TEXT_STYLE_DEFAULTS.positionBack;
+          const base = Math.min(b.w * .52, b.h * .82);
+          const font = canvasFontFromStyle(st, base);
+          const color = safeColor(colors.positionBack || colors.headerBack || colors.header, "#ffffff");
+          drawFittedText(ctx, String(card?.position || "").toUpperCase(), b.x, b.y + b.h * .58, b.w, font, color, "center", "middle");
+        };
+
+        const drawList = (zoneKey, items, textKey, titleKey, titleColorKey) => {
+          if (deleted.has(`back:${zoneKey}`)) return;
+          const b = box(zoneKey);
+          const textStyle = styles[textKey] || CARD_TEXT_STYLE_DEFAULTS[textKey];
+          const numberStyle = styles[`${textKey}Value`] || textStyle;
+          const titleStyle = styles[titleColorKey] || CARD_TEXT_STYLE_DEFAULTS[titleColorKey];
+          const visible = (items || []).filter(item => item.showOnCard !== false);
+          const title = cardLayoutTitle(card, titleKey);
+          const textColor = safeColor(colors[textKey], "#ffffff");
+          const numberColor = safeColor(colors[`${textKey}Value`], textColor);
+          const titleColor = safeColor(colors[titleColorKey], textColor);
+          const titleSize = Math.min(b.w * .105, b.h * .13) * (Number(titleStyle.fontSize || 100) / 100);
+          const titleFont = canvasFontFromStyle(titleStyle, titleSize);
+          drawFittedText(ctx, title, b.x, b.y + Math.max(5, titleSize * .95), b.w, titleFont, titleColor, "center", "alphabetic");
+
+          const lines = Math.max(2, visible.length + 1);
+          const rawSize = Math.min(b.w * .062, (b.h * .82) / lines) * (Number(textStyle.fontSize || 100) / 100);
+          const fontSize = Math.max(3.2, Math.min(18, rawSize));
+          const lineHeight = fontSize * (Number(textStyle.lineHeight || 100) / 100);
+          const labelFont = canvasFontFromStyle(textStyle, fontSize);
+          const valueFont = canvasFontFromStyle(numberStyle, fontSize * (Number(numberStyle.fontSize || 100) / 100));
+          const top = b.y + Math.max(titleSize + 5, b.h * .20) + (Number(textStyle.verticalOffset || 0) * 0.004 * b.h);
+          const longest = Math.max(0, ...visible.map(item => String(item.name || "").length));
+          const maxValueChars = Math.max(1, ...visible.map(item => String(normalizeStatValue(item.value)).length));
+          const shiftPercent = Math.max(0, Math.min(1, (300 - Number(textStyle.statGap ?? 300)) / 300));
+          const em = fontSize;
+          const labelReserve = longest * 0.66 * em;
+          const numberWidth = Math.max(2.2 * em, maxValueChars * .85 * em);
+          const minGap = .45 * em;
+          const maxShift = Math.max(0, b.w - labelReserve - numberWidth - minGap);
+          const shift = Math.min(shiftPercent * b.w * .28, maxShift);
+          const valueX = b.x + b.w - shift;
+          const labelMaxW = Math.max(4, valueX - numberWidth - minGap - b.x);
+          const rows = visible.length ? visible : [{ id: "empty", name: "—", value: "" }];
+          rows.forEach((item, index) => {
+            const y = top + index * lineHeight;
+            if (y > b.y + b.h - lineHeight * .2) return;
+            drawFittedText(ctx, item.name || "", b.x, y + lineHeight * .78, labelMaxW, labelFont, textColor, textStyle.align || "left", "alphabetic");
+            if (item.value !== "") drawFittedText(ctx, normalizeStatValue(item.value), valueX - numberWidth, y + lineHeight * .78, numberWidth, valueFont, numberColor, "right", "alphabetic");
+          });
+        };
+
+        const drawDefensiveArea = () => {
+          if (deleted.has("back:defensiveArea")) return;
+          const b = box("defensiveArea");
+          const titleStyle = styles.defensiveAreaTitle || CARD_TEXT_STYLE_DEFAULTS.defensiveAreaTitle;
+          const goalStyle = styles.defensiveAreaGoal || CARD_TEXT_STYLE_DEFAULTS.defensiveAreaGoal;
+          const areaStyle = styles.defensiveArea || CARD_TEXT_STYLE_DEFAULTS.defensiveArea;
+          const titleColor = safeColor(colors.defensiveAreaTitle, "#ffffff");
+          const cellColor = safeColor(colors.defensiveArea, "#ffffff");
+          const activeColor = safeColor(colors.defensiveAreaActive, "#50be78");
+          const titleSize = Math.max(4, Math.min(b.w * .095, b.h * .105) * (Number(titleStyle.fontSize || 100) / 100));
+          drawFittedText(ctx, cardLayoutTitle(card, "defensiveArea"), b.x, b.y + titleSize, b.w, canvasFontFromStyle(titleStyle, titleSize), titleColor, "center", "alphabetic");
+          const goalSize = Math.max(3, Math.min(b.w * .055, b.h * .06) * (Number(goalStyle.fontSize || 100) / 100));
+          drawFittedText(ctx, "OPPONENT GOAL", b.x, b.y + titleSize + goalSize + 2, b.w, canvasFontFromStyle(goalStyle, goalSize), cellColor, "center", "alphabetic", false);
+          const gridTop = b.y + titleSize + goalSize + 5 + (Number(areaStyle.verticalOffset || 0) * 0.003 * b.h);
+          const gridSize = Math.min(b.w * .72, b.h - (gridTop - b.y) - 3);
+          const cell = gridSize / 11;
+          const gap = Math.max(.45, cell * .13);
+          const startX = b.x + (b.w - gridSize) / 2;
+          const active = new Set((card?.defensiveArea || []).map(c => `${Number(c.dx)},${Number(c.dy)}`));
+          for (let row = 0; row < 11; row++) {
+            for (let col = 0; col < 11; col++) {
+              const dx = col - 5;
+              const dy = row - 5;
+              const isCenter = dx === 0 && dy === 0;
+              const isActive = active.has(`${dx},${dy}`);
+              ctx.fillStyle = isActive ? activeColor : isCenter ? cellColor : "rgba(70,80,92,.70)";
+              ctx.strokeStyle = isActive ? activeColor : "rgba(20,28,40,.62)";
+              ctx.lineWidth = .5;
+              const rx = startX + col * cell + gap / 2;
+              const ry = gridTop + row * cell + gap / 2;
+              const cs = Math.max(.6, cell - gap);
+              ctx.beginPath();
+              ctx.roundRect?.(rx, ry, cs, cs, Math.max(.6, cs * .18));
+              if (!ctx.roundRect) ctx.rect(rx, ry, cs, cs);
+              ctx.fill();
+              ctx.stroke();
+            }
+          }
+        };
+
+        const drawSpecial = () => {
+          if (deleted.has("back:specialAbility")) return;
+          const b = box("specialAbility");
+          const titleStyle = styles.specialAbilityTitle || CARD_TEXT_STYLE_DEFAULTS.specialAbilityTitle;
+          const textStyle = styles.specialAbility || CARD_TEXT_STYLE_DEFAULTS.specialAbility;
+          const titleColor = safeColor(colors.specialAbilityTitle, "#ffffff");
+          const textColor = safeColor(colors.specialAbility, titleColor);
+          const titleSize = Math.max(4, Math.min(b.w * .095, b.h * .14) * (Number(titleStyle.fontSize || 100) / 100));
+          drawFittedText(ctx, cardLayoutTitle(card, "specialAbility"), b.x, b.y + titleSize, b.w, canvasFontFromStyle(titleStyle, titleSize), titleColor, "center", "alphabetic");
+          const text = String(card?.specialAbility || "").trim() || "NONE";
+          const fontSize = Math.max(3.2, Math.min(b.w * .075, b.h * .13) * (Number(textStyle.fontSize || 100) / 100));
+          drawWrappedText(ctx, text, b.x + 2, b.y + titleSize + 6, b.w - 4, b.h - titleSize - 8, canvasFontFromStyle(textStyle, fontSize), textColor, textStyle.align || "center", Number(textStyle.lineHeight || 105) / 100);
+        };
+
+        drawName();
+        drawPosition();
+        drawList("attributes", card?.passiveAttributes || [], "attributes", "attributes", "attributesTitle");
+        drawList("bonuses", card?.bonuses || [], "bonuses", "bonuses", "bonusesTitle");
+        drawDefensiveArea();
+        drawSpecial();
+
+        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Could not create PNG blob.")), "image/png");
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
   function sanitizeHtml2CanvasUnsupportedColors(node) {
     const elements = [node, ...Array.from(node?.querySelectorAll?.("*") || [])].filter(Boolean);
     const colorProps = [
@@ -3171,158 +3419,6 @@ function App() {
     }
   }
 
-
-  function installPngExportSafeStyles(doc) {
-    const style = doc.createElement("style");
-    style.setAttribute("data-card-png-export-safe", "true");
-    style.textContent = `
-      .card-png-export-host .card-preview .area-mini span:not(.active):not(.player),
-      .card-png-export-host .card-preview.theme-custom .area-mini span:not(.active):not(.player),
-      .card-png-export-host .card-preview .card-area-block .area-mini span:not(.active):not(.player),
-      .card-png-export-host .card-preview.theme-custom .card-area-block .area-mini span:not(.active):not(.player),
-      .card-png-export-host .card-zone-defense-with-title.zone-color-bound .area-mini span:not(.active):not(.player) {
-        background: rgba(17, 24, 39, 0.36) !important;
-        border: 1px solid rgba(17, 24, 39, 0.72) !important;
-        box-shadow: none !important;
-      }
-      .card-png-export-host .card-preview .area-mini span.active,
-      .card-png-export-host .card-preview.theme-custom .area-mini span.active,
-      .card-png-export-host .card-preview .card-area-block .area-mini span.active,
-      .card-png-export-host .card-preview.theme-custom .card-area-block .area-mini span.active,
-      .card-png-export-host .card-zone-defense-with-title.zone-color-bound .area-mini span.active {
-        background: var(--card-area-active-color, #50be78) !important;
-        border: 1px solid rgba(80, 190, 120, 0.85) !important;
-        box-shadow: none !important;
-      }
-      .card-png-export-host .card-preview .area-mini span.player,
-      .card-png-export-host .card-preview.theme-custom .area-mini span.player,
-      .card-png-export-host .card-preview .card-area-block .area-mini span.player,
-      .card-png-export-host .card-preview.theme-custom .card-area-block .area-mini span.player {
-        background: rgba(17, 24, 39, 0.92) !important;
-        border: 1px solid rgba(17, 24, 39, 0.92) !important;
-        box-shadow: none !important;
-        color: transparent !important;
-      }
-      .card-png-export-host [style*="color-mix"],
-      .card-png-export-host [style*="color("] {
-        box-shadow: none !important;
-        text-shadow: none !important;
-      }
-    `;
-    doc.head.appendChild(style);
-  }
-
-  function forceDefensiveAreaPngSafeStyles(node) {
-    const inactive = node?.querySelectorAll?.(".area-mini span:not(.active):not(.player)") || [];
-    inactive.forEach(el => {
-      el.style.background = "rgba(17, 24, 39, 0.36)";
-      el.style.border = "1px solid rgba(17, 24, 39, 0.72)";
-      el.style.boxShadow = "none";
-    });
-    const active = node?.querySelectorAll?.(".area-mini span.active") || [];
-    active.forEach(el => {
-      el.style.background = "#50be78";
-      el.style.border = "1px solid rgba(80, 190, 120, 0.85)";
-      el.style.boxShadow = "none";
-    });
-    const player = node?.querySelectorAll?.(".area-mini span.player") || [];
-    player.forEach(el => {
-      el.style.background = "rgba(17, 24, 39, 0.92)";
-      el.style.border = "1px solid rgba(17, 24, 39, 0.92)";
-      el.style.boxShadow = "none";
-      el.style.color = "transparent";
-    });
-  }
-
-
-  function findVisibleEditorCardPreview(side, selectedCard) {
-    if (!selectedCard || editingCardId !== selectedCard.id) return null;
-    const selector = side === "front" ? ".card-editor-previews .card-preview.card-front" : ".card-editor-previews .card-preview.card-back";
-    const candidates = Array.from(document.querySelectorAll(selector));
-    return candidates.find(node => node.closest(".card-editor")) || null;
-  }
-
-  function prepareClonedVisibleCardForPng(sourceNode) {
-    const rect = sourceNode.getBoundingClientRect();
-    const clone = sourceNode.cloneNode(true);
-    clone.querySelectorAll?.(".card-editor-overlay-layer, .card-edit-overlay-zone, .zone-resize-handle, .zone-live-coordinates, .card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
-    clone.classList.add("card-png-visible-clone");
-    clone.style.width = `${rect.width}px`;
-    clone.style.height = `${rect.height}px`;
-    clone.style.minWidth = `${rect.width}px`;
-    clone.style.minHeight = `${rect.height}px`;
-    clone.style.maxWidth = `${rect.width}px`;
-    clone.style.maxHeight = `${rect.height}px`;
-    clone.style.margin = "0";
-    clone.style.transform = "none";
-    return { clone, rect };
-  }
-
-  async function exportVisibleEditorCardPng(side, selectedCard) {
-    const sourceNode = findVisibleEditorCardPreview(side, selectedCard);
-    if (!sourceNode) return false;
-
-    const { clone, rect } = prepareClonedVisibleCardForPng(sourceNode);
-    const host = document.createElement("div");
-    host.className = "card-png-visible-export-host";
-    host.style.width = `${rect.width}px`;
-    host.style.height = `${rect.height}px`;
-    host.appendChild(clone);
-    document.body.appendChild(host);
-    installPngExportSafeStyles(document);
-
-    try {
-      stripUnsafeExportImages(clone);
-      forceDefensiveAreaPngSafeStyles(clone);
-      sanitizeHtml2CanvasUnsupportedColors(clone);
-      await waitForExportImages(clone);
-      await (document.fonts?.ready || Promise.resolve());
-
-      const targetWidth = CARD_EXPORT_WIDTH * CARD_EXPORT_PIXEL_RATIO;
-      const scale = targetWidth / Math.max(rect.width, 1);
-      const canvas = await html2canvas(clone, {
-        backgroundColor: null,
-        scale,
-        useCORS: true,
-        allowTaint: false,
-        logging: false,
-        width: rect.width,
-        height: rect.height,
-        windowWidth: Math.ceil(rect.width),
-        windowHeight: Math.ceil(rect.height),
-        onclone: (clonedDocument) => {
-          installPngExportSafeStyles(clonedDocument);
-          const clonedNode = clonedDocument.querySelector(".card-png-visible-export-host .card-preview");
-          clonedNode?.querySelectorAll?.(".card-editor-overlay-layer, .card-edit-overlay-zone, .zone-resize-handle, .zone-live-coordinates, .card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
-          forceDefensiveAreaPngSafeStyles(clonedNode);
-          sanitizeHtml2CanvasUnsupportedColors(clonedNode);
-        },
-      });
-
-      const blob = await new Promise((resolve, reject) => {
-        try {
-          canvas.toBlob(result => result ? resolve(result) : reject(new Error("Could not create PNG blob.")), "image/png");
-        } catch (error) {
-          reject(error);
-        }
-      });
-
-      const sideLabel = side === "front" ? "Front" : "Back";
-      const filename = `${safeCardExportName(selectedCard)}-${safeExportPart(selectedCard.position)}-${sideLabel}.png`;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      return true;
-    } finally {
-      host.remove();
-    }
-  }
-
   async function exportSelectedCardPng(side) {
     const selectedCard = getSelectedExportCard();
     if (!selectedCard) {
@@ -3332,27 +3428,34 @@ function App() {
 
     const exportSide = side === "front" ? "front" : "back";
 
-    if (exportSide === "back") {
-      const visibleExportDone = await exportVisibleEditorCardPng(exportSide, selectedCard);
-      if (visibleExportDone) return;
-    }
-
-    const host = document.createElement("div");
-    host.className = "card-png-export-host";
-    document.body.appendChild(host);
-    installPngExportSafeStyles(document);
-    const root = createRoot(host);
-
     try {
-      const pngSafeCard = makePngSafeCard(selectedCard, exportSide);
-      root.render(<CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
+      if (exportSide === "back" && imageDataUrlForCardSide(selectedCard, "back")) {
+        const blob = await manualBackExportBlob(selectedCard);
+        const filename = `${safeCardExportName(selectedCard)}-${safeExportPart(selectedCard.position)}-Back.png`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        return;
+      }
+
+      const host = document.createElement("div");
+      host.className = "card-png-export-host";
+      document.body.appendChild(host);
+      const root = createRoot(host);
+      try {
+        const pngSafeCard = makePngSafeCard(selectedCard, exportSide);
+        root.render(<CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const node = host.querySelector(".card-preview");
       if (!node) throw new Error("Card preview was not rendered for export.");
 
       node.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
       stripUnsafeExportImages(node);
-      forceDefensiveAreaPngSafeStyles(node);
       sanitizeHtml2CanvasUnsupportedColors(node);
       await waitForExportImages(node);
       await (document.fonts?.ready || Promise.resolve());
@@ -3363,12 +3466,6 @@ function App() {
         useCORS: true,
         allowTaint: false,
         logging: false,
-        onclone: (clonedDocument) => {
-          installPngExportSafeStyles(clonedDocument);
-          const clonedNode = clonedDocument.querySelector(".card-png-export-host .card-preview");
-          forceDefensiveAreaPngSafeStyles(clonedNode);
-          sanitizeHtml2CanvasUnsupportedColors(clonedNode);
-        },
         width: CARD_EXPORT_WIDTH,
         height: CARD_EXPORT_HEIGHT,
         windowWidth: CARD_EXPORT_WIDTH,
@@ -3393,12 +3490,13 @@ function App() {
       a.click();
       a.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } finally {
+        root.unmount();
+        host.remove();
+      }
     } catch (error) {
       console.error("Card PNG export failed", error);
       alert(`Card PNG export failed: ${error?.message || "unknown error"}`);
-    } finally {
-      root.unmount();
-      host.remove();
     }
   }
 

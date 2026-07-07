@@ -6128,24 +6128,3 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .card-png-export-host .card-preview .card-zone-defense-with-title {
   color: #ffffff !important;
 }
-
-/* V16: export Back PNG from the already-visible editor card, without edit handles. */
-.card-png-visible-export-host {
-  position: fixed;
-  left: -20000px;
-  top: 0;
-  overflow: hidden;
-  pointer-events: none;
-  opacity: 1;
-  z-index: -1;
-}
-.card-png-visible-export-host .card-preview {
-  margin: 0 !important;
-  transform: none !important;
-}
-.card-png-visible-export-host .card-editor-overlay-layer,
-.card-png-visible-export-host .card-edit-overlay-zone,
-.card-png-visible-export-host .zone-resize-handle,
-.card-png-visible-export-host .zone-live-coordinates {
-  display: none !important;
-}
