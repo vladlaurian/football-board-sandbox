@@ -3036,8 +3036,16 @@ function App() {
   }
 
 
+  function getSelectedExportCard() {
+    return cardById[exportCardId] || cardState.cards[0] || null;
+  }
+
+  function safeCardExportName(card) {
+    return String(card?.name || "player-card").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "player-card";
+  }
+
   function exportSelectedCard() {
-    const selectedCard = cardById[exportCardId] || cardState.cards[0];
+    const selectedCard = getSelectedExportCard();
     if (!selectedCard) {
       alert("No card selected for export.");
       return;
@@ -3051,7 +3059,7 @@ function App() {
         cards: [selectedCard],
       },
     };
-    const safeName = String(selectedCard.name || "player-card").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "player-card";
+    const safeName = safeCardExportName(selectedCard);
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -3059,6 +3067,111 @@ function App() {
     a.download = `${safeName}-${selectedCard.position || "card"}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function collectDocumentCssText() {
+    return Array.from(document.styleSheets).map(sheet => {
+      try {
+        return Array.from(sheet.cssRules || []).map(rule => rule.cssText).join("\n");
+      } catch {
+        return "";
+      }
+    }).filter(Boolean).join("\n");
+  }
+
+  function waitForCardExportImages(node) {
+    const images = Array.from(node.querySelectorAll("img"));
+    return Promise.all(images.map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise(resolve => {
+        img.onload = resolve;
+        img.onerror = resolve;
+      });
+    }));
+  }
+
+  async function exportElementAsPng(node, filename, pixelRatio = 4) {
+    if (!node) throw new Error("Missing export node");
+    await (document.fonts?.ready || Promise.resolve());
+    await waitForCardExportImages(node);
+    const rect = node.getBoundingClientRect();
+    const width = Math.ceil(rect.width);
+    const height = Math.ceil(rect.height);
+    if (!width || !height) throw new Error("Invalid export size");
+
+    const escapeXmlText = (value) => String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const cssText = collectDocumentCssText();
+    const html = new XMLSerializer().serializeToString(node.cloneNode(true));
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${width * pixelRatio}" height="${height * pixelRatio}" viewBox="0 0 ${width} ${height}">
+        <foreignObject x="0" y="0" width="${width}" height="${height}">
+          <div xmlns="http://www.w3.org/1999/xhtml">
+            <style>${escapeXmlText(cssText)}</style>
+            ${html}
+          </div>
+        </foreignObject>
+      </svg>`;
+
+    const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const svgUrl = URL.createObjectURL(svgBlob);
+    try {
+      const image = new Image();
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = reject;
+        image.src = svgUrl;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = width * pixelRatio;
+      canvas.height = height * pixelRatio;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      await new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+          if (!blob) {
+            reject(new Error("Could not create PNG"));
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename;
+          a.click();
+          URL.revokeObjectURL(url);
+          resolve();
+        }, "image/png");
+      });
+    } finally {
+      URL.revokeObjectURL(svgUrl);
+    }
+  }
+
+  async function exportSelectedCardPng(side) {
+    const selectedCard = getSelectedExportCard();
+    if (!selectedCard) {
+      alert("No card selected for export.");
+      return;
+    }
+    const exportSide = side === "front" ? "front" : "back";
+    const host = document.createElement("div");
+    host.className = "card-png-export-host";
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    try {
+      root.render(<CardPreview card={selectedCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const node = host.querySelector(".card-preview");
+      const safeName = safeCardExportName(selectedCard);
+      const safePosition = String(selectedCard.position || "Card").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "Card";
+      const sideLabel = exportSide === "front" ? "Front" : "Back";
+      await exportElementAsPng(node, `${safeName}-${safePosition}-${sideLabel}.png`, 4);
+    } catch (error) {
+      console.error("Card PNG export failed", error);
+      alert("Card PNG export failed. Please try again.");
+    } finally {
+      root.unmount();
+      host.remove();
+    }
   }
 
   function importCardBackup(file) {
@@ -4457,6 +4570,8 @@ function App() {
           <select value={exportCardId} onChange={e => setExportCardId(e.target.value)} disabled={!cardState.cards.length}>{cardState.cards.length === 0 ? <option value="">No cards</option> : cardState.cards.map(card => <option key={card.id} value={card.id}>{card.name} ({card.position})</option>)}</select>
           <button onClick={exportSelectedCard}>Export Selected JSON</button>
           <label className="import-btn">Import JSON<input type="file" accept="application/json" onChange={e => { importCardBackup(e.target.files?.[0]); e.target.value = ""; }} /></label>
+          <button onClick={() => exportSelectedCardPng("front")} disabled={!cardState.cards.length}>Export Front PNG</button>
+          <button onClick={() => exportSelectedCardPng("back")} disabled={!cardState.cards.length}>Export Back PNG</button>
           <input ref={graphicFrontInputRef} type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" className="hidden-file-input" onChange={e => { handleFrontGraphicFile(e.target.files?.[0]); e.target.value = ""; }} />
           <input ref={graphicBackInputRef} type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" className="hidden-file-input" onChange={e => { handleBackGraphicFile(e.target.files?.[0]); e.target.value = ""; }} />
           <button onClick={() => setCardsPanelOpen(false)}>×</button></div></div>

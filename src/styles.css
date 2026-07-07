@@ -6082,3 +6082,19 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .special-text-toolbar .stable-color-picker {
   flex: 0 0 auto;
 }
+
+.card-png-export-host {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: max-content;
+  height: max-content;
+  pointer-events: none;
+  opacity: 0;
+  z-index: -1;
+}
+
+.card-png-export-host .card-preview {
+  margin: 0;
+  transform: none !important;
+}
