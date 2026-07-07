@@ -285,7 +285,7 @@ function zoneTextStyleVars(styles, key, hasStats = false) {
     "--zone-font-weight": s.bold ? 950 : 650,
     "--zone-font-scale": s.fontSize / 100,
     "--zone-line-height": s.lineHeight / 100,
-    "--zone-y-offset": `${s.verticalOffset * 0.4}cqh`,
+    "--zone-y-offset": `${(s.verticalOffset * 0.24).toFixed(2)}px`,
     "--zone-y-offset-px": `${(s.verticalOffset * 0.24).toFixed(2)}px`,
     ...(hasStats ? { "--zone-stat-gap": `${Math.round(s.statGap / 100 * 4)}px`, "--zone-stat-gap-wide": `${Math.round(s.statGap / 100 * 8)}px` } : {}),
   };
@@ -297,8 +297,8 @@ function opponentGoalStyleVars(styles) {
     "--goal-font-family": s.font,
     "--goal-font-weight": s.bold ? 950 : 650,
     "--goal-font-scale": s.fontSize / 100,
-    "--goal-x-offset": `${s.horizontalOffset * 0.42}cqw`,
-    "--goal-y-offset": `${s.verticalOffset * 0.28}cqh`,
+    "--goal-x-offset": `${(s.horizontalOffset * 0.28).toFixed(2)}px`,
+    "--goal-y-offset": `${(s.verticalOffset * 0.18).toFixed(2)}px`,
     "--goal-x-offset-px": `${(s.horizontalOffset * 0.28).toFixed(2)}px`,
     "--goal-y-offset-px": `${(s.verticalOffset * 0.18).toFixed(2)}px`,
   };
@@ -316,7 +316,7 @@ function zonePairDistanceVars(styles, key, metrics = {}) {
     // numbers cannot cross into the text when custom/long stats are added.
     "--zone-stat-gap": "0px",
     "--zone-stat-gap-wide": "0px",
-    "--zone-distance-shift-raw": `${(shiftPercent * 28).toFixed(2)}cqw`,
+    "--zone-distance-shift-raw": `${(shiftPercent * 26).toFixed(2)}px`,
     "--zone-distance-shift-px": `${(shiftPercent * 26).toFixed(2)}px`,
     "--zone-longest-label-ch": longestLabelChars,
     "--zone-number-ch": maxValueChars,
@@ -342,7 +342,7 @@ function zoneNumberStyleVars(styles, textKey, numberKey) {
     "--zone-font-scale": fontScale,
     "--zone-number-font-scale": fontScale,
     "--zone-line-height": base.lineHeight / 100,
-    "--zone-y-offset": `${base.verticalOffset * 0.4}cqh`,
+    "--zone-y-offset": `${(base.verticalOffset * 0.24).toFixed(2)}px`,
   };
 }
 
@@ -927,7 +927,7 @@ function customTextStyleVars(style = {}, titleMode = false) {
     "--zone-font-weight": s.bold ? 950 : 650,
     "--zone-font-scale": s.fontSize / 100,
     "--zone-line-height": s.lineHeight / 100,
-    "--zone-y-offset": `${s.verticalOffset * 0.4}cqh`,
+    "--zone-y-offset": `${(s.verticalOffset * 0.24).toFixed(2)}px`,
     "--zone-y-offset-px": `${(s.verticalOffset * 0.24).toFixed(2)}px`,
   };
 }
@@ -995,7 +995,7 @@ function duplicateStyleVars(style = {}) {
     "--zone-font-weight": s.bold ? 950 : 650,
     "--zone-font-scale": s.fontSize / 100,
     "--zone-line-height": s.lineHeight / 100,
-    "--zone-y-offset": `${s.verticalOffset * 0.4}cqh`,
+    "--zone-y-offset": `${(s.verticalOffset * 0.24).toFixed(2)}px`,
     "--zone-y-offset-px": `${(s.verticalOffset * 0.24).toFixed(2)}px`,
   };
 }
@@ -1011,7 +1011,7 @@ function duplicateNumberStyleVars(textStyle = {}, numberStyle = {}) {
     "--zone-font-scale": fontScale,
     "--zone-number-font-scale": fontScale,
     "--zone-line-height": base.lineHeight / 100,
-    "--zone-y-offset": `${base.verticalOffset * 0.4}cqh`,
+    "--zone-y-offset": `${(base.verticalOffset * 0.24).toFixed(2)}px`,
   };
 }
 
@@ -1022,7 +1022,7 @@ function duplicateDistanceVars(style = {}, items = []) {
   return {
     "--zone-stat-gap": "0px",
     "--zone-stat-gap-wide": "0px",
-    "--zone-distance-shift-raw": `${(shiftPercent * 28).toFixed(2)}cqw`,
+    "--zone-distance-shift-raw": `${(shiftPercent * 26).toFixed(2)}px`,
     "--zone-distance-shift-px": `${(shiftPercent * 26).toFixed(2)}px`,
     "--zone-longest-label-ch": Math.max(0, ...items.map(item => String(item?.name || item?.label || "").length)),
     "--zone-number-ch": Math.max(1, ...items.map(item => String(normalizeStatValue(item?.value ?? 0)).length)),
@@ -4132,8 +4132,8 @@ function App() {
       node.style.setProperty("--goal-font-family", style.font);
       node.style.setProperty("--goal-font-weight", style.bold ? "950" : "650");
       node.style.setProperty("--goal-font-scale", String(style.fontSize / 100));
-      node.style.setProperty("--goal-x-offset", `${style.horizontalOffset * 0.42}cqw`);
-      node.style.setProperty("--goal-y-offset", `${style.verticalOffset * 0.28}cqh`);
+      node.style.setProperty("--goal-x-offset", `${(style.horizontalOffset * 0.28).toFixed(2)}px`);
+      node.style.setProperty("--goal-y-offset", `${(style.verticalOffset * 0.18).toFixed(2)}px`);
       node.style.setProperty("--goal-x-offset-px", `${(style.horizontalOffset * 0.28).toFixed(2)}px`);
       node.style.setProperty("--goal-y-offset-px", `${(style.verticalOffset * 0.18).toFixed(2)}px`);
     });
@@ -4161,7 +4161,9 @@ function App() {
     return {
       width: `${adjust.width}%`,
       height: `${adjust.height}%`,
-      transform: `translate(-50%, -50%) translate(${adjust.offsetX}%, ${adjust.offsetY}%)`,
+      "--grid-offset-x-px": `${(adjust.offsetX * 0.35).toFixed(2)}px`,
+      "--grid-offset-y-px": `${(adjust.offsetY * 0.35).toFixed(2)}px`,
+      transform: `translate(${(adjust.offsetX * 0.35).toFixed(2)}px, ${(adjust.offsetY * 0.35).toFixed(2)}px)`,
     };
   }
 

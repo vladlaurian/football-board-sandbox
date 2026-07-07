@@ -6423,3 +6423,189 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .card-png-export-host .card-visual-canvas[data-card-side="back"] .card-zone-defense {
   overflow: visible !important;
 }
+
+/* BACK SHARED RENDERER CLEANUP v5
+   Final alignment pass: keep the same CardVisualCanvas for Editor/Inspector/Export,
+   but stop back content from relying on cqw/cqh/percentage transforms that html2canvas
+   resolves differently in the hidden export host. */
+.card-visual-canvas[data-card-side="back"] .card-zone-content,
+.card-visual-canvas[data-card-side="back"] .card-zone-text,
+.card-visual-canvas[data-card-side="back"] .card-zone-list,
+.card-visual-canvas[data-card-side="back"] .card-zone-special,
+.card-visual-canvas[data-card-side="back"] .card-zone-defense {
+  transform: none !important;
+  will-change: auto !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list-with-title,
+.card-visual-canvas[data-card-side="back"] .card-zone-special-with-title,
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-with-title {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+  gap: 4px !important;
+  overflow: visible !important;
+  contain: none !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-section-title {
+  flex: 0 0 auto !important;
+  display: block !important;
+  width: 100% !important;
+  font-size: calc(7.2px * var(--zone-font-scale, 1)) !important;
+  line-height: 1.2 !important;
+  min-height: calc(8.5px * var(--zone-font-scale, 1)) !important;
+  padding: 0 0 2px 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+  transform: translateY(var(--zone-y-offset-px, 0px)) !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list {
+  flex: 0 0 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  align-content: stretch !important;
+  row-gap: 2px !important;
+  padding: 6px 0 0 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  font-size: calc(7px * var(--zone-font-scale, 1)) !important;
+  line-height: calc(1.22 * var(--zone-line-height, 1)) !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row {
+  position: static !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) max-content !important;
+  column-gap: var(--zone-distance-shift-px, 12px) !important;
+  align-items: baseline !important;
+  min-height: calc(8.5px * var(--zone-font-scale, 1)) !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  line-height: calc(1.22 * var(--zone-line-height, 1)) !important;
+  transform: none !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row .card-zone-label,
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row .card-zone-value,
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row span,
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row strong {
+  position: static !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  display: block !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: auto !important;
+  min-height: calc(8.5px * var(--zone-font-scale, 1)) !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+  line-height: calc(1.22 * var(--zone-line-height, 1)) !important;
+  transform: translateY(var(--zone-y-offset-px, 0px)) !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row .card-zone-label,
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row span {
+  text-align: var(--zone-align, left) !important;
+}
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row .card-zone-value,
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row strong {
+  justify-self: end !important;
+  text-align: right !important;
+  color: var(--zone-number-color, var(--zone-text-color, currentColor)) !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-special {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: visible !important;
+  font-size: calc(6.4px * var(--zone-font-scale, 1)) !important;
+  line-height: calc(1.22 * var(--zone-line-height, 1)) !important;
+  padding: 2px 0 !important;
+  transform: translateY(var(--zone-y-offset-px, 0px)) !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense {
+  flex: 1 1 auto !important;
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  transform: none !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-grid-adjust {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 2px !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  margin: 0 auto !important;
+  transform: translate(var(--grid-offset-x-px, 0px), var(--grid-offset-y-px, 0px)) !important;
+  transform-origin: center center !important;
+  overflow: visible !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-grid-adjust .card-zone-opponent-goal {
+  flex: 0 0 auto !important;
+  display: block !important;
+  width: 100% !important;
+  font-size: calc(5.8px * var(--goal-font-scale, 1)) !important;
+  line-height: 1.15 !important;
+  min-height: 7px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+  transform: translate(var(--goal-x-offset-px, 0px), var(--goal-y-offset-px, 0px)) !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-grid-adjust .area-mini {
+  flex: 0 0 auto !important;
+  display: grid !important;
+  grid-template-columns: repeat(11, minmax(0, 1fr)) !important;
+  grid-template-rows: repeat(11, minmax(0, 1fr)) !important;
+  gap: 1px !important;
+  width: 78px !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: calc(100% - 10px) !important;
+  aspect-ratio: 1 / 1 !important;
+  margin: 0 auto !important;
+  transform: none !important;
+  overflow: visible !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-grid-adjust .area-mini span {
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  aspect-ratio: 1 / 1 !important;
+  border-radius: 1px !important;
+}
