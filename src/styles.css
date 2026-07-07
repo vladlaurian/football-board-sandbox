@@ -6609,3 +6609,242 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   aspect-ratio: 1 / 1 !important;
   border-radius: 1px !important;
 }
+
+/* BACK SHARED RENDERER CLEANUP v6
+   Investigation result: old auto-fit rules were still active on Back because
+   .card-visual-zone remained a CSS container and several nested selectors kept
+   height:100% / cqw-cqh metrics alive.  Keep the same CardVisualCanvas for
+   Editor + Inspector + Export, but force Back content to normal document flow
+   with px-based metrics only. */
+.card-visual-canvas[data-card-side="back"] .card-visual-zone {
+  container-type: normal !important;
+  container-name: none !important;
+  contain: none !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-content {
+  display: flex !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  overflow: visible !important;
+  contain: none !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-text {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  transform: none !important;
+  will-change: auto !important;
+  contain: none !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list-with-title,
+.card-visual-canvas[data-card-side="back"] .card-zone-special-with-title,
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-with-title {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 3px !important;
+  overflow: visible !important;
+  contain: none !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-section-title {
+  position: relative !important;
+  flex: 0 0 auto !important;
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 9px !important;
+  padding: 0 0 1px 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+  font-size: calc(7.2px * var(--zone-font-scale, 1)) !important;
+  line-height: 1.18 !important;
+  transform: translateY(var(--zone-y-offset-px, 0px)) !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list-with-title > .card-zone-list,
+.card-visual-canvas[data-card-side="back"] .duplicate-content-zone > .card-zone-list {
+  position: relative !important;
+  flex: 0 0 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 5px 0 0 0 !important;
+  margin: 0 !important;
+  row-gap: 2px !important;
+  overflow: visible !important;
+  font-size: calc(7px * var(--zone-font-scale, 1)) !important;
+  line-height: calc(1.22 * var(--zone-line-height, 1)) !important;
+  transform: none !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row {
+  position: static !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) max-content !important;
+  align-items: baseline !important;
+  column-gap: max(4px, var(--zone-distance-shift-px, 12px)) !important;
+  min-height: 9px !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  line-height: calc(1.22 * var(--zone-line-height, 1)) !important;
+  transform: none !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row .card-zone-label,
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row .card-zone-value,
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row span,
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row strong {
+  position: static !important;
+  display: block !important;
+  width: auto !important;
+  height: auto !important;
+  min-height: 9px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+  line-height: calc(1.22 * var(--zone-line-height, 1)) !important;
+  transform: translateY(var(--zone-y-offset-px, 0px)) !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row .card-zone-label,
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row span {
+  justify-self: stretch !important;
+  text-align: var(--zone-align, left) !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row .card-zone-value,
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row strong {
+  justify-self: end !important;
+  text-align: right !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-special-with-title > .card-zone-special {
+  flex: 1 1 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 2px 0 0 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  font-size: calc(6.4px * var(--zone-font-scale, 1)) !important;
+  line-height: calc(1.22 * var(--zone-line-height, 1)) !important;
+  transform: translateY(var(--zone-y-offset-px, 0px)) !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-with-title > .card-zone-defense {
+  flex: 1 1 auto !important;
+  position: relative !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 2px 0 0 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  transform: none !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-grid-adjust {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 100% !important;
+  max-height: none !important;
+  gap: 2px !important;
+  padding: 0 !important;
+  margin: 0 auto !important;
+  overflow: visible !important;
+  transform: translate(var(--grid-offset-x-px, 0px), var(--grid-offset-y-px, 0px)) !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-grid-adjust .card-zone-opponent-goal {
+  position: static !important;
+  flex: 0 0 auto !important;
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 8px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+  text-align: center !important;
+  font-size: calc(5.8px * var(--goal-font-scale, 1)) !important;
+  line-height: 1.12 !important;
+  transform: translate(var(--goal-x-offset-px, 0px), var(--goal-y-offset-px, 0px)) !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-grid-adjust > .area-mini {
+  position: static !important;
+  flex: 0 0 auto !important;
+  display: grid !important;
+  grid-template-columns: repeat(11, minmax(0, 1fr)) !important;
+  grid-template-rows: repeat(11, minmax(0, 1fr)) !important;
+  width: 70px !important;
+  height: 70px !important;
+  max-width: 100% !important;
+  max-height: none !important;
+  aspect-ratio: 1 / 1 !important;
+  gap: 1px !important;
+  padding: 0 !important;
+  margin: 0 auto !important;
+  overflow: visible !important;
+  transform: none !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-grid-adjust > .area-mini span {
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  aspect-ratio: 1 / 1 !important;
+  border-radius: 1px !important;
+  font-size: 0 !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-with-title.zone-color-bound .area-mini span:not(.active):not(.player),
+.card-png-export-host .card-visual-canvas[data-card-side="back"] .area-mini span:not(.active):not(.player) {
+  background: var(--zone-text-color, #ffffff) !important;
+  border: 1px solid var(--zone-text-color, #ffffff) !important;
+  opacity: .38 !important;
+  box-shadow: none !important;
+}
+
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-with-title.zone-color-bound .area-mini span.active,
+.card-png-export-host .card-visual-canvas[data-card-side="back"] .area-mini span.active {
+  background: var(--card-area-active-color, #50be78) !important;
+  border: 1px solid var(--card-area-active-color, #50be78) !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
