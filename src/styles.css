@@ -6084,6 +6084,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 }
 
 
+/* USER REQUEST: clean selected card PNG export at 4x */
 .card-png-export-host {
   position: fixed;
   left: -10000px;
@@ -6104,4 +6105,26 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   max-height: 420px !important;
   margin: 0 !important;
   transform: none !important;
+}
+.card-png-export-host .card-preview .area-mini span:not(.active):not(.player) {
+  background: rgba(255,255,255,.12) !important;
+  border: 1px solid rgba(255,255,255,.20) !important;
+  box-shadow: none !important;
+}
+.card-png-export-host .card-preview .area-mini span.player {
+  background: #ffffff !important;
+  color: #111827 !important;
+  box-shadow: none !important;
+}
+.card-png-export-host .card-preview .card-area-block .attack-arrow::before {
+  background: #ffffff !important;
+}
+.card-png-export-host .card-preview .card-area-block .attack-arrow::after {
+  border-bottom-color: #ffffff !important;
+}
+.card-png-export-host .card-preview .area-mini-title,
+.card-png-export-host .card-preview .attack-direction-hint,
+.card-png-export-host .card-preview .card-area-block,
+.card-png-export-host .card-preview .card-zone-defense-with-title {
+  color: #ffffff !important;
 }

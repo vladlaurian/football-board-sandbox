@@ -1265,6 +1265,8 @@ function normalizeImportedCard(card) {
     graphics: {
       frontDataUrl: String(card?.graphics?.frontDataUrl || card?.customGraphics?.frontDataUrl || card?.frontGraphic || ""),
       backDataUrl: String(card?.graphics?.backDataUrl || card?.customGraphics?.backDataUrl || card?.backGraphic || ""),
+      frontExportDataUrl: String(card?.graphics?.frontExportDataUrl || card?.graphics?.frontLocalDataUrl || card?.customGraphics?.frontExportDataUrl || ""),
+      backExportDataUrl: String(card?.graphics?.backExportDataUrl || card?.graphics?.backLocalDataUrl || card?.customGraphics?.backExportDataUrl || ""),
       previousTheme: CARD_THEMES.includes(card?.graphics?.previousTheme) ? card.graphics.previousTheme : (CARD_THEMES.includes(card?.previousTheme) ? card.previousTheme : base.theme),
     },
     specialAbility: String(card?.specialAbility ?? card?.special_ability ?? card?.special ?? ""),
@@ -3078,8 +3080,17 @@ function App() {
     return String(value || fallback).replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || fallback;
   }
 
-  function isInlineImageDataUrl(value) {
-    return typeof value === "string" && /^data:image\//i.test(value);
+  function makePngSafeCard(card) {
+    const graphics = card?.graphics || {};
+    const nextGraphics = { ...graphics };
+    const safeFront = graphics.frontExportDataUrl || graphics.frontLocalDataUrl || graphics.frontDataUrl || "";
+    const safeBack = graphics.backExportDataUrl || graphics.backLocalDataUrl || graphics.backDataUrl || "";
+    nextGraphics.frontDataUrl = isInlineImageDataUrl(safeFront) ? safeFront : "";
+    nextGraphics.backDataUrl = isInlineImageDataUrl(safeBack) ? safeBack : "";
+
+    const artwork = { ...(card?.artwork || {}) };
+    if (artwork.customDataUrl && !isInlineImageDataUrl(artwork.customDataUrl)) artwork.customDataUrl = "";
+    return { ...card, graphics: nextGraphics, artwork };
   }
 
   async function waitForExportImages(node) {
@@ -3093,36 +3104,13 @@ function App() {
     }));
   }
 
-  function makePngSafeCard(card, exportSide) {
-    const graphics = card?.graphics || {};
-    const safeFront = graphics.frontExportDataUrl || graphics.frontLocalDataUrl || graphics.frontDataUrl || "";
-    const safeBack = graphics.backExportDataUrl || graphics.backLocalDataUrl || graphics.backDataUrl || "";
-    const nextGraphics = { ...graphics };
-
-    // Render the export with an inline/data URL when one exists. If an old card only
-    // has a remote URL, do not render that remote image into the export canvas, because
-    // it taints the canvas. This keeps blank/default cards exportable.
-    nextGraphics.frontDataUrl = isInlineImageDataUrl(safeFront) ? safeFront : "";
-    nextGraphics.backDataUrl = isInlineImageDataUrl(safeBack) ? safeBack : "";
-
-    const artwork = { ...(card?.artwork || {}) };
-    if (artwork.customDataUrl && !isInlineImageDataUrl(artwork.customDataUrl)) {
-      artwork.customDataUrl = "";
-    }
-
-    return { ...card, graphics: nextGraphics, artwork };
-  }
-
-  async function prepareCardExportImages(node) {
+  function stripUnsafeExportImages(node) {
     const images = Array.from(node?.querySelectorAll?.("img") || []);
     for (const img of images) {
       const src = img.getAttribute("src") || img.currentSrc || img.src || "";
-      if (!src) continue;
-      if (isInlineImageDataUrl(src)) continue;
-      // Never let a remote/incidental image taint the PNG export.
+      if (!src || isInlineImageDataUrl(src)) continue;
       img.remove();
     }
-    await waitForExportImages(node);
   }
 
   async function exportSelectedCardPng(side) {
@@ -3139,14 +3127,15 @@ function App() {
     const root = createRoot(host);
 
     try {
-      const pngSafeCard = makePngSafeCard(selectedCard, exportSide);
+      const pngSafeCard = makePngSafeCard(selectedCard);
       root.render(<CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const node = host.querySelector(".card-preview");
       if (!node) throw new Error("Card preview was not rendered for export.");
 
       node.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
-      await prepareCardExportImages(node);
+      stripUnsafeExportImages(node);
+      await waitForExportImages(node);
       await (document.fonts?.ready || Promise.resolve());
 
       const canvas = await html2canvas(node, {
@@ -3324,23 +3313,23 @@ function App() {
         const nextGraphics = {
           frontDataUrl: currentGraphics.frontDataUrl || "",
           backDataUrl: currentGraphics.backDataUrl || "",
-          frontExportDataUrl: currentGraphics.frontExportDataUrl || currentGraphics.frontLocalDataUrl || "",
-          backExportDataUrl: currentGraphics.backExportDataUrl || currentGraphics.backLocalDataUrl || "",
+          frontExportDataUrl: currentGraphics.frontExportDataUrl || "",
+          backExportDataUrl: currentGraphics.backExportDataUrl || "",
           previousTheme,
         };
         if (side === "front") {
           nextGraphics.frontDataUrl = dataUrl;
-          nextGraphics.frontExportDataUrl = localFrontDataUrl || dataUrl;
+          nextGraphics.frontExportDataUrl = localFrontDataUrl || (isInlineImageDataUrl(dataUrl) ? dataUrl : currentGraphics.frontExportDataUrl || "");
         }
         if (side === "back") {
           nextGraphics.backDataUrl = dataUrl;
-          nextGraphics.backExportDataUrl = localFrontDataUrl || dataUrl;
+          nextGraphics.backExportDataUrl = localBackDataUrl || (isInlineImageDataUrl(dataUrl) ? dataUrl : currentGraphics.backExportDataUrl || "");
         }
         if (side === "both") {
           nextGraphics.frontDataUrl = dataUrl;
           nextGraphics.backDataUrl = pairedBackDataUrl || currentGraphics.backDataUrl || "";
-          nextGraphics.frontExportDataUrl = localFrontDataUrl || dataUrl;
-          nextGraphics.backExportDataUrl = localBackDataUrl || pairedBackDataUrl || currentGraphics.backExportDataUrl || currentGraphics.backLocalDataUrl || "";
+          nextGraphics.frontExportDataUrl = localFrontDataUrl || (isInlineImageDataUrl(dataUrl) ? dataUrl : currentGraphics.frontExportDataUrl || "");
+          nextGraphics.backExportDataUrl = localBackDataUrl || (isInlineImageDataUrl(pairedBackDataUrl) ? pairedBackDataUrl : currentGraphics.backExportDataUrl || "");
         }
         return {
           ...card,
