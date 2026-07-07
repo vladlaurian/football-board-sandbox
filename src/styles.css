@@ -6083,31 +6083,17 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   flex: 0 0 auto;
 }
 
+
+/* Hidden print/export render target for one selected card. */
 .card-png-export-host {
   position: fixed;
-  left: -10000px;
-  top: 0;
-  width: max-content;
-  height: max-content;
-  pointer-events: none;
-  opacity: 0;
-  z-index: -1;
-}
-
-.card-png-export-host .card-preview {
-  margin: 0;
-  transform: none !important;
-}
-
-/* Print/export render target: keep deterministic dimensions outside the editor layout. */
-.card-png-export-host {
-  position: fixed;
-  left: -10000px;
+  left: 0;
   top: 0;
   width: 280px !important;
   height: 420px !important;
   pointer-events: none;
   opacity: 0;
+  overflow: hidden;
   z-index: -1;
 }
 .card-png-export-host .card-preview,

@@ -23,6 +23,10 @@ const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
 
+const CARD_EXPORT_WIDTH = 280;
+const CARD_EXPORT_HEIGHT = 420;
+const CARD_EXPORT_PIXEL_RATIO = 4;
+
 function userStateRef(uid) {
   return doc(db, "users", uid, "footballBoard", "mainState");
 }
@@ -3044,6 +3048,10 @@ function App() {
     return String(card?.name || "player-card").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "player-card";
   }
 
+  function safeExportPart(value, fallback = "Card") {
+    return String(value || fallback).replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || fallback;
+  }
+
   function exportSelectedCard() {
     const selectedCard = getSelectedExportCard();
     if (!selectedCard) {
@@ -3069,18 +3077,8 @@ function App() {
     URL.revokeObjectURL(url);
   }
 
-  function collectDocumentCssText() {
-    return Array.from(document.styleSheets).map(sheet => {
-      try {
-        return Array.from(sheet.cssRules || []).map(rule => rule.cssText).join("\n");
-      } catch {
-        return "";
-      }
-    }).filter(Boolean).join("\n");
-  }
-
   function waitForCardExportImages(node) {
-    const images = Array.from(node.querySelectorAll("img"));
+    const images = Array.from(node?.querySelectorAll?.("img") || []);
     return Promise.all(images.map(img => {
       if (img.complete) return Promise.resolve();
       return new Promise(resolve => {
@@ -3090,57 +3088,80 @@ function App() {
     }));
   }
 
+  function inlineComputedCardStyles(source, clone) {
+    if (!source || !clone || source.nodeType !== 1 || clone.nodeType !== 1) return;
+    const computed = window.getComputedStyle(source);
+    clone.style.cssText = Array.from(computed).map(name => `${name}:${computed.getPropertyValue(name)}${computed.getPropertyPriority(name) ? " !important" : ""};`).join("");
+    clone.removeAttribute("id");
+    if (clone.classList?.contains("card-preview")) {
+      clone.style.width = `${CARD_EXPORT_WIDTH}px`;
+      clone.style.height = `${CARD_EXPORT_HEIGHT}px`;
+      clone.style.minWidth = `${CARD_EXPORT_WIDTH}px`;
+      clone.style.minHeight = `${CARD_EXPORT_HEIGHT}px`;
+      clone.style.maxWidth = `${CARD_EXPORT_WIDTH}px`;
+      clone.style.maxHeight = `${CARD_EXPORT_HEIGHT}px`;
+      clone.style.margin = "0";
+      clone.style.transform = "none";
+      clone.style.boxSizing = "border-box";
+    }
+    const sourceChildren = Array.from(source.children || []);
+    const cloneChildren = Array.from(clone.children || []);
+    sourceChildren.forEach((child, index) => inlineComputedCardStyles(child, cloneChildren[index]));
+  }
+
   async function exportElementAsPng(node, filename, pixelRatio = 4) {
     if (!node) throw new Error("Missing export node");
     await (document.fonts?.ready || Promise.resolve());
     await waitForCardExportImages(node);
+
     const rect = node.getBoundingClientRect();
-    const width = Math.ceil(rect.width);
-    const height = Math.ceil(rect.height);
+    const width = Math.ceil(rect.width || CARD_EXPORT_WIDTH);
+    const height = Math.ceil(rect.height || CARD_EXPORT_HEIGHT);
     if (!width || !height) throw new Error("Invalid export size");
 
-    const escapeXmlText = (value) => String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const cssText = collectDocumentCssText();
-    const html = new XMLSerializer().serializeToString(node.cloneNode(true));
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="${width * pixelRatio}" height="${height * pixelRatio}" viewBox="0 0 ${width} ${height}">
-        <foreignObject x="0" y="0" width="${width}" height="${height}">
-          <div xmlns="http://www.w3.org/1999/xhtml">
-            <style>${escapeXmlText(cssText)}</style>
-            ${html}
-          </div>
-        </foreignObject>
-      </svg>`;
+    const clone = node.cloneNode(true);
+    clone.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
+    inlineComputedCardStyles(node, clone);
+    clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
 
+    const serialized = new XMLSerializer().serializeToString(clone);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width * pixelRatio}" height="${height * pixelRatio}" viewBox="0 0 ${width} ${height}"><foreignObject x="0" y="0" width="${width}" height="${height}">${serialized}</foreignObject></svg>`;
     const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
     const svgUrl = URL.createObjectURL(svgBlob);
+
     try {
       const image = new Image();
       await new Promise((resolve, reject) => {
         image.onload = resolve;
-        image.onerror = reject;
+        image.onerror = () => reject(new Error("Browser could not render the card SVG export."));
         image.src = svgUrl;
       });
+
       const canvas = document.createElement("canvas");
       canvas.width = width * pixelRatio;
       canvas.height = height * pixelRatio;
       const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not create export canvas.");
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-      await new Promise((resolve, reject) => {
-        canvas.toBlob(blob => {
-          if (!blob) {
-            reject(new Error("Could not create PNG"));
-            return;
-          }
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = filename;
-          a.click();
-          URL.revokeObjectURL(url);
-          resolve();
-        }, "image/png");
+
+      const blob = await new Promise((resolve, reject) => {
+        try {
+          canvas.toBlob(result => result ? resolve(result) : reject(new Error("Could not create PNG blob.")), "image/png");
+        } catch (error) {
+          reject(error);
+        }
       });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } finally {
       URL.revokeObjectURL(svgUrl);
     }
@@ -3152,22 +3173,24 @@ function App() {
       alert("No card selected for export.");
       return;
     }
+
     const exportSide = side === "front" ? "front" : "back";
     const host = document.createElement("div");
     host.className = "card-png-export-host";
     document.body.appendChild(host);
     const root = createRoot(host);
+
     try {
       root.render(<CardPreview card={selectedCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const node = host.querySelector(".card-preview");
-      const safeName = safeCardExportName(selectedCard);
-      const safePosition = String(selectedCard.position || "Card").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "Card";
+      if (!node) throw new Error("Card preview was not rendered for export.");
       const sideLabel = exportSide === "front" ? "Front" : "Back";
-      await exportElementAsPng(node, `${safeName}-${safePosition}-${sideLabel}.png`, 4);
+      const filename = `${safeCardExportName(selectedCard)}-${safeExportPart(selectedCard.position)}-${sideLabel}.png`;
+      await exportElementAsPng(node, filename, 4);
     } catch (error) {
       console.error("Card PNG export failed", error);
-      alert("Card PNG export failed. Please try again.");
+      alert(`Card PNG export failed: ${error?.message || "unknown error"}`);
     } finally {
       root.unmount();
       host.remove();
