@@ -3088,6 +3088,45 @@ function App() {
     }));
   }
 
+  function isCardExportSafeImageSrc(src) {
+    return typeof src === "string" && (/^data:image\//i.test(src) || src.startsWith("blob:") || src.startsWith(window.location.origin));
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("Could not read image data for export."));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function fetchImageAsDataUrl(src) {
+    if (!src || /^data:image\//i.test(src)) return src;
+    if (src.startsWith("blob:") || src.startsWith(window.location.origin)) {
+      const response = await fetch(src);
+      if (!response.ok) throw new Error(`Could not read local image for export (${response.status}).`);
+      return blobToDataUrl(await response.blob());
+    }
+    try {
+      const response = await fetch(src, { mode: "cors", credentials: "omit", cache: "force-cache" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return blobToDataUrl(await response.blob());
+    } catch (error) {
+      throw new Error("Card PNG export is blocked by a remote image without CORS. Re-upload the card artwork locally, or enable CORS for the image host/Firebase Storage, then try again.");
+    }
+  }
+
+  async function inlineCardExportImages(clone) {
+    const images = Array.from(clone?.querySelectorAll?.("img") || []);
+    for (const img of images) {
+      const src = img.getAttribute("src") || img.currentSrc || img.src;
+      if (!src) continue;
+      img.setAttribute("crossorigin", "anonymous");
+      img.setAttribute("src", await fetchImageAsDataUrl(src));
+    }
+  }
+
   function inlineComputedCardStyles(source, clone) {
     if (!source || !clone || source.nodeType !== 1 || clone.nodeType !== 1) return;
     const computed = window.getComputedStyle(source);
@@ -3122,6 +3161,7 @@ function App() {
     const clone = node.cloneNode(true);
     clone.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
     inlineComputedCardStyles(node, clone);
+    await inlineCardExportImages(clone);
     clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
 
     const serialized = new XMLSerializer().serializeToString(clone);
