@@ -488,12 +488,15 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
   const draftColorRef = useRef(safeCurrent);
   const svRef = useRef(null);
   const hueRef = useRef(null);
+  const svCursorRef = useRef(null);
+  const hueCursorRef = useRef(null);
 
   useEffect(() => {
     if (!activeDragRef.current) {
       const next = safeColor(current);
       setDraftColor(next);
       draftColorRef.current = next;
+      window.requestAnimationFrame(() => updateMarkerVisual(next));
     }
   }, [current, isOpen]);
 
@@ -501,10 +504,25 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
   const hsv = useMemo(() => rgbToHsv(hexToRgbParts(safeDraft)), [safeDraft]);
   const rgb = useMemo(() => hexToRgbParts(safeDraft), [safeDraft]);
 
+  const updateMarkerVisual = value => {
+    const nextHsv = rgbToHsv(hexToRgbParts(safeColor(value, draftColorRef.current || safeCurrent)));
+    if (svCursorRef.current) {
+      svCursorRef.current.style.left = `${nextHsv.s * 100}%`;
+      svCursorRef.current.style.top = `${(1 - nextHsv.v) * 100}%`;
+    }
+    if (hueCursorRef.current) {
+      hueCursorRef.current.style.left = `${(nextHsv.h / 359) * 100}%`;
+    }
+    if (svRef.current) {
+      svRef.current.style.backgroundColor = `hsl(${nextHsv.h}, 100%, 50%)`;
+    }
+  };
+
   const setDraft = (value, preview = false) => {
     const next = safeColor(value, draftColorRef.current || safeCurrent);
     draftColorRef.current = next;
     setDraftColor(next);
+    updateMarkerVisual(next);
     if (preview && onPreview) onPreview(next);
     return next;
   };
@@ -601,7 +619,7 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
             role="slider"
             aria-label={`${label} saturation and brightness`}
           >
-            <span className="color-sv-cursor" style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }} />
+            <span ref={svCursorRef} className="color-sv-cursor" style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }} />
           </div>
           <div
             ref={hueRef}
@@ -613,7 +631,7 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
             role="slider"
             aria-label={`${label} hue`}
           >
-            <span className="color-hue-cursor" style={{ left: `${(hsv.h / 359) * 100}%` }} />
+            <span ref={hueCursorRef} className="color-hue-cursor" style={{ left: `${(hsv.h / 359) * 100}%` }} />
           </div>
           <div className="color-rgb-row">
             <label><span>R</span><input type="number" min="0" max="255" value={rgb.r} onChange={setRgbChannel("r")} /></label>
