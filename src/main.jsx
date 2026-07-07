@@ -3124,6 +3124,103 @@ function App() {
     };
   }
 
+
+  function normalizeCanvasColorValue(value, fallback = "rgba(255,255,255,0.35)") {
+    const raw = String(value || "").trim();
+    if (!raw || raw === "none" || raw === "transparent" || raw === "initial" || raw === "inherit") return raw || fallback;
+    if (!raw.includes("color(")) return raw;
+    return raw.replace(/color\(([^)]*)\)/gi, (_, body) => {
+      const parts = String(body || "").trim().split(/\s+\/\s+|\s+/).filter(Boolean);
+      const nums = parts.slice(1).map(part => Number(String(part).replace(/%$/, "")));
+      if (nums.length < 3 || nums.slice(0, 3).some(n => !Number.isFinite(n))) return fallback;
+      const pct = parts.slice(1, 4).some(part => String(part).trim().endsWith("%"));
+      const r = Math.max(0, Math.min(255, Math.round(pct ? nums[0] * 2.55 : nums[0] * 255)));
+      const g = Math.max(0, Math.min(255, Math.round(pct ? nums[1] * 2.55 : nums[1] * 255)));
+      const b = Math.max(0, Math.min(255, Math.round(pct ? nums[2] * 2.55 : nums[2] * 255)));
+      const a = Number.isFinite(nums[3]) ? Math.max(0, Math.min(1, nums[3])) : 1;
+      return `rgba(${r}, ${g}, ${b}, ${a})`;
+    });
+  }
+
+  function forceHtml2CanvasSafeStyles(rootNode) {
+    if (!rootNode) return;
+    const doc = rootNode.ownerDocument || document;
+    const style = doc.createElement("style");
+    style.setAttribute("data-card-png-export-safety", "true");
+    style.textContent = `
+      .card-png-export-host .card-preview .area-mini span:not(.active):not(.player),
+      .card-png-export-host .card-preview.theme-custom .area-mini span:not(.active):not(.player),
+      .card-png-export-host .card-preview .card-area-block .area-mini span:not(.active):not(.player),
+      .card-png-export-host .card-preview.theme-custom .card-area-block .area-mini span:not(.active):not(.player),
+      .card-png-export-host .card-preview .card-zone-defense-with-title.zone-color-bound .area-mini span:not(.active):not(.player),
+      .card-png-export-host .card-preview .card-zone-defense.zone-color-bound .area-mini span:not(.active):not(.player) {
+        background: rgba(255,255,255,.22) !important;
+        border: 1px solid rgba(255,255,255,.46) !important;
+        box-shadow: none !important;
+      }
+      .card-png-export-host .card-preview .area-mini span.player,
+      .card-png-export-host .card-preview.theme-custom .area-mini span.player,
+      .card-png-export-host .card-preview .card-area-block .area-mini span.player,
+      .card-png-export-host .card-preview.theme-custom .card-area-block .area-mini span.player,
+      .card-png-export-host .card-preview .card-zone-defense-with-title.zone-color-bound .area-mini span.player,
+      .card-png-export-host .card-preview .card-zone-defense.zone-color-bound .area-mini span.player {
+        background: #ffffff !important;
+        border: 1px solid rgba(255,255,255,.80) !important;
+        box-shadow: none !important;
+        color: transparent !important;
+      }
+      .card-png-export-host .card-preview .area-mini span.active,
+      .card-png-export-host .card-preview .card-area-block .area-mini span.active,
+      .card-png-export-host .card-preview .card-zone-defense-with-title.zone-color-bound .area-mini span.active,
+      .card-png-export-host .card-preview .card-zone-defense.zone-color-bound .area-mini span.active {
+        background: #50be78 !important;
+        border: 1px solid rgba(210,255,225,.70) !important;
+        box-shadow: none !important;
+      }
+      .card-png-export-host .card-preview .attack-arrow,
+      .card-png-export-host .card-preview .card-zone-attack-direction,
+      .card-png-export-host .card-preview .card-zone-defense-with-title {
+        color: #ffffff !important;
+      }
+      .card-png-export-host .card-preview .attack-arrow::before,
+      .card-png-export-host .card-preview .card-zone-attack-direction .attack-arrow::before {
+        background: #ffffff !important;
+        box-shadow: none !important;
+      }
+      .card-png-export-host .card-preview .attack-arrow::after,
+      .card-png-export-host .card-preview .card-zone-attack-direction .attack-arrow::after {
+        border-bottom-color: #ffffff !important;
+        box-shadow: none !important;
+      }
+    `;
+    doc.head.appendChild(style);
+
+    const elements = [rootNode, ...Array.from(rootNode.querySelectorAll?.("*") || [])];
+    const colorProps = [
+      "color", "backgroundColor", "borderTopColor", "borderRightColor",
+      "borderBottomColor", "borderLeftColor", "outlineColor",
+      "textDecorationColor", "fill", "stroke"
+    ];
+    for (const el of elements) {
+      const computed = (rootNode.ownerDocument?.defaultView || window).getComputedStyle(el);
+      for (const prop of colorProps) {
+        const value = computed[prop];
+        if (value && String(value).includes("color(")) {
+          const cssProp = prop.replace(/[A-Z]/g, m => `-${m.toLowerCase()}`);
+          el.style.setProperty(cssProp, normalizeCanvasColorValue(value), "important");
+          if (prop === "backgroundColor") el.style.setProperty("background", normalizeCanvasColorValue(value), "important");
+        }
+      }
+      for (const prop of ["boxShadow", "textShadow"]) {
+        const value = computed[prop];
+        if (value && String(value).includes("color(")) {
+          const cssProp = prop.replace(/[A-Z]/g, m => `-${m.toLowerCase()}`);
+          el.style.setProperty(cssProp, normalizeCanvasColorValue(value, prop === "boxShadow" ? "none" : "rgba(0,0,0,.45)"), "important");
+        }
+      }
+    }
+  }
+
   async function waitForExportImages(node) {
     const images = Array.from(node?.querySelectorAll?.("img") || []);
     await Promise.all(images.map(img => {
@@ -3168,6 +3265,7 @@ function App() {
       stripUnsafeExportImages(node);
       await waitForExportImages(node);
       await (document.fonts?.ready || Promise.resolve());
+      forceHtml2CanvasSafeStyles(host);
 
       const canvas = await html2canvas(node, {
         backgroundColor: null,
@@ -3179,6 +3277,10 @@ function App() {
         height: CARD_EXPORT_HEIGHT,
         windowWidth: CARD_EXPORT_WIDTH,
         windowHeight: CARD_EXPORT_HEIGHT,
+        onclone: (clonedDocument) => {
+          const clonedHost = clonedDocument.querySelector(".card-png-export-host");
+          if (clonedHost) forceHtml2CanvasSafeStyles(clonedHost);
+        },
       });
 
       const blob = await new Promise((resolve, reject) => {
