@@ -6181,6 +6181,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   white-space: nowrap !important;
   overflow: visible !important;
 }
+/* BACK SHARED LIST LAYOUT: one deterministic title-to-rows flow for Editor, Inspector and Export. */
 .card-preview.card-back .card-zone-list-with-title,
 .card-preview.card-back .card-zone-special-with-title,
 .card-preview.card-back .card-zone-defense-with-title {
@@ -6190,7 +6191,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   flex-direction: column !important;
   align-items: stretch !important;
   justify-content: flex-start !important;
-  gap: 2px !important;
+  gap: 4px !important;
   padding: 2px !important;
   overflow: visible !important;
   text-align: center !important;
@@ -6226,7 +6227,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   justify-content: flex-start !important;
   align-items: stretch !important;
   gap: 2px !important;
-  padding: 0 !important;
+  padding: 2px 0 0 !important;
   overflow: visible !important;
   font-family: var(--zone-font-family, Inter), system-ui, sans-serif !important;
   font-size: calc(6.1px * var(--zone-font-scale, 1)) !important;
