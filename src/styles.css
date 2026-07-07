@@ -6129,67 +6129,190 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   color: #ffffff !important;
 }
 
-/* PNG export: capture the real editor card while hiding only editing chrome.
-   Do NOT hide .card-zone-label globally: that is also used for real stat labels. */
-.card-preview.is-card-png-export .png-export-hidden-control,
-.card-preview.is-card-png-export .zone-resize-handle,
-.card-preview.is-card-png-export .card-zone-edit-label,
-.card-preview.is-card-png-export .card-visual-zone > .card-zone-label,
-.card-preview.is-card-png-export .layout-zone-arrow-list,
-.card-preview.is-card-png-export .layout-zone-row,
-.card-preview.is-card-png-export .layout-zone-head {
-  display: none !important;
-  visibility: hidden !important;
+
+/* BACK SHARED RENDERER CLEANUP v3
+   Keep Editor, Inspector and Export on the same CardVisualCanvas renderer.
+   These overrides only simplify the shared back-card content so html2canvas and
+   the browser resolve the same stable structure. No inspector/export-specific
+   layout renderer is introduced. */
+.card-visual-canvas[data-card-side="back"] .card-zone-list-with-title,
+.card-visual-canvas[data-card-side="back"] .card-zone-special-with-title,
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-with-title {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  gap: clamp(1px, 1.2cqh, 3px) !important;
+  transform: none !important;
 }
-.card-preview.is-card-png-export .card-visual-zone.editable-zone,
-.card-preview.is-card-png-export .card-visual-zone.selected-layout-zone,
-.card-preview.is-card-png-export .card-edit-overlay-zone,
-.card-preview.is-card-png-export .card-edit-overlay-zone.selected-layout-zone {
-  border-color: transparent !important;
-  outline-color: transparent !important;
+.card-visual-canvas[data-card-side="back"] .card-zone-section-title {
+  flex: 0 0 auto !important;
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+  text-align: center !important;
+  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
+}
+.card-visual-canvas[data-card-side="back"] .card-zone-list {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-content: stretch !important;
+  width: 100% !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  row-gap: clamp(0px, .8cqh, 2px) !important;
+  transform: none !important;
+  padding: 0 !important;
+}
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row {
+  position: static !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  justify-content: stretch !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  column-gap: var(--zone-stat-gap, clamp(2px, 2.2cqw, 8px)) !important;
+  transform: none !important;
+}
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row .card-zone-label,
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row .card-zone-value {
+  position: static !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  display: block !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: var(--zone-line-height, 1) !important;
+  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
+}
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row .card-zone-label {
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+  overflow-wrap: normal !important;
+  text-align: var(--zone-align, left) !important;
+}
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row .card-zone-value {
+  justify-self: end !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+  text-align: right !important;
+  color: var(--zone-number-color, var(--zone-text-color, currentColor)) !important;
+}
+.card-visual-canvas[data-card-side="back"] .card-zone-special {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+  text-align: center !important;
+  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
+}
+.card-visual-canvas[data-card-side="back"] .card-zone-defense {
+  position: relative !important;
+  flex: 1 1 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-grid-adjust {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: clamp(1px, 1.1cqh, 4px) !important;
+  transform-origin: center center !important;
+  pointer-events: none !important;
+}
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-grid-adjust .area-mini {
+  display: grid !important;
+  grid-template-columns: repeat(11, minmax(0, 1fr)) !important;
+  grid-template-rows: repeat(11, minmax(0, 1fr)) !important;
+  grid-auto-rows: unset !important;
+  gap: 1px !important;
+  width: min(96%, 100%) !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: calc(100% - clamp(6px, 10cqh, 18px)) !important;
+  aspect-ratio: 1 / 1 !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-grid-adjust .area-mini span {
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  aspect-ratio: 1 / 1 !important;
   box-shadow: none !important;
 }
-.card-preview.is-card-png-export .card-visual-zone.editable-zone::before,
-.card-preview.is-card-png-export .card-visual-zone.selected-layout-zone::before,
-.card-preview.is-card-png-export .card-edit-overlay-zone::before,
-.card-preview.is-card-png-export .card-edit-overlay-zone.selected-layout-zone::before,
-.card-preview.is-card-png-export .card-visual-zone.editable-zone::after,
-.card-preview.is-card-png-export .card-visual-zone.selected-layout-zone::after,
-.card-preview.is-card-png-export .card-edit-overlay-zone::after,
-.card-preview.is-card-png-export .card-edit-overlay-zone.selected-layout-zone::after {
-  content: none !important;
-  display: none !important;
-  border-color: transparent !important;
-  background: transparent !important;
-  box-shadow: none !important;
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-with-title.zone-color-bound .area-mini span:not(.active):not(.player) {
+  background: var(--zone-text-color, #ffffff) !important;
+  border: 1px solid var(--zone-text-color, #ffffff) !important;
+  opacity: .38 !important;
 }
-.card-preview.is-card-png-export .area-mini span:not(.active):not(.player),
-.card-png-export-host .card-preview .area-mini span:not(.active):not(.player) {
-  background: rgba(255,255,255,.12) !important;
-  border: 1px solid rgba(255,255,255,.20) !important;
-  box-shadow: none !important;
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-with-title.zone-color-bound .area-mini span.active {
+  background: var(--card-area-active-color, #50be78) !important;
+  border: 1px solid var(--card-area-active-color, #50be78) !important;
+  opacity: 1 !important;
 }
-.card-preview.is-card-png-export .area-mini span.player,
-.card-png-export-host .card-preview .area-mini span.player {
-  background: #ffffff !important;
+.card-visual-canvas[data-card-side="back"] .card-zone-defense-with-title.zone-color-bound .area-mini span.player {
+  background: var(--zone-text-color, #ffffff) !important;
+  border: 1px solid var(--zone-text-color, #ffffff) !important;
   color: #111827 !important;
-  box-shadow: none !important;
+  opacity: 1 !important;
 }
-.card-preview.is-card-png-export .card-area-block .attack-arrow::before,
-.card-png-export-host .card-preview .card-area-block .attack-arrow::before {
-  background: #ffffff !important;
+.card-png-export-host .card-visual-canvas[data-card-side="back"] .area-mini span:not(.active):not(.player) {
+  background: var(--zone-text-color, #ffffff) !important;
+  border: 1px solid var(--zone-text-color, #ffffff) !important;
+  opacity: .38 !important;
 }
-.card-preview.is-card-png-export .card-area-block .attack-arrow::after,
-.card-png-export-host .card-preview .card-area-block .attack-arrow::after {
-  border-bottom-color: #ffffff !important;
+.card-png-export-host .card-visual-canvas[data-card-side="back"] .area-mini span.active {
+  background: var(--card-area-active-color, #50be78) !important;
+  border: 1px solid var(--card-area-active-color, #50be78) !important;
+  opacity: 1 !important;
 }
-.card-preview.is-card-png-export .area-mini-title,
-.card-preview.is-card-png-export .attack-direction-hint,
-.card-preview.is-card-png-export .card-area-block,
-.card-preview.is-card-png-export .card-zone-defense-with-title,
-.card-png-export-host .card-preview .area-mini-title,
-.card-png-export-host .card-preview .attack-direction-hint,
-.card-png-export-host .card-preview .card-area-block,
-.card-png-export-host .card-preview .card-zone-defense-with-title {
-  color: #ffffff !important;
+.card-png-export-host .card-visual-canvas[data-card-side="back"] .area-mini span.player {
+  background: var(--zone-text-color, #ffffff) !important;
+  border: 1px solid var(--zone-text-color, #ffffff) !important;
+  color: #111827 !important;
+  opacity: 1 !important;
 }
