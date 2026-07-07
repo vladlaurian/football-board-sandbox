@@ -6128,3 +6128,32 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .card-png-export-host .card-preview .card-zone-defense-with-title {
   color: #ffffff !important;
 }
+
+/* PNG export safety: html2canvas cannot parse modern CSS color functions such as color-mix()/color().
+   Keep the visible app unchanged; only the off-screen PNG export host gets plain rgba colors. */
+.card-png-export-host .card-preview .area-mini span:not(.active):not(.player),
+.card-png-export-host .card-preview.theme-custom .area-mini span:not(.active):not(.player),
+.card-png-export-host .card-preview .card-area-block .area-mini span:not(.active):not(.player),
+.card-png-export-host .card-preview.theme-custom .card-area-block .area-mini span:not(.active):not(.player) {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.20) !important;
+}
+
+.card-png-export-host .card-preview .area-mini span.player,
+.card-png-export-host .card-preview.theme-custom .area-mini span.player,
+.card-png-export-host .card-preview .card-area-block .area-mini span.player,
+.card-png-export-host .card-preview.theme-custom .card-area-block .area-mini span.player {
+  background: rgba(255, 255, 255, 0.94) !important;
+  border: 1px solid rgba(255, 255, 255, 0.70) !important;
+  box-shadow: none !important;
+}
+
+.card-png-export-host .card-preview .area-mini span.active,
+.card-png-export-host .card-preview.theme-custom .area-mini span.active,
+.card-png-export-host .card-preview .card-area-block .area-mini span.active,
+.card-png-export-host .card-preview.theme-custom .card-area-block .area-mini span.active {
+  background: var(--card-area-active-color, #50be78) !important;
+  border: 1px solid rgba(255, 255, 255, 0.65) !important;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12) inset !important;
+}

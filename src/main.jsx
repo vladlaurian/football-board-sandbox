@@ -3144,101 +3144,6 @@ function App() {
     }
   }
 
-
-  function inlineComputedExportStyles(source, clone) {
-    if (!source || !clone || source.nodeType !== 1 || clone.nodeType !== 1) return;
-    const computed = window.getComputedStyle(source);
-    const styleText = Array.from(computed).map(name => {
-      const value = computed.getPropertyValue(name);
-      const priority = computed.getPropertyPriority(name);
-      return `${name}:${value}${priority ? " !important" : ""};`;
-    }).join("");
-    clone.style.cssText = styleText;
-    clone.removeAttribute("id");
-    clone.removeAttribute("data-reactroot");
-    if (clone.classList?.contains("card-preview")) {
-      clone.style.width = `${CARD_EXPORT_WIDTH}px`;
-      clone.style.height = `${CARD_EXPORT_HEIGHT}px`;
-      clone.style.minWidth = `${CARD_EXPORT_WIDTH}px`;
-      clone.style.minHeight = `${CARD_EXPORT_HEIGHT}px`;
-      clone.style.maxWidth = `${CARD_EXPORT_WIDTH}px`;
-      clone.style.maxHeight = `${CARD_EXPORT_HEIGHT}px`;
-      clone.style.margin = "0";
-      clone.style.transform = "none";
-      clone.style.boxSizing = "border-box";
-    }
-    const sourceChildren = Array.from(source.children || []);
-    const cloneChildren = Array.from(clone.children || []);
-    sourceChildren.forEach((child, index) => inlineComputedExportStyles(child, cloneChildren[index]));
-  }
-
-  async function exportNodeViaSvg(node, pixelRatio = CARD_EXPORT_PIXEL_RATIO) {
-    if (!node) throw new Error("Missing export node.");
-    await (document.fonts?.ready || Promise.resolve());
-    await waitForExportImages(node);
-
-    const width = CARD_EXPORT_WIDTH;
-    const height = CARD_EXPORT_HEIGHT;
-    const clone = node.cloneNode(true);
-    clone.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, .card-editor-overlay-layer, .zone-resize-handle, button, input, select, textarea").forEach(el => el.remove());
-    inlineComputedExportStyles(node, clone);
-    clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
-
-    const serialized = new XMLSerializer().serializeToString(clone);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width * pixelRatio}" height="${height * pixelRatio}" viewBox="0 0 ${width} ${height}"><foreignObject x="0" y="0" width="${width}" height="${height}">${serialized}</foreignObject></svg>`;
-    const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-    const svgUrl = URL.createObjectURL(svgBlob);
-
-    try {
-      const image = new Image();
-      await new Promise((resolve, reject) => {
-        image.onload = resolve;
-        image.onerror = () => reject(new Error("Browser could not render the card SVG export."));
-        image.src = svgUrl;
-      });
-
-      const canvas = document.createElement("canvas");
-      canvas.width = width * pixelRatio;
-      canvas.height = height * pixelRatio;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Could not create export canvas.");
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-      return await new Promise((resolve, reject) => {
-        try {
-          canvas.toBlob(result => result ? resolve(result) : reject(new Error("Could not create PNG blob.")), "image/png");
-        } catch (error) {
-          reject(error);
-        }
-      });
-    } finally {
-      URL.revokeObjectURL(svgUrl);
-    }
-  }
-
-  async function exportNodeViaHtml2Canvas(node) {
-    const canvas = await html2canvas(node, {
-      backgroundColor: null,
-      scale: CARD_EXPORT_PIXEL_RATIO,
-      useCORS: true,
-      allowTaint: false,
-      logging: false,
-      width: CARD_EXPORT_WIDTH,
-      height: CARD_EXPORT_HEIGHT,
-      windowWidth: CARD_EXPORT_WIDTH,
-      windowHeight: CARD_EXPORT_HEIGHT,
-    });
-    return await new Promise((resolve, reject) => {
-      try {
-        canvas.toBlob(result => result ? resolve(result) : reject(new Error("Could not create PNG blob.")), "image/png");
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
-
   async function exportSelectedCardPng(side) {
     const selectedCard = getSelectedExportCard();
     if (!selectedCard) {
@@ -3264,16 +3169,25 @@ function App() {
       await waitForExportImages(node);
       await (document.fonts?.ready || Promise.resolve());
 
-      let blob;
-      try {
-        // SVG/foreignObject is used first because it preserves the exact browser-rendered
-        // back layout for imported card artwork and avoids html2canvas' unsupported
-        // CSS color() parser path. All unsafe remote images were stripped above.
-        blob = await exportNodeViaSvg(node, CARD_EXPORT_PIXEL_RATIO);
-      } catch (svgError) {
-        console.warn("SVG card export failed; falling back to html2canvas", svgError);
-        blob = await exportNodeViaHtml2Canvas(node);
-      }
+      const canvas = await html2canvas(node, {
+        backgroundColor: null,
+        scale: CARD_EXPORT_PIXEL_RATIO,
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+        width: CARD_EXPORT_WIDTH,
+        height: CARD_EXPORT_HEIGHT,
+        windowWidth: CARD_EXPORT_WIDTH,
+        windowHeight: CARD_EXPORT_HEIGHT,
+      });
+
+      const blob = await new Promise((resolve, reject) => {
+        try {
+          canvas.toBlob(result => result ? resolve(result) : reject(new Error("Could not create PNG blob.")), "image/png");
+        } catch (error) {
+          reject(error);
+        }
+      });
 
       const sideLabel = exportSide === "front" ? "Front" : "Back";
       const filename = `${safeCardExportName(selectedCard)}-${safeExportPart(selectedCard.position)}-${sideLabel}.png`;
