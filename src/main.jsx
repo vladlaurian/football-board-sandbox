@@ -3235,62 +3235,91 @@ function App() {
   }
 
 
+  function findVisibleEditorCardPreview(side, selectedCard) {
+    if (!selectedCard || editingCardId !== selectedCard.id) return null;
+    const selector = side === "front" ? ".card-editor-previews .card-preview.card-front" : ".card-editor-previews .card-preview.card-back";
+    const candidates = Array.from(document.querySelectorAll(selector));
+    return candidates.find(node => node.closest(".card-editor")) || null;
+  }
 
-  function freezePngExportTypography(node) {
-    const selectors = [
-      ".card-zone-text",
-      ".card-zone-section-title",
-      ".card-zone-list",
-      ".card-zone-list-row",
-      ".card-zone-list-row span",
-      ".card-zone-list-row strong",
-      ".card-zone-special",
-      ".card-zone-defense",
-      ".card-zone-defense-row",
-      ".card-zone-formula",
-      ".card-zone-formula span",
-      ".card-zone-formula strong",
-      ".card-zone-name",
-      ".card-zone-position",
-      ".duplicate-content-zone",
-      ".duplicate-content-zone *",
-    ];
-    const elements = Array.from(node?.querySelectorAll?.(selectors.join(",")) || []);
-    for (const el of elements) {
-      const cs = window.getComputedStyle(el);
-      const props = [
-        "fontFamily",
-        "fontSize",
-        "fontWeight",
-        "fontStyle",
-        "lineHeight",
-        "letterSpacing",
-        "textAlign",
-        "textTransform",
-        "whiteSpace",
-        "wordSpacing",
-        "gap",
-        "rowGap",
-        "columnGap",
-        "justifyContent",
-        "alignItems",
-        "alignContent",
-        "justifyItems",
-        "paddingTop",
-        "paddingRight",
-        "paddingBottom",
-        "paddingLeft",
-      ];
-      for (const prop of props) {
-        const value = cs[prop];
-        if (value && !String(value).includes("color(") && !String(value).includes("color-mix")) {
-          el.style[prop] = value;
+  function prepareClonedVisibleCardForPng(sourceNode) {
+    const rect = sourceNode.getBoundingClientRect();
+    const clone = sourceNode.cloneNode(true);
+    clone.querySelectorAll?.(".card-editor-overlay-layer, .card-edit-overlay-zone, .zone-resize-handle, .zone-live-coordinates, .card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
+    clone.classList.add("card-png-visible-clone");
+    clone.style.width = `${rect.width}px`;
+    clone.style.height = `${rect.height}px`;
+    clone.style.minWidth = `${rect.width}px`;
+    clone.style.minHeight = `${rect.height}px`;
+    clone.style.maxWidth = `${rect.width}px`;
+    clone.style.maxHeight = `${rect.height}px`;
+    clone.style.margin = "0";
+    clone.style.transform = "none";
+    return { clone, rect };
+  }
+
+  async function exportVisibleEditorCardPng(side, selectedCard) {
+    const sourceNode = findVisibleEditorCardPreview(side, selectedCard);
+    if (!sourceNode) return false;
+
+    const { clone, rect } = prepareClonedVisibleCardForPng(sourceNode);
+    const host = document.createElement("div");
+    host.className = "card-png-visible-export-host";
+    host.style.width = `${rect.width}px`;
+    host.style.height = `${rect.height}px`;
+    host.appendChild(clone);
+    document.body.appendChild(host);
+    installPngExportSafeStyles(document);
+
+    try {
+      stripUnsafeExportImages(clone);
+      forceDefensiveAreaPngSafeStyles(clone);
+      sanitizeHtml2CanvasUnsupportedColors(clone);
+      await waitForExportImages(clone);
+      await (document.fonts?.ready || Promise.resolve());
+
+      const targetWidth = CARD_EXPORT_WIDTH * CARD_EXPORT_PIXEL_RATIO;
+      const scale = targetWidth / Math.max(rect.width, 1);
+      const canvas = await html2canvas(clone, {
+        backgroundColor: null,
+        scale,
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+        width: rect.width,
+        height: rect.height,
+        windowWidth: Math.ceil(rect.width),
+        windowHeight: Math.ceil(rect.height),
+        onclone: (clonedDocument) => {
+          installPngExportSafeStyles(clonedDocument);
+          const clonedNode = clonedDocument.querySelector(".card-png-visible-export-host .card-preview");
+          clonedNode?.querySelectorAll?.(".card-editor-overlay-layer, .card-edit-overlay-zone, .zone-resize-handle, .zone-live-coordinates, .card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
+          forceDefensiveAreaPngSafeStyles(clonedNode);
+          sanitizeHtml2CanvasUnsupportedColors(clonedNode);
+        },
+      });
+
+      const blob = await new Promise((resolve, reject) => {
+        try {
+          canvas.toBlob(result => result ? resolve(result) : reject(new Error("Could not create PNG blob.")), "image/png");
+        } catch (error) {
+          reject(error);
         }
-      }
-      const transform = cs.transform;
-      el.style.transform = (!transform || transform === "none") ? "none" : transform;
-      el.style.maxHeight = cs.maxHeight && cs.maxHeight !== "none" ? cs.maxHeight : el.style.maxHeight;
-      el.style.minHeight = cs.minHeight && cs.minHeight !== "auto" ? cs.minHeight : el.style.minHeight;
+      });
+
+      const sideLabel = side === "front" ? "Front" : "Back";
+      const filename = `${safeCardExportName(selectedCard)}-${safeExportPart(selectedCard.position)}-${sideLabel}.png`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return true;
+    } finally {
+      host.remove();
     }
   }
 
@@ -3302,6 +3331,12 @@ function App() {
     }
 
     const exportSide = side === "front" ? "front" : "back";
+
+    if (exportSide === "back") {
+      const visibleExportDone = await exportVisibleEditorCardPng(exportSide, selectedCard);
+      if (visibleExportDone) return;
+    }
+
     const host = document.createElement("div");
     host.className = "card-png-export-host";
     document.body.appendChild(host);
@@ -3318,7 +3353,6 @@ function App() {
       node.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
       stripUnsafeExportImages(node);
       forceDefensiveAreaPngSafeStyles(node);
-      freezePngExportTypography(node);
       sanitizeHtml2CanvasUnsupportedColors(node);
       await waitForExportImages(node);
       await (document.fonts?.ready || Promise.resolve());
