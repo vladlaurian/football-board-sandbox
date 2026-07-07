@@ -3134,285 +3134,6 @@ function App() {
     }
   }
 
-
-  function imageDataUrlForCardSide(card, side) {
-    const graphics = card?.graphics || {};
-    const value = side === "back"
-      ? (graphics.backExportDataUrl || graphics.backLocalDataUrl || graphics.backDataUrl || "")
-      : (graphics.frontExportDataUrl || graphics.frontLocalDataUrl || graphics.frontDataUrl || "");
-    return isInlineImageDataUrl(value) ? value : "";
-  }
-
-  function loadExportImage(src) {
-    return new Promise((resolve, reject) => {
-      if (!src) {
-        reject(new Error("No export-safe card graphic found."));
-        return;
-      }
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error("Could not load the local card graphic for PNG export."));
-      img.src = src;
-    });
-  }
-
-  function drawCoverImage(ctx, img, x, y, w, h) {
-    const iw = img.naturalWidth || img.width || 1;
-    const ih = img.naturalHeight || img.height || 1;
-    const scale = Math.max(w / iw, h / ih);
-    const sw = w / scale;
-    const sh = h / scale;
-    const sx = Math.max(0, (iw - sw) / 2);
-    const sy = Math.max(0, (ih - sh) / 2);
-    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
-  }
-
-  function canvasFontFromStyle(style, basePx = 10) {
-    const s = style || {};
-    const weight = s.bold ? 900 : 650;
-    const family = s.font || "Inter";
-    const size = Math.max(3, basePx * (Number(s.fontSize || 100) / 100));
-    return `${weight} ${size}px ${family}, Arial, sans-serif`;
-  }
-
-  function drawFittedText(ctx, text, x, y, maxWidth, font, color, align = "left", baseline = "alphabetic", shadow = true) {
-    const raw = String(text ?? "");
-    ctx.save();
-    ctx.font = font;
-    ctx.fillStyle = color || "#ffffff";
-    ctx.textAlign = align;
-    ctx.textBaseline = baseline;
-    if (shadow) {
-      ctx.shadowColor = "rgba(0,0,0,.55)";
-      ctx.shadowBlur = 1.4;
-      ctx.shadowOffsetY = 1.1;
-    }
-    let out = raw;
-    if (ctx.measureText(out).width > maxWidth) {
-      while (out.length > 1 && ctx.measureText(out + "…").width > maxWidth) out = out.slice(0, -1);
-      out = out.length > 1 ? out + "…" : out;
-    }
-    const drawX = align === "center" ? x + maxWidth / 2 : align === "right" ? x + maxWidth : x;
-    ctx.fillText(out, drawX, y, maxWidth);
-    ctx.restore();
-  }
-
-  function drawWrappedText(ctx, text, x, y, maxWidth, maxHeight, font, color, align = "center", lineHeight = 1.12) {
-    const words = String(text || "").trim().split(/\s+/).filter(Boolean);
-    ctx.save();
-    ctx.font = font;
-    const fontSizeMatch = / (\d+(?:\.\d+)?)px /.exec(font);
-    const fontSize = fontSizeMatch ? Number(fontSizeMatch[1]) : 8;
-    const lh = Math.max(1, fontSize * lineHeight);
-    const lines = [];
-    let current = "";
-    for (const word of words) {
-      const test = current ? `${current} ${word}` : word;
-      if (ctx.measureText(test).width <= maxWidth || !current) current = test;
-      else { lines.push(current); current = word; }
-    }
-    if (current) lines.push(current);
-    const maxLines = Math.max(1, Math.floor(maxHeight / lh));
-    const shown = lines.slice(0, maxLines);
-    ctx.fillStyle = color || "#ffffff";
-    ctx.textAlign = align;
-    ctx.textBaseline = "top";
-    ctx.shadowColor = "rgba(0,0,0,.45)";
-    ctx.shadowBlur = 1.2;
-    ctx.shadowOffsetY = 1;
-    const tx = align === "center" ? x + maxWidth / 2 : align === "right" ? x + maxWidth : x;
-    shown.forEach((line, index) => ctx.fillText(line, tx, y + index * lh, maxWidth));
-    ctx.restore();
-  }
-
-  function manualBackExportBlob(card) {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const dataUrl = imageDataUrlForCardSide(card, "back");
-        if (!dataUrl) throw new Error("This card back has no local export-safe graphic. Re-import the back graphic once, then export again.");
-        await (document.fonts?.ready || Promise.resolve());
-        const img = await loadExportImage(dataUrl);
-        const ratio = CARD_EXPORT_PIXEL_RATIO;
-        const w = CARD_EXPORT_WIDTH;
-        const h = CARD_EXPORT_HEIGHT;
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(w * ratio);
-        canvas.height = Math.round(h * ratio);
-        const ctx = canvas.getContext("2d");
-        ctx.scale(ratio, ratio);
-        ctx.clearRect(0, 0, w, h);
-        drawCoverImage(ctx, img, 0, 0, w, h);
-
-        const layout = normalizeCardVisualLayout(card?.visualLayout || card?.layout).back;
-        const deleted = new Set(Array.isArray(card?.deletedLayoutZones) ? card.deletedLayoutZones.map(String) : []);
-        const colors = cardTextColors(card);
-        const styles = effectiveTextStylesForCard(card);
-        const box = key => {
-          const b = layout[key] || DEFAULT_CARD_VISUAL_LAYOUT.back[key];
-          return { x: b.x / 100 * w, y: b.y / 100 * h, w: b.w / 100 * w, h: b.h / 100 * h };
-        };
-        const pctFontScale = style => Number(style?.fontSize || 100) / 100;
-        const lineScale = style => Number(style?.lineHeight || 100) / 100;
-        const rawFont = (style, px) => {
-          const s = style || {};
-          const weight = s.bold ? 900 : 650;
-          const family = s.font || "Inter";
-          return `${weight} ${Math.max(3, px)}px ${family}, Arial, sans-serif`;
-        };
-        const fitFontPx = (text, style, startPx, maxWidth, minPx = 3) => {
-          let px = Math.max(minPx, startPx);
-          ctx.save();
-          while (px > minPx) {
-            ctx.font = rawFont(style, px);
-            if (ctx.measureText(String(text || "")).width <= maxWidth) break;
-            px -= 0.5;
-          }
-          ctx.restore();
-          return Math.max(minPx, px);
-        };
-        const verticalOffsetPx = (style, b) => Number(style?.verticalOffset || 0) * 0.004 * b.h;
-        const horizontalOffsetPx = (style, b) => Number(style?.horizontalOffset || 0) * 0.0042 * b.w;
-
-        const drawName = () => {
-          if (deleted.has("back:header")) return;
-          const b = box("header");
-          const st = styles.headerBack || CARD_TEXT_STYLE_DEFAULTS.headerBack;
-          const text = card?.name || "Player";
-          const desired = Math.min(b.w * .15, b.h * .78, 52) * pctFontScale(st);
-          const px = fitFontPx(text, st, desired, Math.max(4, b.w - 4));
-          const color = safeColor(colors.headerBack || colors.header, "#ffffff");
-          drawFittedText(ctx, text, b.x + 2 + horizontalOffsetPx(st, b), b.y + b.h / 2 + verticalOffsetPx(st, b), b.w - 4, rawFont(st, px), color, st.align || "center", "middle");
-        };
-
-        const drawPosition = () => {
-          if (deleted.has("back:position")) return;
-          const b = box("position");
-          const st = styles.positionBack || CARD_TEXT_STYLE_DEFAULTS.positionBack;
-          const text = String(card?.position || "").toUpperCase();
-          const desired = Math.min(b.w * .52, b.h * .82, 88) * pctFontScale(st);
-          const px = fitFontPx(text, st, desired, Math.max(4, b.w - 2));
-          const color = safeColor(colors.positionBack || colors.headerBack || colors.header, "#ffffff");
-          drawFittedText(ctx, text, b.x + horizontalOffsetPx(st, b), b.y + b.h / 2 + verticalOffsetPx(st, b), b.w, rawFont(st, px), color, "center", "middle");
-        };
-
-        const drawList = (zoneKey, items, textKey, titleKey, titleColorKey) => {
-          if (deleted.has(`back:${zoneKey}`)) return;
-          const b = box(zoneKey);
-          const pad = Math.max(1.5, Math.min(4, b.w * .025));
-          const textStyle = styles[textKey] || CARD_TEXT_STYLE_DEFAULTS[textKey];
-          const numberStyle = styles[`${textKey}Value`] || textStyle;
-          const titleStyle = styles[titleColorKey] || CARD_TEXT_STYLE_DEFAULTS[titleColorKey];
-          const visible = (items || []).filter(item => item.showOnCard !== false);
-          const title = cardLayoutTitle(card, titleKey);
-          const textColor = safeColor(colors[textKey], "#ffffff");
-          const numberColor = safeColor(colors[`${textKey}Value`], textColor);
-          const titleColor = safeColor(colors[titleColorKey], textColor);
-
-          const titleDesired = Math.min(Math.max(5, b.w * .031), 9) * pctFontScale(titleStyle);
-          const titlePx = fitFontPx(title, titleStyle, titleDesired, Math.max(4, b.w - pad * 2), 3);
-          const titleLine = titlePx * .95;
-          drawFittedText(ctx, title, b.x + pad, b.y + titleLine + verticalOffsetPx(titleStyle, b), b.w - pad * 2, rawFont(titleStyle, titlePx), titleColor, "center", "alphabetic");
-
-          const rows = visible.length ? visible : [{ id: "empty", name: "—", value: "" }];
-          const lines = Math.max(2, rows.length + 1);
-          const listPxRaw = Math.min(b.w * .06, (b.h * .82) / lines, 18) * pctFontScale(textStyle);
-          const listPx = Math.max(3, listPxRaw);
-          const valuePx = Math.max(3, listPx * pctFontScale(numberStyle));
-          const rowH = Math.max(3.2, listPx * lineScale(textStyle));
-          const gap = Math.max(0.5, Math.min(2, rowH * .18));
-          const titleBlock = titleLine + Math.max(1, b.h * .015);
-          const availTop = b.y + titleBlock;
-          const availH = Math.max(1, b.h - titleBlock);
-          const blockH = rows.length * rowH + Math.max(0, rows.length - 1) * gap;
-          const top = availTop + Math.max(0, (availH - blockH) / 2) + verticalOffsetPx(textStyle, b);
-          const maxValueChars = Math.max(1, ...rows.map(item => String(normalizeStatValue(item.value)).length));
-          const valueW = Math.max(valuePx * 1.8, maxValueChars * valuePx * .75);
-          const valueRight = b.x + b.w - pad;
-          const labelX = b.x + pad;
-          const labelW = Math.max(4, b.w - pad * 3 - valueW);
-          rows.forEach((item, index) => {
-            const y = top + index * (rowH + gap);
-            if (y > b.y + b.h - rowH * .15) return;
-            drawFittedText(ctx, item.name || "", labelX, y + rowH * .78, labelW, rawFont(textStyle, listPx), textColor, textStyle.align || "left", "alphabetic");
-            if (item.value !== "") drawFittedText(ctx, normalizeStatValue(item.value), valueRight - valueW, y + rowH * .78, valueW, rawFont(numberStyle, valuePx), numberColor, "right", "alphabetic");
-          });
-        };
-
-        const drawDefensiveArea = () => {
-          if (deleted.has("back:defensiveArea")) return;
-          const b = box("defensiveArea");
-          const titleStyle = styles.defensiveAreaTitle || CARD_TEXT_STYLE_DEFAULTS.defensiveAreaTitle;
-          const goalStyle = styles.defensiveAreaGoal || CARD_TEXT_STYLE_DEFAULTS.defensiveAreaGoal;
-          const areaStyle = styles.defensiveArea || CARD_TEXT_STYLE_DEFAULTS.defensiveArea;
-          const titleColor = safeColor(colors.defensiveAreaTitle, "#ffffff");
-          const cellColor = safeColor(colors.defensiveArea, "#ffffff");
-          const activeColor = safeColor(colors.defensiveAreaActive, "#50be78");
-          const titlePx = Math.max(4, Math.min(Math.max(5, b.w * .031), 9) * pctFontScale(titleStyle));
-          drawFittedText(ctx, cardLayoutTitle(card, "defensiveArea"), b.x + horizontalOffsetPx(titleStyle, b), b.y + titlePx + verticalOffsetPx(titleStyle, b), b.w, rawFont(titleStyle, titlePx), titleColor, "center", "alphabetic");
-          const goalPx = Math.max(3, Math.min(b.w * .055, b.h * .06) * pctFontScale(goalStyle));
-          const goalY = b.y + titlePx + goalPx + 2 + verticalOffsetPx(goalStyle, b);
-          drawFittedText(ctx, "OPPONENT GOAL", b.x + horizontalOffsetPx(goalStyle, b), goalY, b.w, rawFont(goalStyle, goalPx), titleColor, "center", "alphabetic", false);
-          const adjust = normalizeDefensiveGridAdjust(card?.defensiveGridAdjust);
-          const availableH = Math.max(4, b.h - (goalY - b.y) - 4);
-          const cssGridSize = Math.min(b.w * .84, availableH * .86, b.w * .76);
-          const gridSize = Math.max(10, cssGridSize * (adjust.width / 100));
-          const gridH = Math.max(10, cssGridSize * (adjust.height / 100));
-          const cell = Math.min(gridSize, gridH) / 11;
-          const gap = Math.max(.5, cell * .18);
-          const startX = b.x + (b.w - gridSize) / 2 + (adjust.offsetX * 0.0042 * b.w);
-          const gridTop = goalY + 3 + (availableH - gridH) / 2 + (adjust.offsetY * 0.0028 * b.h);
-          const active = new Set((card?.defensiveArea || []).map(c => `${Number(c.dx)},${Number(c.dy)}`));
-          for (let row = 0; row < 11; row++) {
-            for (let col = 0; col < 11; col++) {
-              const dx = col - 5;
-              const dy = row - 5;
-              const isCenter = dx === 0 && dy === 0;
-              const isActive = active.has(`${dx},${dy}`);
-              ctx.fillStyle = isActive ? activeColor : isCenter ? cellColor : "rgba(70,80,92,.70)";
-              ctx.strokeStyle = isActive ? activeColor : "rgba(20,28,40,.62)";
-              ctx.lineWidth = .5;
-              const rx = startX + col * cell + gap / 2;
-              const ry = gridTop + row * cell + gap / 2;
-              const cs = Math.max(.6, cell - gap);
-              ctx.beginPath();
-              ctx.roundRect?.(rx, ry, cs, cs, Math.max(.6, cs * .18));
-              if (!ctx.roundRect) ctx.rect(rx, ry, cs, cs);
-              ctx.fill();
-              ctx.stroke();
-            }
-          }
-        };
-
-        const drawSpecial = () => {
-          if (deleted.has("back:specialAbility")) return;
-          const b = box("specialAbility");
-          const titleStyle = styles.specialAbilityTitle || CARD_TEXT_STYLE_DEFAULTS.specialAbilityTitle;
-          const textStyle = styles.specialAbility || CARD_TEXT_STYLE_DEFAULTS.specialAbility;
-          const titleColor = safeColor(colors.specialAbilityTitle, "#ffffff");
-          const textColor = safeColor(colors.specialAbility, titleColor);
-          const title = cardLayoutTitle(card, "specialAbility");
-          const titlePx = Math.max(4, Math.min(Math.max(5, b.w * .031), 9) * pctFontScale(titleStyle));
-          drawFittedText(ctx, title, b.x + horizontalOffsetPx(titleStyle, b), b.y + titlePx + verticalOffsetPx(titleStyle, b), b.w, rawFont(titleStyle, titlePx), titleColor, "center", "alphabetic");
-          const text = String(card?.specialAbility || "").trim() || "NONE";
-          const px = Math.max(3.2, Math.min(b.w * .052, b.h * .15, 22) * pctFontScale(textStyle));
-          const textTop = b.y + titlePx + 5 + verticalOffsetPx(textStyle, b);
-          drawWrappedText(ctx, text, b.x + 2 + horizontalOffsetPx(textStyle, b), textTop, b.w - 4, Math.max(1, b.h - titlePx - 7), rawFont(textStyle, px), textColor, textStyle.align || "center", lineScale(textStyle));
-        };
-
-        drawName();
-        drawPosition();
-        drawList("attributes", card?.passiveAttributes || [], "attributes", "attributes", "attributesTitle");
-        drawList("bonuses", card?.bonuses || [], "bonuses", "bonuses", "bonusesTitle");
-        drawDefensiveArea();
-        drawSpecial();
-
-        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Could not create PNG blob.")), "image/png");
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
-
   function sanitizeHtml2CanvasUnsupportedColors(node) {
     const elements = [node, ...Array.from(node?.querySelectorAll?.("*") || [])].filter(Boolean);
     const colorProps = [
@@ -3433,9 +3154,9 @@ function App() {
       for (const prop of colorProps) {
         const value = String(style[prop] || "");
         if (value.includes("color(")) {
-          if (prop === "backgroundColor") el.style[prop] = "transparent";
-          else if (prop === "caretColor") el.style[prop] = "auto";
-          else el.style[prop] = prop.toLowerCase().includes("border") || prop === "outlineColor" ? "transparent" : "#ffffff";
+          if (prop === "backgroundColor") el.style.setProperty("background-color","transparent","important");
+          else if (prop === "caretColor") el.style.setProperty("caret-color","auto","important");
+          else el.style.setProperty(prop.replace(/[A-Z]/g,m=>"-"+m.toLowerCase()), (prop.toLowerCase().includes("border") || prop === "outlineColor") ? "transparent" : "#ffffff","important");
         }
       }
 
@@ -3458,35 +3179,21 @@ function App() {
     }
 
     const exportSide = side === "front" ? "front" : "back";
+    const host = document.createElement("div");
+    host.className = "card-png-export-host";
+    document.body.appendChild(host);
+    const root = createRoot(host);
 
     try {
-      if (exportSide === "back" && imageDataUrlForCardSide(selectedCard, "back")) {
-        const blob = await manualBackExportBlob(selectedCard);
-        const filename = `${safeCardExportName(selectedCard)}-${safeExportPart(selectedCard.position)}-Back.png`;
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-        return;
-      }
-
-      const host = document.createElement("div");
-      host.className = "card-png-export-host";
-      document.body.appendChild(host);
-      const root = createRoot(host);
-      try {
-        const pngSafeCard = makePngSafeCard(selectedCard, exportSide);
-        root.render(<CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
+      const pngSafeCard = makePngSafeCard(selectedCard, exportSide);
+      root.render(<CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const node = host.querySelector(".card-preview");
       if (!node) throw new Error("Card preview was not rendered for export.");
 
       node.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
       stripUnsafeExportImages(node);
+      node.classList.add("is-card-png-export");
       sanitizeHtml2CanvasUnsupportedColors(node);
       await waitForExportImages(node);
       await (document.fonts?.ready || Promise.resolve());
@@ -3521,13 +3228,13 @@ function App() {
       a.click();
       a.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      } finally {
-        root.unmount();
-        host.remove();
-      }
     } catch (error) {
       console.error("Card PNG export failed", error);
       alert(`Card PNG export failed: ${error?.message || "unknown error"}`);
+    node?.classList?.remove?.("is-card-png-export");
+    } finally {
+      root.unmount();
+      host.remove();
     }
   }
 
