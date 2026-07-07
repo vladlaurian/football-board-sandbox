@@ -3171,6 +3171,69 @@ function App() {
     }
   }
 
+
+  function installPngExportSafeStyles(doc) {
+    const style = doc.createElement("style");
+    style.setAttribute("data-card-png-export-safe", "true");
+    style.textContent = `
+      .card-png-export-host .card-preview .area-mini span:not(.active):not(.player),
+      .card-png-export-host .card-preview.theme-custom .area-mini span:not(.active):not(.player),
+      .card-png-export-host .card-preview .card-area-block .area-mini span:not(.active):not(.player),
+      .card-png-export-host .card-preview.theme-custom .card-area-block .area-mini span:not(.active):not(.player),
+      .card-png-export-host .card-zone-defense-with-title.zone-color-bound .area-mini span:not(.active):not(.player) {
+        background: rgba(17, 24, 39, 0.36) !important;
+        border: 1px solid rgba(17, 24, 39, 0.72) !important;
+        box-shadow: none !important;
+      }
+      .card-png-export-host .card-preview .area-mini span.active,
+      .card-png-export-host .card-preview.theme-custom .area-mini span.active,
+      .card-png-export-host .card-preview .card-area-block .area-mini span.active,
+      .card-png-export-host .card-preview.theme-custom .card-area-block .area-mini span.active,
+      .card-png-export-host .card-zone-defense-with-title.zone-color-bound .area-mini span.active {
+        background: var(--card-area-active-color, #50be78) !important;
+        border: 1px solid rgba(80, 190, 120, 0.85) !important;
+        box-shadow: none !important;
+      }
+      .card-png-export-host .card-preview .area-mini span.player,
+      .card-png-export-host .card-preview.theme-custom .area-mini span.player,
+      .card-png-export-host .card-preview .card-area-block .area-mini span.player,
+      .card-png-export-host .card-preview.theme-custom .card-area-block .area-mini span.player {
+        background: rgba(17, 24, 39, 0.92) !important;
+        border: 1px solid rgba(17, 24, 39, 0.92) !important;
+        box-shadow: none !important;
+        color: transparent !important;
+      }
+      .card-png-export-host [style*="color-mix"],
+      .card-png-export-host [style*="color("] {
+        box-shadow: none !important;
+        text-shadow: none !important;
+      }
+    `;
+    doc.head.appendChild(style);
+  }
+
+  function forceDefensiveAreaPngSafeStyles(node) {
+    const inactive = node?.querySelectorAll?.(".area-mini span:not(.active):not(.player)") || [];
+    inactive.forEach(el => {
+      el.style.background = "rgba(17, 24, 39, 0.36)";
+      el.style.border = "1px solid rgba(17, 24, 39, 0.72)";
+      el.style.boxShadow = "none";
+    });
+    const active = node?.querySelectorAll?.(".area-mini span.active") || [];
+    active.forEach(el => {
+      el.style.background = "#50be78";
+      el.style.border = "1px solid rgba(80, 190, 120, 0.85)";
+      el.style.boxShadow = "none";
+    });
+    const player = node?.querySelectorAll?.(".area-mini span.player") || [];
+    player.forEach(el => {
+      el.style.background = "rgba(17, 24, 39, 0.92)";
+      el.style.border = "1px solid rgba(17, 24, 39, 0.92)";
+      el.style.boxShadow = "none";
+      el.style.color = "transparent";
+    });
+  }
+
   async function exportSelectedCardPng(side) {
     const selectedCard = getSelectedExportCard();
     if (!selectedCard) {
@@ -3182,6 +3245,7 @@ function App() {
     const host = document.createElement("div");
     host.className = "card-png-export-host";
     document.body.appendChild(host);
+    installPngExportSafeStyles(document);
     const root = createRoot(host);
 
     try {
@@ -3193,6 +3257,7 @@ function App() {
 
       node.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
       stripUnsafeExportImages(node);
+      forceDefensiveAreaPngSafeStyles(node);
       sanitizeHtml2CanvasUnsupportedColors(node);
       await waitForExportImages(node);
       await (document.fonts?.ready || Promise.resolve());
@@ -3203,6 +3268,12 @@ function App() {
         useCORS: true,
         allowTaint: false,
         logging: false,
+        onclone: (clonedDocument) => {
+          installPngExportSafeStyles(clonedDocument);
+          const clonedNode = clonedDocument.querySelector(".card-png-export-host .card-preview");
+          forceDefensiveAreaPngSafeStyles(clonedNode);
+          sanitizeHtml2CanvasUnsupportedColors(clonedNode);
+        },
         width: CARD_EXPORT_WIDTH,
         height: CARD_EXPORT_HEIGHT,
         windowWidth: CARD_EXPORT_WIDTH,
