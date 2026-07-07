@@ -485,17 +485,13 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
   const safeCurrent = safeColor(current);
   const [draftColor, setDraftColor] = useState(safeCurrent);
   const activeDragRef = useRef(null);
-  const activePointerIdRef = useRef(null);
   const draftColorRef = useRef(safeCurrent);
   const rafRef = useRef(null);
-  const pendingColorRef = useRef(null);
-  const onChangeRef = useRef(onChange);
+  const pendingCommitRef = useRef(null);
+  const capturedTargetRef = useRef(null);
+  const capturedPointerIdRef = useRef(null);
   const svRef = useRef(null);
   const hueRef = useRef(null);
-
-  useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
 
   useEffect(() => {
     if (!activeDragRef.current) {
@@ -520,38 +516,40 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
     return next;
   };
 
-  const flushPendingColor = () => {
-    rafRef.current = null;
-    const next = pendingColorRef.current;
-    if (!next) return;
-    pendingColorRef.current = null;
-    setDraft(next);
-    onChangeRef.current && onChangeRef.current(next);
-  };
-
-  const scheduleLiveColor = value => {
-    pendingColorRef.current = safeColor(value, draftColorRef.current || safeCurrent);
+  const scheduleChange = value => {
+    const next = setDraft(value);
+    pendingCommitRef.current = next;
     if (!rafRef.current) {
-      rafRef.current = window.requestAnimationFrame(flushPendingColor);
+      rafRef.current = window.requestAnimationFrame(() => {
+        rafRef.current = null;
+        const pending = pendingCommitRef.current;
+        pendingCommitRef.current = null;
+        if (pending) onChange && onChange(pending);
+      });
     }
-    return pendingColorRef.current;
+    return next;
   };
 
-  const commitColor = value => {
+  const flushScheduledChange = () => {
     if (rafRef.current) {
       window.cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
-      pendingColorRef.current = null;
     }
+    const pending = pendingCommitRef.current;
+    pendingCommitRef.current = null;
+    if (pending) onChange && onChange(pending);
+  };
+
+  const commitColor = value => {
     const next = setDraft(value);
-    onChangeRef.current && onChangeRef.current(next);
+    onChange && onChange(next);
     // Re-assert the same open panel after React updates the card state.
     // This prevents the color panel from collapsing right after a selection.
     window.setTimeout(() => onKeepOpen && onKeepOpen(), 0);
   };
 
   const hsvToHex = patch => {
-    const base = rgbToHsv(hexToRgbParts(pendingColorRef.current || draftColorRef.current || safeDraft));
+    const base = rgbToHsv(hexToRgbParts(draftColorRef.current || safeDraft));
     const nextHsv = { ...base, ...patch };
     const nextRgb = hsvToRgbParts(nextHsv.h, nextHsv.s, nextHsv.v);
     return rgbPartsToHex(nextRgb.r, nextRgb.g, nextRgb.b);
@@ -572,48 +570,58 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
     return hsvToHex({ h: Math.round(x * 359) });
   };
 
-  const releaseDragCapture = e => {
-    if (activePointerIdRef.current == null) return;
+  const capturePointer = e => {
+    capturedTargetRef.current = e.currentTarget;
+    capturedPointerIdRef.current = e.pointerId;
     try {
-      if (e.currentTarget.hasPointerCapture && e.currentTarget.hasPointerCapture(activePointerIdRef.current)) {
-        e.currentTarget.releasePointerCapture(activePointerIdRef.current);
+      if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+  };
+
+  const releasePointer = e => {
+    const target = capturedTargetRef.current || e.currentTarget;
+    const pointerId = capturedPointerIdRef.current ?? e.pointerId;
+    try {
+      if (target?.releasePointerCapture && target.hasPointerCapture?.(pointerId)) {
+        target.releasePointerCapture(pointerId);
       }
     } catch {}
-    activePointerIdRef.current = null;
+    capturedTargetRef.current = null;
+    capturedPointerIdRef.current = null;
   };
 
   const beginDrag = picker => e => {
     e.preventDefault();
     e.stopPropagation();
     activeDragRef.current = picker;
-    activePointerIdRef.current = e.pointerId;
-    if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
-    scheduleLiveColor(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
+    capturePointer(e);
+    scheduleChange(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
   };
 
   const drag = picker => e => {
-    if (activeDragRef.current !== picker || activePointerIdRef.current !== e.pointerId) return;
+    if (activeDragRef.current !== picker) return;
     e.preventDefault();
     e.stopPropagation();
-    scheduleLiveColor(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
+    scheduleChange(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
   };
 
   const finishDrag = picker => e => {
-    if (activeDragRef.current !== picker || activePointerIdRef.current !== e.pointerId) return;
+    if (activeDragRef.current !== picker) return;
     e.preventDefault();
     e.stopPropagation();
-    releaseDragCapture(e);
-    const next = picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e);
+    scheduleChange(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
+    flushScheduledChange();
     activeDragRef.current = null;
-    commitColor(next);
+    releasePointer(e);
+    window.setTimeout(() => onKeepOpen && onKeepOpen(), 0);
   };
 
   const cancelDrag = e => {
     e.preventDefault();
     e.stopPropagation();
-    releaseDragCapture(e);
+    flushScheduledChange();
     activeDragRef.current = null;
-    if (pendingColorRef.current) commitColor(pendingColorRef.current);
+    releasePointer(e);
     window.setTimeout(() => onKeepOpen && onKeepOpen(), 0);
   };
 
@@ -3807,7 +3815,7 @@ function App() {
     const changeValue = (itemId, delta) => updateCardList(card.id, section, list => list.map(x => x.id === itemId ? { ...x, value: clamp(normalizeStatValue(x.value) + delta, -99, 99) } : x));
     return (
       <div className="card-edit-section">
-        {!hideHeader ? <div className="card-edit-section-title"><strong>{title}</strong><ColorPicker card={card} colorKey={section === "bonuses" ? "bonuses" : "attributes"} label="Color" /><button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }])}>+ Add</button></div> : <div className="card-edit-section-title sub-only attribute-toolbar-row"><div className="attribute-toolbar-left">{toolbarLeft}</div><button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }])}>+ Add</button></div>}
+        {!hideHeader ? <div className="card-edit-section-title"><strong>{title}</strong>{renderColorPicker(card, section === "bonuses" ? "bonuses" : "attributes", "Color")}<button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }])}>+ Add</button></div> : <div className="card-edit-section-title sub-only attribute-toolbar-row"><div className="attribute-toolbar-left">{toolbarLeft}</div><button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }])}>+ Add</button></div>}
         {items.map((item, index) => (
           <div className="attribute-row" key={item.id}>
             <input value={item.name} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, name: e.target.value } : x))} />
@@ -3854,7 +3862,7 @@ function App() {
     });
     return (
       <div className="card-edit-section front-summary-editor">
-        <div className="card-edit-section-title front-pair-toolbar"><strong>{title}</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, storageKey === "frontAttributeFields" ? "attributesFront" : "bonusesFront")}>Duplicate</button><ColorPicker card={card} colorKey={colorKey} label="Color" />{renderTextStyleControls(card, colorKey, false, { buttonLabel: "Text", panelAlign: "front" })}<ColorPicker card={card} colorKey={`${colorKey}Value`} label="Numbers Color" />{renderTextStyleControls(card, `${colorKey}Value`, false, { buttonLabel: "Numbers", panelAlign: "front", numbersMode: true })}</div>
+        <div className="card-edit-section-title front-pair-toolbar"><strong>{title}</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, storageKey === "frontAttributeFields" ? "attributesFront" : "bonusesFront")}>Duplicate</button>{renderColorPicker(card, colorKey, "Color")}{renderTextStyleControls(card, colorKey, false, { buttonLabel: "Text", panelAlign: "front" })}{renderColorPicker(card, `${colorKey}Value`, "Numbers Color")}{renderTextStyleControls(card, `${colorKey}Value`, false, { buttonLabel: "Numbers", panelAlign: "front", numbersMode: true })}</div>
         <div className="front-formula-list">
           {fields.map(field => (
             <div className="front-formula-row" key={field.id}>
@@ -4026,7 +4034,7 @@ function App() {
     }));
   }
 
-  function ColorPicker({ card, colorKey, label }) {
+  function renderColorPicker(card, colorKey, label) {
     if (!card) return null;
     const current = safeColor((card.textColors || {})[colorKey], CARD_TEXT_COLOR_DEFAULTS[colorKey] || "#ffffff");
     const panelKey = `${card.id}:${colorKey}`;
@@ -4042,7 +4050,7 @@ function App() {
     );
   }
 
-  function DuplicateColorPicker({ card, block, field, label }) {
+  function renderDuplicateColorPicker(card, block, field, label) {
     if (!card || !block) return null;
     const current = safeColor(block[field]);
     const panelKey = `${card.id}:duplicate:${block.id}:${field}`;
@@ -4332,24 +4340,24 @@ function App() {
         <div className="duplicate-block-title"><strong>{block.name}</strong><button type="button" onClick={() => deleteDuplicateBlock(card.id, block.id)}>Delete copy</button></div>
         <label>Name<input value={block.name} onChange={e => updateDuplicateBlock(card.id, block.id, { name: e.target.value })} /></label>
         <label>Title<input value={block.title} onChange={e => updateDuplicateBlock(card.id, block.id, { title: e.target.value })} /></label>
-        {block.kind !== "frontPair" ? <DuplicateColorPicker card={card} block={block} field="titleColor" label="Title Color" /> : null}
+        {block.kind !== "frontPair" ? renderDuplicateColorPicker(card, block, "titleColor", "Title Color") : null}
         {block.kind !== "frontPair" ? <DuplicateStyleMiniControls card={card} block={block} styleKey="titleStyle" titleMode /> : null}
         {block.kind === "special" ? (
           <>
-            <DuplicateColorPicker card={card} block={block} field="textColor" label="Text Color" />
+            {renderDuplicateColorPicker(card, block, "textColor", "Text Color")}
             <DuplicateStyleMiniControls card={card} block={block} styleKey="textStyle" />
             <textarea className="special-ability-textarea" value={block.text} onChange={e => updateDuplicateBlock(card.id, block.id, { text: e.target.value })} />
           </>
         ) : block.kind === "frontPair" ? (
           <>
-            <div className="duplicate-inline-tools"><DuplicateColorPicker card={card} block={block} field="textColor" label="Text Color" /><DuplicateColorPicker card={card} block={block} field="numberColor" label="Numbers Color" /></div>
+            <div className="duplicate-inline-tools">{renderDuplicateColorPicker(card, block, "textColor", "Text Color")}{renderDuplicateColorPicker(card, block, "numberColor", "Numbers Color")}</div>
             <DuplicateStyleMiniControls card={card} block={block} styleKey="textStyle" />
             <DuplicateStyleMiniControls card={card} block={block} styleKey="numberStyle" numbersMode />
             <label>Value<input className="attr-value" value={block.value} onChange={e => updateDuplicateBlock(card.id, block.id, { value: cleanTwoDigitValue(e.target.value) })} /></label>
           </>
         ) : (
           <>
-            <div className="duplicate-inline-tools"><DuplicateColorPicker card={card} block={block} field="textColor" label="Text Color" /><DuplicateColorPicker card={card} block={block} field="numberColor" label="Numbers Color" /></div>
+            <div className="duplicate-inline-tools">{renderDuplicateColorPicker(card, block, "textColor", "Text Color")}{renderDuplicateColorPicker(card, block, "numberColor", "Numbers Color")}</div>
             <DuplicateStyleMiniControls card={card} block={block} styleKey="textStyle" />
             <DuplicateStyleMiniControls card={card} block={block} styleKey="numberStyle" numbersMode />
             <button type="button" onClick={() => addDuplicateItem(card.id, block.id)}>+ Add row</button>
@@ -4363,7 +4371,7 @@ function App() {
   function SectionTitleEditor({ card, titleKey, colorKey, label }) {
     return (
       <label className="section-title-editor">
-        <span className="editor-label-row"><span>{label}</span><ColorPicker card={card} colorKey={colorKey} label="Color" />{renderTextStyleControls(card, colorKey, false, { panelAlign: "left", buttonLabel: "Text", titleMode: true })}</span>
+        <span className="editor-label-row"><span>{label}</span>{renderColorPicker(card, colorKey, "Color")}{renderTextStyleControls(card, colorKey, false, { panelAlign: "left", buttonLabel: "Text", titleMode: true })}</span>
         <input value={cardLayoutTitle(card, titleKey)} onChange={e => updateCardLayoutTitle(card.id, titleKey, e.target.value)} />
       </label>
     );
@@ -4405,16 +4413,16 @@ function App() {
         {CardLayoutEditor({ card })}
         {DuplicateBlocksEditor({ card })}
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
-        <div className="card-edit-section compact-color-row"><strong>Header Front</strong><ColorPicker card={card} colorKey="headerFront" label="Color" />{renderTextStyleControls(card, "headerFront", false, { panelAlign: "front" })}</div>
-        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Front</strong><ColorPicker card={card} colorKey="positionFront" label="Color" />{renderTextStyleControls(card, "positionFront", false, { panelAlign: "front" })}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
-        <div className="card-edit-section compact-color-row"><strong>Header Back</strong><ColorPicker card={card} colorKey="headerBack" label="Color" />{renderTextStyleControls(card, "headerBack", false, { panelAlign: "front" })}</div>
-        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Back</strong><ColorPicker card={card} colorKey="positionBack" label="Color" />{renderTextStyleControls(card, "positionBack", false, { panelAlign: "front" })}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
+        <div className="card-edit-section compact-color-row"><strong>Header Front</strong>{renderColorPicker(card, "headerFront", "Color")}{renderTextStyleControls(card, "headerFront", false, { panelAlign: "front" })}</div>
+        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Front</strong>{renderColorPicker(card, "positionFront", "Color")}{renderTextStyleControls(card, "positionFront", false, { panelAlign: "front" })}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
+        <div className="card-edit-section compact-color-row"><strong>Header Back</strong>{renderColorPicker(card, "headerBack", "Color")}{renderTextStyleControls(card, "headerBack", false, { panelAlign: "front" })}</div>
+        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Back</strong>{renderColorPicker(card, "positionBack", "Color")}{renderTextStyleControls(card, "positionBack", false, { panelAlign: "front" })}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
         {FrontZoneFieldsEditor({ card, storageKey: "frontAttributeFields", title: "Attributes Front", colorKey: "attributesFront", sourceSection: "passiveAttributes" })}
         {FrontZoneFieldsEditor({ card, storageKey: "frontBonusFields", title: "Bonuses Front", colorKey: "bonusesFront", sourceSection: "bonuses" })}
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "attributesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="attributes" label="Text Color" />{renderTextStyleControls(card, "attributes", false, { panelAlign: "left", buttonLabel: "Text" })}<ColorPicker card={card} colorKey="attributesValue" label="Numbers Color" />{renderTextStyleControls(card, "attributesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "bonusesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <><ColorPicker card={card} colorKey="bonuses" label="Text Color" />{renderTextStyleControls(card, "bonuses", false, { panelAlign: "left", buttonLabel: "Text" })}<ColorPicker card={card} colorKey="bonusesValue" label="Numbers Color" />{renderTextStyleControls(card, "bonusesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
-        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "specialAbility")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar"><ColorPicker card={card} colorKey="specialAbility" label="Text Color" />{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left" })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong><ColorPicker card={card} colorKey="defensiveArea" label="Grid" /><ColorPicker card={card} colorKey="defensiveAreaActive" label="Selected Area" /><DefensiveGridAdjustControl card={card} /><OpponentGoalTextControl card={card} /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "attributesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "attributes", "Text Color")}{renderTextStyleControls(card, "attributes", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "attributesValue", "Numbers Color")}{renderTextStyleControls(card, "attributesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "bonusesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "bonuses", "Text Color")}{renderTextStyleControls(card, "bonuses", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "bonusesValue", "Numbers Color")}{renderTextStyleControls(card, "bonusesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
+        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "specialAbility")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar">{renderColorPicker(card, "specialAbility", "Text Color")}{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left" })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong>{renderColorPicker(card, "defensiveArea", "Grid")}{renderColorPicker(card, "defensiveAreaActive", "Selected Area")}<DefensiveGridAdjustControl card={card} /><OpponentGoalTextControl card={card} /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
         </div>
       </div>
     );

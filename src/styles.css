@@ -5993,6 +5993,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   cursor: crosshair;
   touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
   border: 1px solid rgba(255,255,255,.25);
   background-image:
     linear-gradient(to top, #000, rgba(0,0,0,0)),
@@ -6016,6 +6017,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   cursor: ew-resize;
   touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
   border: 1px solid rgba(255,255,255,.25);
   background: linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
 }
