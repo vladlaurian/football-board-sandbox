@@ -3167,12 +3167,11 @@ function App() {
     ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
   }
 
-  function canvasFontFromStyle(style, basePx = 10, maxPx = Infinity) {
+  function canvasFontFromStyle(style, basePx = 10) {
     const s = style || {};
     const weight = s.bold ? 900 : 650;
     const family = s.font || "Inter";
-    const scaled = basePx * (Number(s.fontSize || 100) / 100);
-    const size = Math.max(3, Math.min(Number.isFinite(maxPx) ? maxPx : Infinity, scaled));
+    const size = Math.max(3, basePx * (Number(s.fontSize || 100) / 100));
     return `${weight} ${size}px ${family}, Arial, sans-serif`;
   }
 
@@ -3252,30 +3251,54 @@ function App() {
           const b = layout[key] || DEFAULT_CARD_VISUAL_LAYOUT.back[key];
           return { x: b.x / 100 * w, y: b.y / 100 * h, w: b.w / 100 * w, h: b.h / 100 * h };
         };
+        const pctFontScale = style => Number(style?.fontSize || 100) / 100;
+        const lineScale = style => Number(style?.lineHeight || 100) / 100;
+        const rawFont = (style, px) => {
+          const s = style || {};
+          const weight = s.bold ? 900 : 650;
+          const family = s.font || "Inter";
+          return `${weight} ${Math.max(3, px)}px ${family}, Arial, sans-serif`;
+        };
+        const fitFontPx = (text, style, startPx, maxWidth, minPx = 3) => {
+          let px = Math.max(minPx, startPx);
+          ctx.save();
+          while (px > minPx) {
+            ctx.font = rawFont(style, px);
+            if (ctx.measureText(String(text || "")).width <= maxWidth) break;
+            px -= 0.5;
+          }
+          ctx.restore();
+          return Math.max(minPx, px);
+        };
+        const verticalOffsetPx = (style, b) => Number(style?.verticalOffset || 0) * 0.004 * b.h;
+        const horizontalOffsetPx = (style, b) => Number(style?.horizontalOffset || 0) * 0.0042 * b.w;
 
         const drawName = () => {
           if (deleted.has("back:header")) return;
           const b = box("header");
           const st = styles.headerBack || CARD_TEXT_STYLE_DEFAULTS.headerBack;
-          const base = Math.max(3, Math.min(52, Math.min(b.w * .15, b.h * .78)));
-          const font = canvasFontFromStyle(st, base, 52);
+          const text = card?.name || "Player";
+          const desired = Math.min(b.w * .15, b.h * .78, 52) * pctFontScale(st);
+          const px = fitFontPx(text, st, desired, Math.max(4, b.w - 4));
           const color = safeColor(colors.headerBack || colors.header, "#ffffff");
-          drawFittedText(ctx, card?.name || "Player", b.x + 2, b.y + b.h * .58, b.w - 4, font, color, st.align || "left", "middle");
+          drawFittedText(ctx, text, b.x + 2 + horizontalOffsetPx(st, b), b.y + b.h / 2 + verticalOffsetPx(st, b), b.w - 4, rawFont(st, px), color, st.align || "center", "middle");
         };
 
         const drawPosition = () => {
           if (deleted.has("back:position")) return;
           const b = box("position");
           const st = styles.positionBack || CARD_TEXT_STYLE_DEFAULTS.positionBack;
-          const base = Math.max(3, Math.min(88, Math.min(b.w * .28, b.h * 1.24)));
-          const font = canvasFontFromStyle(st, base, 88);
+          const text = String(card?.position || "").toUpperCase();
+          const desired = Math.min(b.w * .52, b.h * .82, 88) * pctFontScale(st);
+          const px = fitFontPx(text, st, desired, Math.max(4, b.w - 2));
           const color = safeColor(colors.positionBack || colors.headerBack || colors.header, "#ffffff");
-          drawFittedText(ctx, String(card?.position || "").toUpperCase(), b.x, b.y + b.h * .58, b.w, font, color, "center", "middle");
+          drawFittedText(ctx, text, b.x + horizontalOffsetPx(st, b), b.y + b.h / 2 + verticalOffsetPx(st, b), b.w, rawFont(st, px), color, "center", "middle");
         };
 
         const drawList = (zoneKey, items, textKey, titleKey, titleColorKey) => {
           if (deleted.has(`back:${zoneKey}`)) return;
           const b = box(zoneKey);
+          const pad = Math.max(1.5, Math.min(4, b.w * .025));
           const textStyle = styles[textKey] || CARD_TEXT_STYLE_DEFAULTS[textKey];
           const numberStyle = styles[`${textKey}Value`] || textStyle;
           const titleStyle = styles[titleColorKey] || CARD_TEXT_STYLE_DEFAULTS[titleColorKey];
@@ -3284,35 +3307,34 @@ function App() {
           const textColor = safeColor(colors[textKey], "#ffffff");
           const numberColor = safeColor(colors[`${textKey}Value`], textColor);
           const titleColor = safeColor(colors[titleColorKey], textColor);
-          const titleSize = Math.max(3, Math.min(20, Math.min(b.w * .075, b.h * .18)));
-          const titleFont = canvasFontFromStyle(titleStyle, titleSize, 20);
-          drawFittedText(ctx, title, b.x, b.y + Math.max(5, titleSize * .95), b.w, titleFont, titleColor, "center", "alphabetic");
 
-          const lines = Math.max(2, visible.length + 1);
-          const rawSize = Math.min(b.w * .06, (b.h * .82) / lines);
-          const fontSize = Math.max(3.2, Math.min(18, rawSize));
-          const effectiveTextSize = Math.max(3, Math.min(18, fontSize * (Number(textStyle.fontSize || 100) / 100)));
-          const lineHeight = effectiveTextSize * (Number(textStyle.lineHeight || 100) / 100);
-          const labelFont = canvasFontFromStyle(textStyle, fontSize, 18);
-          const valueFont = canvasFontFromStyle(numberStyle, fontSize, 18);
-          const top = b.y + Math.max(titleSize + 5, b.h * .20) + (Number(textStyle.verticalOffset || 0) * 0.004 * b.h);
-          const longest = Math.max(0, ...visible.map(item => String(item.name || "").length));
-          const maxValueChars = Math.max(1, ...visible.map(item => String(normalizeStatValue(item.value)).length));
-          const shiftPercent = Math.max(0, Math.min(1, (300 - Number(textStyle.statGap ?? 300)) / 300));
-          const em = effectiveTextSize;
-          const labelReserve = longest * 0.66 * em;
-          const numberWidth = Math.max(2.2 * em, maxValueChars * .85 * em);
-          const minGap = .45 * em;
-          const maxShift = Math.max(0, b.w - labelReserve - numberWidth - minGap);
-          const shift = Math.min(shiftPercent * b.w * .28, maxShift);
-          const valueX = b.x + b.w - shift;
-          const labelMaxW = Math.max(4, valueX - numberWidth - minGap - b.x);
+          const titleDesired = Math.min(Math.max(5, b.w * .031), 9) * pctFontScale(titleStyle);
+          const titlePx = fitFontPx(title, titleStyle, titleDesired, Math.max(4, b.w - pad * 2), 3);
+          const titleLine = titlePx * .95;
+          drawFittedText(ctx, title, b.x + pad, b.y + titleLine + verticalOffsetPx(titleStyle, b), b.w - pad * 2, rawFont(titleStyle, titlePx), titleColor, "center", "alphabetic");
+
           const rows = visible.length ? visible : [{ id: "empty", name: "—", value: "" }];
+          const lines = Math.max(2, rows.length + 1);
+          const listPxRaw = Math.min(b.w * .06, (b.h * .82) / lines, 18) * pctFontScale(textStyle);
+          const listPx = Math.max(3, listPxRaw);
+          const valuePx = Math.max(3, listPx * pctFontScale(numberStyle));
+          const rowH = Math.max(3.2, listPx * lineScale(textStyle));
+          const gap = Math.max(0.5, Math.min(2, rowH * .18));
+          const titleBlock = titleLine + Math.max(1, b.h * .015);
+          const availTop = b.y + titleBlock;
+          const availH = Math.max(1, b.h - titleBlock);
+          const blockH = rows.length * rowH + Math.max(0, rows.length - 1) * gap;
+          const top = availTop + Math.max(0, (availH - blockH) / 2) + verticalOffsetPx(textStyle, b);
+          const maxValueChars = Math.max(1, ...rows.map(item => String(normalizeStatValue(item.value)).length));
+          const valueW = Math.max(valuePx * 1.8, maxValueChars * valuePx * .75);
+          const valueRight = b.x + b.w - pad;
+          const labelX = b.x + pad;
+          const labelW = Math.max(4, b.w - pad * 3 - valueW);
           rows.forEach((item, index) => {
-            const y = top + index * lineHeight;
-            if (y > b.y + b.h - lineHeight * .2) return;
-            drawFittedText(ctx, item.name || "", b.x, y + lineHeight * .78, labelMaxW, labelFont, textColor, textStyle.align || "left", "alphabetic");
-            if (item.value !== "") drawFittedText(ctx, normalizeStatValue(item.value), valueX - numberWidth, y + lineHeight * .78, numberWidth, valueFont, numberColor, "right", "alphabetic");
+            const y = top + index * (rowH + gap);
+            if (y > b.y + b.h - rowH * .15) return;
+            drawFittedText(ctx, item.name || "", labelX, y + rowH * .78, labelW, rawFont(textStyle, listPx), textColor, textStyle.align || "left", "alphabetic");
+            if (item.value !== "") drawFittedText(ctx, normalizeStatValue(item.value), valueRight - valueW, y + rowH * .78, valueW, rawFont(numberStyle, valuePx), numberColor, "right", "alphabetic");
           });
         };
 
@@ -3325,15 +3347,20 @@ function App() {
           const titleColor = safeColor(colors.defensiveAreaTitle, "#ffffff");
           const cellColor = safeColor(colors.defensiveArea, "#ffffff");
           const activeColor = safeColor(colors.defensiveAreaActive, "#50be78");
-          const titleSize = Math.max(3, Math.min(20, Math.min(b.w * .075, b.h * .18)));
-          drawFittedText(ctx, cardLayoutTitle(card, "defensiveArea"), b.x, b.y + titleSize, b.w, canvasFontFromStyle(titleStyle, titleSize, 20), titleColor, "center", "alphabetic");
-          const goalSize = Math.max(3, Math.min(10, Math.min(b.w * .055, b.h * .06)));
-          drawFittedText(ctx, "OPPONENT GOAL", b.x, b.y + titleSize + goalSize + 2, b.w, canvasFontFromStyle(goalStyle, goalSize, 10), cellColor, "center", "alphabetic", false);
-          const gridTop = b.y + titleSize + goalSize + 5 + (Number(areaStyle.verticalOffset || 0) * 0.003 * b.h);
-          const gridSize = Math.min(b.w * .72, b.h - (gridTop - b.y) - 3);
-          const cell = gridSize / 11;
-          const gap = Math.max(.45, cell * .13);
-          const startX = b.x + (b.w - gridSize) / 2;
+          const titlePx = Math.max(4, Math.min(Math.max(5, b.w * .031), 9) * pctFontScale(titleStyle));
+          drawFittedText(ctx, cardLayoutTitle(card, "defensiveArea"), b.x + horizontalOffsetPx(titleStyle, b), b.y + titlePx + verticalOffsetPx(titleStyle, b), b.w, rawFont(titleStyle, titlePx), titleColor, "center", "alphabetic");
+          const goalPx = Math.max(3, Math.min(b.w * .055, b.h * .06) * pctFontScale(goalStyle));
+          const goalY = b.y + titlePx + goalPx + 2 + verticalOffsetPx(goalStyle, b);
+          drawFittedText(ctx, "OPPONENT GOAL", b.x + horizontalOffsetPx(goalStyle, b), goalY, b.w, rawFont(goalStyle, goalPx), titleColor, "center", "alphabetic", false);
+          const adjust = normalizeDefensiveGridAdjust(card?.defensiveGridAdjust);
+          const availableH = Math.max(4, b.h - (goalY - b.y) - 4);
+          const cssGridSize = Math.min(b.w * .84, availableH * .86, b.w * .76);
+          const gridSize = Math.max(10, cssGridSize * (adjust.width / 100));
+          const gridH = Math.max(10, cssGridSize * (adjust.height / 100));
+          const cell = Math.min(gridSize, gridH) / 11;
+          const gap = Math.max(.5, cell * .18);
+          const startX = b.x + (b.w - gridSize) / 2 + (adjust.offsetX * 0.0042 * b.w);
+          const gridTop = goalY + 3 + (availableH - gridH) / 2 + (adjust.offsetY * 0.0028 * b.h);
           const active = new Set((card?.defensiveArea || []).map(c => `${Number(c.dx)},${Number(c.dy)}`));
           for (let row = 0; row < 11; row++) {
             for (let col = 0; col < 11; col++) {
@@ -3363,11 +3390,13 @@ function App() {
           const textStyle = styles.specialAbility || CARD_TEXT_STYLE_DEFAULTS.specialAbility;
           const titleColor = safeColor(colors.specialAbilityTitle, "#ffffff");
           const textColor = safeColor(colors.specialAbility, titleColor);
-          const titleSize = Math.max(3, Math.min(20, Math.min(b.w * .075, b.h * .18)));
-          drawFittedText(ctx, cardLayoutTitle(card, "specialAbility"), b.x, b.y + titleSize, b.w, canvasFontFromStyle(titleStyle, titleSize, 20), titleColor, "center", "alphabetic");
+          const title = cardLayoutTitle(card, "specialAbility");
+          const titlePx = Math.max(4, Math.min(Math.max(5, b.w * .031), 9) * pctFontScale(titleStyle));
+          drawFittedText(ctx, title, b.x + horizontalOffsetPx(titleStyle, b), b.y + titlePx + verticalOffsetPx(titleStyle, b), b.w, rawFont(titleStyle, titlePx), titleColor, "center", "alphabetic");
           const text = String(card?.specialAbility || "").trim() || "NONE";
-          const fontSize = Math.max(3.2, Math.min(22, Math.min(b.w * .052, b.h * .15)));
-          drawWrappedText(ctx, text, b.x + 2, b.y + titleSize + 6, b.w - 4, b.h - titleSize - 8, canvasFontFromStyle(textStyle, fontSize, 22), textColor, textStyle.align || "center", Number(textStyle.lineHeight || 105) / 100);
+          const px = Math.max(3.2, Math.min(b.w * .052, b.h * .15, 22) * pctFontScale(textStyle));
+          const textTop = b.y + titlePx + 5 + verticalOffsetPx(textStyle, b);
+          drawWrappedText(ctx, text, b.x + 2 + horizontalOffsetPx(textStyle, b), textTop, b.w - 4, Math.max(1, b.h - titlePx - 7), rawFont(textStyle, px), textColor, textStyle.align || "center", lineScale(textStyle));
         };
 
         drawName();
