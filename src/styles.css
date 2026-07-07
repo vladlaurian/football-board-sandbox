@@ -2755,74 +2755,12 @@ select option {
 .card-preview .card-special-block p {
   color: var(--card-special-color, #fff) !important;
 }
-.card-color-picker {
-  position: relative;
-  display: inline-block;
-  vertical-align: middle;
-  z-index: 50;
-}
-.card-color-picker summary {
-  list-style: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 26px;
-  padding: 3px 8px;
-  border: 1px solid rgba(255,255,255,.22);
-  border-radius: 8px;
-  background: rgba(255,255,255,.08);
-  cursor: pointer;
-  user-select: none;
-}
-.card-color-picker summary::-webkit-details-marker { display: none; }
-.card-color-picker summary em {
-  font-style: normal;
-  font-size: 11px;
-  opacity: .88;
-}
 .color-current {
   width: 16px;
   height: 16px;
   border-radius: 5px;
   border: 1px solid rgba(255,255,255,.75);
   box-shadow: 0 0 0 1px rgba(0,0,0,.25) inset;
-}
-.color-panel {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  display: grid;
-  grid-template-columns: repeat(6, 24px);
-  gap: 5px;
-  padding: 8px;
-  border-radius: 10px;
-  border: 1px solid rgba(125,211,252,.45);
-  background: rgba(6, 18, 40, .98);
-  box-shadow: 0 12px 28px rgba(0,0,0,.35);
-  min-width: 178px;
-  transform-origin: top left;
-}
-.card-color-picker:not([open]) .color-panel { display: none; }
-.color-panel button {
-  width: 24px !important;
-  height: 24px !important;
-  min-width: 24px !important;
-  padding: 0 !important;
-  border-radius: 7px !important;
-  border: 2px solid rgba(255,255,255,.35) !important;
-}
-.color-panel button.selected {
-  border-color: #7dd3fc !important;
-  box-shadow: 0 0 0 2px rgba(125,211,252,.32);
-}
-.color-panel input[type="color"] {
-  grid-column: span 6;
-  width: 100%;
-  height: 30px;
-  padding: 0;
-  border: 1px solid rgba(255,255,255,.24);
-  border-radius: 8px;
-  background: transparent;
 }
 .card-edit-section-title,
 .editor-label-row,
@@ -3038,16 +2976,6 @@ select option {
   align-items: center;
   gap: 6px !important;
 }
-.card-edit-section-title .card-color-picker {
-  flex: 0 0 auto;
-}
-.card-edit-section-title .card-color-picker summary {
-  min-width: max-content;
-  white-space: nowrap;
-}
-.card-edit-section-title .card-color-picker summary em {
-  white-space: nowrap;
-}
 
 /* First Defensive Area color controls the writing, arrow and inactive grid cells. */
 .card-preview .card-area-block .area-mini span:not(.active):not(.player) {
@@ -3227,13 +3155,6 @@ select option {
 .card-edit-section-title {
   justify-content: flex-start !important;
   gap: 6px !important;
-}
-.card-edit-section-title .card-color-picker {
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-}
-.card-edit-section-title .card-color-picker + .card-color-picker {
-  margin-left: 2px !important;
 }
 
 
@@ -4417,12 +4338,6 @@ select option {
   gap: 8px !important;
   min-width: 0 !important;
 }
-.attribute-toolbar-left .card-color-picker,
-.attribute-toolbar-left .text-style-controls,
-.special-text-toolbar .card-color-picker,
-.special-text-toolbar .text-style-controls {
-  flex: 0 0 auto !important;
-}
 
 /* USER FIX: Special Ability text tools belong above the textarea, not in the section title. */
 .special-text-toolbar {
@@ -4764,16 +4679,6 @@ select option {
   line-height: var(--zone-line-height, 1) !important;
   text-align: var(--zone-align, center) !important;
   transform: translateY(var(--zone-y-offset, 0cqh)) !important;
-}
-
-/* STAGE 2: active toolbar feedback for open Text/Numbers/Color controls. */
-.text-style-toggle.active,
-.text-style-controls.open > .text-style-toggle,
-.card-color-picker[open] > summary {
-  border-color: rgba(79, 209, 255, .95) !important;
-  background: rgba(14, 165, 233, .24) !important;
-  box-shadow: 0 0 0 1px rgba(79, 209, 255, .35), 0 0 14px rgba(79, 209, 255, .24) !important;
-  color: #eefbff !important;
 }
 
 /* STAGE 2: fine adjustment buttons for every TextStyleControls slider. */
@@ -5311,24 +5216,6 @@ select option {
 .attribute-toolbar-left,
 .special-text-toolbar {
   overflow: visible !important;
-}
-.card-color-picker[open] {
-  z-index: 2147483000 !important;
-  isolation: isolate !important;
-}
-.card-color-picker[open] > summary {
-  position: relative !important;
-  z-index: 2147483001 !important;
-}
-.card-color-picker[open] .color-panel {
-  z-index: 2147483002 !important;
-  pointer-events: auto !important;
-  background: #051228 !important;
-  opacity: 1 !important;
-}
-.card-color-picker[open] .color-panel,
-.card-color-picker[open] .color-panel * {
-  pointer-events: auto !important;
 }
 
 /* FINAL UI FIX: only Numbers panels open toward the left edge of their button.
@@ -6029,3 +5916,102 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
     max-height: 70vh !important;
   }
 }
+
+
+/* STABLE COLOR PICKER: replaces native details/summary color menus.
+   Keeps all color menus open while using the native hue picker/slider. */
+.stable-color-picker {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+  z-index: 50;
+}
+.color-picker-toggle {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 3px 8px;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 8px;
+  background: rgba(255,255,255,.08);
+  cursor: pointer;
+  user-select: none;
+  color: inherit;
+}
+.color-picker-toggle em {
+  font-style: normal;
+  font-size: 11px;
+  opacity: .88;
+}
+.color-current {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,.75);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.25) inset;
+}
+.stable-color-picker.open {
+  z-index: 2147483000 !important;
+  isolation: isolate !important;
+}
+.stable-color-picker.open > .color-picker-toggle {
+  position: relative !important;
+  z-index: 2147483001 !important;
+  border-color: rgba(125,211,252,.65) !important;
+}
+.color-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(6, 24px);
+  gap: 5px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(125,211,252,.45);
+  background: #051228 !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.35);
+  min-width: 178px;
+  transform-origin: top left;
+  z-index: 2147483002 !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+}
+.color-panel,
+.color-panel * {
+  pointer-events: auto !important;
+}
+.color-panel button {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  padding: 0 !important;
+  border-radius: 7px !important;
+  border: 2px solid rgba(255,255,255,.35) !important;
+}
+.color-panel button.selected {
+  border-color: #7dd3fc !important;
+  box-shadow: 0 0 0 2px rgba(125,211,252,.32);
+}
+.color-panel input[type="color"] {
+  grid-column: span 6;
+  width: 100%;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.24);
+  border-radius: 8px;
+  background: transparent;
+}
+.card-edit-section-title .stable-color-picker {
+  flex: 0 0 auto;
+}
+.card-edit-section-title .stable-color-picker + .stable-color-picker {
+  margin-left: 4px;
+}
+.attribute-toolbar-left .stable-color-picker,
+.special-text-toolbar .stable-color-picker {
+  flex: 0 0 auto;
+}
+

@@ -425,6 +425,45 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
 }
 
 
+function StableColorPicker({ current, label, isOpen, onToggle, onChange }) {
+  const stopPanelEvent = e => e.stopPropagation();
+  const commitColor = value => {
+    if (!value) return;
+    onChange && onChange(value);
+  };
+  return (
+    <div className={`stable-color-picker ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+      <button type="button" className={`color-picker-toggle ${isOpen ? "active" : ""}`} title={`${label} text color`} aria-expanded={isOpen} onClick={onToggle}>
+        <span className="color-current" style={{ background: current }} /> <em>{label}</em>
+      </button>
+      {isOpen ? (
+        <div className="color-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+          {COLOR_SWATCHES.map(color => (
+            <button
+              type="button"
+              key={color}
+              className={current.toLowerCase() === color.toLowerCase() ? "selected" : ""}
+              style={{ background: color }}
+              onClick={() => commitColor(color)}
+              title={color}
+            />
+          ))}
+          <input
+            type="color"
+            value={current}
+            onPointerDown={stopPanelEvent}
+            onMouseDown={stopPanelEvent}
+            onClick={stopPanelEvent}
+            onInput={e => commitColor(e.currentTarget.value)}
+            onChange={e => commitColor(e.currentTarget.value)}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+
 function StableOpponentGoalTextControl({ cardId, current, isOpen, onToggle, onPatch, onPreview }) {
   if (!cardId) return null;
   const safeCurrent = current || CARD_TEXT_STYLE_DEFAULTS.defensiveAreaGoal;
@@ -1478,6 +1517,7 @@ function App() {
   const [libraryPositionFilter, setLibraryPositionFilter] = useState("ALL");
   const [editingCardId, setEditingCardId] = useState(null);
   const [openTextPanelKey, setOpenTextPanelKey] = useState(null);
+  const [openColorPanelKey, setOpenColorPanelKey] = useState(null);
   const [openGridAdjustKey, setOpenGridAdjustKey] = useState(null);
   const [previewTextStyleDraft, setPreviewTextStyleDraft] = useState(null);
   const [selectedLayout, setSelectedLayout] = useState(null);
@@ -3775,14 +3815,15 @@ function App() {
   function ColorPicker({ card, colorKey, label }) {
     if (!card) return null;
     const current = safeColor((card.textColors || {})[colorKey], CARD_TEXT_COLOR_DEFAULTS[colorKey] || "#ffffff");
+    const panelKey = `${card.id}:${colorKey}`;
     return (
-      <details className="card-color-picker">
-        <summary title={`${label} text color`}><span className="color-current" style={{ background: current }} /> <em>{label}</em></summary>
-        <div className="color-panel">
-          {COLOR_SWATCHES.map(color => <button key={color} className={current.toLowerCase() === color.toLowerCase() ? "selected" : ""} style={{ background: color }} onClick={(e) => { e.preventDefault(); updateCardTextColor(card.id, colorKey, color); }} title={color} />)}
-          <input type="color" value={current} onChange={e => updateCardTextColor(card.id, colorKey, e.target.value)} />
-        </div>
-      </details>
+      <StableColorPicker
+        current={current}
+        label={label}
+        isOpen={openColorPanelKey === panelKey}
+        onToggle={() => setOpenColorPanelKey(openColorPanelKey === panelKey ? null : panelKey)}
+        onChange={value => updateCardTextColor(card.id, colorKey, value)}
+      />
     );
   }
 
