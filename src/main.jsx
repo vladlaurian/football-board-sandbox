@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import html2canvas from "html2canvas";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
@@ -23,9 +22,12 @@ const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
+
 const CARD_EXPORT_WIDTH = 280;
 const CARD_EXPORT_HEIGHT = 420;
 const CARD_EXPORT_PIXEL_RATIO = 4;
+const CARD_EXPORT_IMAGE_CACHE_PREFIX = "football-board-card-export-image:";
+
 
 function userStateRef(uid) {
   return doc(db, "users", uid, "footballBoard", "mainState");
@@ -3040,8 +3042,20 @@ function App() {
   }
 
 
+  function getSelectedExportCard() {
+    return cardById[exportCardId] || cardState.cards[0] || null;
+  }
+
+  function safeCardExportName(card) {
+    return String(card?.name || "player-card").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "player-card";
+  }
+
+  function safeExportPart(value, fallback = "Card") {
+    return String(value || fallback).replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || fallback;
+  }
+
   function exportSelectedCard() {
-    const selectedCard = cardById[exportCardId] || cardState.cards[0];
+    const selectedCard = getSelectedExportCard();
     if (!selectedCard) {
       alert("No card selected for export.");
       return;
@@ -3055,7 +3069,7 @@ function App() {
         cards: [selectedCard],
       },
     };
-    const safeName = String(selectedCard.name || "player-card").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "player-card";
+    const safeName = safeCardExportName(selectedCard);
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -3065,26 +3079,9 @@ function App() {
     URL.revokeObjectURL(url);
   }
 
-
-  function getSelectedExportCard() {
-    return cardById[exportCardId] || cardState.cards[0] || null;
-  }
-
-  function safeCardExportName(card) {
-    return String(card?.name || "player-card").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "player-card";
-  }
-
-  function safeExportPart(value, fallback = "Card") {
-    return String(value || fallback).replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || fallback;
-  }
-
-  function isInlineImageDataUrl(value) {
-    return typeof value === "string" && /^data:image\//i.test(value);
-  }
-
-  async function waitForExportImages(node) {
+  function waitForCardExportImages(node) {
     const images = Array.from(node?.querySelectorAll?.("img") || []);
-    await Promise.all(images.map(img => {
+    return Promise.all(images.map(img => {
       if (img.complete) return Promise.resolve();
       return new Promise(resolve => {
         img.onload = resolve;
@@ -3093,36 +3090,155 @@ function App() {
     }));
   }
 
-  function makePngSafeCard(card, exportSide) {
-    const graphics = card?.graphics || {};
-    const safeFront = graphics.frontExportDataUrl || graphics.frontLocalDataUrl || graphics.frontDataUrl || "";
-    const safeBack = graphics.backExportDataUrl || graphics.backLocalDataUrl || graphics.backDataUrl || "";
-    const nextGraphics = { ...graphics };
-
-    // Render the export with an inline/data URL when one exists. If an old card only
-    // has a remote URL, do not render that remote image into the export canvas, because
-    // it taints the canvas. This keeps blank/default cards exportable.
-    nextGraphics.frontDataUrl = isInlineImageDataUrl(safeFront) ? safeFront : "";
-    nextGraphics.backDataUrl = isInlineImageDataUrl(safeBack) ? safeBack : "";
-
-    const artwork = { ...(card?.artwork || {}) };
-    if (artwork.customDataUrl && !isInlineImageDataUrl(artwork.customDataUrl)) {
-      artwork.customDataUrl = "";
-    }
-
-    return { ...card, graphics: nextGraphics, artwork };
+  function isCardExportSafeImageSrc(src) {
+    return typeof src === "string" && (/^data:image\//i.test(src) || src.startsWith("blob:") || src.startsWith(window.location.origin));
   }
 
-  async function prepareCardExportImages(node) {
-    const images = Array.from(node?.querySelectorAll?.("img") || []);
-    for (const img of images) {
-      const src = img.getAttribute("src") || img.currentSrc || img.src || "";
-      if (!src) continue;
-      if (isInlineImageDataUrl(src)) continue;
-      // Never let a remote/incidental image taint the PNG export.
-      img.remove();
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("Could not read image data for export."));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function cardExportImageCacheKey(src) {
+    return `${CARD_EXPORT_IMAGE_CACHE_PREFIX}${encodeURIComponent(String(src || ""))}`;
+  }
+
+  function getCachedCardExportImage(src) {
+    if (!src || /^data:image\//i.test(src)) return src || "";
+    try {
+      const cached = localStorage.getItem(cardExportImageCacheKey(src));
+      return isInlineImageDataUrl(cached) ? cached : "";
+    } catch {
+      return "";
     }
-    await waitForExportImages(node);
+  }
+
+  function rememberCardExportImage(src, dataUrl) {
+    if (!src || !isInlineImageDataUrl(dataUrl)) return;
+    try {
+      localStorage.setItem(cardExportImageCacheKey(src), dataUrl);
+    } catch (error) {
+      console.warn("Could not cache card image for PNG export.", error);
+    }
+  }
+
+  async function fetchImageAsDataUrl(src) {
+    if (!src || /^data:image\//i.test(src)) return src;
+
+    const cached = getCachedCardExportImage(src);
+    if (cached) return cached;
+
+    if (src.startsWith("blob:") || src.startsWith(window.location.origin)) {
+      const response = await fetch(src);
+      if (!response.ok) throw new Error(`Could not read local image for export (${response.status}).`);
+      const dataUrl = await blobToDataUrl(await response.blob());
+      rememberCardExportImage(src, dataUrl);
+      return dataUrl;
+    }
+
+    try {
+      const response = await fetch(src, { mode: "cors", credentials: "omit", cache: "force-cache" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const dataUrl = await blobToDataUrl(await response.blob());
+      rememberCardExportImage(src, dataUrl);
+      return dataUrl;
+    } catch (error) {
+      throw new Error("Card PNG export is blocked because this card only has a remote graphic URL without CORS and no local export-safe copy. Re-import this card graphic once with this build, then export again. For old remote graphics, Firebase Storage CORS must be enabled or the original image must be re-uploaded locally.");
+    }
+  }
+
+  async function inlineCardExportImages(clone) {
+    const images = Array.from(clone?.querySelectorAll?.("img") || []);
+    for (const img of images) {
+      const src = img.getAttribute("src") || img.currentSrc || img.src;
+      if (!src) continue;
+      img.setAttribute("crossorigin", "anonymous");
+      img.setAttribute("src", await fetchImageAsDataUrl(src));
+    }
+  }
+
+  function inlineComputedCardStyles(source, clone) {
+    if (!source || !clone || source.nodeType !== 1 || clone.nodeType !== 1) return;
+    const computed = window.getComputedStyle(source);
+    clone.style.cssText = Array.from(computed).map(name => `${name}:${computed.getPropertyValue(name)}${computed.getPropertyPriority(name) ? " !important" : ""};`).join("");
+    clone.removeAttribute("id");
+    if (clone.classList?.contains("card-preview")) {
+      clone.style.width = `${CARD_EXPORT_WIDTH}px`;
+      clone.style.height = `${CARD_EXPORT_HEIGHT}px`;
+      clone.style.minWidth = `${CARD_EXPORT_WIDTH}px`;
+      clone.style.minHeight = `${CARD_EXPORT_HEIGHT}px`;
+      clone.style.maxWidth = `${CARD_EXPORT_WIDTH}px`;
+      clone.style.maxHeight = `${CARD_EXPORT_HEIGHT}px`;
+      clone.style.margin = "0";
+      clone.style.transform = "none";
+      clone.style.boxSizing = "border-box";
+    }
+    const sourceChildren = Array.from(source.children || []);
+    const cloneChildren = Array.from(clone.children || []);
+    sourceChildren.forEach((child, index) => inlineComputedCardStyles(child, cloneChildren[index]));
+  }
+
+  async function exportElementAsPng(node, filename, pixelRatio = 4) {
+    if (!node) throw new Error("Missing export node");
+    await (document.fonts?.ready || Promise.resolve());
+    await waitForCardExportImages(node);
+
+    const rect = node.getBoundingClientRect();
+    const width = Math.ceil(rect.width || CARD_EXPORT_WIDTH);
+    const height = Math.ceil(rect.height || CARD_EXPORT_HEIGHT);
+    if (!width || !height) throw new Error("Invalid export size");
+
+    const clone = node.cloneNode(true);
+    clone.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
+    inlineComputedCardStyles(node, clone);
+    await inlineCardExportImages(clone);
+    clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+
+    const serialized = new XMLSerializer().serializeToString(clone);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width * pixelRatio}" height="${height * pixelRatio}" viewBox="0 0 ${width} ${height}"><foreignObject x="0" y="0" width="${width}" height="${height}">${serialized}</foreignObject></svg>`;
+    const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    try {
+      const image = new Image();
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = () => reject(new Error("Browser could not render the card SVG export."));
+        image.src = svgUrl;
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width * pixelRatio;
+      canvas.height = height * pixelRatio;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not create export canvas.");
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+      const blob = await new Promise((resolve, reject) => {
+        try {
+          canvas.toBlob(result => result ? resolve(result) : reject(new Error("Could not create PNG blob.")), "image/png");
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } finally {
+      URL.revokeObjectURL(svgUrl);
+    }
   }
 
   async function exportSelectedCardPng(side) {
@@ -3133,52 +3249,30 @@ function App() {
     }
 
     const exportSide = side === "front" ? "front" : "back";
+    const graphics = selectedCard.graphics || {};
+    const frontCached = getCachedCardExportImage(graphics.frontDataUrl);
+    const backCached = getCachedCardExportImage(graphics.backDataUrl);
+    const exportCard = {
+      ...selectedCard,
+      graphics: {
+        ...graphics,
+        frontDataUrl: frontCached || graphics.frontDataUrl || "",
+        backDataUrl: backCached || graphics.backDataUrl || "",
+      },
+    };
     const host = document.createElement("div");
     host.className = "card-png-export-host";
     document.body.appendChild(host);
     const root = createRoot(host);
 
     try {
-      const pngSafeCard = makePngSafeCard(selectedCard, exportSide);
-      root.render(<CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
+      root.render(<CardPreview card={exportCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const node = host.querySelector(".card-preview");
       if (!node) throw new Error("Card preview was not rendered for export.");
-
-      node.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
-      await prepareCardExportImages(node);
-      await (document.fonts?.ready || Promise.resolve());
-
-      const canvas = await html2canvas(node, {
-        backgroundColor: null,
-        scale: CARD_EXPORT_PIXEL_RATIO,
-        useCORS: true,
-        allowTaint: false,
-        logging: false,
-        width: CARD_EXPORT_WIDTH,
-        height: CARD_EXPORT_HEIGHT,
-        windowWidth: CARD_EXPORT_WIDTH,
-        windowHeight: CARD_EXPORT_HEIGHT,
-      });
-
-      const blob = await new Promise((resolve, reject) => {
-        try {
-          canvas.toBlob(result => result ? resolve(result) : reject(new Error("Could not create PNG blob.")), "image/png");
-        } catch (error) {
-          reject(error);
-        }
-      });
-
       const sideLabel = exportSide === "front" ? "Front" : "Back";
       const filename = `${safeCardExportName(selectedCard)}-${safeExportPart(selectedCard.position)}-${sideLabel}.png`;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      await exportElementAsPng(node, filename, 4);
     } catch (error) {
       console.error("Card PNG export failed", error);
       alert(`Card PNG export failed: ${error?.message || "unknown error"}`);
@@ -3262,7 +3356,15 @@ function App() {
       const uploadedBack = side === "both" && pairedBackDataUrl
         ? await uploadCardGraphicDataUrl(cardId, "back", pairedBackDataUrl)
         : pairedBackDataUrl;
-      applyGraphicToCard(cardId, side, uploadedFront, uploadedBack, dataUrl, pairedBackDataUrl);
+
+      if ((side === "front" || side === "both") && uploadedFront !== dataUrl) {
+        rememberCardExportImage(uploadedFront, dataUrl);
+      }
+      if (side === "both" && uploadedBack && pairedBackDataUrl && uploadedBack !== pairedBackDataUrl) {
+        rememberCardExportImage(uploadedBack, pairedBackDataUrl);
+      }
+
+      applyGraphicToCard(cardId, side, uploadedFront, uploadedBack);
       setCloudStatus("Image uploaded");
       setCloudError("");
     } catch (error) {
@@ -3311,7 +3413,7 @@ function App() {
     reader.readAsDataURL(file);
   }
 
-  function applyGraphicToCard(cardId, side, dataUrl, pairedBackDataUrl = null, localFrontDataUrl = null, localBackDataUrl = null) {
+  function applyGraphicToCard(cardId, side, dataUrl, pairedBackDataUrl = null) {
     if (!cardId || !dataUrl) return;
     updateCardState(prev => ({
       ...prev,
@@ -3324,23 +3426,13 @@ function App() {
         const nextGraphics = {
           frontDataUrl: currentGraphics.frontDataUrl || "",
           backDataUrl: currentGraphics.backDataUrl || "",
-          frontExportDataUrl: currentGraphics.frontExportDataUrl || currentGraphics.frontLocalDataUrl || "",
-          backExportDataUrl: currentGraphics.backExportDataUrl || currentGraphics.backLocalDataUrl || "",
           previousTheme,
         };
-        if (side === "front") {
-          nextGraphics.frontDataUrl = dataUrl;
-          nextGraphics.frontExportDataUrl = localFrontDataUrl || dataUrl;
-        }
-        if (side === "back") {
-          nextGraphics.backDataUrl = dataUrl;
-          nextGraphics.backExportDataUrl = localFrontDataUrl || dataUrl;
-        }
+        if (side === "front") nextGraphics.frontDataUrl = dataUrl;
+        if (side === "back") nextGraphics.backDataUrl = dataUrl;
         if (side === "both") {
           nextGraphics.frontDataUrl = dataUrl;
           nextGraphics.backDataUrl = pairedBackDataUrl || currentGraphics.backDataUrl || "";
-          nextGraphics.frontExportDataUrl = localFrontDataUrl || dataUrl;
-          nextGraphics.backExportDataUrl = localBackDataUrl || pairedBackDataUrl || currentGraphics.backExportDataUrl || currentGraphics.backLocalDataUrl || "";
         }
         return {
           ...card,

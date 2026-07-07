@@ -6084,24 +6084,29 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 }
 
 
+/* Hidden print/export render target for one selected card. */
 .card-png-export-host {
   position: fixed;
-  left: -10000px;
+  left: 0;
   top: 0;
-  width: 280px;
-  height: 420px;
-  overflow: hidden;
+  width: 280px !important;
+  height: 420px !important;
   pointer-events: none;
-  opacity: 1;
+  opacity: 0;
+  overflow: hidden;
   z-index: -1;
 }
-.card-png-export-host .card-preview {
+.card-png-export-host .card-preview,
+.card-png-export-host .card-preview.card-front,
+.card-png-export-host .card-preview.card-back {
   width: 280px !important;
   height: 420px !important;
   min-width: 280px !important;
   min-height: 420px !important;
   max-width: 280px !important;
   max-height: 420px !important;
+  aspect-ratio: 2 / 3 !important;
   margin: 0 !important;
   transform: none !important;
+  box-sizing: border-box;
 }
