@@ -3153,21 +3153,58 @@ function App() {
       const style = window.getComputedStyle(el);
       for (const prop of colorProps) {
         const value = String(style[prop] || "");
-        if (value.includes("color(")) {
-          if (prop === "backgroundColor") el.style.setProperty("background-color","transparent","important");
-          else if (prop === "caretColor") el.style.setProperty("caret-color","auto","important");
-          else el.style.setProperty(prop.replace(/[A-Z]/g,m=>"-"+m.toLowerCase()), (prop.toLowerCase().includes("border") || prop === "outlineColor") ? "transparent" : "#ffffff","important");
+        if (value.includes("color(") || value.includes("color-mix(")) {
+          const cssProp = prop.replace(/[A-Z]/g, match => `-${match.toLowerCase()}`);
+          if (prop === "backgroundColor") el.style.setProperty(cssProp, "transparent", "important");
+          else if (prop === "caretColor") el.style.setProperty(cssProp, "auto", "important");
+          else el.style.setProperty(cssProp, prop.toLowerCase().includes("border") || prop === "outlineColor" ? "transparent" : "#ffffff", "important");
         }
       }
 
       const boxShadow = String(style.boxShadow || "");
-      if (boxShadow.includes("color(")) el.style.boxShadow = "none";
+      if (boxShadow.includes("color(") || boxShadow.includes("color-mix(")) el.style.setProperty("box-shadow", "none", "important");
 
       const textShadow = String(style.textShadow || "");
-      if (textShadow.includes("color(")) el.style.textShadow = "none";
+      if (textShadow.includes("color(") || textShadow.includes("color-mix(")) el.style.setProperty("text-shadow", "none", "important");
 
       const backgroundImage = String(style.backgroundImage || "");
-      if (backgroundImage.includes("color(")) el.style.backgroundImage = "none";
+      if (backgroundImage.includes("color(") || backgroundImage.includes("color-mix(")) el.style.setProperty("background-image", "none", "important");
+    }
+  }
+
+  function getVisibleCardNodeForPngExport(card, exportSide) {
+    if (!card || card.id !== editingCardId) return null;
+    const sideClass = exportSide === "front" ? "card-front" : "card-back";
+    const previews = Array.from(document.querySelectorAll(`.card-editor-previews .card-preview.${sideClass}`));
+    return previews.find(node => node && node.offsetWidth > 0 && node.offsetHeight > 0) || null;
+  }
+
+  async function captureCardNodePng(node) {
+    if (!node) throw new Error("Card preview was not available for export.");
+    node.classList.add("is-card-png-export");
+    node.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.classList.add("png-export-hidden-control"));
+    try {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      sanitizeHtml2CanvasUnsupportedColors(node);
+      await waitForExportImages(node);
+      await (document.fonts?.ready || Promise.resolve());
+      const rect = node.getBoundingClientRect();
+      const width = Math.round(rect.width || CARD_EXPORT_WIDTH);
+      const height = Math.round(rect.height || CARD_EXPORT_HEIGHT);
+      return await html2canvas(node, {
+        backgroundColor: null,
+        scale: CARD_EXPORT_PIXEL_RATIO,
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+        width,
+        height,
+        windowWidth: Math.max(window.innerWidth || 0, width),
+        windowHeight: Math.max(window.innerHeight || 0, height),
+      });
+    } finally {
+      node.querySelectorAll?.(".png-export-hidden-control").forEach(el => el.classList.remove("png-export-hidden-control"));
+      node.classList.remove("is-card-png-export");
     }
   }
 
@@ -3179,36 +3216,31 @@ function App() {
     }
 
     const exportSide = side === "front" ? "front" : "back";
-    const host = document.createElement("div");
-    host.className = "card-png-export-host";
-    document.body.appendChild(host);
-    const root = createRoot(host);
+    const sideLabel = exportSide === "front" ? "Front" : "Back";
+    const filename = `${safeCardExportName(selectedCard)}-${safeExportPart(selectedCard.position)}-${sideLabel}.png`;
+
+    let host = null;
+    let root = null;
 
     try {
-      const pngSafeCard = makePngSafeCard(selectedCard, exportSide);
-      root.render(<CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const node = host.querySelector(".card-preview");
-      if (!node) throw new Error("Card preview was not rendered for export.");
+      let node = getVisibleCardNodeForPngExport(selectedCard, exportSide);
 
-      node.querySelectorAll?.(".card-flip-btn, .card-preview-flip-btn, button, input, select, textarea").forEach(el => el.remove());
-      stripUnsafeExportImages(node);
-      node.classList.add("is-card-png-export");
-      sanitizeHtml2CanvasUnsupportedColors(node);
-      await waitForExportImages(node);
-      await (document.fonts?.ready || Promise.resolve());
+      // Preferred path: capture the real card DOM that the user sees in the editor.
+      // This keeps custom layout zones, list wrapping, defensive grid, and clipping
+      // in sync with the visible editor instead of re-computing them in a hidden host.
+      if (!node) {
+        host = document.createElement("div");
+        host.className = "card-png-export-host";
+        document.body.appendChild(host);
+        root = createRoot(host);
+        const pngSafeCard = makePngSafeCard(selectedCard, exportSide);
+        root.render(<CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        node = host.querySelector(".card-preview");
+        stripUnsafeExportImages(node);
+      }
 
-      const canvas = await html2canvas(node, {
-        backgroundColor: null,
-        scale: CARD_EXPORT_PIXEL_RATIO,
-        useCORS: true,
-        allowTaint: false,
-        logging: false,
-        width: CARD_EXPORT_WIDTH,
-        height: CARD_EXPORT_HEIGHT,
-        windowWidth: CARD_EXPORT_WIDTH,
-        windowHeight: CARD_EXPORT_HEIGHT,
-      });
+      const canvas = await captureCardNodePng(node);
 
       const blob = await new Promise((resolve, reject) => {
         try {
@@ -3218,8 +3250,6 @@ function App() {
         }
       });
 
-      const sideLabel = exportSide === "front" ? "Front" : "Back";
-      const filename = `${safeCardExportName(selectedCard)}-${safeExportPart(selectedCard.position)}-${sideLabel}.png`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -3231,10 +3261,9 @@ function App() {
     } catch (error) {
       console.error("Card PNG export failed", error);
       alert(`Card PNG export failed: ${error?.message || "unknown error"}`);
-    node?.classList?.remove?.("is-card-png-export");
     } finally {
-      root.unmount();
-      host.remove();
+      if (root) root.unmount();
+      if (host) host.remove();
     }
   }
 
