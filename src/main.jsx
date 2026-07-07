@@ -23,8 +23,8 @@ const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
-const CARD_EXPORT_WIDTH = 280;
-const CARD_EXPORT_HEIGHT = 420;
+const CARD_EXPORT_WIDTH = 360;
+const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
 
 function userStateRef(uid) {

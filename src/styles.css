@@ -6084,49 +6084,30 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 }
 
 
-/* USER REQUEST: clean selected card PNG export at 4x */
+/* USER REQUEST: clean selected card PNG export at 4x
+   Export uses the same canonical render size as Editor/Inspector.
+   Keep this host only as an off-screen mount/capture container; do not add
+   export-specific visual rules for grid/text/shadows/layout. */
 .card-png-export-host {
   position: fixed;
   left: -10000px;
   top: 0;
-  width: 280px;
-  height: 420px;
+  width: var(--card-canonical-render-width);
+  height: 540px;
   overflow: hidden;
   pointer-events: none;
   opacity: 1;
   z-index: -1;
 }
 .card-png-export-host .card-preview {
-  width: 280px !important;
-  height: 420px !important;
-  min-width: 280px !important;
-  min-height: 420px !important;
-  max-width: 280px !important;
-  max-height: 420px !important;
+  width: var(--card-canonical-render-width) !important;
+  height: 540px !important;
+  min-width: var(--card-canonical-render-width) !important;
+  min-height: 540px !important;
+  max-width: var(--card-canonical-render-width) !important;
+  max-height: 540px !important;
   margin: 0 !important;
   transform: none !important;
-}
-.card-png-export-host .card-preview .area-mini span:not(.active):not(.player) {
-  background: rgba(255,255,255,.12) !important;
-  border: 1px solid rgba(255,255,255,.20) !important;
-  box-shadow: none !important;
-}
-.card-png-export-host .card-preview .area-mini span.player {
-  background: #ffffff !important;
-  color: #111827 !important;
-  box-shadow: none !important;
-}
-.card-png-export-host .card-preview .card-area-block .attack-arrow::before {
-  background: #ffffff !important;
-}
-.card-png-export-host .card-preview .card-area-block .attack-arrow::after {
-  border-bottom-color: #ffffff !important;
-}
-.card-png-export-host .card-preview .area-mini-title,
-.card-png-export-host .card-preview .attack-direction-hint,
-.card-png-export-host .card-preview .card-area-block,
-.card-png-export-host .card-preview .card-zone-defense-with-title {
-  color: #ffffff !important;
 }
 
 /* BACK CLEAN RENDERER v8
