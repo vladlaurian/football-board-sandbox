@@ -3256,7 +3256,11 @@ function App() {
 
     try {
       const pngSafeCard = makePngSafeCard(selectedCard, exportSide);
-      root.render(<CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />);
+      root.render(
+        <div className="card-render-shell card-png-export-shell">
+          <CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />
+        </div>
+      );
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const node = host.querySelector(".card-preview");
       if (!node) throw new Error("Card preview was not rendered for export.");
@@ -4663,8 +4667,8 @@ function App() {
     return (
       <div className="card-editor">
         <div className="card-editor-previews">
-          <div><div className="card-preview-label">Front</div><CardPreview card={card} team="neutral" side="front" showLayoutZones={true} /></div>
-          <div><div className="card-preview-label">Back</div><CardPreview card={card} team="neutral" side="back" showLayoutZones={true} /></div>
+          <div><div className="card-preview-label">Front</div><div className="card-render-shell"><CardPreview card={card} team="neutral" side="front" showLayoutZones={true} /></div></div>
+          <div><div className="card-preview-label">Back</div><div className="card-render-shell"><CardPreview card={card} team="neutral" side="back" showLayoutZones={true} /></div></div>
         </div>
         <div className="card-editor-controls">
         {CardLayoutEditor({ card })}
@@ -5694,7 +5698,7 @@ function App() {
                       onPointerCancel={onInspectorCardPointerEnd}
                     >
                       <div
-                        className="inspector-card-zoom-inner"
+                        className="inspector-card-zoom-inner card-render-shell"
                         style={{
                           width: `${INSPECTOR_CARD_CANONICAL_WIDTH}px`,
                           transform: `translate(${inspectorCardPan.x}px, ${inspectorCardPan.y}px) scale(${inspectorCardFitScale * inspectorCardZoom})`,

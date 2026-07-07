@@ -5555,6 +5555,32 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 :root {
   --card-canonical-render-width: 360px;
 }
+
+/* V11 RENDER PARITY SHELL
+   Editor, Inspector and PNG export mount the card in the same canonical shell.
+   The export host only positions this shell off-screen; it no longer owns visual
+   card sizing rules. */
+.card-render-shell {
+  width: var(--card-canonical-render-width) !important;
+  min-width: var(--card-canonical-render-width) !important;
+  max-width: none !important;
+  height: 540px !important;
+  min-height: 540px !important;
+  max-height: 540px !important;
+  flex: 0 0 var(--card-canonical-render-width) !important;
+}
+.card-render-shell > .card-preview,
+.card-render-shell > .card-preview.card-front,
+.card-render-shell > .card-preview.card-back {
+  width: var(--card-canonical-render-width) !important;
+  min-width: var(--card-canonical-render-width) !important;
+  max-width: none !important;
+  height: 540px !important;
+  min-height: 540px !important;
+  max-height: 540px !important;
+  margin: 0 !important;
+  transform: none !important;
+}
 .card-editor-previews > div {
   min-width: 0;
 }
@@ -6098,16 +6124,6 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   pointer-events: none;
   opacity: 1;
   z-index: -1;
-}
-.card-png-export-host .card-preview {
-  width: var(--card-canonical-render-width) !important;
-  height: 540px !important;
-  min-width: var(--card-canonical-render-width) !important;
-  min-height: 540px !important;
-  max-width: var(--card-canonical-render-width) !important;
-  max-height: 540px !important;
-  margin: 0 !important;
-  transform: none !important;
 }
 
 /* BACK CLEAN RENDERER v8
