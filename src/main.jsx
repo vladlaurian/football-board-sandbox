@@ -480,7 +480,7 @@ function hsvToRgbParts(h, s, v) {
   };
 }
 
-function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepOpen }) {
+function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepOpen, onPreview, onPreviewEnd }) {
   const stopPanelEvent = e => e.stopPropagation();
   const safeCurrent = safeColor(current);
   const [draftColor, setDraftColor] = useState(safeCurrent);
@@ -508,8 +508,15 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
     return next;
   };
 
+  const previewDraft = value => {
+    const next = setDraft(value);
+    onPreview && onPreview(next);
+    return next;
+  };
+
   const commitColor = value => {
     const next = setDraft(value);
+    onPreviewEnd && onPreviewEnd();
     onChange && onChange(next);
     // Re-assert the same open panel after React updates the card state.
     // This prevents the color panel from collapsing right after a selection.
@@ -543,14 +550,14 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
     e.stopPropagation();
     activeDragRef.current = picker;
     e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
-    setDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
+    previewDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
   };
 
   const drag = picker => e => {
     if (activeDragRef.current !== picker) return;
     e.preventDefault();
     e.stopPropagation();
-    setDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
+    previewDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
   };
 
   const finishDrag = picker => e => {
@@ -559,6 +566,7 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
     e.stopPropagation();
     const next = setDraft(picker === "sv" ? colorFromSaturationValueEvent(e) : colorFromHueEvent(e));
     activeDragRef.current = null;
+    onPreviewEnd && onPreviewEnd();
     onChange && onChange(next);
     window.setTimeout(() => onKeepOpen && onKeepOpen(), 0);
   };
@@ -567,6 +575,7 @@ function StableColorPicker({ current, label, isOpen, onToggle, onChange, onKeepO
     e.preventDefault();
     e.stopPropagation();
     activeDragRef.current = null;
+    onPreviewEnd && onPreviewEnd();
     window.setTimeout(() => onKeepOpen && onKeepOpen(), 0);
   };
 
@@ -1687,6 +1696,7 @@ function App() {
   const [openColorPanelKey, setOpenColorPanelKey] = useState(null);
   const [openGridAdjustKey, setOpenGridAdjustKey] = useState(null);
   const [previewTextStyleDraft, setPreviewTextStyleDraft] = useState(null);
+  const [previewColorDraft, setPreviewColorDraft] = useState(null);
   const [selectedLayout, setSelectedLayout] = useState(null);
   const [exportCardId, setExportCardId] = useState("");
   const graphicFrontInputRef = useRef(null);
@@ -3244,11 +3254,12 @@ function App() {
       if (controlledSide == null) setCurrentSide(side);
     }, [side, card?.id, controlledSide]);
     if (!card) return <div className="card-preview empty">No card</div>;
-    const activeTheme = getCardTheme(card, cardState.theme);
+    const visualCard = effectiveCardForColorPreview(card);
+    const activeTheme = getCardTheme(visualCard, cardState.theme);
     const themeClass = activeTheme === CUSTOM_CARD_THEME ? "theme-custom" : `theme-${activeTheme.toLowerCase().replace(/\s+/g, "-")}`;
     const shownSide = flippable ? (controlledSide || currentSide) : side;
-    const graphicUrl = shownSide === "front" ? card?.graphics?.frontDataUrl : card?.graphics?.backDataUrl;
-    const colors = cardTextColors(card);
+    const graphicUrl = shownSide === "front" ? visualCard?.graphics?.frontDataUrl : visualCard?.graphics?.backDataUrl;
+    const colors = cardTextColors(visualCard);
     const previewStyle = {
       "--card-header-color": safeColor(colors.header),
       "--card-header-front-color": safeColor(colors.headerFront),
@@ -3274,7 +3285,7 @@ function App() {
           {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} alt="" /> : null}
         </div>
         <div className={`card-preview-content-layer ${showLayoutZones ? "layout-editing" : ""}`}>
-          <CardVisualCanvas card={card} side={shownSide} showZones={showLayoutZones} selectedLayout={selectedLayout} onSelectLayout={setSelectedLayout} />
+          <CardVisualCanvas card={visualCard} side={shownSide} showZones={showLayoutZones} selectedLayout={selectedLayout} onSelectLayout={setSelectedLayout} />
         </div>
         {flippable && (
           <button
@@ -3943,6 +3954,39 @@ function App() {
     return base;
   }
 
+  function effectiveCardForColorPreview(card) {
+    if (!card || previewColorDraft?.cardId !== card.id) return card;
+    const value = safeColor(previewColorDraft.value);
+    if (previewColorDraft.type === "textColor") {
+      return {
+        ...card,
+        textColors: {
+          ...CARD_TEXT_COLOR_DEFAULTS,
+          ...(card.textColors || {}),
+          [previewColorDraft.colorKey]: value,
+        },
+      };
+    }
+    if (previewColorDraft.type === "duplicateColor") {
+      return {
+        ...card,
+        duplicateBlocks: normalizeDuplicateBlocks(card).map(block => block.id === previewColorDraft.blockId ? normalizeDuplicateBlock({ ...block, [previewColorDraft.field]: value }) : block),
+      };
+    }
+    return card;
+  }
+
+  function clearColorPreview(match = {}) {
+    setPreviewColorDraft(current => {
+      if (!current) return null;
+      if (match.cardId && current.cardId !== match.cardId) return current;
+      if (match.colorKey && current.colorKey !== match.colorKey) return current;
+      if (match.blockId && current.blockId !== match.blockId) return current;
+      if (match.field && current.field !== match.field) return current;
+      return null;
+    });
+  }
+
   function renderTextStyleControls(card, styleKey, stats = false, options = {}) {
     if (!card || !CARD_TEXT_STYLE_DEFAULTS[styleKey]) return null;
     const current = effectiveTextStylesForCard(card)[styleKey] || CARD_TEXT_STYLE_DEFAULTS[styleKey];
@@ -3988,8 +4032,17 @@ function App() {
         current={current}
         label={label}
         isOpen={openColorPanelKey === panelKey}
-        onToggle={() => setOpenColorPanelKey(openColorPanelKey === panelKey ? null : panelKey)}
+        onToggle={() => {
+          if (openColorPanelKey === panelKey) {
+            clearColorPreview({ cardId: card.id, colorKey });
+            setOpenColorPanelKey(null);
+          } else {
+            setOpenColorPanelKey(panelKey);
+          }
+        }}
         onKeepOpen={() => setOpenColorPanelKey(panelKey)}
+        onPreview={value => setPreviewColorDraft({ type: "textColor", cardId: card.id, colorKey, value: safeColor(value) })}
+        onPreviewEnd={() => clearColorPreview({ cardId: card.id, colorKey })}
         onChange={value => updateCardTextColor(card.id, colorKey, value)}
       />
     );
@@ -4004,8 +4057,17 @@ function App() {
         current={current}
         label={label}
         isOpen={openColorPanelKey === panelKey}
-        onToggle={() => setOpenColorPanelKey(openColorPanelKey === panelKey ? null : panelKey)}
+        onToggle={() => {
+          if (openColorPanelKey === panelKey) {
+            clearColorPreview({ cardId: card.id, blockId: block.id, field });
+            setOpenColorPanelKey(null);
+          } else {
+            setOpenColorPanelKey(panelKey);
+          }
+        }}
         onKeepOpen={() => setOpenColorPanelKey(panelKey)}
+        onPreview={value => setPreviewColorDraft({ type: "duplicateColor", cardId: card.id, blockId: block.id, field, value: safeColor(value) })}
+        onPreviewEnd={() => clearColorPreview({ cardId: card.id, blockId: block.id, field })}
         onChange={value => updateDuplicateBlock(card.id, block.id, { [field]: value })}
       />
     );
