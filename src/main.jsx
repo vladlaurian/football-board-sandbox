@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import html2canvas from "html2canvas";
 import { initializeApp } from "firebase/app";
@@ -3579,6 +3579,25 @@ function App() {
   function CardVisualCanvas({ card, side, showZones = false, selectedLayout = null, onSelectLayout = null }) {
     const canvasRef = useRef(null);
     const [activeLayoutEdit, setActiveLayoutEdit] = useState(null);
+
+    // Back card text/grid metrics must scale with the actual rendered card size.
+    // Fixed px values made the editor preview and the 280px PNG export drift apart.
+    // This variable is set on the shared canvas, so Editor, Inspector and Export still
+    // use the same renderer; only the internal metrics are normalized to card width.
+    useLayoutEffect(() => {
+      const node = canvasRef.current;
+      if (!node) return undefined;
+      const applyScale = () => {
+        const width = node.getBoundingClientRect?.().width || 280;
+        const scale = Math.max(0.35, Math.min(3, width / 280));
+        node.style.setProperty("--card-canvas-scale", String(scale));
+      };
+      applyScale();
+      if (typeof ResizeObserver === "undefined") return undefined;
+      const observer = new ResizeObserver(applyScale);
+      observer.observe(node);
+      return () => observer.disconnect();
+    }, [side, card?.id]);
     const layout = normalizeCardVisualLayout(card?.visualLayout || card?.layout);
     const sideLayout = layout[side] || layout.back || {};
     const deletedLayoutSet = new Set(Array.isArray(card?.deletedLayoutZones) ? card.deletedLayoutZones.map(String) : []);
@@ -4159,11 +4178,8 @@ function App() {
   function defensiveGridAdjustStyle(card) {
     const adjust = normalizeDefensiveGridAdjust(card?.defensiveGridAdjust);
     return {
-      width: `${adjust.width}%`,
-      height: `${adjust.height}%`,
       "--grid-offset-x-px": `${(adjust.offsetX * 0.35).toFixed(2)}px`,
       "--grid-offset-y-px": `${(adjust.offsetY * 0.35).toFixed(2)}px`,
-      transform: `translate(${(adjust.offsetX * 0.35).toFixed(2)}px, ${(adjust.offsetY * 0.35).toFixed(2)}px)`,
     };
   }
 
