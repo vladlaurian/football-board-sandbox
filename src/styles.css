@@ -4888,177 +4888,42 @@ select option {
   flex: .45 1 0 !important;
 }
 
-/* FINAL NUMBERS / DISTANCE CLEANUP
-   Layout color control removed from editor. Text remains the base style; Numbers
-   only applies font/bold/size adjustments, while line-height and vertical offset
-   stay inherited from Text so rows remain aligned. */
-.card-zone-formula,
-.card-zone-list-row {
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: baseline !important;
-  justify-content: flex-start !important;
-  gap: var(--zone-stat-gap, clamp(1px, 2.2cqw, 8px)) !important;
-}
-.card-zone-formula .card-zone-label,
-.card-zone-list-row .card-zone-label {
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
-  max-width: none !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-  text-align: var(--zone-align, left) !important;
-}
-.card-zone-formula .card-zone-value,
-.card-zone-list-row .card-zone-value {
-  flex: 0 0 auto !important;
-  width: auto !important;
-  min-width: max-content !important;
-  max-width: max-content !important;
-  text-align: center !important;
-  justify-self: auto !important;
-  white-space: nowrap !important;
-  overflow: visible !important;
-  text-overflow: clip !important;
+/* V13 CLEAN FRONT FORMULA DISTANCE MODEL
+   The old shared row/distance blocks were removed because they targeted both
+   formula rows and Back stat-list rows in several historical layers. Front
+   formulas keep a scoped distance model; Back lists are defined once later by
+   BACK SHARED LIST LAYOUT. */
+.card-preview.card-front .card-zone-formula,
+.card-visual-canvas[data-card-side="front"] .card-zone-formula {
+  --zone-longest-label-width: calc(var(--zone-longest-label-ch, 0) * 0.66em);
+  --zone-number-width: calc(max(2.2em, var(--zone-number-ch, 2) * 0.85em));
+  --zone-number-min-gap: 0.45em;
+  --zone-number-safe-shift: max(0px, min(var(--zone-distance-shift-raw, 0cqw), calc(100cqw - var(--zone-longest-label-width) - var(--zone-number-width) - var(--zone-number-min-gap))));
+  position: relative !important;
+  display: block !important;
+  text-align: initial !important;
+  padding-right: calc(var(--zone-number-width) + var(--zone-number-safe-shift) + var(--zone-number-min-gap)) !important;
+  min-height: 1.25em !important;
 }
 .card-preview.card-front .card-zone-formula .card-zone-label,
 .card-visual-canvas[data-card-side="front"] .card-zone-formula .card-zone-label {
-  flex: 1 1 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 1.25em !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  text-align: var(--zone-align, center) !important;
+  line-height: var(--zone-line-height, 1) !important;
+  transform: translateY(var(--zone-y-offset, 0px)) !important;
 }
 .card-preview.card-front .card-zone-formula .card-zone-value,
 .card-visual-canvas[data-card-side="front"] .card-zone-formula .card-zone-value {
-  flex: 0 0 auto !important;
-}
-
-/* Numbers panels are intentionally simpler: no paragraph alignment, line-height or Y controls. */
-.text-style-toggle.active,
-.text-style-controls.open > .text-style-toggle {
-  border-color: rgba(79, 209, 255, .95) !important;
-}
-
-/* Header Back / Position Back use the same safe in-panel offset as the front controls. */
-.text-style-controls.align-front .text-style-panel {
-  left: 0 !important;
-  right: auto !important;
-  transform: translateX(88px) !important;
-}
-@media (max-width: 900px) {
-  .text-style-controls.align-front .text-style-panel { transform: translateX(48px) !important; }
-}
-
-
-/* FINAL ROW-ALIGNED NUMBERS: every stat is rendered label + distance + number inside the same row. */
-.card-zone-formula,
-.card-zone-list-row {
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: baseline !important;
-  justify-content: flex-start !important;
-  gap: var(--zone-stat-gap, 18px) !important;
-  text-align: initial !important;
-}
-.card-zone-formula .card-zone-label,
-.card-zone-list-row .card-zone-label {
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
-  max-width: none !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-  text-align: var(--zone-align, left) !important;
-  line-height: var(--zone-line-height, 1) !important;
-  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
-}
-.card-zone-formula .card-zone-value,
-.card-zone-list-row .card-zone-value {
-  flex: 0 0 auto !important;
-  width: auto !important;
-  min-width: max-content !important;
-  max-width: max-content !important;
-  white-space: nowrap !important;
-  overflow: visible !important;
-  text-overflow: clip !important;
-  text-align: center !important;
-  line-height: var(--zone-line-height, 1) !important;
-  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
-}
-.card-zone-list {
-  display: grid !important;
-  align-content: start !important;
-  row-gap: 0 !important;
-}
-
-/* FINAL FIX: numbers are row-aligned, independently styled, and moved by Distance.
-   Distance belongs to the number itself, not the row gap, so the label stays put
-   and the number moves toward/away from the label. */
-.card-zone-formula,
-.card-zone-list-row {
-  gap: 0 !important;
-  align-items: baseline !important;
-}
-.card-zone-formula .card-zone-label,
-.card-zone-list-row .card-zone-label {
-  flex: 0 1 auto !important;
-  width: auto !important;
-  min-width: 0 !important;
-  max-width: calc(100% - 1.2em) !important;
-}
-.card-zone-formula .card-zone-value,
-.card-zone-list-row .card-zone-value {
-  flex: 0 0 auto !important;
-  margin-left: var(--zone-stat-gap, 10px) !important;
-  color: var(--zone-number-color, currentColor) !important;
-  font-family: var(--zone-font-family, Inter), system-ui, sans-serif !important;
-  font-weight: var(--zone-font-weight, 650) !important;
-  line-height: var(--zone-line-height, 1) !important;
-}
-.card-zone-formula .card-zone-value {
-  font-size: clamp(4px, calc(min(13cqw, 44cqh) * var(--zone-number-font-scale, var(--zone-font-scale, 1))), 38px) !important;
-}
-.card-zone-list-row .card-zone-value {
-  font-size: clamp(3px, calc(min(6cqw, calc(82cqh / var(--zone-lines, 5))) * var(--zone-number-font-scale, var(--zone-font-scale, 1))), 18px) !important;
-}
-
-/* Numbers Color must win over older global currentColor/inherit rules. */
-.card-zone-formula .card-zone-value[style],
-.card-zone-list-row .card-zone-value[style] {
-  color: var(--zone-number-color, currentColor) !important;
-}
-
-/* FINAL DISTANCE MODEL: labels stay fixed; Numbers move as one compact column.
-   Distance=right max keeps the numbers on the zone's right edge. Moving left shifts
-   only the Numbers column toward the labels and reserves enough text width to avoid overlap. */
-.card-zone-formula,
-.card-zone-list-row {
-  position: relative !important;
-  display: block !important;
-  gap: 0 !important;
-  column-gap: 0 !important;
-  align-items: initial !important;
-  justify-content: initial !important;
-  text-align: initial !important;
-  padding-right: var(--zone-number-reserve, 1.8em) !important;
-  min-height: calc(1em * var(--zone-line-height, 1)) !important;
-}
-.card-zone-formula .card-zone-label,
-.card-zone-list-row .card-zone-label {
-  display: block !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  min-width: 0 !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-  text-align: var(--zone-align, left) !important;
-  line-height: var(--zone-line-height, 1) !important;
-  transform: translateY(var(--zone-y-offset, 0cqh)) !important;
-}
-.card-zone-formula .card-zone-value,
-.card-zone-list-row .card-zone-value {
   position: absolute !important;
   right: 0 !important;
-  top: 0 !important;
+  top: 50% !important;
   display: block !important;
   width: max-content !important;
   min-width: max-content !important;
@@ -5068,48 +4933,15 @@ select option {
   overflow: visible !important;
   text-overflow: clip !important;
   text-align: right !important;
-  transform: translateX(calc(-1 * var(--zone-number-shift, 0cqw))) translateY(var(--zone-y-offset, 0cqh)) !important;
+  transform: translateX(calc(-1 * var(--zone-number-safe-shift, 0px))) translateY(calc(-50% + var(--zone-y-offset, 0px))) !important;
   color: var(--zone-number-color, currentColor) !important;
   font-family: var(--zone-font-family, Inter), system-ui, sans-serif !important;
   font-weight: var(--zone-font-weight, 650) !important;
   line-height: var(--zone-line-height, 1) !important;
 }
-.card-zone-list {
-  display: grid !important;
-  align-content: start !important;
-  row-gap: 0 !important;
-}
-
-/* FINAL AUTO-SAFE DISTANCE: compute the closest allowed Numbers-column shift
-   from the longest visible label. Text stays fixed; only the compact Numbers
-   column moves. The same formula is used on front and back. */
-.card-zone-formula,
-.card-zone-list-row {
-  --zone-longest-label-width: calc(var(--zone-longest-label-ch, 0) * 0.66em);
-  --zone-number-width: calc(max(2.2em, var(--zone-number-ch, 2) * 0.85em));
-  --zone-number-min-gap: 0.45em;
-  --zone-number-safe-shift: max(0px, min(var(--zone-distance-shift-raw, 0cqw), calc(100cqw - var(--zone-longest-label-width) - var(--zone-number-width) - var(--zone-number-min-gap))));
-  padding-right: calc(var(--zone-number-width) + var(--zone-number-safe-shift) + var(--zone-number-min-gap)) !important;
-}
-.card-zone-formula .card-zone-value,
-.card-zone-list-row .card-zone-value {
-  transform: translateX(calc(-1 * var(--zone-number-safe-shift, 0px))) translateY(var(--zone-y-offset, 0cqh)) !important;
-}
-
-/* Front one-line formula counters need vertical centering against the label.
-   Back stat lists keep row-top positioning so every list row remains aligned. */
-.card-zone-formula {
-  display: block !important;
-  min-height: 1.25em !important;
-}
-.card-zone-formula .card-zone-label {
-  display: flex !important;
-  align-items: center !important;
-  min-height: 1.25em !important;
-}
-.card-zone-formula .card-zone-value {
-  top: 50% !important;
-  transform: translateX(calc(-1 * var(--zone-number-safe-shift, 0px))) translateY(calc(-50% + var(--zone-y-offset, 0cqh))) !important;
+.card-preview.card-front .card-zone-formula .card-zone-value[style],
+.card-visual-canvas[data-card-side="front"] .card-zone-formula .card-zone-value[style] {
+  color: var(--zone-number-color, currentColor) !important;
 }
 
 /* STEP 1: New layout zones are empty containers only. They keep the same visual-zone engine, resize handles and clipping behavior, but no title/text/color editor UI. */
@@ -5756,39 +5588,8 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 }
 
 
-/* FINAL BACK CONSISTENCY PATCH: same stable stat layout on front and back, no Distance influence. */
-.card-zone-formula,
-.card-zone-list-row {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) max-content !important;
-  align-items: baseline !important;
-  justify-content: stretch !important;
-  column-gap: clamp(2px, 2.2cqw, 8px) !important;
-  row-gap: 0 !important;
-}
-.card-zone-formula .card-zone-label,
-.card-zone-list-row .card-zone-label {
-  display: block !important;
-  min-width: 0 !important;
-  max-width: none !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-  text-align: var(--zone-align, left) !important;
-}
-.card-zone-formula .card-zone-value,
-.card-zone-list-row .card-zone-value {
-  display: block !important;
-  justify-self: end !important;
-  min-width: max-content !important;
-  width: max-content !important;
-  max-width: max-content !important;
-  overflow: visible !important;
-  text-overflow: clip !important;
-  white-space: nowrap !important;
-  text-align: right !important;
-  font-variant-numeric: tabular-nums !important;
-}
+/* V13 CLEANUP: removed historical shared list-row consistency patch.
+   Back stat rows are defined only in BACK SHARED LIST LAYOUT; front formulas are defined in V13 CLEAN FRONT FORMULA DISTANCE MODEL. */
 /* Hide only editor overlay names, never real card text labels. */
 .card-zone-edit-label,
 .card-visual-zone > .card-zone-edit-label {
