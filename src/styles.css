@@ -6250,21 +6250,30 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   overflow: visible;
 }
 
-/* v30: faceted SVG. Color picker changes the base color; facets are derived in JSX. */
-.card-zone-front-stars .front-star-gold-base,
-.card-zone-front-stars .front-star-facets polygon {
+/* v31: v29-style faceted SVG, no exterior outline. Volume is inside the SVG geometry, not CSS shadow. */
+.card-zone-front-stars .front-star-gold-base {
   stroke: none !important;
 }
-.card-zone-front-stars .front-star-ridges line {
-  stroke-width: 1.45;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-  opacity: .55;
+.card-zone-front-stars .front-star-facet-light {
+  fill: rgba(255, 244, 166, .72) !important;
+  stroke: none !important;
 }
-.card-zone-front-stars .front-star-outline {
-  fill: none !important;
-  stroke-width: 2.2;
-  stroke-linejoin: round;
+.card-zone-front-stars .front-star-facet-midlight {
+  fill: rgba(246, 197, 64, .48) !important;
+  stroke: none !important;
+}
+.card-zone-front-stars .front-star-facet-mid {
+  fill: rgba(216, 153, 24, .46) !important;
+  stroke: none !important;
+}
+.card-zone-front-stars .front-star-facet-dark {
+  fill: rgba(102, 58, 4, .42) !important;
+  stroke: none !important;
+}
+.card-zone-front-stars .front-star-top-ridge {
+  stroke: rgba(84, 48, 5, .55) !important;
+  stroke-width: 1.65;
+  stroke-linecap: round;
   vector-effect: non-scaling-stroke;
 }
 
@@ -6327,7 +6336,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   -webkit-appearance: auto;
   accent-color: #2d9cff;
   pointer-events: auto !important;
-  touch-action: pan-x;
+  touch-action: none;
 }
 
 .star-control-number {

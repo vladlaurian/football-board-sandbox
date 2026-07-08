@@ -211,6 +211,7 @@ const CARD_TEXT_COLOR_DEFAULTS = {
   bonusesFront: "#ffffff",
   attributesFrontValue: "#ffffff",
   bonusesFrontValue: "#ffffff",
+  starsFront: "#d4a326",
   attributes: "#ffffff",
   bonuses: "#ffffff",
   attributesValue: "#ffffff",
@@ -222,7 +223,6 @@ const CARD_TEXT_COLOR_DEFAULTS = {
   defensiveAreaActive: "#50be78",
   specialAbility: "#ffffff",
   specialAbilityTitle: "#ffffff",
-  starsFront: "#d4a22a",
 };
 
 const CARD_TEXT_STYLE_DEFAULTS = {
@@ -1297,44 +1297,6 @@ function getCardTheme(card, fallback = "Style 1") {
 }
 const FRONT_STAR_DEFAULTS = { count: 2, size: 22, spacing: 4, x: 0, y: 0 };
 
-function hexToRgb(value, fallback = "#d4a22a") {
-  const hex = safeColor(value, fallback).slice(1);
-  return {
-    r: parseInt(hex.slice(0, 2), 16),
-    g: parseInt(hex.slice(2, 4), 16),
-    b: parseInt(hex.slice(4, 6), 16),
-  };
-}
-
-function rgbToHex({ r, g, b }) {
-  const clean = v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
-  return `#${clean(r)}${clean(g)}${clean(b)}`;
-}
-
-function mixHexColor(color, target, amount) {
-  const base = hexToRgb(color);
-  const goal = hexToRgb(target, target);
-  const t = Math.max(0, Math.min(1, Number(amount) || 0));
-  return rgbToHex({
-    r: base.r + (goal.r - base.r) * t,
-    g: base.g + (goal.g - base.g) * t,
-    b: base.b + (goal.b - base.b) * t,
-  });
-}
-
-function starFacetPalette(color) {
-  const base = safeColor(color, "#d4a22a");
-  return {
-    base,
-    top: mixHexColor(base, "#fff2a8", 0.72),
-    light: mixHexColor(base, "#ffe38a", 0.46),
-    mid: mixHexColor(base, "#c58a14", 0.22),
-    dark: mixHexColor(base, "#5c3506", 0.46),
-    outline: mixHexColor(base, "#2f1a03", 0.64),
-    ridge: mixHexColor(base, "#6c4208", 0.52),
-  };
-}
-
 function normalizeFrontStars(source = {}) {
   const raw = source && typeof source === "object" ? source : {};
   return {
@@ -1513,6 +1475,17 @@ function colorToRgbTriplet(value, fallback = "#ffffff") {
   const g = parseInt(hex.slice(2, 4), 16);
   const b = parseInt(hex.slice(4, 6), 16);
   return `${r}, ${g}, ${b}`;
+}
+
+function mixHexColor(value, mixWith = "#ffffff", amount = 0.5, fallback = "#d4a326") {
+  const base = hexToRgbParts(safeColor(value, fallback));
+  const mix = hexToRgbParts(safeColor(mixWith, "#ffffff"));
+  const t = clamp(Number(amount) || 0, 0, 1);
+  return rgbPartsToHex(
+    base.r + (mix.r - base.r) * t,
+    base.g + (mix.g - base.g) * t,
+    base.b + (mix.b - base.b) * t
+  );
 }
 
 function cardTextColors(card) {
@@ -3761,7 +3734,10 @@ function App() {
       const stars = normalizeFrontStars(card?.starsFront);
       if (!stars.count) return null;
       const starColor = safeColor((card?.textColors || {})?.starsFront, CARD_TEXT_COLOR_DEFAULTS.starsFront);
-      const palette = starFacetPalette(starColor);
+      const starLight = mixHexColor(starColor, "#fff7bf", 0.72, CARD_TEXT_COLOR_DEFAULTS.starsFront);
+      const starMidLight = mixHexColor(starColor, "#ffd45a", 0.36, CARD_TEXT_COLOR_DEFAULTS.starsFront);
+      const starDark = mixHexColor(starColor, "#3f2504", 0.46, CARD_TEXT_COLOR_DEFAULTS.starsFront);
+      const starDeep = mixHexColor(starColor, "#000000", 0.58, CARD_TEXT_COLOR_DEFAULTS.starsFront);
       return (
         <div
           className="card-zone-front-stars"
@@ -3784,42 +3760,29 @@ function App() {
               >
                 <defs>
                   <linearGradient id={gradientId} x1="50" y1="4" x2="50" y2="92" gradientUnits="userSpaceOnUse">
-                    <stop offset="0" stopColor={palette.top} />
-                    <stop offset="0.36" stopColor={palette.light} />
-                    <stop offset="0.68" stopColor={palette.mid} />
-                    <stop offset="1" stopColor={palette.dark} />
+                    <stop offset="0" stopColor={starLight} />
+                    <stop offset="0.30" stopColor={starMidLight} />
+                    <stop offset="0.64" stopColor={starColor} />
+                    <stop offset="1" stopColor={starDeep} />
                   </linearGradient>
                 </defs>
                 <polygon className="front-star-gold-base" fill={`url(#${gradientId})`} points="50,5 61,36 94,36 67,56 78,90 50,70 22,90 33,56 6,36 39,36" />
                 <g className="front-star-facets">
-                  <polygon fill={palette.top} points="50,5 50,50 39,36" />
-                  <polygon fill={palette.light} points="61,36 50,50 50,5" />
-                  <polygon fill={palette.light} points="94,36 50,50 61,36" />
-                  <polygon fill={palette.mid} points="67,56 50,50 94,36" />
-                  <polygon fill={palette.mid} points="78,90 50,50 67,56" />
-                  <polygon fill={palette.dark} points="50,70 50,50 78,90" />
-                  <polygon fill={palette.mid} points="22,90 50,50 50,70" />
-                  <polygon fill={palette.light} points="33,56 50,50 22,90" />
-                  <polygon fill={palette.dark} points="6,36 50,50 33,56" />
-                  <polygon fill={palette.mid} points="39,36 50,50 6,36" />
+                  <polygon className="front-star-facet-light" points="50,5 50,50 39,36" />
+                  <polygon className="front-star-facet-midlight" points="61,36 50,50 50,5" />
+                  <polygon className="front-star-facet-light" points="94,36 50,50 61,36" />
+                  <polygon className="front-star-facet-mid" points="67,56 50,50 94,36" />
+                  <polygon className="front-star-facet-mid" points="78,90 50,50 67,56" />
+                  <polygon className="front-star-facet-dark" points="50,70 50,50 78,90" />
+                  <polygon className="front-star-facet-mid" points="22,90 50,50 50,70" />
+                  <polygon className="front-star-facet-light" points="33,56 50,50 22,90" />
+                  <polygon className="front-star-facet-dark" points="6,36 50,50 33,56" />
+                  <polygon className="front-star-facet-mid" points="39,36 50,50 6,36" />
+                  <line className="front-star-top-ridge" x1="50" y1="5" x2="50" y2="50" />
                 </g>
-                <g className="front-star-ridges" stroke={palette.ridge}>
-                  <line x1="50" y1="5" x2="50" y2="50" />
-                  <line x1="61" y1="36" x2="50" y2="50" />
-                  <line x1="94" y1="36" x2="50" y2="50" />
-                  <line x1="67" y1="56" x2="50" y2="50" />
-                  <line x1="78" y1="90" x2="50" y2="50" />
-                  <line x1="50" y1="70" x2="50" y2="50" />
-                  <line x1="22" y1="90" x2="50" y2="50" />
-                  <line x1="33" y1="56" x2="50" y2="50" />
-                  <line x1="6" y1="36" x2="50" y2="50" />
-                  <line x1="39" y1="36" x2="50" y2="50" />
-                </g>
-                <polygon className="front-star-outline" stroke={palette.outline} points="50,5 61,36 94,36 67,56 78,90 50,70 22,90 33,56 6,36 39,36" />
               </svg>
             );
-          })}
-        </div>
+          })}        </div>
       );
     };
 
@@ -4843,9 +4806,7 @@ function App() {
                   max={control.max}
                   step={control.step}
                   value={stars[control.key]}
-                  onPointerDown={e => e.stopPropagation()}
-                  onMouseDown={e => e.stopPropagation()}
-                  onTouchStart={e => e.stopPropagation()}
+                  onInput={e => setStarValue(control, e.currentTarget.value)}
                   onChange={e => setStarValue(control, e.currentTarget.value)}
                   aria-label={control.label}
                 />
