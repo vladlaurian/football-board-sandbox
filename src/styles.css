@@ -6173,32 +6173,25 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 
 
 
-/* v22 clean: Special Ability Text panel is inline, solid and in normal layout flow. */
-.special-text-toolbar .text-style-controls.inline-panel {
-  display: block !important;
-  width: min(360px, 100%) !important;
-  max-width: 100% !important;
+
+/* v23 clean: Special Ability body Text uses the standard TextStyleControls overlay, same as title/text menus. */
+.special-text-toolbar .text-style-controls {
+  display: inline-block !important;
+  position: relative !important;
 }
-.special-text-toolbar .text-style-controls.inline-panel .text-style-panel {
-  position: static !important;
-  left: auto !important;
+.special-text-toolbar .text-style-controls.align-left .text-style-panel {
+  position: absolute !important;
+  left: 0 !important;
   right: auto !important;
-  top: auto !important;
-  transform: none !important;
-  margin-top: 6px !important;
-  width: 100% !important;
-  max-width: 100% !important;
+  top: calc(100% + 6px) !important;
+  width: 220px !important;
   background: #051228 !important;
   background-color: #051228 !important;
   opacity: 1 !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  box-shadow: 0 12px 30px rgba(0,0,0,.35) !important;
-  z-index: auto !important;
+  z-index: 2147483001 !important;
   pointer-events: auto !important;
-}
-.special-text-toolbar .text-style-controls.inline-panel.open {
-  z-index: auto !important;
 }
 
 /* v22 clean: number controls write number-only variables. Text remains the row base. */

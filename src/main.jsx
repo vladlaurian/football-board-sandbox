@@ -402,7 +402,7 @@ function zoneNumberStyleVars(styles, textKey, numberKey) {
 }
 
 
-function StableTextStyleControls({ cardId, styleKey, stats = false, current, isOpen, onToggle, onPatch, onPreview, onPreviewEnd, panelAlign = "right", buttonLabel = "Text", titleMode = false, numbersMode = false, inlinePanel = false }) {
+function StableTextStyleControls({ cardId, styleKey, stats = false, current, isOpen, onToggle, onPatch, onPreview, onPreviewEnd, panelAlign = "right", buttonLabel = "Text", titleMode = false, numbersMode = false }) {
   if (!cardId || !CARD_TEXT_STYLE_DEFAULTS[styleKey]) return null;
 
   const safeCurrent = current || CARD_TEXT_STYLE_DEFAULTS[styleKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
@@ -481,7 +481,7 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
   };
 
   return (
-    <div className={`text-style-controls align-${panelAlign} ${numbersMode ? "numbers-mode" : ""} ${inlinePanel ? "inline-panel" : ""} ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+    <div className={`text-style-controls align-${panelAlign} ${numbersMode ? "numbers-mode" : ""} ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
       <button type="button" className={`text-style-toggle ${isOpen ? "active" : ""}`} aria-expanded={isOpen} onClick={onToggle}>{buttonLabel}</button>
       {isOpen ? (
         <div className="text-style-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
@@ -4291,7 +4291,6 @@ function App() {
         buttonLabel={options.buttonLabel || "Text"}
         titleMode={Boolean(options.titleMode)}
         numbersMode={Boolean(options.numbersMode)}
-        inlinePanel={Boolean(options.inlinePanel)}
       />
     );
   }
@@ -4696,7 +4695,7 @@ function App() {
         {FrontZoneFieldsEditor({ card, storageKey: "frontBonusFields", title: "Bonuses Front", colorKey: "bonusesFront", sourceSection: "bonuses" })}
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "attributesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "attributes", "Text Color")}{renderTextStyleControls(card, "attributes", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "attributesValue", "Numbers Color")}{renderTextStyleControls(card, "attributesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "bonusesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "bonuses", "Text Color")}{renderTextStyleControls(card, "bonuses", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "bonusesValue", "Numbers Color")}{renderTextStyleControls(card, "bonusesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
-        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "specialAbility")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar">{renderColorPicker(card, "specialAbility", "Text Color")}{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left" })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
+        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "specialAbility")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar">{renderColorPicker(card, "specialAbility", "Text Color")}{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left", buttonLabel: "Text" })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong>{renderColorPicker(card, "defensiveArea", "Grid")}{renderColorPicker(card, "defensiveAreaActive", "Selected Area")}<DefensiveGridAdjustControl card={card} /><OpponentGoalTextControl card={card} /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
         </div>
       </div>
