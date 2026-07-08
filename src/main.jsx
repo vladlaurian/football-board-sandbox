@@ -4153,13 +4153,17 @@ function App() {
       if (!nextAdjust) {
         node.style.removeProperty("width");
         node.style.removeProperty("height");
+        node.style.removeProperty("left");
+        node.style.removeProperty("top");
         node.style.removeProperty("transform");
         return;
       }
       const adjust = normalizeDefensiveGridAdjust(nextAdjust);
       node.style.width = `${adjust.width}%`;
       node.style.height = `${adjust.height}%`;
-      node.style.transform = `translate(${adjust.offsetX * 0.12}px, ${adjust.offsetY * 0.12}px)`;
+      node.style.left = `${adjust.offsetX * 0.12}px`;
+      node.style.top = `${adjust.offsetY * 0.12}px`;
+      node.style.transform = "none";
     });
   }
 
@@ -4214,7 +4218,9 @@ function App() {
     return {
       width: `${adjust.width}%`,
       height: `${adjust.height}%`,
-      transform: `translate(${adjust.offsetX * 0.12}px, ${adjust.offsetY * 0.12}px)`,
+      left: `${adjust.offsetX * 0.12}px`,
+      top: `${adjust.offsetY * 0.12}px`,
+      transform: "none",
     };
   }
 
