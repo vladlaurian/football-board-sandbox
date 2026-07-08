@@ -402,7 +402,7 @@ function zoneNumberStyleVars(styles, textKey, numberKey) {
 }
 
 
-function StableTextStyleControls({ cardId, styleKey, stats = false, current, isOpen, onToggle, onPatch, onPreview, onPreviewEnd, panelAlign = "right", buttonLabel = "Text", titleMode = false, numbersMode = false }) {
+function StableTextStyleControls({ cardId, styleKey, stats = false, current, isOpen, onToggle, onPatch, onPreview, onPreviewEnd, panelAlign = "right", buttonLabel = "Text", titleMode = false, numbersMode = false, inlinePanel = false }) {
   if (!cardId || !CARD_TEXT_STYLE_DEFAULTS[styleKey]) return null;
 
   const safeCurrent = current || CARD_TEXT_STYLE_DEFAULTS[styleKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
@@ -481,7 +481,7 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
   };
 
   return (
-    <div className={`text-style-controls align-${panelAlign} ${numbersMode ? "numbers-mode" : ""} ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+    <div className={`text-style-controls align-${panelAlign} ${numbersMode ? "numbers-mode" : ""} ${inlinePanel ? "inline-panel" : ""} ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
       <button type="button" className={`text-style-toggle ${isOpen ? "active" : ""}`} aria-expanded={isOpen} onClick={onToggle}>{buttonLabel}</button>
       {isOpen ? (
         <div className="text-style-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
@@ -1294,6 +1294,19 @@ function getCardTheme(card, fallback = "Style 1") {
   if (hasCustomGraphics(card)) return CUSTOM_CARD_THEME;
   return CARD_THEMES.includes(card?.theme) ? card.theme : (CARD_THEMES.includes(fallback) ? fallback : "Style 1");
 }
+const FRONT_STAR_DEFAULTS = { count: 2, size: 22, spacing: 4, x: 0, y: 0 };
+
+function normalizeFrontStars(source = {}) {
+  const raw = source && typeof source === "object" ? source : {};
+  return {
+    count: clamp(Math.round(Number(raw.count ?? FRONT_STAR_DEFAULTS.count)) || 0, 0, 10),
+    size: clamp(Number(raw.size ?? FRONT_STAR_DEFAULTS.size) || FRONT_STAR_DEFAULTS.size, 4, 80),
+    spacing: clamp(Number(raw.spacing ?? FRONT_STAR_DEFAULTS.spacing) || 0, 0, 80),
+    x: clamp(Number(raw.x ?? FRONT_STAR_DEFAULTS.x) || 0, -120, 120),
+    y: clamp(Number(raw.y ?? FRONT_STAR_DEFAULTS.y) || 0, -120, 120),
+  };
+}
+
 
 function createPlayerCard(position = "ST") {
   const safePosition = CARD_POSITION_OPTIONS.includes(position) ? position : "ST";
@@ -1304,6 +1317,7 @@ function createPlayerCard(position = "ST") {
     passiveAttributes: defaultAttributesForPosition(safePosition, "passive"),
     bonuses: defaultAttributesForPosition(safePosition, "bonus"),
     frontFields: defaultFrontFields(),
+    starsFront: { ...FRONT_STAR_DEFAULTS },
     theme: "Style 1",
     defensiveArea: emptyDefensiveArea(),
     defensiveGridAdjust: { ...DEFENSIVE_GRID_ADJUST_DEFAULTS },
@@ -1337,6 +1351,7 @@ function normalizeImportedCard(card) {
     passiveAttributes: normalizeStatItems(Array.isArray(card?.passiveAttributes) ? card.passiveAttributes : (Array.isArray(card?.attributes) ? card.attributes : [])),
     bonuses: normalizeStatItems(Array.isArray(card?.bonuses) ? card.bonuses : []),
     frontFields: normalizeFrontFields(card?.frontFields || card?.frontSummary || card?.summary || card?.front || card?.ratings),
+    starsFront: normalizeFrontStars(card?.starsFront || card?.frontStars || card?.stars),
     theme: (card?.theme === CUSTOM_CARD_THEME || card?.theme === "Custom") ? CUSTOM_CARD_THEME : (CARD_THEMES.includes(card?.theme) ? card.theme : (LEGACY_THEME_MAP[card?.theme] || base.theme || "Style 1")),
     defensiveArea: Array.isArray(card?.defensiveArea) ? card.defensiveArea : [],
     defensiveGridAdjust: normalizeDefensiveGridAdjust(card?.defensiveGridAdjust || card?.defensive_grid_adjust),
@@ -3552,6 +3567,18 @@ function App() {
     updateCardState(prev => ({ ...prev, cards: prev.cards.map(card => card.id === cardId ? { ...card, [key]: value, updatedAt: new Date().toISOString() } : card) }));
   }
 
+  function updateFrontStars(cardId, patch) {
+    if (!cardId) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? {
+        ...card,
+        starsFront: normalizeFrontStars({ ...(card.starsFront || FRONT_STAR_DEFAULTS), ...patch }),
+        updatedAt: new Date().toISOString(),
+      } : card),
+    }));
+  }
+
   function updateCardList(cardId, section, updater) {
     updateCardState(prev => ({
       ...prev,
@@ -3691,6 +3718,24 @@ function App() {
       );
     };
 
+    const renderFrontStars = () => {
+      const stars = normalizeFrontStars(card?.starsFront);
+      if (!stars.count) return null;
+      return (
+        <div
+          className="card-zone-front-stars"
+          style={{
+            "--front-star-size": `${stars.size}px`,
+            "--front-star-spacing": `${stars.spacing}px`,
+            transform: `translate(${stars.x}px, ${stars.y}px)`,
+          }}
+          aria-label={`${stars.count} stars`}
+        >
+          {Array.from({ length: stars.count }, (_, index) => <span key={index}>★</span>)}
+        </div>
+      );
+    };
+
     const renderListZone = (items, colorKey, titleKey, titleColorKey) => {
       const textColor = safeColor(colors[colorKey]);
       const valueKey = `${colorKey}Value`;
@@ -3796,8 +3841,8 @@ function App() {
       if (side === "front") {
         if (zoneKey === "header") return renderNameZone("headerFront");
         if (zoneKey === "position") return renderPositionZone("positionFront");
-        if (zoneKey === "attributes") return renderFrontFormulaZone(firstFrontAttribute, "attributesFront");
-        if (zoneKey === "bonuses") return renderFrontFormulaZone(firstFrontBonus, "bonusesFront");
+        if (zoneKey === "attributes") return renderFrontStars();
+        if (zoneKey === "bonuses") return null;
       }
       if (zoneKey === "header") return renderNameZone("headerBack");
       if (zoneKey === "position") return renderPositionZone("positionBack");
@@ -4291,6 +4336,7 @@ function App() {
         buttonLabel={options.buttonLabel || "Text"}
         titleMode={Boolean(options.titleMode)}
         numbersMode={Boolean(options.numbersMode)}
+        inlinePanel={Boolean(options.inlinePanel)}
       />
     );
   }
@@ -4675,6 +4721,46 @@ function App() {
     );
   }
 
+  function StarMenuEditor({ card }) {
+    const stars = normalizeFrontStars(card?.starsFront);
+    const controls = [
+      { key: "count", label: "Number of Stars", min: 0, max: 10, step: 1 },
+      { key: "size", label: "Star Size", min: 4, max: 80, step: 1 },
+      { key: "spacing", label: "Star Spacing", min: 0, max: 80, step: 1 },
+      { key: "x", label: "Star X", min: -120, max: 120, step: 1 },
+      { key: "y", label: "Star Y", min: -120, max: 120, step: 1 },
+    ];
+    return (
+      <div className="card-edit-section star-menu-section">
+        <div className="card-edit-section-title"><strong>Star Menu</strong></div>
+        <div className="star-menu-controls">
+          {controls.map(control => (
+            <label key={control.key} className="star-control-row">
+              <span>{control.label}</span>
+              <input
+                type="range"
+                min={control.min}
+                max={control.max}
+                step={control.step}
+                value={stars[control.key]}
+                onChange={e => updateFrontStars(card.id, { [control.key]: Number(e.target.value) })}
+              />
+              <input
+                className="star-control-number"
+                type="number"
+                min={control.min}
+                max={control.max}
+                step={control.step}
+                value={stars[control.key]}
+                onChange={e => updateFrontStars(card.id, { [control.key]: Number(e.target.value) })}
+              />
+            </label>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   function CardEditor({ card }) {
     if (!card) return <div className="empty-panel">Alege sau creează un card.</div>;
     return (
@@ -4689,13 +4775,14 @@ function App() {
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
         <div className="card-edit-section compact-color-row"><strong>Header Front</strong>{renderColorPicker(card, "headerFront", "Color")}{renderTextStyleControls(card, "headerFront", false, { panelAlign: "front" })}</div>
         <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Front</strong>{renderColorPicker(card, "positionFront", "Color")}{renderTextStyleControls(card, "positionFront", false, { panelAlign: "front" })}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
+        <StarMenuEditor card={card} />
         <div className="card-edit-section compact-color-row"><strong>Header Back</strong>{renderColorPicker(card, "headerBack", "Color")}{renderTextStyleControls(card, "headerBack", false, { panelAlign: "front" })}</div>
         <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Back</strong>{renderColorPicker(card, "positionBack", "Color")}{renderTextStyleControls(card, "positionBack", false, { panelAlign: "front" })}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
         {FrontZoneFieldsEditor({ card, storageKey: "frontAttributeFields", title: "Attributes Front", colorKey: "attributesFront", sourceSection: "passiveAttributes" })}
         {FrontZoneFieldsEditor({ card, storageKey: "frontBonusFields", title: "Bonuses Front", colorKey: "bonusesFront", sourceSection: "bonuses" })}
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "attributesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "attributes", "Text Color")}{renderTextStyleControls(card, "attributes", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "attributesValue", "Numbers Color")}{renderTextStyleControls(card, "attributesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "bonusesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "bonuses", "Text Color")}{renderTextStyleControls(card, "bonuses", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "bonusesValue", "Numbers Color")}{renderTextStyleControls(card, "bonusesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
-        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "specialAbility")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar">{renderColorPicker(card, "specialAbility", "Text Color")}{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left", buttonLabel: "Text" })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
+        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "specialAbility")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar">{renderColorPicker(card, "specialAbility", "Text Color")}{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left", inlinePanel: true })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong>{renderColorPicker(card, "defensiveArea", "Grid")}{renderColorPicker(card, "defensiveAreaActive", "Selected Area")}<DefensiveGridAdjustControl card={card} /><OpponentGoalTextControl card={card} /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
         </div>
       </div>
