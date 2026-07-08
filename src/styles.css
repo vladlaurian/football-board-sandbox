@@ -6250,39 +6250,11 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   overflow: visible;
 }
 
-.front-star-shadow {
-  fill: rgba(68, 36, 2, .58);
-  transform: translate(2px, 4px);
-}
-
-.front-star-base {
-  fill: #d79a17;
-  stroke: #5b3404;
-  stroke-width: 5;
-  stroke-linejoin: round;
-}
-
-.front-star-top {
-  fill: #ffe58a;
-}
-
-.front-star-left {
-  fill: #b87308;
-}
-
-.front-star-right {
-  fill: #edae25;
-}
-
-.front-star-center {
-  fill: #f7c646;
-}
-
-.front-star-ridge {
-  fill: none;
-  stroke: rgba(255, 242, 166, .78);
-  stroke-width: 2.5;
-  stroke-linecap: round;
+/* v28: simple stable gold. No shadows, no facets, no cartoon volume. */
+.card-zone-front-stars .front-star-shape {
+  fill: #d8a21d !important;
+  stroke: #6a4306 !important;
+  stroke-width: 4;
   stroke-linejoin: round;
 }
 
@@ -6334,60 +6306,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   touch-action: manipulation;
 }
 
-.star-control-inline input[type="range"] {
-  width: 100%;
-  min-width: 0;
-  height: 18px;
-  padding: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
-  pointer-events: auto !important;
-  touch-action: none;
-  cursor: ew-resize;
-}
-
-.star-control-number {
-  width: 44px;
-  max-width: 44px;
-  justify-self: center;
-  text-align: center;
-  padding: 3px 4px !important;
-  font-size: 11px !important;
-  line-height: 1 !important;
-}
-
-/* v27 FIX: star SVG colors must not inherit the global formula/content fill rule. */
-.card-zone-front-stars .front-star-shadow {
-  fill: rgba(58, 30, 1, .62) !important;
-  transform: translate(2px, 4px);
-}
-.card-zone-front-stars .front-star-base {
-  fill: #d99613 !important;
-  stroke: #5a3302 !important;
-  stroke-width: 5;
-  stroke-linejoin: round;
-}
-.card-zone-front-stars .front-star-top {
-  fill: #fff0a8 !important;
-}
-.card-zone-front-stars .front-star-left {
-  fill: #b56d05 !important;
-}
-.card-zone-front-stars .front-star-right {
-  fill: #f3b62b !important;
-}
-.card-zone-front-stars .front-star-center {
-  fill: #ffd15a !important;
-}
-.card-zone-front-stars .front-star-ridge {
-  fill: none !important;
-  stroke: rgba(255, 244, 174, .88) !important;
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* v27 FIX: custom pointer slider for Star Menu; native range was click-only in this app context. */
+/* v28: custom drag slider, but restored to the original blue visual language. */
 .star-control-slider {
   position: relative;
   width: 100%;
@@ -6410,12 +6329,12 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   pointer-events: none;
 }
 .star-control-slider-track {
-  background: rgba(255,255,255,.35);
+  background: rgba(255,255,255,.38);
 }
 .star-control-slider-fill {
   right: auto;
   width: var(--star-slider-pct, 0%);
-  background: #d79a17;
+  background: #2d9cff;
 }
 .star-control-slider-thumb {
   position: absolute;
@@ -6424,13 +6343,22 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   width: 12px;
   height: 12px;
   border-radius: 999px;
-  background: #f0b22a;
-  border: 1px solid rgba(255,255,255,.65);
-  box-shadow: 0 1px 3px rgba(0,0,0,.45);
+  background: #2d9cff;
+  border: 1px solid rgba(255,255,255,.8);
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
 .star-control-slider:focus-visible .star-control-slider-thumb {
   outline: 2px solid rgba(255,255,255,.9);
   outline-offset: 2px;
+}
+
+.star-control-number {
+  width: 44px;
+  max-width: 44px;
+  justify-self: center;
+  text-align: center;
+  padding: 3px 4px !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
 }

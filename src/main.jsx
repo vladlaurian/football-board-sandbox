@@ -3739,14 +3739,7 @@ function App() {
               aria-hidden="true"
               focusable="false"
             >
-              <polygon className="front-star-shadow" points="50,5 61,36 94,36 67,56 78,90 50,70 22,90 33,56 6,36 39,36" />
-              <polygon className="front-star-base" points="50,5 61,36 94,36 67,56 78,90 50,70 22,90 33,56 6,36 39,36" />
-              <polygon className="front-star-top" points="50,5 61,36 50,48 39,36" />
-              <polygon className="front-star-left" points="50,48 39,36 6,36 33,56 22,90" />
-              <polygon className="front-star-right" points="50,48 61,36 94,36 67,56 78,90" />
-              <polygon className="front-star-center" points="50,48 67,56 50,70 33,56" />
-              <polyline className="front-star-ridge" points="50,8 50,48 26,86" />
-              <polyline className="front-star-ridge" points="50,48 74,86" />
+              <polygon className="front-star-shape" points="50,5 61,36 94,36 67,56 78,90 50,70 22,90 33,56 6,36 39,36" />
             </svg>
           ))}
         </div>
@@ -4779,29 +4772,26 @@ function App() {
                     e.preventDefault();
                     e.stopPropagation();
                     const slider = e.currentTarget;
-                    slider.dataset.dragging = "1";
-                    slider.setPointerCapture?.(e.pointerId);
-                    const rect = slider.getBoundingClientRect();
-                    const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / Math.max(1, rect.width)));
-                    const raw = control.min + pct * (control.max - control.min);
-                    setStarValue(control, Math.round(raw / control.step) * control.step);
+                    const applyFromClientX = (clientX) => {
+                      const rect = slider.getBoundingClientRect();
+                      const pct = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(1, rect.width)));
+                      const raw = control.min + pct * (control.max - control.min);
+                      setStarValue(control, Math.round(raw / control.step) * control.step);
+                    };
+                    applyFromClientX(e.clientX);
+                    const onMove = moveEvent => {
+                      moveEvent.preventDefault();
+                      applyFromClientX(moveEvent.clientX);
+                    };
+                    const onUp = () => {
+                      window.removeEventListener("pointermove", onMove);
+                      window.removeEventListener("pointerup", onUp);
+                      window.removeEventListener("pointercancel", onUp);
+                    };
+                    window.addEventListener("pointermove", onMove, { passive: false });
+                    window.addEventListener("pointerup", onUp, { once: true });
+                    window.addEventListener("pointercancel", onUp, { once: true });
                   }}
-                  onPointerMove={e => {
-                    if (e.currentTarget.dataset.dragging !== "1") return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / Math.max(1, rect.width)));
-                    const raw = control.min + pct * (control.max - control.min);
-                    setStarValue(control, Math.round(raw / control.step) * control.step);
-                  }}
-                  onPointerUp={e => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.currentTarget.dataset.dragging = "0";
-                    e.currentTarget.releasePointerCapture?.(e.pointerId);
-                  }}
-                  onPointerCancel={e => { e.currentTarget.dataset.dragging = "0"; }}
                   onKeyDown={e => {
                     if (e.key === "ArrowLeft" || e.key === "ArrowDown") { e.preventDefault(); nudgeStarValue(control, -1); }
                     if (e.key === "ArrowRight" || e.key === "ArrowUp") { e.preventDefault(); nudgeStarValue(control, 1); }
