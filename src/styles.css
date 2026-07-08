@@ -6250,11 +6250,26 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   overflow: visible;
 }
 
-/* v28: simple stable gold. No shadows, no facets, no cartoon volume. */
-.card-zone-front-stars .front-star-shape {
-  fill: #d8a21d !important;
-  stroke: #6a4306 !important;
-  stroke-width: 4;
+/* v29: real gold faceted SVG. Volume is inside the SVG geometry, not CSS shadow. */
+.card-zone-front-stars .front-star-gold-base {
+  stroke: none !important;
+}
+.card-zone-front-stars .front-star-facet-light {
+  fill: rgba(255, 244, 166, .72) !important;
+  stroke: none !important;
+}
+.card-zone-front-stars .front-star-facet-mid {
+  fill: rgba(216, 153, 24, .46) !important;
+  stroke: none !important;
+}
+.card-zone-front-stars .front-star-facet-dark {
+  fill: rgba(102, 58, 4, .42) !important;
+  stroke: none !important;
+}
+.card-zone-front-stars .front-star-outline {
+  fill: none !important;
+  stroke: #5d3908 !important;
+  stroke-width: 2.4;
   stroke-linejoin: round;
 }
 
@@ -6286,7 +6301,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 
 .star-control-inline {
   display: grid;
-  grid-template-columns: 18px minmax(42px, 1fr) 18px;
+  grid-template-columns: 18px minmax(46px, 1fr) 18px;
   align-items: center;
   gap: 3px;
 }
@@ -6306,51 +6321,18 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   touch-action: manipulation;
 }
 
-/* v28: custom drag slider, but restored to the original blue visual language. */
-.star-control-slider {
-  position: relative;
+/* v29: native range. No custom coordinate math, so drag remains browser-native. */
+.star-control-range {
   width: 100%;
   min-width: 0;
   height: 18px;
-  cursor: ew-resize;
-  touch-action: none;
-  user-select: none;
+  margin: 0;
+  padding: 0;
+  appearance: auto;
+  -webkit-appearance: auto;
+  accent-color: #2d9cff;
   pointer-events: auto !important;
-}
-.star-control-slider-track,
-.star-control-slider-fill {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 4px;
-  border-radius: 999px;
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-.star-control-slider-track {
-  background: rgba(255,255,255,.38);
-}
-.star-control-slider-fill {
-  right: auto;
-  width: var(--star-slider-pct, 0%);
-  background: #2d9cff;
-}
-.star-control-slider-thumb {
-  position: absolute;
-  left: var(--star-slider-pct, 0%);
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  background: #2d9cff;
-  border: 1px solid rgba(255,255,255,.8);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-.star-control-slider:focus-visible .star-control-slider-thumb {
-  outline: 2px solid rgba(255,255,255,.9);
-  outline-offset: 2px;
+  touch-action: pan-x;
 }
 
 .star-control-number {
@@ -6362,3 +6344,4 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   font-size: 11px !important;
   line-height: 1 !important;
 }
+

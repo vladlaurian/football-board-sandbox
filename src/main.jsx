@@ -3731,18 +3731,41 @@ function App() {
           }}
           aria-label={`${stars.count} stars`}
         >
-          {Array.from({ length: stars.count }, (_, index) => (
-            <svg
-              key={index}
-              className="front-star-svg"
-              viewBox="0 0 100 100"
-              aria-hidden="true"
-              focusable="false"
-            >
-              <polygon className="front-star-shape" points="50,5 61,36 94,36 67,56 78,90 50,70 22,90 33,56 6,36 39,36" />
-            </svg>
-          ))}
-        </div>
+          {Array.from({ length: stars.count }, (_, index) => {
+            const gradientId = `front-star-gold-${card?.id || "card"}-${index}`;
+            return (
+              <svg
+                key={index}
+                className="front-star-svg"
+                viewBox="0 0 100 100"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <defs>
+                  <linearGradient id={gradientId} x1="50" y1="4" x2="50" y2="92" gradientUnits="userSpaceOnUse">
+                    <stop offset="0" stopColor="#fff2a8" />
+                    <stop offset="0.28" stopColor="#ffd45a" />
+                    <stop offset="0.58" stopColor="#c88a12" />
+                    <stop offset="1" stopColor="#6f4105" />
+                  </linearGradient>
+                </defs>
+                <polygon className="front-star-gold-base" fill={`url(#${gradientId})`} points="50,5 61,36 94,36 67,56 78,90 50,70 22,90 33,56 6,36 39,36" />
+                <g className="front-star-facets">
+                  <polygon className="front-star-facet-light" points="50,5 50,50 39,36" />
+                  <polygon className="front-star-facet-light" points="61,36 50,50 50,5" />
+                  <polygon className="front-star-facet-light" points="94,36 50,50 61,36" />
+                  <polygon className="front-star-facet-mid" points="67,56 50,50 94,36" />
+                  <polygon className="front-star-facet-mid" points="78,90 50,50 67,56" />
+                  <polygon className="front-star-facet-dark" points="50,70 50,50 78,90" />
+                  <polygon className="front-star-facet-mid" points="22,90 50,50 50,70" />
+                  <polygon className="front-star-facet-light" points="33,56 50,50 22,90" />
+                  <polygon className="front-star-facet-dark" points="6,36 50,50 33,56" />
+                  <polygon className="front-star-facet-mid" points="39,36 50,50 6,36" />
+                </g>
+                <polygon className="front-star-outline" points="50,5 61,36 94,36 67,56 78,90 50,70 22,90 33,56 6,36 39,36" />
+              </svg>
+            );
+          })}        </div>
       );
     };
 
@@ -4759,48 +4782,19 @@ function App() {
               <span className="star-control-label">{control.label}</span>
               <div className="star-control-inline">
                 <button type="button" className="star-control-step" onClick={() => nudgeStarValue(control, -1)} aria-label={`Decrease ${control.label}`}>−</button>
-                <div
-                  className="star-control-slider"
-                  role="slider"
+                <input
+                  className="star-control-range"
+                  type="range"
+                  min={control.min}
+                  max={control.max}
+                  step={control.step}
+                  value={stars[control.key]}
+                  onPointerDown={e => e.stopPropagation()}
+                  onMouseDown={e => e.stopPropagation()}
+                  onTouchStart={e => e.stopPropagation()}
+                  onChange={e => setStarValue(control, e.currentTarget.value)}
                   aria-label={control.label}
-                  aria-valuemin={control.min}
-                  aria-valuemax={control.max}
-                  aria-valuenow={stars[control.key]}
-                  tabIndex={0}
-                  style={{ "--star-slider-pct": `${((Number(stars[control.key]) - control.min) / Math.max(1, control.max - control.min)) * 100}%` }}
-                  onPointerDown={e => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const slider = e.currentTarget;
-                    const applyFromClientX = (clientX) => {
-                      const rect = slider.getBoundingClientRect();
-                      const pct = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(1, rect.width)));
-                      const raw = control.min + pct * (control.max - control.min);
-                      setStarValue(control, Math.round(raw / control.step) * control.step);
-                    };
-                    applyFromClientX(e.clientX);
-                    const onMove = moveEvent => {
-                      moveEvent.preventDefault();
-                      applyFromClientX(moveEvent.clientX);
-                    };
-                    const onUp = () => {
-                      window.removeEventListener("pointermove", onMove);
-                      window.removeEventListener("pointerup", onUp);
-                      window.removeEventListener("pointercancel", onUp);
-                    };
-                    window.addEventListener("pointermove", onMove, { passive: false });
-                    window.addEventListener("pointerup", onUp, { once: true });
-                    window.addEventListener("pointercancel", onUp, { once: true });
-                  }}
-                  onKeyDown={e => {
-                    if (e.key === "ArrowLeft" || e.key === "ArrowDown") { e.preventDefault(); nudgeStarValue(control, -1); }
-                    if (e.key === "ArrowRight" || e.key === "ArrowUp") { e.preventDefault(); nudgeStarValue(control, 1); }
-                  }}
-                >
-                  <span className="star-control-slider-track" />
-                  <span className="star-control-slider-fill" />
-                  <span className="star-control-slider-thumb" />
-                </div>
+                />
                 <button type="button" className="star-control-step" onClick={() => nudgeStarValue(control, 1)} aria-label={`Increase ${control.label}`}>+</button>
               </div>
               <input
@@ -4811,6 +4805,8 @@ function App() {
                 step={control.step}
                 value={stars[control.key]}
                 onPointerDown={e => e.stopPropagation()}
+                onMouseDown={e => e.stopPropagation()}
+                onTouchStart={e => e.stopPropagation()}
                 onChange={e => setStarValue(control, e.currentTarget.value)}
               />
             </div>
