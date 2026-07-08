@@ -6163,3 +6163,24 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   color: #111827 !important;
   opacity: 1 !important;
 }
+
+/* v18 UI cleanup: Text/Numbers active buttons highlight like Defensive Area. */
+.text-style-toggle.active {
+  box-shadow: 0 0 0 1px rgba(79, 209, 255, .35), 0 0 14px rgba(79, 209, 255, .24) !important;
+  color: #eefbff !important;
+  background: rgba(79, 209, 255, .12) !important;
+  border-color: rgba(79, 209, 255, .45) !important;
+}
+
+/* v18 UI cleanup: Special Ability Text panel is opaque and above the textarea. */
+.special-text-toolbar .text-style-controls.open,
+.special-text-toolbar .text-style-controls.open .text-style-panel {
+  z-index: 2147483002 !important;
+  isolation: isolate !important;
+}
+.special-text-toolbar .text-style-controls.open .text-style-panel {
+  background: #051228 !important;
+  opacity: 1 !important;
+  box-shadow: 0 16px 40px rgba(0,0,0,.55) !important;
+  backdrop-filter: none !important;
+}

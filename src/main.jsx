@@ -343,7 +343,9 @@ function zoneNumberStyleVarsStable(styles, textKey, numberKey) {
   const number = normalized[numberKey] || CARD_TEXT_STYLE_DEFAULTS[numberKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
   const defaultNumber = CARD_TEXT_STYLE_DEFAULTS[numberKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
   const font = number.font && number.font !== defaultNumber.font ? number.font : base.font;
-  const fontScale = (base.fontSize / 100) * (number.fontSize / 100);
+  const numberSizeOffset = (number.fontSize - 100) / 100;
+  const fontScale = Math.max(0.1, (base.fontSize / 100) + numberSizeOffset);
+  const combinedVerticalOffset = (base.verticalOffset || 0) + (number.verticalOffset || 0);
   return {
     "--zone-align": base.align,
     "--zone-justify": base.align === "left" ? "flex-start" : base.align === "right" ? "flex-end" : "center",
@@ -353,7 +355,7 @@ function zoneNumberStyleVarsStable(styles, textKey, numberKey) {
     "--zone-font-scale": fontScale,
     "--zone-number-font-scale": fontScale,
     "--zone-line-height": base.lineHeight / 100,
-    "--zone-y-offset": `${base.verticalOffset * 0.14}px`,
+    "--zone-y-offset": `${combinedVerticalOffset * 0.14}px`,
   };
 }
 
@@ -387,8 +389,10 @@ function zoneNumberStyleVars(styles, textKey, numberKey) {
   const number = normalized[numberKey] || CARD_TEXT_STYLE_DEFAULTS[numberKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
   const defaultNumber = CARD_TEXT_STYLE_DEFAULTS[numberKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
   const font = number.font && number.font !== defaultNumber.font ? number.font : base.font;
-  const fontScale = (base.fontSize / 100) * (number.fontSize / 100);
-  // Numbers use Text as the base for font/size/line-height/Y, but Bold is an explicit Numbers override.
+  const numberSizeOffset = (number.fontSize - 100) / 100;
+  const fontScale = Math.max(0.1, (base.fontSize / 100) + numberSizeOffset);
+  const combinedVerticalOffset = (base.verticalOffset || 0) + (number.verticalOffset || 0);
+  // Numbers use Text as the base; Numbers Size/Y are fine offsets over that base.
   // If Numbers B is off, the number stays normal even when the label text is bold.
   const fontWeight = number.bold ? 950 : 650;
   return {
@@ -400,7 +404,7 @@ function zoneNumberStyleVars(styles, textKey, numberKey) {
     "--zone-font-scale": fontScale,
     "--zone-number-font-scale": fontScale,
     "--zone-line-height": base.lineHeight / 100,
-    "--zone-y-offset": `${base.verticalOffset * 0.4}cqh`,
+    "--zone-y-offset": `${combinedVerticalOffset * 0.4}cqh`,
   };
 }
 
@@ -459,15 +463,30 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
     onPreview && onPreview(null);
   };
 
-  const renderRange = (label, key, min, max, suffix = "", step = 1) => (
-    <label className="text-style-range-row">
-      <span className="text-style-range-label">{label}</span>
-      <button type="button" className="text-style-range-step" onClick={() => nudgeRange(key, min, max, step, -1)} aria-label={`${label} minus`}>−</button>
-      <input type="range" min={min} max={max} step={step} value={rangeValue(key)} onPointerDown={beginRange(key)} onInput={setRangeDraftValue(key)} onPointerUp={finishRange(key)} onPointerCancel={finishRange(key)} onMouseUp={finishRange(key)} onTouchEnd={finishRange(key)} onBlur={finishRange(key)} onKeyUp={keyRange(key)} />
-      <button type="button" className="text-style-range-step" onClick={() => nudgeRange(key, min, max, step, 1)} aria-label={`${label} plus`}>+</button>
-      <span className="text-style-range-value">{rangeValue(key)}{suffix}</span>
-    </label>
-  );
+  const rangeSpec = key => {
+    if (key === "verticalOffset") {
+      if (styleKey === "headerBack" || styleKey === "positionBack") return { min: -35, max: 35, step: 0.5 };
+      if (!numbersMode && (styleKey === "attributes" || styleKey === "bonuses")) return { min: -180, max: 180, step: 1 };
+      if (numbersMode && (styleKey === "attributesValue" || styleKey === "bonusesValue")) return { min: -80, max: 80, step: 1 };
+    }
+    return null;
+  };
+
+  const renderRange = (label, key, min, max, suffix = "", step = 1) => {
+    const spec = rangeSpec(key);
+    const effectiveMin = spec?.min ?? min;
+    const effectiveMax = spec?.max ?? max;
+    const effectiveStep = spec?.step ?? step;
+    return (
+      <label className="text-style-range-row">
+        <span className="text-style-range-label">{label}</span>
+        <button type="button" className="text-style-range-step" onClick={() => nudgeRange(key, effectiveMin, effectiveMax, effectiveStep, -1)} aria-label={`${label} minus`}>−</button>
+        <input type="range" min={effectiveMin} max={effectiveMax} step={effectiveStep} value={rangeValue(key)} onPointerDown={beginRange(key)} onInput={setRangeDraftValue(key)} onPointerUp={finishRange(key)} onPointerCancel={finishRange(key)} onMouseUp={finishRange(key)} onTouchEnd={finishRange(key)} onBlur={finishRange(key)} onKeyUp={keyRange(key)} />
+        <button type="button" className="text-style-range-step" onClick={() => nudgeRange(key, effectiveMin, effectiveMax, effectiveStep, 1)} aria-label={`${label} plus`}>+</button>
+        <span className="text-style-range-value">{rangeValue(key)}{suffix}</span>
+      </label>
+    );
+  };
 
   return (
     <div className={`text-style-controls align-${panelAlign} ${numbersMode ? "numbers-mode" : ""} ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
@@ -483,7 +502,7 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
           {!titleMode ? <label>Font<select value={safeCurrent.font} onChange={e => set({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label> : null}
           {renderRange("Size", "fontSize", 50, 260, "%")}
           {!titleMode && !numbersMode ? renderRange("Line", "lineHeight", 70, 180, "%") : null}
-          {!titleMode && !numbersMode ? renderRange("Y", "verticalOffset", -100, 100, "") : null}
+          {!titleMode ? renderRange("Y", "verticalOffset", -100, 100, "") : null}
         </div>
       ) : null}
     </div>
