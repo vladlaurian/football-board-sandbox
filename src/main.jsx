@@ -281,7 +281,6 @@ function zoneTextStyleVars(styles, key, hasStats = false) {
   const s = normalizeTextStyles(styles)[key] || CARD_TEXT_STYLE_DEFAULTS[key] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
   const justify = s.align === "left" ? "flex-start" : s.align === "right" ? "flex-end" : "center";
   const gridJustify = s.align === "left" ? "start" : s.align === "right" ? "end" : "center";
-  const yMultiplier = (key === "attributes" || key === "bonuses") ? 0.8 : 0.4;
   return {
     "--zone-align": s.align,
     "--zone-justify": justify,
@@ -290,7 +289,7 @@ function zoneTextStyleVars(styles, key, hasStats = false) {
     "--zone-font-weight": s.bold ? 950 : 650,
     "--zone-font-scale": s.fontSize / 100,
     "--zone-line-height": s.lineHeight / 100,
-    "--zone-y-offset": `${s.verticalOffset * yMultiplier}cqh`,
+    "--zone-y-offset": `${s.verticalOffset * 0.4}cqh`,
     ...(hasStats ? { "--zone-stat-gap": `${Math.round(s.statGap / 100 * 4)}px`, "--zone-stat-gap-wide": `${Math.round(s.statGap / 100 * 8)}px` } : {}),
   };
 }
@@ -329,7 +328,6 @@ function zoneTextStyleVarsStable(styles, key, hasStats = false) {
   const s = normalizeTextStyles(styles)[key] || CARD_TEXT_STYLE_DEFAULTS[key] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
   const justify = s.align === "left" ? "flex-start" : s.align === "right" ? "flex-end" : "center";
   const gridJustify = s.align === "left" ? "start" : s.align === "right" ? "end" : "center";
-  const yMultiplier = (key === "attributes" || key === "bonuses") ? 0.56 : 0.14;
   return {
     "--zone-align": s.align,
     "--zone-justify": justify,
@@ -338,7 +336,7 @@ function zoneTextStyleVarsStable(styles, key, hasStats = false) {
     "--zone-font-weight": s.bold ? 950 : 650,
     "--zone-font-scale": s.fontSize / 100,
     "--zone-line-height": s.lineHeight / 100,
-    "--zone-y-offset": `${s.verticalOffset * yMultiplier}px`,
+    "--zone-y-offset": `${s.verticalOffset * 0.14}px`,
     ...(hasStats ? { "--zone-stat-gap": `${Math.round(s.statGap / 100 * 4)}px`, "--zone-stat-gap-wide": `${Math.round(s.statGap / 100 * 8)}px` } : {}),
   };
 }
@@ -350,17 +348,15 @@ function zoneNumberStyleVarsStable(styles, textKey, numberKey) {
   const defaultNumber = CARD_TEXT_STYLE_DEFAULTS[numberKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
   const font = number.font && number.font !== defaultNumber.font ? number.font : base.font;
   const numberSizeOffset = (number.fontSize - 100) / 100;
-  const baseScale = Math.max(0.1, base.fontSize / 100);
-  const finalScale = Math.max(0.1, baseScale + numberSizeOffset);
-  const relativeNumberScale = finalScale / baseScale;
+  const fontScale = Math.max(0.1, (base.fontSize / 100) + numberSizeOffset);
   return {
     "--zone-align": base.align,
     "--zone-justify": base.align === "left" ? "flex-start" : base.align === "right" ? "flex-end" : "center",
     "--zone-grid-justify": base.align === "left" ? "start" : base.align === "right" ? "end" : "center",
     "--zone-font-family": font,
-    "--zone-font-weight": (base.bold || number.bold) ? 950 : 650,
-    "--zone-number-font-scale": relativeNumberScale,
-    "--zone-number-font-weight": (base.bold || number.bold) ? 950 : 650,
+    "--zone-font-weight": number.bold ? 950 : 650,
+    "--zone-font-scale": fontScale,
+    "--zone-number-font-scale": fontScale,
     "--zone-line-height": base.lineHeight / 100,
     "--zone-y-offset": `${base.verticalOffset * 0.14}px`,
   };
@@ -397,25 +393,25 @@ function zoneNumberStyleVars(styles, textKey, numberKey) {
   const defaultNumber = CARD_TEXT_STYLE_DEFAULTS[numberKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
   const font = number.font && number.font !== defaultNumber.font ? number.font : base.font;
   const numberSizeOffset = (number.fontSize - 100) / 100;
-  const baseScale = Math.max(0.1, base.fontSize / 100);
-  const finalScale = Math.max(0.1, baseScale + numberSizeOffset);
-  const relativeNumberScale = finalScale / baseScale;
-  // Numbers use Text as the base; Numbers Size is only a local offset over that base.
+  const fontScale = Math.max(0.1, (base.fontSize / 100) + numberSizeOffset);
+  // Numbers use Text as the base; Numbers Size is a fine offset over that base.
+  // If Numbers B is off, the number stays normal even when the label text is bold.
+  const fontWeight = number.bold ? 950 : 650;
   return {
     "--zone-align": base.align,
     "--zone-justify": base.align === "left" ? "flex-start" : base.align === "right" ? "flex-end" : "center",
     "--zone-grid-justify": base.align === "left" ? "start" : base.align === "right" ? "end" : "center",
     "--zone-font-family": font,
-    "--zone-font-weight": (base.bold || number.bold) ? 950 : 650,
-    "--zone-number-font-scale": relativeNumberScale,
-    "--zone-number-font-weight": (base.bold || number.bold) ? 950 : 650,
+    "--zone-font-weight": fontWeight,
+    "--zone-font-scale": fontScale,
+    "--zone-number-font-scale": fontScale,
     "--zone-line-height": base.lineHeight / 100,
     "--zone-y-offset": `${base.verticalOffset * 0.4}cqh`,
   };
 }
 
 
-function StableTextStyleControls({ cardId, styleKey, stats = false, current, isOpen, onToggle, onPatch, onPreview, onPreviewEnd, panelAlign = "right", buttonLabel = "Text", titleMode = false, numbersMode = false, inlinePanel = false }) {
+function StableTextStyleControls({ cardId, styleKey, stats = false, current, isOpen, onToggle, onPatch, onPreview, onPreviewEnd, panelAlign = "right", buttonLabel = "Text", titleMode = false, numbersMode = false }) {
   if (!cardId || !CARD_TEXT_STYLE_DEFAULTS[styleKey]) return null;
 
   const safeCurrent = current || CARD_TEXT_STYLE_DEFAULTS[styleKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
@@ -494,7 +490,7 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
   };
 
   return (
-    <div className={`text-style-controls align-${panelAlign} ${numbersMode ? "numbers-mode" : ""} ${inlinePanel ? "inline-panel" : ""} ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
+    <div className={`text-style-controls align-${panelAlign} ${numbersMode ? "numbers-mode" : ""} ${isOpen ? "open" : ""}`} onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
       <button type="button" className={`text-style-toggle ${isOpen ? "active" : ""}`} aria-expanded={isOpen} onClick={onToggle}>{buttonLabel}</button>
       {isOpen ? (
         <div className="text-style-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
@@ -505,11 +501,7 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
               <button type="button" className={safeCurrent.align === "right" ? "selected" : ""} onClick={() => set({ align: "right" })}>R</button>
               <button type="button" className={safeCurrent.bold ? "selected" : ""} onClick={() => set({ bold: !safeCurrent.bold })}>B</button>
             </div>
-          ) : (
-            <div className="text-align-buttons numbers-bold-only" aria-label="Numbers style">
-              <button type="button" className={safeCurrent.bold ? "selected" : ""} onClick={() => set({ bold: !safeCurrent.bold })}>B</button>
-            </div>
-          )}
+          ) : null}
           {!titleMode && !numbersMode ? <label>Font<select value={safeCurrent.font} onChange={e => set({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label> : null}
           {renderRange("Size", "fontSize", 50, 260, "%")}
           {!titleMode && !numbersMode ? renderRange("Line", "lineHeight", 70, 180, "%") : null}
@@ -1093,8 +1085,9 @@ function duplicateNumberStyleVars(textStyle = {}, numberStyle = {}) {
   const fontScale = (base.fontSize / 100) * (num.fontSize / 100);
   return {
     "--zone-font-family": font,
-    "--zone-number-font-weight": num.bold ? 950 : 650,
-    "--zone-number-font-scale": Math.max(0.1, fontScale / Math.max(0.1, base.fontSize / 100)),
+    "--zone-font-weight": num.bold ? 950 : 650,
+    "--zone-font-scale": fontScale,
+    "--zone-number-font-scale": fontScale,
     "--zone-line-height": base.lineHeight / 100,
     "--zone-y-offset": `${base.verticalOffset * 0.4}cqh`,
   };
@@ -4303,7 +4296,6 @@ function App() {
         buttonLabel={options.buttonLabel || "Text"}
         titleMode={Boolean(options.titleMode)}
         numbersMode={Boolean(options.numbersMode)}
-        inlinePanel={Boolean(options.inlinePanel)}
       />
     );
   }
@@ -4708,7 +4700,7 @@ function App() {
         {FrontZoneFieldsEditor({ card, storageKey: "frontBonusFields", title: "Bonuses Front", colorKey: "bonusesFront", sourceSection: "bonuses" })}
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "attributesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "attributes", "Text Color")}{renderTextStyleControls(card, "attributes", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "attributesValue", "Numbers Color")}{renderTextStyleControls(card, "attributesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "bonusesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "bonuses", "Text Color")}{renderTextStyleControls(card, "bonuses", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "bonusesValue", "Numbers Color")}{renderTextStyleControls(card, "bonusesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
-        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "specialAbility")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar">{renderColorPicker(card, "specialAbility", "Text Color")}{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left", inlinePanel: true })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
+        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "specialAbility")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar">{renderColorPicker(card, "specialAbility", "Text Color")}{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left" })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong>{renderColorPicker(card, "defensiveArea", "Grid")}{renderColorPicker(card, "defensiveAreaActive", "Selected Area")}<DefensiveGridAdjustControl card={card} /><OpponentGoalTextControl card={card} /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
         </div>
       </div>
