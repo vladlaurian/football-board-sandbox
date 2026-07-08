@@ -211,7 +211,6 @@ const CARD_TEXT_COLOR_DEFAULTS = {
   bonusesFront: "#ffffff",
   attributesFrontValue: "#ffffff",
   bonusesFrontValue: "#ffffff",
-  starsFront: "#d4a326",
   attributes: "#ffffff",
   bonuses: "#ffffff",
   attributesValue: "#ffffff",
@@ -1475,17 +1474,6 @@ function colorToRgbTriplet(value, fallback = "#ffffff") {
   const g = parseInt(hex.slice(2, 4), 16);
   const b = parseInt(hex.slice(4, 6), 16);
   return `${r}, ${g}, ${b}`;
-}
-
-function mixHexColor(value, mixWith = "#ffffff", amount = 0.5, fallback = "#d4a326") {
-  const base = hexToRgbParts(safeColor(value, fallback));
-  const mix = hexToRgbParts(safeColor(mixWith, "#ffffff"));
-  const t = clamp(Number(amount) || 0, 0, 1);
-  return rgbPartsToHex(
-    base.r + (mix.r - base.r) * t,
-    base.g + (mix.g - base.g) * t,
-    base.b + (mix.b - base.b) * t
-  );
 }
 
 function cardTextColors(card) {
@@ -3733,11 +3721,6 @@ function App() {
     const renderFrontStars = () => {
       const stars = normalizeFrontStars(card?.starsFront);
       if (!stars.count) return null;
-      const starColor = safeColor((card?.textColors || {})?.starsFront, CARD_TEXT_COLOR_DEFAULTS.starsFront);
-      const starLight = mixHexColor(starColor, "#fff7bf", 0.72, CARD_TEXT_COLOR_DEFAULTS.starsFront);
-      const starMidLight = mixHexColor(starColor, "#ffd45a", 0.36, CARD_TEXT_COLOR_DEFAULTS.starsFront);
-      const starDark = mixHexColor(starColor, "#3f2504", 0.46, CARD_TEXT_COLOR_DEFAULTS.starsFront);
-      const starDeep = mixHexColor(starColor, "#000000", 0.58, CARD_TEXT_COLOR_DEFAULTS.starsFront);
       return (
         <div
           className="card-zone-front-stars"
@@ -3760,16 +3743,16 @@ function App() {
               >
                 <defs>
                   <linearGradient id={gradientId} x1="50" y1="4" x2="50" y2="92" gradientUnits="userSpaceOnUse">
-                    <stop offset="0" stopColor={starLight} />
-                    <stop offset="0.30" stopColor={starMidLight} />
-                    <stop offset="0.64" stopColor={starColor} />
-                    <stop offset="1" stopColor={starDeep} />
+                    <stop offset="0" stopColor="#fff2a8" />
+                    <stop offset="0.28" stopColor="#ffd45a" />
+                    <stop offset="0.58" stopColor="#c88a12" />
+                    <stop offset="1" stopColor="#6f4105" />
                   </linearGradient>
                 </defs>
                 <polygon className="front-star-gold-base" fill={`url(#${gradientId})`} points="50,5 61,36 94,36 67,56 78,90 50,70 22,90 33,56 6,36 39,36" />
                 <g className="front-star-facets">
                   <polygon className="front-star-facet-light" points="50,5 50,50 39,36" />
-                  <polygon className="front-star-facet-midlight" points="61,36 50,50 50,5" />
+                  <polygon className="front-star-facet-mid" points="61,36 50,50 50,5" />
                   <polygon className="front-star-facet-light" points="94,36 50,50 61,36" />
                   <polygon className="front-star-facet-mid" points="67,56 50,50 94,36" />
                   <polygon className="front-star-facet-mid" points="78,90 50,50 67,56" />
@@ -3778,7 +3761,6 @@ function App() {
                   <polygon className="front-star-facet-light" points="33,56 50,50 22,90" />
                   <polygon className="front-star-facet-dark" points="6,36 50,50 33,56" />
                   <polygon className="front-star-facet-mid" points="39,36 50,50 6,36" />
-                  <line className="front-star-top-ridge" x1="50" y1="5" x2="50" y2="50" />
                 </g>
               </svg>
             );
@@ -4773,6 +4755,7 @@ function App() {
 
   function StarMenuEditor({ card }) {
     const stars = normalizeFrontStars(card?.starsFront);
+    const [starRangeDraft, setStarRangeDraft] = useState({});
     const controls = [
       { key: "count", label: "Stars", min: 0, max: 10, step: 1 },
       { key: "size", label: "Size", min: 4, max: 80, step: 1 },
@@ -4780,19 +4763,29 @@ function App() {
       { key: "x", label: "X", min: -120, max: 120, step: 1 },
       { key: "y", label: "Y", min: -120, max: 120, step: 1 },
     ];
-    const setStarValue = (control, rawValue) => {
+    const clampStarValue = (control, rawValue) => {
       const numericValue = Number(rawValue);
-      if (!Number.isFinite(numericValue)) return;
-      const clampedValue = Math.min(control.max, Math.max(control.min, numericValue));
+      if (!Number.isFinite(numericValue)) return Number(stars[control.key] || 0);
+      return Math.min(control.max, Math.max(control.min, numericValue));
+    };
+    const displayStarValue = control => starRangeDraft[control.key] ?? stars[control.key];
+    const commitStarValue = (control, rawValue) => {
+      const clampedValue = clampStarValue(control, rawValue);
+      setStarRangeDraft(prev => ({ ...prev, [control.key]: clampedValue }));
       updateFrontStars(card.id, { [control.key]: clampedValue });
     };
-    const nudgeStarValue = (control, delta) => {
-      const currentValue = Number(stars[control.key] || 0);
-      setStarValue(control, currentValue + (delta * control.step));
+    const draftStarValue = (control, rawValue) => {
+      const clampedValue = clampStarValue(control, rawValue);
+      setStarRangeDraft(prev => ({ ...prev, [control.key]: clampedValue }));
     };
+    const nudgeStarValue = (control, delta) => {
+      const currentValue = Number(displayStarValue(control) || 0);
+      commitStarValue(control, currentValue + (delta * control.step));
+    };
+    const stopControlEvent = e => e.stopPropagation();
     return (
       <div className="card-edit-section star-menu-section">
-        <div className="card-edit-section-title"><strong>Star Menu</strong>{renderColorPicker(card, "starsFront", "Color")}</div>
+        <div className="card-edit-section-title"><strong>Star Menu</strong></div>
         <div className="star-menu-controls star-menu-controls-compact">
           {controls.map(control => (
             <div key={control.key} className="star-control-compact">
@@ -4805,9 +4798,19 @@ function App() {
                   min={control.min}
                   max={control.max}
                   step={control.step}
-                  value={stars[control.key]}
-                  onInput={e => setStarValue(control, e.currentTarget.value)}
-                  onChange={e => setStarValue(control, e.currentTarget.value)}
+                  value={displayStarValue(control)}
+                  onPointerDown={stopControlEvent}
+                  onMouseDown={stopControlEvent}
+                  onTouchStart={stopControlEvent}
+                  onInput={e => draftStarValue(control, e.currentTarget.value)}
+                  onPointerUp={e => commitStarValue(control, e.currentTarget.value)}
+                  onPointerCancel={e => commitStarValue(control, e.currentTarget.value)}
+                  onMouseUp={e => commitStarValue(control, e.currentTarget.value)}
+                  onTouchEnd={e => commitStarValue(control, e.currentTarget.value)}
+                  onBlur={e => commitStarValue(control, e.currentTarget.value)}
+                  onKeyUp={e => {
+                    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Enter"].includes(e.key)) commitStarValue(control, e.currentTarget.value);
+                  }}
                   aria-label={control.label}
                 />
                 <button type="button" className="star-control-step" onClick={() => nudgeStarValue(control, 1)} aria-label={`Increase ${control.label}`}>+</button>
@@ -4818,11 +4821,11 @@ function App() {
                 min={control.min}
                 max={control.max}
                 step={control.step}
-                value={stars[control.key]}
-                onPointerDown={e => e.stopPropagation()}
-                onMouseDown={e => e.stopPropagation()}
-                onTouchStart={e => e.stopPropagation()}
-                onChange={e => setStarValue(control, e.currentTarget.value)}
+                value={displayStarValue(control)}
+                onPointerDown={stopControlEvent}
+                onMouseDown={stopControlEvent}
+                onTouchStart={stopControlEvent}
+                onChange={e => commitStarValue(control, e.currentTarget.value)}
               />
             </div>
           ))}
