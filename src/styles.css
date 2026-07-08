@@ -5982,24 +5982,20 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   white-space: nowrap !important;
   overflow: visible !important;
 }
-/* BACK SHARED LIST LAYOUT: one deterministic title-to-rows flow for Editor, Inspector and Export. */
+/* BACK SHARED LIST LAYOUT: block/grid title-to-rows flow for Editor, Inspector and Export.
+   Avoid flex sizing in the title/body chain so html2canvas captures the same vertical metrics as the browser. */
 .card-preview.card-back .card-zone-list-with-title,
 .card-preview.card-back .card-zone-special-with-title,
 .card-preview.card-back .card-zone-defense-with-title {
   width: 100% !important;
   height: 100% !important;
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  justify-content: flex-start !important;
-  gap: 0 !important;
+  display: block !important;
   padding: 2px !important;
   overflow: visible !important;
   text-align: center !important;
   transform: none !important;
 }
 .card-preview.card-back .card-zone-section-title {
-  flex: 0 0 auto !important;
   display: block !important;
   width: 100% !important;
   max-width: none !important;
@@ -6020,16 +6016,11 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   color: var(--zone-title-color, var(--zone-text-color, currentColor)) !important;
 }
 .card-preview.card-back .card-zone-list {
-  flex: 1 1 auto !important;
   width: 100% !important;
   height: auto !important;
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: flex-start !important;
-  align-items: stretch !important;
-  gap: 0 !important;
-  padding: 0 !important;
-  margin-top: 4px !important;
+  display: block !important;
+  margin-top: var(--zone-title-gap, 4px) !important;
+  padding: 2px 0 0 !important;
   overflow: visible !important;
   font-family: var(--zone-font-family, Inter), system-ui, sans-serif !important;
   font-size: calc(6.1px * var(--zone-font-scale, 1)) !important;
@@ -6042,16 +6033,14 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   grid-template-columns: minmax(0, 1fr) auto !important;
   align-items: center !important;
   column-gap: var(--zone-stat-gap, 10px) !important;
-  row-gap: 0 !important;
   min-height: 0 !important;
   padding: 0 !important;
+  margin: 0 !important;
   transform: none !important;
 }
-
 .card-preview.card-back .card-zone-list-row + .card-zone-list-row {
-  margin-top: 2px !important;
+  margin-top: var(--zone-row-gap, 2px) !important;
 }
-
 .card-preview.card-back .card-zone-list-row span,
 .card-preview.card-back .card-zone-list-row strong {
   font-family: var(--zone-font-family, Inter), system-ui, sans-serif !important;
