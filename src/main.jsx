@@ -261,7 +261,11 @@ function normalizeTextStyles(raw = {}) {
       font,
       fontSize: clamp(Number(current.fontSize ?? defaults.fontSize), 50, 260),
       lineHeight: clamp(Number(current.lineHeight ?? defaults.lineHeight), 70, 180),
-      verticalOffset: clamp(Number(current.verticalOffset ?? defaults.verticalOffset ?? 0), -100, 100),
+      verticalOffset: clamp(
+        Number(current.verticalOffset ?? defaults.verticalOffset ?? 0),
+        (key === "attributes" || key === "bonuses") ? -200 : -100,
+        (key === "attributes" || key === "bonuses") ? 200 : 100
+      ),
       horizontalOffset: clamp(Number(current.horizontalOffset ?? defaults.horizontalOffset ?? 0), -100, 100),
       statGap: clamp(Number(current.statGap ?? defaults.statGap), 0, 300),
     };
@@ -345,7 +349,6 @@ function zoneNumberStyleVarsStable(styles, textKey, numberKey) {
   const font = number.font && number.font !== defaultNumber.font ? number.font : base.font;
   const numberSizeOffset = (number.fontSize - 100) / 100;
   const fontScale = Math.max(0.1, (base.fontSize / 100) + numberSizeOffset);
-  const combinedVerticalOffset = (base.verticalOffset || 0) + (number.verticalOffset || 0);
   return {
     "--zone-align": base.align,
     "--zone-justify": base.align === "left" ? "flex-start" : base.align === "right" ? "flex-end" : "center",
@@ -355,7 +358,7 @@ function zoneNumberStyleVarsStable(styles, textKey, numberKey) {
     "--zone-font-scale": fontScale,
     "--zone-number-font-scale": fontScale,
     "--zone-line-height": base.lineHeight / 100,
-    "--zone-y-offset": `${combinedVerticalOffset * 0.14}px`,
+    "--zone-y-offset": `${base.verticalOffset * 0.14}px`,
   };
 }
 
@@ -391,8 +394,7 @@ function zoneNumberStyleVars(styles, textKey, numberKey) {
   const font = number.font && number.font !== defaultNumber.font ? number.font : base.font;
   const numberSizeOffset = (number.fontSize - 100) / 100;
   const fontScale = Math.max(0.1, (base.fontSize / 100) + numberSizeOffset);
-  const combinedVerticalOffset = (base.verticalOffset || 0) + (number.verticalOffset || 0);
-  // Numbers use Text as the base; Numbers Size/Y are fine offsets over that base.
+  // Numbers use Text as the base; Numbers Size is a fine offset over that base.
   // If Numbers B is off, the number stays normal even when the label text is bold.
   const fontWeight = number.bold ? 950 : 650;
   return {
@@ -404,7 +406,7 @@ function zoneNumberStyleVars(styles, textKey, numberKey) {
     "--zone-font-scale": fontScale,
     "--zone-number-font-scale": fontScale,
     "--zone-line-height": base.lineHeight / 100,
-    "--zone-y-offset": `${combinedVerticalOffset * 0.4}cqh`,
+    "--zone-y-offset": `${base.verticalOffset * 0.4}cqh`,
   };
 }
 
@@ -466,8 +468,7 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
   const rangeSpec = key => {
     if (key === "verticalOffset") {
       if (styleKey === "headerBack" || styleKey === "positionBack") return { min: -35, max: 35, step: 0.5 };
-      if (!numbersMode && (styleKey === "attributes" || styleKey === "bonuses")) return { min: -180, max: 180, step: 1 };
-      if (numbersMode && (styleKey === "attributesValue" || styleKey === "bonusesValue")) return { min: -80, max: 80, step: 1 };
+      if (!numbersMode && (styleKey === "attributes" || styleKey === "bonuses")) return { min: -200, max: 200, step: 1 };
     }
     return null;
   };
@@ -493,16 +494,18 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
       <button type="button" className={`text-style-toggle ${isOpen ? "active" : ""}`} aria-expanded={isOpen} onClick={onToggle}>{buttonLabel}</button>
       {isOpen ? (
         <div className="text-style-panel" onPointerDown={stopPanelEvent} onMouseDown={stopPanelEvent} onClick={stopPanelEvent}>
-          <div className="text-align-buttons" aria-label="Text align">
-            {!numbersMode ? <button type="button" className={safeCurrent.align === "left" ? "selected" : ""} onClick={() => set({ align: "left" })}>L</button> : null}
-            {!numbersMode ? <button type="button" className={safeCurrent.align === "center" ? "selected" : ""} onClick={() => set({ align: "center" })}>C</button> : null}
-            {!numbersMode ? <button type="button" className={safeCurrent.align === "right" ? "selected" : ""} onClick={() => set({ align: "right" })}>R</button> : null}
-            <button type="button" className={safeCurrent.bold ? "selected" : ""} onClick={() => set({ bold: !safeCurrent.bold })}>B</button>
-          </div>
-          {!titleMode ? <label>Font<select value={safeCurrent.font} onChange={e => set({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label> : null}
+          {!numbersMode ? (
+            <div className="text-align-buttons" aria-label="Text align">
+              <button type="button" className={safeCurrent.align === "left" ? "selected" : ""} onClick={() => set({ align: "left" })}>L</button>
+              <button type="button" className={safeCurrent.align === "center" ? "selected" : ""} onClick={() => set({ align: "center" })}>C</button>
+              <button type="button" className={safeCurrent.align === "right" ? "selected" : ""} onClick={() => set({ align: "right" })}>R</button>
+              <button type="button" className={safeCurrent.bold ? "selected" : ""} onClick={() => set({ bold: !safeCurrent.bold })}>B</button>
+            </div>
+          ) : null}
+          {!titleMode && !numbersMode ? <label>Font<select value={safeCurrent.font} onChange={e => set({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label> : null}
           {renderRange("Size", "fontSize", 50, 260, "%")}
           {!titleMode && !numbersMode ? renderRange("Line", "lineHeight", 70, 180, "%") : null}
-          {!titleMode ? renderRange("Y", "verticalOffset", -100, 100, "") : null}
+          {!titleMode && !numbersMode ? renderRange("Y", "verticalOffset", -100, 100, "") : null}
         </div>
       ) : null}
     </div>

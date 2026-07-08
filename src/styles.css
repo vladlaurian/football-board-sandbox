@@ -6184,3 +6184,36 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   box-shadow: 0 16px 40px rgba(0,0,0,.55) !important;
   backdrop-filter: none !important;
 }
+
+
+/* v19: Numbers Size is a real render variable in the shared card renderer.
+   Editor, Inspector and PNG export all use these same card-preview rules. */
+.card-preview .card-zone-formula .card-zone-value,
+.card-visual-canvas .card-zone-formula .card-zone-value,
+.card-preview.card-back .card-zone-list-row strong,
+.card-visual-canvas[data-card-side="back"] .card-zone-list-row strong {
+  font-size: calc(1em * var(--zone-number-font-scale, var(--zone-font-scale, 1))) !important;
+}
+
+/* v19: Special Ability Text popup must be a solid click-capturing layer, not a visual-only overlay. */
+.special-text-toolbar .text-style-controls.open .text-style-panel {
+  position: absolute !important;
+  z-index: 2147483004 !important;
+  pointer-events: auto !important;
+  background: #051228 !important;
+  opacity: 1 !important;
+  isolation: isolate !important;
+}
+.special-text-toolbar .text-style-controls.open .text-style-panel::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 0 !important;
+  pointer-events: auto !important;
+  background: #051228 !important;
+  border-radius: inherit !important;
+}
+.special-text-toolbar .text-style-controls.open .text-style-panel > * {
+  position: relative !important;
+  z-index: 1 !important;
+}
