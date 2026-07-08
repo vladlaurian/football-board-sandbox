@@ -3731,7 +3731,20 @@ function App() {
           }}
           aria-label={`${stars.count} stars`}
         >
-          {Array.from({ length: stars.count }, (_, index) => <span key={index}>★</span>)}
+          {Array.from({ length: stars.count }, (_, index) => (
+            <svg
+              key={index}
+              className="front-star-svg"
+              viewBox="0 0 100 100"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <polygon
+                className="front-star-shape"
+                points="50,5 61,36 94,36 67,56 78,90 50,70 22,90 33,56 6,36 39,36"
+              />
+            </svg>
+          ))}
         </div>
       );
     };
