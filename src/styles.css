@@ -6250,31 +6250,108 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   overflow: visible;
 }
 
-.front-star-shape {
-  fill: #d99a16;
+.front-star-shadow {
+  fill: rgba(68, 36, 2, .58);
+  transform: translate(2px, 4px);
+}
+
+.front-star-base {
+  fill: #d79a17;
   stroke: #5b3404;
   stroke-width: 5;
   stroke-linejoin: round;
 }
 
-.star-menu-controls {
-  display: grid;
-  gap: 8px;
+.front-star-top {
+  fill: #ffe58a;
 }
 
-.star-control-row {
-  display: grid;
-  grid-template-columns: minmax(110px, 1fr) minmax(120px, 2fr) 64px;
-  align-items: center;
-  gap: 8px;
+.front-star-left {
+  fill: #b87308;
 }
 
-.star-control-row span {
-  font-size: 12px;
+.front-star-right {
+  fill: #edae25;
+}
+
+.front-star-center {
+  fill: #f7c646;
+}
+
+.front-star-ridge {
+  fill: none;
+  stroke: rgba(255, 242, 166, .78);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.star-menu-controls-compact {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 8px;
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.star-control-compact {
+  flex: 1 1 0;
+  min-width: 84px;
+  display: grid;
+  grid-template-rows: auto auto auto;
+  gap: 3px;
+}
+
+.star-control-label {
+  font-size: 10px;
+  line-height: 1;
   color: rgba(255,255,255,.82);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.star-control-inline {
+  display: grid;
+  grid-template-columns: 18px minmax(42px, 1fr) 18px;
+  align-items: center;
+  gap: 3px;
+}
+
+.star-control-step {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  padding: 0 !important;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  touch-action: manipulation;
+}
+
+.star-control-inline input[type="range"] {
+  width: 100%;
+  min-width: 0;
+  height: 18px;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  pointer-events: auto !important;
+  touch-action: none;
+  cursor: ew-resize;
 }
 
 .star-control-number {
-  width: 64px;
+  width: 44px;
+  max-width: 44px;
+  justify-self: center;
   text-align: center;
+  padding: 3px 4px !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
 }

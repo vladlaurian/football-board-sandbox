@@ -3739,10 +3739,14 @@ function App() {
               aria-hidden="true"
               focusable="false"
             >
-              <polygon
-                className="front-star-shape"
-                points="50,5 61,36 94,36 67,56 78,90 50,70 22,90 33,56 6,36 39,36"
-              />
+              <polygon className="front-star-shadow" points="50,5 61,36 94,36 67,56 78,90 50,70 22,90 33,56 6,36 39,36" />
+              <polygon className="front-star-base" points="50,5 61,36 94,36 67,56 78,90 50,70 22,90 33,56 6,36 39,36" />
+              <polygon className="front-star-top" points="50,5 61,36 50,48 39,36" />
+              <polygon className="front-star-left" points="50,48 39,36 6,36 33,56 22,90" />
+              <polygon className="front-star-right" points="50,48 61,36 94,36 67,56 78,90" />
+              <polygon className="front-star-center" points="50,48 67,56 50,70 33,56" />
+              <polyline className="front-star-ridge" points="50,8 50,48 26,86" />
+              <polyline className="front-star-ridge" points="50,48 74,86" />
             </svg>
           ))}
         </div>
@@ -4737,27 +4741,45 @@ function App() {
   function StarMenuEditor({ card }) {
     const stars = normalizeFrontStars(card?.starsFront);
     const controls = [
-      { key: "count", label: "Number of Stars", min: 0, max: 10, step: 1 },
-      { key: "size", label: "Star Size", min: 4, max: 80, step: 1 },
-      { key: "spacing", label: "Star Spacing", min: 0, max: 80, step: 1 },
-      { key: "x", label: "Star X", min: -120, max: 120, step: 1 },
-      { key: "y", label: "Star Y", min: -120, max: 120, step: 1 },
+      { key: "count", label: "Stars", min: 0, max: 10, step: 1 },
+      { key: "size", label: "Size", min: 4, max: 80, step: 1 },
+      { key: "spacing", label: "Spacing", min: 0, max: 80, step: 1 },
+      { key: "x", label: "X", min: -120, max: 120, step: 1 },
+      { key: "y", label: "Y", min: -120, max: 120, step: 1 },
     ];
+    const setStarValue = (control, rawValue) => {
+      const numericValue = Number(rawValue);
+      if (!Number.isFinite(numericValue)) return;
+      const clampedValue = Math.min(control.max, Math.max(control.min, numericValue));
+      updateFrontStars(card.id, { [control.key]: clampedValue });
+    };
+    const nudgeStarValue = (control, delta) => {
+      const currentValue = Number(stars[control.key] || 0);
+      setStarValue(control, currentValue + (delta * control.step));
+    };
     return (
       <div className="card-edit-section star-menu-section">
         <div className="card-edit-section-title"><strong>Star Menu</strong></div>
-        <div className="star-menu-controls">
+        <div className="star-menu-controls star-menu-controls-compact">
           {controls.map(control => (
-            <label key={control.key} className="star-control-row">
-              <span>{control.label}</span>
-              <input
-                type="range"
-                min={control.min}
-                max={control.max}
-                step={control.step}
-                value={stars[control.key]}
-                onChange={e => updateFrontStars(card.id, { [control.key]: Number(e.target.value) })}
-              />
+            <div key={control.key} className="star-control-compact">
+              <span className="star-control-label">{control.label}</span>
+              <div className="star-control-inline">
+                <button type="button" className="star-control-step" onClick={() => nudgeStarValue(control, -1)} aria-label={`Decrease ${control.label}`}>−</button>
+                <input
+                  type="range"
+                  min={control.min}
+                  max={control.max}
+                  step={control.step}
+                  value={stars[control.key]}
+                  onPointerDown={e => e.stopPropagation()}
+                  onTouchStart={e => e.stopPropagation()}
+                  onMouseDown={e => e.stopPropagation()}
+                  onInput={e => setStarValue(control, e.currentTarget.value)}
+                  onChange={e => setStarValue(control, e.currentTarget.value)}
+                />
+                <button type="button" className="star-control-step" onClick={() => nudgeStarValue(control, 1)} aria-label={`Increase ${control.label}`}>+</button>
+              </div>
               <input
                 className="star-control-number"
                 type="number"
@@ -4765,9 +4787,10 @@ function App() {
                 max={control.max}
                 step={control.step}
                 value={stars[control.key]}
-                onChange={e => updateFrontStars(card.id, { [control.key]: Number(e.target.value) })}
+                onPointerDown={e => e.stopPropagation()}
+                onChange={e => setStarValue(control, e.currentTarget.value)}
               />
-            </label>
+            </div>
           ))}
         </div>
       </div>
