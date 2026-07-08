@@ -6217,3 +6217,38 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   position: relative !important;
   z-index: 1 !important;
 }
+
+/* v20: Numbers panel keeps only the independent Bold toggle + Size slider. */
+.text-style-panel .numbers-bold-only {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 6px !important;
+}
+.text-style-panel .numbers-bold-only button {
+  min-width: 44px !important;
+}
+
+/* v20: Special Ability text popup must be visually solid, not just above the textarea. */
+.special-text-toolbar .text-style-controls.open .text-style-panel {
+  background: #051228 !important;
+  background-color: #051228 !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: 0 18px 46px rgba(0,0,0,.68), 0 0 0 1px rgba(140,190,255,.22) !important;
+  overflow: hidden !important;
+  pointer-events: auto !important;
+}
+.special-text-toolbar .text-style-controls.open .text-style-panel::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: -2px !important;
+  z-index: 0 !important;
+  background: #051228 !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+.special-text-toolbar .text-style-controls.open .text-style-panel > * {
+  position: relative !important;
+  z-index: 1 !important;
+}
