@@ -3752,15 +3752,15 @@ function App() {
                 <polygon className="front-star-gold-base" fill={`url(#${gradientId})`} points="50,5 61,36 94,36 67,56 78,90 50,70 22,90 33,56 6,36 39,36" />
                 <g className="front-star-facets">
                   <polygon className="front-star-facet-light" points="50,5 50,50 39,36" />
-                  <polygon className="front-star-facet-mid" points="61,36 50,50 50,5" />
+                  <polygon className="front-star-facet-dark" points="61,36 50,50 50,5" />
                   <polygon className="front-star-facet-light" points="94,36 50,50 61,36" />
-                  <polygon className="front-star-facet-mid" points="67,56 50,50 94,36" />
-                  <polygon className="front-star-facet-mid" points="78,90 50,50 67,56" />
-                  <polygon className="front-star-facet-dark" points="50,70 50,50 78,90" />
-                  <polygon className="front-star-facet-mid" points="22,90 50,50 50,70" />
-                  <polygon className="front-star-facet-light" points="33,56 50,50 22,90" />
+                  <polygon className="front-star-facet-dark" points="67,56 50,50 94,36" />
+                  <polygon className="front-star-facet-dark" points="78,90 50,50 67,56" />
+                  <polygon className="front-star-facet-deep" points="50,70 50,50 78,90" />
+                  <polygon className="front-star-facet-deep" points="22,90 50,50 50,70" />
+                  <polygon className="front-star-facet-dark" points="33,56 50,50 22,90" />
                   <polygon className="front-star-facet-dark" points="6,36 50,50 33,56" />
-                  <polygon className="front-star-facet-mid" points="39,36 50,50 6,36" />
+                  <polygon className="front-star-facet-light" points="39,36 50,50 6,36" />
                 </g>
               </svg>
             );
@@ -4777,6 +4777,7 @@ function App() {
     const draftStarValue = (control, rawValue) => {
       const clampedValue = clampStarValue(control, rawValue);
       setStarRangeDraft(prev => ({ ...prev, [control.key]: clampedValue }));
+      updateFrontStars(card.id, { [control.key]: clampedValue });
     };
     const nudgeStarValue = (control, delta) => {
       const currentValue = Number(displayStarValue(control) || 0);
