@@ -4766,18 +4766,51 @@ function App() {
               <span className="star-control-label">{control.label}</span>
               <div className="star-control-inline">
                 <button type="button" className="star-control-step" onClick={() => nudgeStarValue(control, -1)} aria-label={`Decrease ${control.label}`}>−</button>
-                <input
-                  type="range"
-                  min={control.min}
-                  max={control.max}
-                  step={control.step}
-                  value={stars[control.key]}
-                  onPointerDown={e => e.stopPropagation()}
-                  onTouchStart={e => e.stopPropagation()}
-                  onMouseDown={e => e.stopPropagation()}
-                  onInput={e => setStarValue(control, e.currentTarget.value)}
-                  onChange={e => setStarValue(control, e.currentTarget.value)}
-                />
+                <div
+                  className="star-control-slider"
+                  role="slider"
+                  aria-label={control.label}
+                  aria-valuemin={control.min}
+                  aria-valuemax={control.max}
+                  aria-valuenow={stars[control.key]}
+                  tabIndex={0}
+                  style={{ "--star-slider-pct": `${((Number(stars[control.key]) - control.min) / Math.max(1, control.max - control.min)) * 100}%` }}
+                  onPointerDown={e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const slider = e.currentTarget;
+                    slider.dataset.dragging = "1";
+                    slider.setPointerCapture?.(e.pointerId);
+                    const rect = slider.getBoundingClientRect();
+                    const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / Math.max(1, rect.width)));
+                    const raw = control.min + pct * (control.max - control.min);
+                    setStarValue(control, Math.round(raw / control.step) * control.step);
+                  }}
+                  onPointerMove={e => {
+                    if (e.currentTarget.dataset.dragging !== "1") return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / Math.max(1, rect.width)));
+                    const raw = control.min + pct * (control.max - control.min);
+                    setStarValue(control, Math.round(raw / control.step) * control.step);
+                  }}
+                  onPointerUp={e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.dataset.dragging = "0";
+                    e.currentTarget.releasePointerCapture?.(e.pointerId);
+                  }}
+                  onPointerCancel={e => { e.currentTarget.dataset.dragging = "0"; }}
+                  onKeyDown={e => {
+                    if (e.key === "ArrowLeft" || e.key === "ArrowDown") { e.preventDefault(); nudgeStarValue(control, -1); }
+                    if (e.key === "ArrowRight" || e.key === "ArrowUp") { e.preventDefault(); nudgeStarValue(control, 1); }
+                  }}
+                >
+                  <span className="star-control-slider-track" />
+                  <span className="star-control-slider-fill" />
+                  <span className="star-control-slider-thumb" />
+                </div>
                 <button type="button" className="star-control-step" onClick={() => nudgeStarValue(control, 1)} aria-label={`Increase ${control.label}`}>+</button>
               </div>
               <input

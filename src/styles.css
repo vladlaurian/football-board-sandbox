@@ -6355,3 +6355,82 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   font-size: 11px !important;
   line-height: 1 !important;
 }
+
+/* v27 FIX: star SVG colors must not inherit the global formula/content fill rule. */
+.card-zone-front-stars .front-star-shadow {
+  fill: rgba(58, 30, 1, .62) !important;
+  transform: translate(2px, 4px);
+}
+.card-zone-front-stars .front-star-base {
+  fill: #d99613 !important;
+  stroke: #5a3302 !important;
+  stroke-width: 5;
+  stroke-linejoin: round;
+}
+.card-zone-front-stars .front-star-top {
+  fill: #fff0a8 !important;
+}
+.card-zone-front-stars .front-star-left {
+  fill: #b56d05 !important;
+}
+.card-zone-front-stars .front-star-right {
+  fill: #f3b62b !important;
+}
+.card-zone-front-stars .front-star-center {
+  fill: #ffd15a !important;
+}
+.card-zone-front-stars .front-star-ridge {
+  fill: none !important;
+  stroke: rgba(255, 244, 174, .88) !important;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* v27 FIX: custom pointer slider for Star Menu; native range was click-only in this app context. */
+.star-control-slider {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  height: 18px;
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+  pointer-events: auto !important;
+}
+.star-control-slider-track,
+.star-control-slider-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 4px;
+  border-radius: 999px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.star-control-slider-track {
+  background: rgba(255,255,255,.35);
+}
+.star-control-slider-fill {
+  right: auto;
+  width: var(--star-slider-pct, 0%);
+  background: #d79a17;
+}
+.star-control-slider-thumb {
+  position: absolute;
+  left: var(--star-slider-pct, 0%);
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #f0b22a;
+  border: 1px solid rgba(255,255,255,.65);
+  box-shadow: 0 1px 3px rgba(0,0,0,.45);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.star-control-slider:focus-visible .star-control-slider-thumb {
+  outline: 2px solid rgba(255,255,255,.9);
+  outline-offset: 2px;
+}
