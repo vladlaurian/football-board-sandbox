@@ -3385,7 +3385,7 @@ function App() {
       });
 
       const sideLabel = exportSide === "front" ? "Front" : "Back";
-      const filename = `${safeCardExportName(selectedCard)}-${safeExportPart(selectedCard.position)}-${sideLabel}.png`;
+      const filename = `${safeExportPart(selectedCard.position)}-${safeCardExportName(selectedCard)}-${sideLabel}.png`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
