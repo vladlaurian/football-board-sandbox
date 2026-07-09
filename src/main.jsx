@@ -1433,9 +1433,44 @@ function getLegacyAssignments(rawCardState) {
   );
 }
 
-function sanitizePiecesCardIds(rawPieces, cardStateLike, settingsLike = DEFAULT_SETTINGS, legacyAssignments = {}) {
+function normalizeSessionCardsById(raw) {
+  if (!raw || typeof raw !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(raw)
+      .map(([cardId, card]) => {
+        const normalized = normalizeImportedCard({ ...(card || {}), id: String(card?.id || cardId) });
+        return [String(normalized.id), normalized];
+      })
+      .filter(([cardId]) => cardId)
+  );
+}
+
+function buildSessionCardsById(rawPieces, cardStateLike, existingSessionCardsById = {}) {
   const normalizedCardState = normalizeCardState(cardStateLike);
-  const validCardIds = new Set((normalizedCardState.cards || []).map(card => String(card.id)));
+  const localCardById = Object.fromEntries((normalizedCardState.cards || []).map(card => [String(card.id), card]));
+  const existingCards = normalizeSessionCardsById(existingSessionCardsById);
+  const assignedIds = new Set(
+    (rawPieces || [])
+      .map(piece => String(piece?.cardId || "").trim())
+      .filter(Boolean)
+  );
+
+  const sessionCards = {};
+  assignedIds.forEach(cardId => {
+    const source = localCardById[cardId] || existingCards[cardId];
+    if (!source) return;
+    sessionCards[cardId] = deepStripInlineImageDataUrls(normalizeImportedCard(source));
+  });
+  return sessionCards;
+}
+
+function sanitizePiecesCardIds(rawPieces, cardStateLike, settingsLike = DEFAULT_SETTINGS, legacyAssignments = {}, sessionCardsByIdLike = {}) {
+  const normalizedCardState = normalizeCardState(cardStateLike);
+  const normalizedSessionCards = normalizeSessionCardsById(sessionCardsByIdLike);
+  const validCardIds = new Set([
+    ...(normalizedCardState.cards || []).map(card => String(card.id)),
+    ...Object.keys(normalizedSessionCards).map(cardId => String(cardId)),
+  ]);
   const usedCardIds = new Set();
 
   return normalizePiecesForBoard(rawPieces || [], settingsLike).map(piece => {
@@ -1949,6 +1984,8 @@ function App() {
   const piecesRef = useRef(pieces);
   const settingsRef = useRef(settings);
   const cardStateRef = useRef(cardState);
+  const [sessionCardsById, setSessionCardsById] = useState({});
+  const sessionCardsByIdRef = useRef({});
 
   const SESSION_LIVE_SAVE_INTERVAL_MS = 250;
   const CLOUD_AUTOSAVE_INTERVAL_MS = 3 * 60 * 1000;
@@ -1956,6 +1993,7 @@ function App() {
   useEffect(() => { piecesRef.current = pieces; }, [pieces]);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { cardStateRef.current = cardState; }, [cardState]);
+  useEffect(() => { sessionCardsByIdRef.current = sessionCardsById; }, [sessionCardsById]);
 
   const [sessionCode, setSessionCode] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -2103,6 +2141,7 @@ function App() {
     const effectiveSettings = overrides.settings ? normalizeSettingsForApp(overrides.settings) : settingsRef.current;
     const effectivePieces = overrides.pieces || piecesRef.current;
     const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, ...restOverrides } = overrides;
+    const effectiveSessionCardsById = buildSessionCardsById(effectivePieces, cardStateRef.current, sessionCardsByIdRef.current);
     return {
       version: "pitch-44-goal-5x2",
       dieType,
@@ -2112,19 +2151,25 @@ function App() {
       blueFormationId,
       redFormationId,
       actionLog,
+      sessionCardsById: effectiveSessionCardsById,
       ...restOverrides,
       settings: effectiveSettings,
-      pieces: sanitizePiecesCardIds(effectivePieces, cardStateRef.current, effectiveSettings),
+      pieces: sanitizePiecesCardIds(effectivePieces, cardStateRef.current, effectiveSettings, {}, effectiveSessionCardsById),
     };
   }
 
   function applyLiveBoardState(data) {
     if (!data) return;
     const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settings;
+    const nextSessionCardsById = normalizeSessionCardsById(data.sessionCardsById || sessionCardsByIdRef.current);
     const nextPieces = data.pieces
-      ? ensureBenchReserveCount(sanitizePiecesCardIds(data.pieces, cardStateRef.current, nextSettings), nextSettings)
-      : sanitizePiecesCardIds(pieces, cardStateRef.current, nextSettings);
+      ? ensureBenchReserveCount(sanitizePiecesCardIds(data.pieces, cardStateRef.current, nextSettings, {}, nextSessionCardsById), nextSettings)
+      : sanitizePiecesCardIds(pieces, cardStateRef.current, nextSettings, {}, nextSessionCardsById);
 
+    if (data.sessionCardsById) {
+      sessionCardsByIdRef.current = nextSessionCardsById;
+      setSessionCardsById(nextSessionCardsById);
+    }
     if (data.settings) setSettings(nextSettings);
     if (data.pieces) {
       piecesRef.current = nextPieces;
@@ -2809,7 +2854,10 @@ function App() {
     setEditLabel("");
   }
 
-  const cardById = useMemo(() => Object.fromEntries(cardState.cards.map(card => [card.id, card])), [cardState.cards]);
+  const cardById = useMemo(() => ({
+    ...sessionCardsById,
+    ...Object.fromEntries(cardState.cards.map(card => [card.id, card])),
+  }), [cardState.cards, sessionCardsById]);
   const libraryPositionOptions = useMemo(() => Array.from(new Set((cardState.cards || []).map(card => card.position).filter(Boolean))).sort((a, b) => {
     const rankA = CARD_POSITION_OPTIONS.indexOf(a);
     const rankB = CARD_POSITION_OPTIONS.indexOf(b);
@@ -3208,6 +3256,9 @@ function App() {
     );
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
+    const nextSessionCardsById = buildSessionCardsById(nextPieces, cardStateRef.current, sessionCardsByIdRef.current);
+    sessionCardsByIdRef.current = nextSessionCardsById;
+    setSessionCardsById(nextSessionCardsById);
     setAssignTarget(null);
   }
 
