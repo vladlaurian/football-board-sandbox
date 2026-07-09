@@ -1913,6 +1913,8 @@ function App() {
   const [graphicImportCardId, setGraphicImportCardId] = useState("");
   const [graphicImportSide, setGraphicImportSide] = useState("front");
   const [assignTarget, setAssignTarget] = useState(null);
+  const [assignPreviewCardId, setAssignPreviewCardId] = useState(null);
+  const [assignPreviewSide, setAssignPreviewSide] = useState("front");
   const [inspectorPosition, setInspectorPosition] = useState({ x: Math.max(12, window.innerWidth - 450), y: 150 });
   const [inspectorSize, setInspectorSize] = useState({ w: 420, h: 650 });
   const [inspectorDragging, setInspectorDragging] = useState(null);
@@ -2872,6 +2874,17 @@ function App() {
       setLibraryPositionFilter("ALL");
     }
   }, [libraryPositionFilter, libraryPositionOptions]);
+
+  useEffect(() => {
+    if (!assignTarget) {
+      setAssignPreviewCardId(null);
+      setAssignPreviewSide("front");
+      return;
+    }
+    const cards = cardState.cards || [];
+    setAssignPreviewCardId(prev => cards.some(card => card.id === prev) ? prev : (cards[0]?.id || null));
+    setAssignPreviewSide("front");
+  }, [assignTarget, cardState.cards]);
 
   const visibleLibraryCards = useMemo(() => {
     const cards = cardState.cards || [];
@@ -5048,12 +5061,61 @@ function App() {
 
   function AssignCardModal() {
     if (!assignTarget) return null;
+    const assignCards = cardState.cards || [];
+    const selectedPreviewCard = assignCards.find(card => card.id === assignPreviewCardId) || assignCards[0] || null;
+    const getAssignedTeamForCard = (cardId) => {
+      const assignedPiece = (pieces || []).find(piece => piece.cardId === cardId && piece.team !== "BALL");
+      if (!assignedPiece) return null;
+      if (assignedPiece.team === "A") return "blue";
+      if (assignedPiece.team === "B") return "red";
+      return "assigned";
+    };
+    const renderAssignStars = (card) => {
+      const count = Math.max(0, Math.min(5, Number(normalizeFrontStars(card?.starsFront).count) || 0));
+      return count ? "★".repeat(count) : "—";
+    };
     return (
       <div className="modal-backdrop" onPointerDown={() => setAssignTarget(null)}>
-        <div className="assign-modal" onPointerDown={e => e.stopPropagation()}>
+        <div className="assign-modal assign-modal-wide" onPointerDown={e => e.stopPropagation()}>
           <div className="modal-title"><strong>Assign Card</strong><button className="icon-btn" onClick={() => setAssignTarget(null)}><X size={18} /></button></div>
-          <div className="assign-list">{cardState.cards.map(card => <button key={card.id} onClick={() => assignCard(card.id)}><b>{card.name}</b><span>{card.position}</span></button>)}</div>
-          {cardState.cards.length === 0 && <p>Nu există carduri încă. Creează unul în Card Library.</p>}
+          {assignCards.length === 0 ? (
+            <p>Nu există carduri încă. Creează unul în Card Library.</p>
+          ) : (
+            <div className="assign-picker-layout">
+              <div className="assign-list">
+                {assignCards.map(card => {
+                  const assignedTeam = getAssignedTeamForCard(card.id);
+                  return (
+                    <button
+                      key={card.id}
+                      type="button"
+                      className={`assign-card-row ${assignPreviewCardId === card.id ? "selected" : ""}`}
+                      onClick={() => { setAssignPreviewCardId(card.id); setAssignPreviewSide("front"); }}
+                    >
+                      <span className={`assign-status-dot ${assignedTeam || "free"}`} aria-hidden="true" />
+                      <span className="assign-card-row-main"><b>{card.name}</b><small>{card.position}</small></span>
+                      <span className="assign-card-stars" aria-label={`${renderAssignStars(card)} stars`}>{renderAssignStars(card)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="assign-preview-panel">
+                {selectedPreviewCard ? (
+                  <>
+                    <div className="assign-preview-card-shell">
+                      <CardPreview card={selectedPreviewCard} team="neutral" side={assignPreviewSide} />
+                    </div>
+                    <div className="assign-preview-actions">
+                      <button type="button" onClick={() => setAssignPreviewSide(side => side === "front" ? "back" : "front")}>Flip</button>
+                      <button type="button" className="assign-confirm-btn" onClick={() => assignCard(selectedPreviewCard.id)}>Assign</button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="assign-empty-preview">Alege un card din listă.</div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

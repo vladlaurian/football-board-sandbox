@@ -6342,3 +6342,113 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   line-height: 1 !important;
 }
 
+
+/* Assign picker v2: list + card preview + explicit assign */
+.assign-modal.assign-modal-wide {
+  width: min(900px, calc(100vw - 24px));
+  max-height: 88vh;
+}
+.assign-picker-layout {
+  display: grid;
+  grid-template-columns: minmax(230px, 320px) minmax(260px, 1fr);
+  gap: 14px;
+  margin-top: 10px;
+  align-items: start;
+}
+.assign-list {
+  max-height: calc(88vh - 80px);
+  overflow: auto;
+  padding-right: 4px;
+}
+.assign-list .assign-card-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+}
+.assign-card-row.selected {
+  border-color: rgba(255,255,255,.36);
+  background: rgba(255,255,255,.13);
+}
+.assign-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.28);
+}
+.assign-status-dot.blue { background: #5daaff; }
+.assign-status-dot.red { background: #ff5f6e; }
+.assign-status-dot.free { background: rgba(255,255,255,.18); }
+.assign-status-dot.assigned { background: #fbbf24; }
+.assign-card-row-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.assign-card-row-main b {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.assign-card-row-main small {
+  color: rgba(238,244,255,.68);
+  font-weight: 800;
+}
+.assign-card-stars {
+  color: #facc15;
+  font-size: 12px;
+  letter-spacing: .5px;
+  white-space: nowrap;
+  font-weight: 900;
+}
+.assign-preview-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+.assign-preview-card-shell {
+  width: min(100%, 360px);
+  display: flex;
+  justify-content: center;
+}
+.assign-preview-card-shell .card-preview {
+  width: min(100%, 320px);
+}
+.assign-preview-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.assign-preview-actions button {
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.08);
+  color: #eef4ff;
+  padding: 8px 14px;
+  font-weight: 900;
+}
+.assign-preview-actions .assign-confirm-btn {
+  background: rgba(46, 204, 113, .24);
+  border-color: rgba(46, 204, 113, .45);
+}
+.assign-empty-preview {
+  min-height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(238,244,255,.68);
+}
+@media (max-width: 720px) {
+  .assign-picker-layout {
+    grid-template-columns: 1fr;
+  }
+  .assign-list {
+    max-height: 260px;
+  }
+}
