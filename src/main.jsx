@@ -1920,10 +1920,18 @@ function App() {
   const beforeLockViewRef = useRef(null);
   const clientIdRef = useRef(`client_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
   const sessionSaveTimerRef = useRef(null);
+  const sessionSaveInFlightRef = useRef(false);
+  const sessionSavePendingRef = useRef(false);
+  const sessionLastSaveAtRef = useRef(0);
   const isApplyingSessionRef = useRef(false);
+  const autosaveDirtyRef = useRef(false);
+  const autosaveIntervalRef = useRef(null);
   const piecesRef = useRef(pieces);
   const settingsRef = useRef(settings);
   const cardStateRef = useRef(cardState);
+
+  const SESSION_LIVE_SAVE_INTERVAL_MS = 250;
+  const CLOUD_AUTOSAVE_INTERVAL_MS = 3 * 60 * 1000;
 
   useEffect(() => { piecesRef.current = pieces; }, [pieces]);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
@@ -2073,7 +2081,6 @@ function App() {
 
   function buildLiveBoardState(overrides = {}) {
     const effectiveSettings = overrides.settings ? normalizeSettingsForApp(overrides.settings) : settingsRef.current;
-    const effectiveCardState = overrides.cardState ? normalizeCardState(overrides.cardState) : cardStateRef.current;
     const effectivePieces = overrides.pieces || piecesRef.current;
     const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, ...restOverrides } = overrides;
     return {
@@ -2087,19 +2094,16 @@ function App() {
       actionLog,
       ...restOverrides,
       settings: effectiveSettings,
-      pieces: sanitizePiecesCardIds(effectivePieces, effectiveCardState, effectiveSettings),
-      cardState: buildCardLibraryState(effectiveCardState),
+      pieces: sanitizePiecesCardIds(effectivePieces, cardStateRef.current, effectiveSettings),
     };
   }
 
   function applyLiveBoardState(data) {
     if (!data) return;
     const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settings;
-    const nextCardState = data.cardState ? normalizeCardState(data.cardState) : cardState;
-    const legacyAssignments = getLegacyAssignments(data.cardState);
     const nextPieces = data.pieces
-      ? ensureBenchReserveCount(sanitizePiecesCardIds(data.pieces, nextCardState, nextSettings, legacyAssignments), nextSettings)
-      : sanitizePiecesCardIds(pieces, nextCardState, nextSettings);
+      ? ensureBenchReserveCount(sanitizePiecesCardIds(data.pieces, cardStateRef.current, nextSettings), nextSettings)
+      : sanitizePiecesCardIds(pieces, cardStateRef.current, nextSettings);
 
     if (data.settings) setSettings(nextSettings);
     if (data.pieces) {
@@ -2113,7 +2117,6 @@ function App() {
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
     if (data.actionLog) setActionLog(data.actionLog);
-    if (data.cardState) setCardState(nextCardState);
   }
 
   async function saveSessionState(overrides = {}) {
@@ -2125,11 +2128,42 @@ function App() {
         updatedAt: serverTimestamp(),
         updatedBy: clientIdRef.current,
       }, { merge: true });
+      sessionLastSaveAtRef.current = Date.now();
       setSessionStatus("Online saved");
     } catch (error) {
       console.error(error);
       setSessionStatus("Online error");
     }
+  }
+
+  function scheduleSessionLiveSave() {
+    if (!user || !sessionCode || isApplyingSessionRef.current) return;
+    sessionSavePendingRef.current = true;
+    setSessionStatus("Online saving...");
+
+    if (sessionSaveTimerRef.current || sessionSaveInFlightRef.current) return;
+
+    const run = async () => {
+      sessionSaveTimerRef.current = null;
+      if (!sessionSavePendingRef.current || !user || !sessionCode || isApplyingSessionRef.current) return;
+
+      const elapsed = Date.now() - sessionLastSaveAtRef.current;
+      if (elapsed < SESSION_LIVE_SAVE_INTERVAL_MS) {
+        sessionSaveTimerRef.current = window.setTimeout(run, SESSION_LIVE_SAVE_INTERVAL_MS - elapsed);
+        return;
+      }
+
+      sessionSavePendingRef.current = false;
+      sessionSaveInFlightRef.current = true;
+      await saveSessionState();
+      sessionSaveInFlightRef.current = false;
+
+      if (sessionSavePendingRef.current) {
+        sessionSaveTimerRef.current = window.setTimeout(run, SESSION_LIVE_SAVE_INTERVAL_MS);
+      }
+    };
+
+    sessionSaveTimerRef.current = window.setTimeout(run, 0);
   }
 
   async function createSession() {
@@ -2212,6 +2246,7 @@ function App() {
         ...payload,
         updatedAt: serverTimestamp(),
       }, { merge: true });
+      autosaveDirtyRef.current = false;
       setCloudStatus(label);
       setCloudError("");
     } catch (error) {
@@ -2318,22 +2353,7 @@ function App() {
   }, [user, sessionCode]);
 
   useEffect(() => {
-    if (!user || !sessionCode || isApplyingSessionRef.current) return;
-
-    if (sessionSaveTimerRef.current) {
-      window.clearTimeout(sessionSaveTimerRef.current);
-    }
-
-    setSessionStatus("Online saving...");
-    sessionSaveTimerRef.current = window.setTimeout(() => {
-      saveSessionState();
-    }, 180);
-
-    return () => {
-      if (sessionSaveTimerRef.current) {
-        window.clearTimeout(sessionSaveTimerRef.current);
-      }
-    };
+    scheduleSessionLiveSave();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     user,
@@ -2344,30 +2364,21 @@ function App() {
     dieResult,
     snapToGrid,
     showCoordinates,
-    cardState,
     blueFormationId,
     redFormationId,
     actionLog,
   ]);
 
+  useEffect(() => () => {
+    if (sessionSaveTimerRef.current) {
+      window.clearTimeout(sessionSaveTimerRef.current);
+    }
+  }, []);
+
   useEffect(() => {
     if (!user || !cloudReady || isApplyingCloudRef.current) return;
-
-    if (autosaveTimerRef.current) {
-      window.clearTimeout(autosaveTimerRef.current);
-    }
-
-    setCloudStatus("Saving...");
-    autosaveTimerRef.current = window.setTimeout(() => {
-      saveCloudState({}, "Saved");
-    }, 900);
-
-    return () => {
-      if (autosaveTimerRef.current) {
-        window.clearTimeout(autosaveTimerRef.current);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    autosaveDirtyRef.current = true;
+    setCloudStatus("Unsaved changes");
   }, [
     user,
     cloudReady,
@@ -2386,6 +2397,27 @@ function App() {
     showCoordinates,
     cardState,
   ]);
+
+  useEffect(() => {
+    if (!user || !cloudReady) return;
+
+    if (autosaveIntervalRef.current) {
+      window.clearInterval(autosaveIntervalRef.current);
+    }
+
+    autosaveIntervalRef.current = window.setInterval(() => {
+      if (!autosaveDirtyRef.current || isApplyingCloudRef.current) return;
+      autosaveDirtyRef.current = false;
+      saveCloudState({}, "Autosaved");
+    }, CLOUD_AUTOSAVE_INTERVAL_MS);
+
+    return () => {
+      if (autosaveIntervalRef.current) {
+        window.clearInterval(autosaveIntervalRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, cloudReady]);
 
   function pushHistory(nextPieces = pieces) {
     setHistory(h => [...h.slice(-60), JSON.stringify(nextPieces)]);
