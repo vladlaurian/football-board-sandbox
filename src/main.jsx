@@ -1269,25 +1269,28 @@ function isInlineImageDataUrl(value) {
   return typeof value === "string" && /^data:image\//i.test(value);
 }
 
+function deepStripInlineImageDataUrls(value) {
+  if (isInlineImageDataUrl(value)) return "";
+  if (Array.isArray(value)) return value.map(item => deepStripInlineImageDataUrls(item));
+  if (value && typeof value === "object") {
+    if (typeof value.toDate === "function") return value;
+    return Object.entries(value).reduce((acc, [key, item]) => {
+      if (item !== undefined && typeof item !== "function") {
+        acc[key] = deepStripInlineImageDataUrls(item);
+      }
+      return acc;
+    }, {});
+  }
+  return value;
+}
+
 function stripInlineGraphicsFromCardState(state) {
   if (!state || !Array.isArray(state.cards)) return state;
-  let changed = false;
-  const cards = state.cards.map(card => {
-    const graphics = card?.graphics || {};
-    const frontInline = isInlineImageDataUrl(graphics.frontDataUrl);
-    const backInline = isInlineImageDataUrl(graphics.backDataUrl);
-    if (!frontInline && !backInline) return card;
-    changed = true;
-    return {
-      ...card,
-      graphics: {
-        ...graphics,
-        frontDataUrl: frontInline ? "" : (graphics.frontDataUrl || ""),
-        backDataUrl: backInline ? "" : (graphics.backDataUrl || ""),
-      },
-    };
-  });
-  return changed ? { ...state, cards } : state;
+  return deepStripInlineImageDataUrls(state);
+}
+
+function stripInlineImagesFromCloudState(state) {
+  return deepStripInlineImageDataUrls(state);
 }
 
 function getCardTheme(card, fallback = "Style 1") {
@@ -2031,7 +2034,7 @@ function App() {
     const effectiveCardState = overrides.cardState ? normalizeCardState(overrides.cardState) : cardStateRef.current;
     const effectivePieces = overrides.pieces || piecesRef.current;
     const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, ...restOverrides } = overrides;
-    return {
+    return stripInlineImagesFromCloudState({
       version: "pitch-44-goal-5x2",
       formations,
       gameSituations,
@@ -2048,7 +2051,7 @@ function App() {
       settings: effectiveSettings,
       pieces: sanitizePiecesCardIds(effectivePieces, effectiveCardState, effectiveSettings),
       cardState: buildCardLibraryState(effectiveCardState),
-    };
+    });
   }
 
   function applyCloudState(data) {
@@ -3110,7 +3113,24 @@ function App() {
   function cloneCard(cardId) {
     const source = cardById[cardId];
     if (!source) return;
-    const clone = { ...source, id: `card_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, name: `${source.name} Copy`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    const sourceGraphics = source.graphics || {};
+    const cloneGraphics = { ...sourceGraphics };
+    ["frontExportDataUrl", "backExportDataUrl", "frontLocalDataUrl", "backLocalDataUrl"].forEach(key => {
+      if (isInlineImageDataUrl(cloneGraphics[key])) cloneGraphics[key] = "";
+    });
+    const sourceArtwork = source.artwork || {};
+    const cloneArtwork = isInlineImageDataUrl(sourceArtwork.customDataUrl)
+      ? { ...sourceArtwork, customDataUrl: "" }
+      : sourceArtwork;
+    const clone = {
+      ...source,
+      id: `card_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      name: `${source.name} Copy`,
+      graphics: cloneGraphics,
+      artwork: cloneArtwork,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
     updateCardState(prev => ({ ...prev, cards: [...prev.cards, clone] }));
   }
 
