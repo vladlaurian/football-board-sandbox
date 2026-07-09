@@ -1921,8 +1921,6 @@ function App() {
   const [defAreaMode, setDefAreaMode] = useState(0);
   const [cardsView, setCardsView] = useState("library");
   const [libraryPositionFilter, setLibraryPositionFilter] = useState("ALL");
-  const [assignPositionFilter, setAssignPositionFilter] = useState("ALL");
-  const [assignSortedByPosition, setAssignSortedByPosition] = useState(false);
   const [editingCardId, setEditingCardId] = useState(null);
   const [openTextPanelKey, setOpenTextPanelKey] = useState(null);
   const [openColorPanelKey, setOpenColorPanelKey] = useState(null);
@@ -2184,6 +2182,7 @@ function App() {
       redFormationId,
       actionLog,
       sessionCardsById: effectiveSessionCardsById,
+      sessionLibraryById: effectiveSessionLibraryById,
       ...restOverrides,
       settings: effectiveSettings,
       pieces: sanitizePiecesCardIds(effectivePieces, sessionCardSourceState, effectiveSettings, {}, effectiveSessionCardsById),
@@ -2228,14 +2227,11 @@ function App() {
     if (!user || !sessionCode) return;
     try {
       const code = sessionCode.toUpperCase();
-      const { sessionLibraryById: rootSessionLibraryById, ...boardOverrides } = overrides || {};
-      const payload = {
-        board: encodeForFirestore(buildLiveBoardState(boardOverrides)),
+      await setDoc(sessionRef(code), {
+        board: encodeForFirestore(buildLiveBoardState(overrides)),
         updatedAt: serverTimestamp(),
         updatedBy: clientIdRef.current,
-      };
-      if (rootSessionLibraryById) payload.sessionLibraryById = encodeForFirestore(rootSessionLibraryById);
-      await setDoc(sessionRef(code), payload, { merge: true });
+      }, { merge: true });
       sessionLastSaveAtRef.current = Date.now();
       setSessionStatus("Online saved");
     } catch (error) {
@@ -2295,7 +2291,6 @@ function App() {
           clientId: clientIdRef.current,
         }
       },
-      sessionLibraryById: encodeForFirestore(sessionLibrarySnapshot),
       board: encodeForFirestore(buildLiveBoardState()),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -2459,22 +2454,11 @@ function App() {
       setSessionPlayers(Object.keys(players).length);
       setSessionStatus("Online");
 
-      const rootSessionLibrary = data.sessionLibraryById ? decodeFromFirestore(data.sessionLibraryById) : null;
-      if (rootSessionLibrary) {
-        const nextSessionLibraryById = normalizeSessionCardsById(rootSessionLibrary);
-        sessionLibraryByIdRef.current = nextSessionLibraryById;
-        setSessionLibraryById(nextSessionLibraryById);
-      }
-
       if (data.updatedBy === clientIdRef.current) return;
 
       if (data.board) {
         isApplyingSessionRef.current = true;
-        const liveBoard = decodeFromFirestore(data.board);
-        if (rootSessionLibrary && !liveBoard.sessionLibraryById) {
-          liveBoard.sessionLibraryById = rootSessionLibrary;
-        }
-        applyLiveBoardState(liveBoard);
+        applyLiveBoardState(decodeFromFirestore(data.board));
         window.setTimeout(() => {
           isApplyingSessionRef.current = false;
         }, 250);
@@ -2925,27 +2909,20 @@ function App() {
     if (sessionCode) return { ...localCards, ...libraryCards, ...sessionCardsById };
     return { ...sessionCardsById, ...localCards };
   }, [cardState.cards, sessionCardsById, sessionLibraryCards, sessionCode]);
-  const librarySourceCards = sessionCode && sessionLibraryCards.length ? sessionLibraryCards : (cardState.cards || []);
-  const libraryPositionOptions = useMemo(() => Array.from(new Set((librarySourceCards || []).map(card => card.position).filter(Boolean))).sort((a, b) => {
+  const libraryPositionOptions = useMemo(() => Array.from(new Set((cardState.cards || []).map(card => card.position).filter(Boolean))).sort((a, b) => {
     const rankA = CARD_POSITION_OPTIONS.indexOf(a);
     const rankB = CARD_POSITION_OPTIONS.indexOf(b);
     const safeRankA = rankA >= 0 ? rankA : 999;
     const safeRankB = rankB >= 0 ? rankB : 999;
     if (safeRankA !== safeRankB) return safeRankA - safeRankB;
     return String(a).localeCompare(String(b));
-  }), [librarySourceCards]);
+  }), [cardState.cards]);
 
   useEffect(() => {
     if (libraryPositionFilter !== "ALL" && !libraryPositionOptions.includes(libraryPositionFilter)) {
       setLibraryPositionFilter("ALL");
     }
   }, [libraryPositionFilter, libraryPositionOptions]);
-
-  useEffect(() => {
-    if (assignPositionFilter !== "ALL" && !libraryPositionOptions.includes(assignPositionFilter)) {
-      setAssignPositionFilter("ALL");
-    }
-  }, [assignPositionFilter, libraryPositionOptions]);
 
   useEffect(() => {
     if (!assignTarget) {
@@ -2959,10 +2936,10 @@ function App() {
   }, [assignTarget, activeAssignCards]);
 
   const visibleLibraryCards = useMemo(() => {
-    const cards = librarySourceCards || [];
+    const cards = cardState.cards || [];
     if (libraryPositionFilter === "ALL") return cards;
     return cards.filter(card => card.position === libraryPositionFilter);
-  }, [librarySourceCards, libraryPositionFilter]);
+  }, [cardState.cards, libraryPositionFilter]);
 
   const inspectedPiece = pieces.find(p => p.id === inspectedPieceId);
   const inspectedCardId = inspectedPiece ? inspectedPiece.cardId : null;
@@ -5095,7 +5072,6 @@ function App() {
     const teamKey = cardsView === "red" ? "red" : "blue";
     const themeOptions = editingCard && hasCustomGraphics(editingCard) ? [...CARD_THEMES, CUSTOM_CARD_THEME] : CARD_THEMES;
     const selectedTheme = editingCard ? getCardTheme(editingCard, cardState.theme) : "Style 1";
-    const isSessionLibraryView = !!(sessionCode && sessionLibraryCards.length && cardsView === "library");
 
     const sortCardsByPosition = () => {
       const positionRank = new Map(CARD_POSITION_OPTIONS.map((position, index) => [position, index]));
@@ -5128,8 +5104,8 @@ function App() {
         <div className="cards-tabs"><button className={cardsView === "library" ? "toggle-on" : ""} onClick={() => setCardsView("library")}>Card Library</button><button className={cardsView === "blue" ? "toggle-on" : ""} onClick={() => setCardsView("blue")}>Blue Team</button><button className={cardsView === "red" ? "toggle-on" : ""} onClick={() => setCardsView("red")}>Red Team</button></div>
         {cardsView === "library" ? (
           <div className="cards-layout">
-            <div className="card-library-list"><div className="card-library-actions"><button className="create-card-btn" onClick={() => createCardFromPosition("ST")} disabled={isSessionLibraryView}>+ Create</button><button className="sort-card-btn" onClick={sortCardsByPosition} disabled={isSessionLibraryView || cardState.cards.length < 2}>Sort</button><select className="filter-card-select" value={libraryPositionFilter} onChange={e => setLibraryPositionFilter(e.target.value)} disabled={visibleLibraryCards.length === 0 && libraryPositionFilter === "ALL"}><option value="ALL">Filter: All</option>{libraryPositionOptions.map(position => <option key={position} value={position}>{position}</option>)}</select></div>{visibleLibraryCards.map(card => <div key={card.id} className={`library-row ${editingCardId === card.id ? "selected" : ""}`} onClick={() => setEditingCardId(card.id)}><span><b>{card.name}</b><small>{card.position}</small></span><div>{!isSessionLibraryView && <><button onClick={(e) => { e.stopPropagation(); cloneCard(card.id); }}>Clone</button><button onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }}>Delete</button></>}</div></div>)}{visibleLibraryCards.length === 0 && <div className="library-empty">No cards for this filter.</div>}</div>
-            {isSessionLibraryView ? <div className="session-library-readonly">Session Library este snapshot-ul meciului. Cardurile sunt vizibile aici pentru assign, dar editarea rămâne în librăria locală a hostului.</div> : CardEditor({ card: editingCard })}
+            <div className="card-library-list"><div className="card-library-actions"><button className="create-card-btn" onClick={() => createCardFromPosition("ST")}>+ Create</button><button className="sort-card-btn" onClick={sortCardsByPosition} disabled={cardState.cards.length < 2}>Sort</button><select className="filter-card-select" value={libraryPositionFilter} onChange={e => setLibraryPositionFilter(e.target.value)} disabled={cardState.cards.length === 0}><option value="ALL">Filter: All</option>{libraryPositionOptions.map(position => <option key={position} value={position}>{position}</option>)}</select></div>{visibleLibraryCards.map(card => <div key={card.id} className={`library-row ${editingCardId === card.id ? "selected" : ""}`} onClick={() => setEditingCardId(card.id)}><span><b>{card.name}</b><small>{card.position}</small></span><div><button onClick={(e) => { e.stopPropagation(); cloneCard(card.id); }}>Clone</button><button onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }}>Delete</button></div></div>)}{visibleLibraryCards.length === 0 && <div className="library-empty">No cards for this filter.</div>}</div>
+            {CardEditor({ card: editingCard })}
           </div>
         ) : (
           <div className={`team-roster ${teamKey}`}>
@@ -5145,21 +5121,7 @@ function App() {
 
   function AssignCardModal() {
     if (!assignTarget) return null;
-    const baseAssignCards = activeAssignCards || [];
-    const assignCards = (() => {
-      let cards = baseAssignCards;
-      if (assignPositionFilter !== "ALL") cards = cards.filter(card => card.position === assignPositionFilter);
-      if (assignSortedByPosition) {
-        const positionRank = new Map(CARD_POSITION_OPTIONS.map((position, index) => [position, index]));
-        cards = [...cards].map((card, index) => ({ card, index })).sort((a, b) => {
-          const rankA = positionRank.has(a.card.position) ? positionRank.get(a.card.position) : 999;
-          const rankB = positionRank.has(b.card.position) ? positionRank.get(b.card.position) : 999;
-          if (rankA !== rankB) return rankA - rankB;
-          return a.index - b.index;
-        }).map(entry => entry.card);
-      }
-      return cards;
-    })();
+    const assignCards = activeAssignCards || [];
     const selectedPreviewCard = assignCards.find(card => card.id === assignPreviewCardId) || assignCards[0] || null;
     const getAssignedTeamForCard = (cardId) => {
       const assignedPiece = (pieces || []).find(piece => piece.cardId === cardId && piece.team !== "BALL");
@@ -5176,17 +5138,11 @@ function App() {
       <div className="modal-backdrop" onPointerDown={() => setAssignTarget(null)}>
         <div className="assign-modal assign-modal-wide" onPointerDown={e => e.stopPropagation()}>
           <div className="modal-title"><strong>Assign Card</strong><button className="icon-btn" onClick={() => setAssignTarget(null)}><X size={18} /></button></div>
-          {baseAssignCards.length === 0 ? (
+          {assignCards.length === 0 ? (
             <p>Nu există carduri încă. Creează unul în Card Library.</p>
           ) : (
-            <>
-            <div className="assign-toolbar card-library-actions">
-              <button className="sort-card-btn" type="button" onClick={() => setAssignSortedByPosition(value => !value)}>{assignSortedByPosition ? "Sorted" : "Sort"}</button>
-              <select className="filter-card-select" value={assignPositionFilter} onChange={e => setAssignPositionFilter(e.target.value)}><option value="ALL">Filter: All</option>{libraryPositionOptions.map(position => <option key={position} value={position}>{position}</option>)}</select>
-            </div>
             <div className="assign-picker-layout">
               <div className="assign-list">
-                {assignCards.length === 0 && <div className="library-empty">No cards for this filter.</div>}
                 {assignCards.map(card => {
                   const assignedTeam = getAssignedTeamForCard(card.id);
                   return (
@@ -5219,7 +5175,6 @@ function App() {
                 )}
               </div>
             </div>
-            </>
           )}
         </div>
       </div>
