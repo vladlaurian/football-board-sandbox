@@ -1500,6 +1500,27 @@ function buildCardLibraryState(cardStateLike) {
   });
 }
 
+function buildSessionLibraryById(cardStateLike) {
+  const libraryState = buildCardLibraryState(cardStateLike);
+  return Object.fromEntries(
+    (libraryState.cards || [])
+      .map(card => {
+        const normalized = normalizeImportedCard(card);
+        return [String(normalized.id), deepStripInlineImageDataUrls(normalized)];
+      })
+      .filter(([cardId]) => cardId)
+  );
+}
+
+function buildCardStateFromSessionLibrary(sessionLibraryByIdLike = {}) {
+  const sessionCards = normalizeSessionCardsById(sessionLibraryByIdLike);
+  return normalizeCardState({
+    ...createDefaultCardState(),
+    cards: Object.values(sessionCards),
+    assignments: {},
+  });
+}
+
 function cleanTwoDigitValue(value) {
   const raw = String(value ?? "").trim();
   const negative = raw.startsWith("-");
@@ -1988,6 +2009,8 @@ function App() {
   const cardStateRef = useRef(cardState);
   const [sessionCardsById, setSessionCardsById] = useState({});
   const sessionCardsByIdRef = useRef({});
+  const [sessionLibraryById, setSessionLibraryById] = useState({});
+  const sessionLibraryByIdRef = useRef({});
 
   const SESSION_LIVE_SAVE_INTERVAL_MS = 250;
   const CLOUD_AUTOSAVE_INTERVAL_MS = 3 * 60 * 1000;
@@ -1996,6 +2019,7 @@ function App() {
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { cardStateRef.current = cardState; }, [cardState]);
   useEffect(() => { sessionCardsByIdRef.current = sessionCardsById; }, [sessionCardsById]);
+  useEffect(() => { sessionLibraryByIdRef.current = sessionLibraryById; }, [sessionLibraryById]);
 
   const [sessionCode, setSessionCode] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -2143,7 +2167,11 @@ function App() {
     const effectiveSettings = overrides.settings ? normalizeSettingsForApp(overrides.settings) : settingsRef.current;
     const effectivePieces = overrides.pieces || piecesRef.current;
     const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, ...restOverrides } = overrides;
-    const effectiveSessionCardsById = buildSessionCardsById(effectivePieces, cardStateRef.current, sessionCardsByIdRef.current);
+    const effectiveSessionLibraryById = normalizeSessionCardsById(sessionLibraryByIdRef.current);
+    const sessionCardSourceState = Object.keys(effectiveSessionLibraryById).length
+      ? buildCardStateFromSessionLibrary(effectiveSessionLibraryById)
+      : cardStateRef.current;
+    const effectiveSessionCardsById = buildSessionCardsById(effectivePieces, sessionCardSourceState, sessionCardsByIdRef.current);
     return {
       version: "pitch-44-goal-5x2",
       dieType,
@@ -2154,20 +2182,29 @@ function App() {
       redFormationId,
       actionLog,
       sessionCardsById: effectiveSessionCardsById,
+      sessionLibraryById: effectiveSessionLibraryById,
       ...restOverrides,
       settings: effectiveSettings,
-      pieces: sanitizePiecesCardIds(effectivePieces, cardStateRef.current, effectiveSettings, {}, effectiveSessionCardsById),
+      pieces: sanitizePiecesCardIds(effectivePieces, sessionCardSourceState, effectiveSettings, {}, effectiveSessionCardsById),
     };
   }
 
   function applyLiveBoardState(data) {
     if (!data) return;
     const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settings;
+    const nextSessionLibraryById = normalizeSessionCardsById(data.sessionLibraryById || sessionLibraryByIdRef.current);
+    const nextSessionCardState = Object.keys(nextSessionLibraryById).length
+      ? buildCardStateFromSessionLibrary(nextSessionLibraryById)
+      : cardStateRef.current;
     const nextSessionCardsById = normalizeSessionCardsById(data.sessionCardsById || sessionCardsByIdRef.current);
     const nextPieces = data.pieces
-      ? ensureBenchReserveCount(sanitizePiecesCardIds(data.pieces, cardStateRef.current, nextSettings, {}, nextSessionCardsById), nextSettings)
-      : sanitizePiecesCardIds(pieces, cardStateRef.current, nextSettings, {}, nextSessionCardsById);
+      ? ensureBenchReserveCount(sanitizePiecesCardIds(data.pieces, nextSessionCardState, nextSettings, {}, nextSessionCardsById), nextSettings)
+      : sanitizePiecesCardIds(pieces, nextSessionCardState, nextSettings, {}, nextSessionCardsById);
 
+    if (data.sessionLibraryById) {
+      sessionLibraryByIdRef.current = nextSessionLibraryById;
+      setSessionLibraryById(nextSessionLibraryById);
+    }
     if (data.sessionCardsById) {
       sessionCardsByIdRef.current = nextSessionCardsById;
       setSessionCardsById(nextSessionCardsById);
@@ -2239,6 +2276,9 @@ function App() {
       return;
     }
     const code = generateSessionCode();
+    const sessionLibrarySnapshot = buildSessionLibraryById(cardStateRef.current);
+    sessionLibraryByIdRef.current = sessionLibrarySnapshot;
+    setSessionLibraryById(sessionLibrarySnapshot);
     setSessionStatus("Creating...");
     await setDoc(sessionRef(code), {
       code,
@@ -2309,6 +2349,10 @@ function App() {
   function leaveSession() {
     setSessionCode("");
     setSessionPlayers(0);
+    setSessionCardsById({});
+    sessionCardsByIdRef.current = {};
+    setSessionLibraryById({});
+    sessionLibraryByIdRef.current = {};
     setSessionStatus("Offline");
   }
 
@@ -2856,10 +2900,15 @@ function App() {
     setEditLabel("");
   }
 
-  const cardById = useMemo(() => ({
-    ...sessionCardsById,
-    ...Object.fromEntries(cardState.cards.map(card => [card.id, card])),
-  }), [cardState.cards, sessionCardsById]);
+  const sessionLibraryCards = useMemo(() => Object.values(normalizeSessionCardsById(sessionLibraryById)), [sessionLibraryById]);
+  const activeAssignCards = sessionCode ? sessionLibraryCards : (cardState.cards || []);
+
+  const cardById = useMemo(() => {
+    const localCards = Object.fromEntries((cardState.cards || []).map(card => [card.id, card]));
+    const libraryCards = Object.fromEntries(sessionLibraryCards.map(card => [card.id, card]));
+    if (sessionCode) return { ...localCards, ...libraryCards, ...sessionCardsById };
+    return { ...sessionCardsById, ...localCards };
+  }, [cardState.cards, sessionCardsById, sessionLibraryCards, sessionCode]);
   const libraryPositionOptions = useMemo(() => Array.from(new Set((cardState.cards || []).map(card => card.position).filter(Boolean))).sort((a, b) => {
     const rankA = CARD_POSITION_OPTIONS.indexOf(a);
     const rankB = CARD_POSITION_OPTIONS.indexOf(b);
@@ -2881,10 +2930,10 @@ function App() {
       setAssignPreviewSide("front");
       return;
     }
-    const cards = cardState.cards || [];
+    const cards = activeAssignCards || [];
     setAssignPreviewCardId(prev => cards.some(card => card.id === prev) ? prev : (cards[0]?.id || null));
     setAssignPreviewSide("front");
-  }, [assignTarget, cardState.cards]);
+  }, [assignTarget, activeAssignCards]);
 
   const visibleLibraryCards = useMemo(() => {
     const cards = cardState.cards || [];
@@ -3257,6 +3306,9 @@ function App() {
       if (!shouldReassign) return;
     }
 
+    const assignmentCardState = sessionCode && Object.keys(sessionLibraryByIdRef.current || {}).length
+      ? buildCardStateFromSessionLibrary(sessionLibraryByIdRef.current)
+      : cardStateRef.current;
     const nextPieces = sanitizePiecesCardIds(
       currentPieces.map(piece => {
         if (piece.team === "BALL") return { ...piece, cardId: null };
@@ -3264,25 +3316,33 @@ function App() {
         if (piece.cardId === cardId) return { ...piece, cardId: null };
         return { ...piece, cardId: piece.cardId || null };
       }),
-      cardStateRef.current,
+      assignmentCardState,
       settingsRef.current
     );
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
-    const nextSessionCardsById = buildSessionCardsById(nextPieces, cardStateRef.current, sessionCardsByIdRef.current);
+    const nextSessionCardsById = buildSessionCardsById(nextPieces, assignmentCardState, sessionCardsByIdRef.current);
     sessionCardsByIdRef.current = nextSessionCardsById;
     setSessionCardsById(nextSessionCardsById);
     setAssignTarget(null);
   }
 
   function removePieceCard(pieceId) {
+    const assignmentCardState = sessionCode && Object.keys(sessionLibraryByIdRef.current || {}).length
+      ? buildCardStateFromSessionLibrary(sessionLibraryByIdRef.current)
+      : cardStateRef.current;
     const nextPieces = sanitizePiecesCardIds(
       (piecesRef.current || pieces).map(piece => piece.id === pieceId ? { ...piece, cardId: null } : { ...piece, cardId: piece.cardId || null }),
-      cardStateRef.current,
-      settingsRef.current
+      assignmentCardState,
+      settingsRef.current,
+      {},
+      sessionCardsByIdRef.current
     );
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
+    const nextSessionCardsById = buildSessionCardsById(nextPieces, assignmentCardState, sessionCardsByIdRef.current);
+    sessionCardsByIdRef.current = nextSessionCardsById;
+    setSessionCardsById(nextSessionCardsById);
   }
 
 
@@ -5061,7 +5121,7 @@ function App() {
 
   function AssignCardModal() {
     if (!assignTarget) return null;
-    const assignCards = cardState.cards || [];
+    const assignCards = activeAssignCards || [];
     const selectedPreviewCard = assignCards.find(card => card.id === assignPreviewCardId) || assignCards[0] || null;
     const getAssignedTeamForCard = (cardId) => {
       const assignedPiece = (pieces || []).find(piece => piece.cardId === cardId && piece.team !== "BALL");
