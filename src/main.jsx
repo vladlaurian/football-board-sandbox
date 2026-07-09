@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import html2canvas from "html2canvas";
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInAnonymously, signOut } from "firebase/auth";
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { getFirestore } from "firebase/firestore";
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
@@ -1433,13 +1433,9 @@ function getLegacyAssignments(rawCardState) {
   );
 }
 
-function sanitizePiecesCardIds(rawPieces, cardStateLike, settingsLike = DEFAULT_SETTINGS, legacyAssignments = {}, sessionCardsByIdLike = {}) {
+function sanitizePiecesCardIds(rawPieces, cardStateLike, settingsLike = DEFAULT_SETTINGS, legacyAssignments = {}) {
   const normalizedCardState = normalizeCardState(cardStateLike);
   const validCardIds = new Set((normalizedCardState.cards || []).map(card => String(card.id)));
-  Object.keys(sessionCardsByIdLike || {}).forEach(cardId => {
-    const cleanCardId = String(cardId || "").trim();
-    if (cleanCardId) validCardIds.add(cleanCardId);
-  });
   const usedCardIds = new Set();
 
   return normalizePiecesForBoard(rawPieces || [], settingsLike).map(piece => {
@@ -1467,36 +1463,6 @@ function buildCardLibraryState(cardStateLike) {
     teams: createDefaultCardState().teams,
     assignments: {},
   });
-}
-
-
-function normalizeSessionCardsById(raw) {
-  if (!raw || typeof raw !== "object") return {};
-  return Object.entries(raw).reduce((acc, [cardId, card]) => {
-    const cleanCardId = String(cardId || card?.id || "").trim();
-    if (!cleanCardId || !card || typeof card !== "object") return acc;
-    acc[cleanCardId] = normalizeImportedCard({ ...card, id: cleanCardId });
-    return acc;
-  }, {});
-}
-
-function buildSessionCardsById(piecesLike, cardStateLike, existingSessionCardsByIdLike = {}) {
-  const normalizedCardState = normalizeCardState(cardStateLike);
-  const localCardsById = Object.fromEntries((normalizedCardState.cards || []).map(card => [String(card.id), card]));
-  const existingSessionCardsById = normalizeSessionCardsById(existingSessionCardsByIdLike);
-  const assignedCardIds = new Set(
-    normalizePiecesForBoard(piecesLike || [], DEFAULT_SETTINGS)
-      .map(piece => String(piece?.cardId || "").trim())
-      .filter(Boolean)
-  );
-
-  const sessionCardsById = {};
-  assignedCardIds.forEach(cardId => {
-    const card = localCardsById[cardId] || existingSessionCardsById[cardId];
-    if (card) sessionCardsById[cardId] = card;
-  });
-
-  return stripInlineImagesFromCloudState(sessionCardsById);
 }
 
 function cleanTwoDigitValue(value) {
@@ -1983,8 +1949,6 @@ function App() {
   const piecesRef = useRef(pieces);
   const settingsRef = useRef(settings);
   const cardStateRef = useRef(cardState);
-  const [sessionCardsById, setSessionCardsById] = useState({});
-  const sessionCardsByIdRef = useRef(sessionCardsById);
 
   const SESSION_LIVE_SAVE_INTERVAL_MS = 250;
   const CLOUD_AUTOSAVE_INTERVAL_MS = 3 * 60 * 1000;
@@ -1992,7 +1956,6 @@ function App() {
   useEffect(() => { piecesRef.current = pieces; }, [pieces]);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { cardStateRef.current = cardState; }, [cardState]);
-  useEffect(() => { sessionCardsByIdRef.current = sessionCardsById; }, [sessionCardsById]);
 
   const [sessionCode, setSessionCode] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -2139,8 +2102,7 @@ function App() {
   function buildLiveBoardState(overrides = {}) {
     const effectiveSettings = overrides.settings ? normalizeSettingsForApp(overrides.settings) : settingsRef.current;
     const effectivePieces = overrides.pieces || piecesRef.current;
-    const effectiveSessionCardsById = buildSessionCardsById(effectivePieces, cardStateRef.current, sessionCardsByIdRef.current);
-    const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, sessionCardsById: _overrideSessionCardsById, ...restOverrides } = overrides;
+    const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, ...restOverrides } = overrides;
     return {
       version: "pitch-44-goal-5x2",
       dieType,
@@ -2152,21 +2114,17 @@ function App() {
       actionLog,
       ...restOverrides,
       settings: effectiveSettings,
-      pieces: sanitizePiecesCardIds(effectivePieces, cardStateRef.current, effectiveSettings, {}, effectiveSessionCardsById),
-      sessionCardsById: effectiveSessionCardsById,
+      pieces: sanitizePiecesCardIds(effectivePieces, cardStateRef.current, effectiveSettings),
     };
   }
 
   function applyLiveBoardState(data) {
     if (!data) return;
     const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settings;
-    const nextSessionCardsById = normalizeSessionCardsById(data.sessionCardsById || sessionCardsByIdRef.current);
     const nextPieces = data.pieces
-      ? ensureBenchReserveCount(sanitizePiecesCardIds(data.pieces, cardStateRef.current, nextSettings, {}, nextSessionCardsById), nextSettings)
-      : sanitizePiecesCardIds(pieces, cardStateRef.current, nextSettings, {}, nextSessionCardsById);
+      ? ensureBenchReserveCount(sanitizePiecesCardIds(data.pieces, cardStateRef.current, nextSettings), nextSettings)
+      : sanitizePiecesCardIds(pieces, cardStateRef.current, nextSettings);
 
-    sessionCardsByIdRef.current = nextSessionCardsById;
-    setSessionCardsById(nextSessionCardsById);
     if (data.settings) setSettings(nextSettings);
     if (data.pieces) {
       piecesRef.current = nextPieces;
@@ -2229,7 +2187,7 @@ function App() {
   }
 
   async function createSession() {
-    if (!user) {
+    if (!user || user.isAnonymous) {
       setSessionStatus("Login first");
       return;
     }
@@ -2257,11 +2215,19 @@ function App() {
   }
 
   async function joinSession() {
-    if (!user) {
-      setSessionStatus("Login first");
-      return;
-    }
     const code = String(joinCode || "").trim().toUpperCase();
+    let sessionUser = user;
+    if (!sessionUser) {
+      try {
+        setSessionStatus("Guest login...");
+        const credential = await signInAnonymously(auth);
+        sessionUser = credential.user;
+      } catch (error) {
+        console.error(error);
+        setSessionStatus("Guest login error");
+        return;
+      }
+    }
     if (!code) return;
 
     try {
@@ -2275,8 +2241,9 @@ function App() {
 
       await setDoc(ref, {
         players: {
-          [user.uid]: {
-            email: user.email || "",
+          [sessionUser.uid]: {
+            email: sessionUser.email || "Guest",
+            guest: !!sessionUser.isAnonymous,
             joinedAt: new Date().toISOString(),
             clientId: clientIdRef.current,
           }
@@ -2295,8 +2262,6 @@ function App() {
   function leaveSession() {
     setSessionCode("");
     setSessionPlayers(0);
-    setSessionCardsById({});
-    sessionCardsByIdRef.current = {};
     setSessionStatus("Offline");
   }
 
@@ -2371,11 +2336,11 @@ function App() {
     const unsub = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthReady(true);
-      if (currentUser) {
+      if (currentUser && !currentUser.isAnonymous) {
         loadCloudState(currentUser);
       } else {
         setCloudReady(false);
-        setCloudStatus("Local");
+        setCloudStatus(currentUser?.isAnonymous ? "Guest" : "Local");
       }
     });
     return () => unsub();
@@ -2844,10 +2809,7 @@ function App() {
     setEditLabel("");
   }
 
-  const cardById = useMemo(() => ({
-    ...sessionCardsById,
-    ...Object.fromEntries(cardState.cards.map(card => [card.id, card])),
-  }), [cardState.cards, sessionCardsById]);
+  const cardById = useMemo(() => Object.fromEntries(cardState.cards.map(card => [card.id, card])), [cardState.cards]);
   const libraryPositionOptions = useMemo(() => Array.from(new Set((cardState.cards || []).map(card => card.position).filter(Boolean))).sort((a, b) => {
     const rankA = CARD_POSITION_OPTIONS.indexOf(a);
     const rankB = CARD_POSITION_OPTIONS.indexOf(b);
@@ -5614,12 +5576,20 @@ function App() {
           {!authReady ? (
             <span>Auth...</span>
           ) : user ? (
-            <>
-              <span className="user-email">{user.email}</span>
-              <span className={`cloud-pill ${cloudError ? "cloud-error" : ""}`}>{cloudStatus}</span>
-              <button onClick={() => saveCloudState({}, "Cloud saved")}>Cloud Save</button>
-              <button onClick={logout}>Logout</button>
-            </>
+            user.isAnonymous ? (
+              <>
+                <span className="user-email">Guest</span>
+                <span className="cloud-pill">No cloud save</span>
+                <button onClick={logout}>Leave Guest</button>
+              </>
+            ) : (
+              <>
+                <span className="user-email">{user.email}</span>
+                <span className={`cloud-pill ${cloudError ? "cloud-error" : ""}`}>{cloudStatus}</span>
+                <button onClick={() => saveCloudState({}, "Cloud saved")}>Cloud Save</button>
+                <button onClick={logout}>Logout</button>
+              </>
+            )
           ) : (
             <>
               <span className="cloud-pill">Local</span>
