@@ -3234,61 +3234,25 @@ function App() {
     return String(value || fallback).replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || fallback;
   }
 
-  function isLikelyCorsSafeExportImage(src = "") {
-    const value = String(src || "");
-    if (!value) return false;
-    if (isInlineImageDataUrl(value)) return true;
-    return /^https:\/\//i.test(value) && (
-      value.includes("firebasestorage.googleapis.com") ||
-      value.includes("storage.googleapis.com") ||
-      value.includes("googleusercontent.com")
-    );
-  }
-
-  async function imageSourceToExportDataUrl(src = "") {
-    const value = String(src || "");
-    if (!value || isInlineImageDataUrl(value)) return value;
-    try {
-      const response = await fetch(value, { mode: "cors", cache: "force-cache" });
-      if (!response.ok) throw new Error(`Image request failed: ${response.status}`);
-      const blob = await response.blob();
-      if (!String(blob.type || "").startsWith("image/")) return value;
-      return await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(reader.error || new Error("Could not prepare image for PNG export."));
-        reader.onload = () => resolve(String(reader.result || value));
-        reader.readAsDataURL(blob);
-      });
-    } catch (error) {
-      console.warn("Could not inline image for PNG export. Falling back to CORS image URL.", error);
-      return value;
-    }
-  }
-
-  async function makePngSafeCard(card, exportSide = "front") {
+  function makePngSafeCard(card, exportSide = "front") {
     const graphics = card?.graphics || {};
-    const sourceFront = graphics.frontExportDataUrl || graphics.frontLocalDataUrl || graphics.frontDataUrl || "";
-    const sourceBack = graphics.backExportDataUrl || graphics.backLocalDataUrl || graphics.backDataUrl || "";
-    const exportFront = exportSide === "front" ? await imageSourceToExportDataUrl(sourceFront) : "";
-    const exportBack = exportSide === "back" ? await imageSourceToExportDataUrl(sourceBack) : "";
+    const safeFront = graphics.frontExportDataUrl || graphics.frontLocalDataUrl || graphics.frontDataUrl || "";
+    const safeBack = graphics.backExportDataUrl || graphics.backLocalDataUrl || graphics.backDataUrl || "";
+    const inlineFront = isInlineImageDataUrl(safeFront) ? safeFront : "";
+    const inlineBack = isInlineImageDataUrl(safeBack) ? safeBack : "";
 
     const artwork = { ...(card?.artwork || {}) };
-    if (artwork.customDataUrl) {
-      artwork.customDataUrl = await imageSourceToExportDataUrl(artwork.customDataUrl);
-      if (!isInlineImageDataUrl(artwork.customDataUrl) && !isLikelyCorsSafeExportImage(artwork.customDataUrl)) {
-        artwork.customDataUrl = "";
-      }
-    }
+    if (artwork.customDataUrl && !isInlineImageDataUrl(artwork.customDataUrl)) artwork.customDataUrl = "";
 
     // Keep the visual card object identical to the editor/inspector path.
-    // PNG export converts remote Storage images to temporary data URLs when possible.
-    // This does not write base64 back into React state or Firestore.
+    // PNG export may only sanitize image sources that html2canvas cannot read;
+    // it must not swap themes or rebuild the card for the back side.
     return {
       ...card,
       graphics: {
         ...graphics,
-        frontDataUrl: exportFront,
-        backDataUrl: exportBack,
+        frontDataUrl: inlineFront,
+        backDataUrl: inlineBack,
       },
       artwork,
     };
@@ -3309,7 +3273,7 @@ function App() {
     const images = Array.from(node?.querySelectorAll?.("img") || []);
     for (const img of images) {
       const src = img.getAttribute("src") || img.currentSrc || img.src || "";
-      if (!src || isInlineImageDataUrl(src) || isLikelyCorsSafeExportImage(src)) continue;
+      if (!src || isInlineImageDataUrl(src)) continue;
       img.remove();
     }
   }
@@ -3365,7 +3329,7 @@ function App() {
     const root = createRoot(host);
 
     try {
-      const pngSafeCard = await makePngSafeCard(selectedCard, exportSide);
+      const pngSafeCard = makePngSafeCard(selectedCard, exportSide);
       root.render(
         <div className="card-render-shell card-png-export-shell">
           <CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />
@@ -3709,7 +3673,7 @@ function App() {
     return (
       <div className={`card-preview ${shownSide === "front" ? "card-front" : "card-back"} ${themeClass} ${team}`} style={previewStyle}>
         <div className="card-preview-art-layer" aria-hidden="true">
-          {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} alt="" crossOrigin="anonymous" /> : null}
+          {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} alt="" /> : null}
         </div>
         <div className={`card-preview-content-layer ${showLayoutZones ? "layout-editing" : ""}`}>
           <CardVisualCanvas card={card} side={shownSide} showZones={showLayoutZones} selectedLayout={selectedLayout} onSelectLayout={setSelectedLayout} />
@@ -3756,7 +3720,7 @@ function App() {
     const safePosition = String(card?.position || "").toUpperCase();
     return (
       <div className="card-artwork card-top-strip" style={{ "--top-name-font-size": `${cardTopNameFontSize(safeName)}px` }}>
-        {card?.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" crossOrigin="anonymous" /> : null}
+        {card?.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : null}
         <strong className="card-top-name" title={safeName}>{safeName}</strong>
         <span className="card-top-position">{safePosition}</span>
       </div>
