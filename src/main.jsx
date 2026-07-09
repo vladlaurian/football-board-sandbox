@@ -1269,6 +1269,23 @@ function isInlineImageDataUrl(value) {
   return typeof value === "string" && /^data:image\//i.test(value);
 }
 
+function isCorsSafeExportImageSrc(value) {
+  if (isInlineImageDataUrl(value)) return true;
+  if (typeof value !== "string" || !value.trim()) return false;
+  try {
+    const url = new URL(value, window.location.href);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return false;
+    return (
+      url.hostname === "football-board-sandbox.firebasestorage.app" ||
+      url.hostname === "firebasestorage.googleapis.com" ||
+      url.hostname.endsWith(".firebasestorage.app") ||
+      url.hostname.endsWith(".googleapis.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
 function deepStripInlineImageDataUrls(value) {
   if (isInlineImageDataUrl(value)) return "";
   if (Array.isArray(value)) return value.map(item => deepStripInlineImageDataUrls(item));
@@ -3236,10 +3253,12 @@ function App() {
 
   function makePngSafeCard(card, exportSide = "front") {
     const graphics = card?.graphics || {};
-    const safeFront = graphics.frontExportDataUrl || graphics.frontLocalDataUrl || graphics.frontDataUrl || "";
-    const safeBack = graphics.backExportDataUrl || graphics.backLocalDataUrl || graphics.backDataUrl || "";
-    const inlineFront = isInlineImageDataUrl(safeFront) ? safeFront : "";
-    const inlineBack = isInlineImageDataUrl(safeBack) ? safeBack : "";
+    // PNG export must prioritize the same Storage URL that CardPreview displays.
+    // Legacy local/export copies are only fallbacks.
+    const safeFront = graphics.frontDataUrl || graphics.frontExportDataUrl || graphics.frontLocalDataUrl || "";
+    const safeBack = graphics.backDataUrl || graphics.backExportDataUrl || graphics.backLocalDataUrl || "";
+    const exportFront = isCorsSafeExportImageSrc(safeFront) ? safeFront : "";
+    const exportBack = isCorsSafeExportImageSrc(safeBack) ? safeBack : "";
 
     const artwork = { ...(card?.artwork || {}) };
     if (artwork.customDataUrl && !isInlineImageDataUrl(artwork.customDataUrl)) artwork.customDataUrl = "";
@@ -3251,8 +3270,8 @@ function App() {
       ...card,
       graphics: {
         ...graphics,
-        frontDataUrl: inlineFront,
-        backDataUrl: inlineBack,
+        frontDataUrl: exportFront,
+        backDataUrl: exportBack,
       },
       artwork,
     };
@@ -3273,7 +3292,7 @@ function App() {
     const images = Array.from(node?.querySelectorAll?.("img") || []);
     for (const img of images) {
       const src = img.getAttribute("src") || img.currentSrc || img.src || "";
-      if (!src || isInlineImageDataUrl(src)) continue;
+      if (!src || isCorsSafeExportImageSrc(src)) continue;
       img.remove();
     }
   }
@@ -3673,7 +3692,7 @@ function App() {
     return (
       <div className={`card-preview ${shownSide === "front" ? "card-front" : "card-back"} ${themeClass} ${team}`} style={previewStyle}>
         <div className="card-preview-art-layer" aria-hidden="true">
-          {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} alt="" /> : null}
+          {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} crossOrigin="anonymous" alt="" /> : null}
         </div>
         <div className={`card-preview-content-layer ${showLayoutZones ? "layout-editing" : ""}`}>
           <CardVisualCanvas card={card} side={shownSide} showZones={showLayoutZones} selectedLayout={selectedLayout} onSelectLayout={setSelectedLayout} />
