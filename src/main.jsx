@@ -3234,37 +3234,19 @@ function App() {
     return String(value || fallback).replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || fallback;
   }
 
-  async function imageUrlToDataUrlForExport(url) {
-    if (!url || typeof url !== "string") return "";
-    if (isInlineImageDataUrl(url)) return url;
-
-    const response = await fetch(url, { mode: "cors", cache: "force-cache" });
-    if (!response.ok) throw new Error(`Could not load export image (${response.status}).`);
-    const blob = await response.blob();
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error("Could not prepare image for PNG export."));
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.readAsDataURL(blob);
-    });
-  }
-
-  async function makePngSafeCard(card, exportSide = "front") {
+  function makePngSafeCard(card, exportSide = "front") {
     const graphics = card?.graphics || {};
-    const sourceFront = graphics.frontExportDataUrl || graphics.frontLocalDataUrl || graphics.frontDataUrl || "";
-    const sourceBack = graphics.backExportDataUrl || graphics.backLocalDataUrl || graphics.backDataUrl || "";
-
-    // Do not change the editor/inspector rendering path. For PNG export only,
-    // convert the currently saved Firebase Storage URL into a temporary data URL
-    // that html2canvas can capture safely. This object is never written back to state.
-    const inlineFront = exportSide === "front" ? await imageUrlToDataUrlForExport(sourceFront) : sourceFront;
-    const inlineBack = exportSide === "back" ? await imageUrlToDataUrlForExport(sourceBack) : sourceBack;
+    const safeFront = graphics.frontExportDataUrl || graphics.frontLocalDataUrl || graphics.frontDataUrl || "";
+    const safeBack = graphics.backExportDataUrl || graphics.backLocalDataUrl || graphics.backDataUrl || "";
+    const inlineFront = isInlineImageDataUrl(safeFront) ? safeFront : "";
+    const inlineBack = isInlineImageDataUrl(safeBack) ? safeBack : "";
 
     const artwork = { ...(card?.artwork || {}) };
-    if (artwork.customDataUrl && !isInlineImageDataUrl(artwork.customDataUrl)) {
-      artwork.customDataUrl = await imageUrlToDataUrlForExport(artwork.customDataUrl);
-    }
+    if (artwork.customDataUrl && !isInlineImageDataUrl(artwork.customDataUrl)) artwork.customDataUrl = "";
 
+    // Keep the visual card object identical to the editor/inspector path.
+    // PNG export may only sanitize image sources that html2canvas cannot read;
+    // it must not swap themes or rebuild the card for the back side.
     return {
       ...card,
       graphics: {
@@ -3347,7 +3329,7 @@ function App() {
     const root = createRoot(host);
 
     try {
-      const pngSafeCard = await makePngSafeCard(selectedCard, exportSide);
+      const pngSafeCard = makePngSafeCard(selectedCard, exportSide);
       root.render(
         <div className="card-render-shell card-png-export-shell">
           <CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />
