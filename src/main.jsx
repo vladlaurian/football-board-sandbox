@@ -2036,6 +2036,7 @@ function App() {
   const [cardRevealPermissions, setCardRevealPermissions] = useState({});
   const [cardRevealRequests, setCardRevealRequests] = useState({});
   const [sessionParticipants, setSessionParticipants] = useState({});
+  const [joinSetup, setJoinSetup] = useState(null);
   const presenceClockRef = useRef(Date.now());
   const dragPieceIdRef = useRef(null);
 
@@ -2210,7 +2211,7 @@ function App() {
   }
 
   function canViewCardBack(piece, cardId) {
-    if (!sessionCode || cardVisibilityMode === "open") return true;
+    if (!sessionCode || !cardVisibilityMode || cardVisibilityMode === "open") return true;
     if (isOwnCardPiece(piece)) return true;
     return hasBackPermission(cardId);
   }
@@ -2422,42 +2423,10 @@ function App() {
     setSessionStatus("Online");
   }
 
-  async function joinSession() {
-    const code = String(joinCode || "").trim().toUpperCase();
-    let sessionUser = user;
-    if (!sessionUser) {
-      try {
-        setSessionStatus("Guest login...");
-        const credential = await signInAnonymously(auth);
-        sessionUser = credential.user;
-      } catch (error) {
-        console.error(error);
-        setSessionStatus("Guest login error");
-        return;
-      }
-    }
-    if (!code) return;
-
+  async function completeJoinSession(code, sessionUser, preferredTeam = "", preferredCardMode = "") {
     try {
       setSessionStatus("Joining...");
       const ref = sessionRef(code);
-      const initialSnap = await getDoc(ref);
-      if (!initialSnap.exists()) {
-        setSessionStatus("Code not found");
-        return;
-      }
-      const initialData = initialSnap.data();
-      const existingOwners = initialData.teamOwners || {};
-      const existingParticipants = initialData.participants || {};
-      const isReturning = !!existingParticipants[sessionUser.uid] || existingOwners.blue === sessionUser.uid || existingOwners.red === sessionUser.uid;
-      let preferredTeam = "";
-      if (!isReturning && !existingOwners.blue && !existingOwners.red && initialData.ownerUid !== sessionUser.uid) {
-        preferredTeam = window.confirm(`Choose your team:
-
-OK = Blue
-Cancel = Red`) ? "blue" : "red";
-      }
-
       await runTransaction(db, async transaction => {
         const snap = await transaction.get(ref);
         if (!snap.exists()) throw new Error("Session missing");
@@ -2467,16 +2436,21 @@ Cancel = Red`) ? "blue" : "red";
         const hostUid = data.ownerUid || "";
         let team = "spectator";
         let role = participants[sessionUser.uid]?.role || (sessionUser.uid === hostUid ? "host" : "guest");
+        let nextCardMode = data.cardVisibilityMode || "";
 
         if (owners.blue === sessionUser.uid) team = "blue";
         else if (owners.red === sessionUser.uid) team = "red";
         else if (participants[sessionUser.uid]?.team) team = participants[sessionUser.uid].team;
         else if (sessionUser.uid === hostUid && (owners.blue === hostUid || owners.red === hostUid)) team = owners.blue === hostUid ? "blue" : "red";
         else if (!owners.blue && !owners.red && sessionUser.uid !== hostUid) {
-          team = preferredTeam === "red" ? "red" : "blue";
+          if (!["blue", "red"].includes(preferredTeam) || !["open", "private"].includes(preferredCardMode)) {
+            throw new Error("Team and card mode are required");
+          }
+          team = preferredTeam;
           const otherTeam = team === "blue" ? "red" : "blue";
           owners[team] = sessionUser.uid;
           owners[otherTeam] = hostUid;
+          nextCardMode = preferredCardMode;
           if (hostUid) {
             participants[hostUid] = {
               ...(participants[hostUid] || {}),
@@ -2516,12 +2490,62 @@ Cancel = Red`) ? "blue" : "red";
           clientId: clientIdRef.current,
         };
 
-        transaction.set(ref, { teamOwners: owners, participants, players, updatedAt: serverTimestamp() }, { merge: true });
+        transaction.set(ref, {
+          teamOwners: owners,
+          participants,
+          players,
+          ...(nextCardMode ? { cardVisibilityMode: nextCardMode } : {}),
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
       });
 
       sessionHydratedRef.current = false;
+      setJoinSetup(null);
       setSessionCode(code);
       setSessionStatus("Online");
+    } catch (error) {
+      console.error(error);
+      setSessionStatus("Join error");
+    }
+  }
+
+  async function joinSession() {
+    const code = String(joinCode || "").trim().toUpperCase();
+    let sessionUser = user;
+    if (!sessionUser) {
+      try {
+        setSessionStatus("Guest login...");
+        const credential = await signInAnonymously(auth);
+        sessionUser = credential.user;
+      } catch (error) {
+        console.error(error);
+        setSessionStatus("Guest login error");
+        return;
+      }
+    }
+    if (!code) return;
+
+    try {
+      setSessionStatus("Joining...");
+      const ref = sessionRef(code);
+      const initialSnap = await getDoc(ref);
+      if (!initialSnap.exists()) {
+        setSessionStatus("Code not found");
+        return;
+      }
+      const initialData = initialSnap.data();
+      const existingOwners = initialData.teamOwners || {};
+      const existingParticipants = initialData.participants || {};
+      const isReturning = !!existingParticipants[sessionUser.uid] || existingOwners.blue === sessionUser.uid || existingOwners.red === sessionUser.uid;
+      const needsInitialSetup = !isReturning && !existingOwners.blue && !existingOwners.red && initialData.ownerUid !== sessionUser.uid;
+
+      if (needsInitialSetup) {
+        setJoinSetup({ code, sessionUser, team: "", cardMode: "" });
+        setSessionStatus("Choose team and cards");
+        return;
+      }
+
+      await completeJoinSession(code, sessionUser);
     } catch (error) {
       console.error(error);
       setSessionStatus("Join error");
@@ -6620,6 +6644,36 @@ Cancel = Red`) ? "blue" : "red";
       )}
 
       {AssignCardModal()}
+
+      {joinSetup && (
+        <div className="modal-backdrop" onPointerDown={() => setJoinSetup(null)}>
+          <div className="assign-modal join-setup-modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="modal-title"><strong>Join Session</strong><button className="icon-btn" onClick={() => setJoinSetup(null)}><X size={18} /></button></div>
+            <div className="join-setup-section">
+              <b>Choose your team</b>
+              <div className="join-choice-row">
+                <button type="button" className={joinSetup.team === "blue" ? "active blue-choice" : "blue-choice"} onClick={() => setJoinSetup(current => ({ ...current, team: "blue" }))}>Blue</button>
+                <button type="button" className={joinSetup.team === "red" ? "active red-choice" : "red-choice"} onClick={() => setJoinSetup(current => ({ ...current, team: "red" }))}>Red</button>
+              </div>
+            </div>
+            <div className="join-setup-section">
+              <b>Card visibility</b>
+              <div className="join-choice-row">
+                <button type="button" className={joinSetup.cardMode === "open" ? "active" : ""} onClick={() => setJoinSetup(current => ({ ...current, cardMode: "open" }))}>Open Cards</button>
+                <button type="button" className={joinSetup.cardMode === "private" ? "active" : ""} onClick={() => setJoinSetup(current => ({ ...current, cardMode: "private" }))}>Private Cards</button>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="join-session-confirm"
+              disabled={!joinSetup.team || !joinSetup.cardMode}
+              onClick={() => completeJoinSession(joinSetup.code, joinSetup.sessionUser, joinSetup.team, joinSetup.cardMode)}
+            >
+              Join Session
+            </button>
+          </div>
+        </div>
+      )}
 
       {editingPiece && (
         <div className="modal-backdrop" onPointerDown={() => setEditingPiece(null)}>
