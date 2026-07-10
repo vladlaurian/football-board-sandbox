@@ -2002,6 +2002,7 @@ function App() {
   const sessionSaveTimerRef = useRef(null);
   const sessionSaveInFlightRef = useRef(false);
   const sessionCardsDirtyRef = useRef(false);
+  const sessionHydratedRef = useRef(false);
   const sessionSavePendingRef = useRef(false);
   const sessionLastSaveAtRef = useRef(0);
   const isApplyingSessionRef = useRef(false);
@@ -2236,6 +2237,7 @@ function App() {
 
   async function saveSessionState(overrides = {}) {
     if (!user || !sessionCode) return;
+    if (!sessionHydratedRef.current) return;
     try {
       const code = sessionCode.toUpperCase();
       const includeSessionCards = !!sessionCardsDirtyRef.current || !!overrides.__includeSessionCards || !!overrides.sessionCardsById;
@@ -2254,7 +2256,7 @@ function App() {
   }
 
   function scheduleSessionLiveSave() {
-    if (!user || !sessionCode || isApplyingSessionRef.current) return;
+    if (!user || !sessionCode || isApplyingSessionRef.current || !sessionHydratedRef.current) return;
     sessionSavePendingRef.current = true;
     setSessionStatus("Online saving...");
 
@@ -2262,7 +2264,7 @@ function App() {
 
     const run = async () => {
       sessionSaveTimerRef.current = null;
-      if (!sessionSavePendingRef.current || !user || !sessionCode || isApplyingSessionRef.current) return;
+      if (!sessionSavePendingRef.current || !user || !sessionCode || isApplyingSessionRef.current || !sessionHydratedRef.current) return;
 
       const elapsed = Date.now() - sessionLastSaveAtRef.current;
       if (elapsed < SESSION_LIVE_SAVE_INTERVAL_MS) {
@@ -2309,6 +2311,7 @@ function App() {
       updatedAt: serverTimestamp(),
       updatedBy: clientIdRef.current,
     }, { merge: true });
+    sessionHydratedRef.current = true;
     setSessionCode(code);
     setJoinCode(code);
     setSessionStatus("Online");
@@ -2351,6 +2354,7 @@ function App() {
         updatedAt: serverTimestamp(),
       }, { merge: true });
 
+      sessionHydratedRef.current = false;
       setSessionCode(code);
       setSessionStatus("Online");
     } catch (error) {
@@ -2360,6 +2364,7 @@ function App() {
   }
 
   function leaveSession() {
+    sessionHydratedRef.current = false;
     setSessionCode("");
     setSessionPlayers(0);
     setSessionCardsById({});
@@ -2467,14 +2472,20 @@ function App() {
       setSessionPlayers(Object.keys(players).length);
       setSessionStatus("Online");
 
-      if (data.updatedBy === clientIdRef.current) return;
+      if (data.updatedBy === clientIdRef.current) {
+        sessionHydratedRef.current = true;
+        return;
+      }
 
       if (data.board) {
         isApplyingSessionRef.current = true;
         applyLiveBoardState(decodeFromFirestore(data.board));
+        sessionHydratedRef.current = true;
         window.setTimeout(() => {
           isApplyingSessionRef.current = false;
         }, 250);
+      } else {
+        sessionHydratedRef.current = true;
       }
     }, (error) => {
       console.error(error);
