@@ -2221,7 +2221,7 @@ function App() {
     await setDoc(sessionRef(sessionCode.toUpperCase()), { cardVisibilityMode: mode, updatedAt: serverTimestamp() }, { merge: true });
   }
 
-  async function requestCardBack(cardId) {
+  async function requestCardFlip(cardId) {
     if (!sessionCode || !user?.uid || !cardId || cardVisibilityMode !== "private") return;
     const ref = sessionRef(sessionCode.toUpperCase());
     await runTransaction(db, async transaction => {
@@ -2234,7 +2234,7 @@ function App() {
     });
   }
 
-  async function allowCardBack(cardId, viewerUid) {
+  async function allowCardFlip(cardId, viewerUid) {
     if (!sessionCode || !user?.uid || !cardId || !viewerUid) return;
     const ownerPiece = (piecesRef.current || []).find(piece => piece.cardId === cardId);
     if (!isOwnCardPiece(ownerPiece)) return;
@@ -6444,7 +6444,37 @@ function App() {
               <p className="muted">Click/tap pe un puc ca să vezi cardul atașat.</p>
             ) : (
               <>
-                <div className="inspector-piece-line"><b>Post puc:</b> {inspectedPiece.label || "—"}</div>
+                <div className="inspector-piece-line">
+                  <span><b>Post puc:</b> {inspectedPiece.label || "—"}</span>
+                  {inspectedCard && !isOwnCardPiece(inspectedPiece) && (
+                    <button
+                      type="button"
+                      className="inspector-flip-request-btn"
+                      onClick={() => requestCardFlip(inspectedCard.id)}
+                      disabled={
+                        cardVisibilityMode !== "private" ||
+                        canViewCardBack(inspectedPiece, inspectedCard.id) ||
+                        !!cardRevealRequests?.[inspectedCard.id]?.[user?.uid]
+                      }
+                    >
+                      {canViewCardBack(inspectedPiece, inspectedCard.id)
+                        ? "Flip Allowed"
+                        : cardRevealRequests?.[inspectedCard.id]?.[user?.uid]
+                          ? "Flip Requested"
+                          : "Request Flip"}
+                    </button>
+                  )}
+                  {inspectedCard && isOwnCardPiece(inspectedPiece) && cardVisibilityMode === "private" && Object.keys(cardRevealRequests?.[inspectedCard.id] || {}).map(viewerUid => (
+                    <button
+                      type="button"
+                      className="inspector-flip-request-btn"
+                      key={viewerUid}
+                      onClick={() => allowCardFlip(inspectedCard.id, viewerUid)}
+                    >
+                      Allow Flip
+                    </button>
+                  ))}
+                </div>
                 {inspectedCard ? (
                   <div className="inspector-card-zoom-block">
                     <div className="inspector-card-zoom-tools">
@@ -6479,21 +6509,6 @@ function App() {
                     </div>
                   </div>
                 ) : <div className="card-preview empty">Niciun card atașat</div>}
-                {inspectedCard && cardVisibilityMode === "private" && !canViewCardBack(inspectedPiece, inspectedCard.id) && (
-                  <div className="privacy-actions">
-                    <button type="button" onClick={() => requestCardBack(inspectedCard.id)} disabled={!!cardRevealRequests?.[inspectedCard.id]?.[user?.uid]}>
-                      {cardRevealRequests?.[inspectedCard.id]?.[user?.uid] ? "Back Requested" : "Request Back"}
-                    </button>
-                  </div>
-                )}
-                {inspectedCard && isOwnCardPiece(inspectedPiece) && Object.keys(cardRevealRequests?.[inspectedCard.id] || {}).length > 0 && (
-                  <div className="privacy-requests">
-                    <b>Back requests</b>
-                    {Object.keys(cardRevealRequests[inspectedCard.id]).map(viewerUid => (
-                      <button type="button" key={viewerUid} onClick={() => allowCardBack(inspectedCard.id, viewerUid)}>Allow Back</button>
-                    ))}
-                  </div>
-                )}
                 <div className="inspector-actions">
                   {canAssignPiece(inspectedPiece) && <button onClick={() => setAssignTarget({ type: "piece", pieceId: inspectedPiece.id })}>Assign Card</button>}
                   {inspectedCard && canAssignPiece(inspectedPiece) && !sessionCode && <button onClick={() => { setCardsPanelOpen(true); setCardsView("library"); setEditingCardId(inspectedCard.id); }}>Edit Card</button>}
