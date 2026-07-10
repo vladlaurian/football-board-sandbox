@@ -6621,3 +6621,19 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   font-weight:1000;
   text-shadow:0 0 10px rgba(57,231,95,.35);
 }
+
+/* Dice consistency: fixed typography, special-result colors only. */
+.team-die-value.die-min {
+  color:#050505 !important;
+  font-size:38px !important;
+  text-shadow:0 1px 0 rgba(255,255,255,.25);
+}
+.team-die-value.die-twenty {
+  color:#39e75f !important;
+  font-size:38px !important;
+  text-shadow:0 0 10px rgba(57,231,95,.35);
+}
+.die-result.die-min { color:#050505 !important; font-size:18px !important; }
+.die-result.die-max { color:#39e75f !important; font-size:18px !important; }
+.dice-notice.critical-one { color:#050505 !important; }
+.dice-notice.critical-twenty { color:#39e75f !important; }

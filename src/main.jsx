@@ -1963,6 +1963,8 @@ function App() {
   const [redLastDieType, setRedLastDieType] = useState(20);
   const [blueDieRolling, setBlueDieRolling] = useState(false);
   const [redDieRolling, setRedDieRolling] = useState(false);
+  const [blueDiceAnimationValue, setBlueDiceAnimationValue] = useState(null);
+  const [redDiceAnimationValue, setRedDiceAnimationValue] = useState(null);
   const [diceNotice, setDiceNotice] = useState(null);
   const [diceCooldownUntil, setDiceCooldownUntil] = useState(0);
   const [snapToGrid, setSnapToGrid] = useState(true);
@@ -3252,12 +3254,14 @@ function App() {
     if (!canRollTeamDie(team)) return;
     if (!(await reserveDiceRoll())) return;
     const setRolling = team === "blue" ? setBlueDieRolling : setRedDieRolling;
+    const setAnimationValue = team === "blue" ? setBlueDiceAnimationValue : setRedDiceAnimationValue;
     const setResult = team === "blue" ? setBlueDieResult : setRedDieResult;
     diceRollingRef.current[team] = true;
     setRolling(true);
+    setAnimationValue(Math.floor(Math.random() * dieType) + 1);
     let ticks = 0;
     const animation = window.setInterval(() => {
-      setResult(Math.floor(Math.random() * dieType) + 1);
+      setAnimationValue(Math.floor(Math.random() * dieType) + 1);
       ticks += 1;
       if (ticks >= 10) window.clearInterval(animation);
     }, 80);
@@ -3268,6 +3272,7 @@ function App() {
       pendingDiceRollRef.current[team] = sessionCode ? { rollId, result } : null;
       diceSeenRollIdsRef.current[team] = rollId;
       setResult(result);
+      setAnimationValue(null);
       diceRollingRef.current[team] = false;
       setRolling(false);
       showDiceNotice(team, result, dieType);
@@ -6545,6 +6550,9 @@ function App() {
           <button onClick={saveActiveGameSituation}>Save</button>
         </div>
 
+        <button className={historyVisible ? "toggle-on" : ""} onClick={() => setHistoryVisible(v => !v)}>
+          History {historyVisible ? "ON" : "OFF"}
+        </button>
         <button
           className={measureMode ? "toggle-on" : ""}
           disabled={!!sessionCode && (!canUseSharedRuler || (measureMode && !isSharedRulerOwner))}
@@ -6557,9 +6565,6 @@ function App() {
           {sharedRulerReadOnly
             ? `Ruler ${sharedRulerOwnerTeam ? sharedRulerOwnerTeam.toUpperCase() : "IN USE"}`
             : `Ruler ${measureMode ? "ON" : "OFF"}`}
-        </button>
-        <button className={historyVisible ? "toggle-on" : ""} onClick={() => setHistoryVisible(v => !v)}>
-          History {historyVisible ? "ON" : "OFF"}
         </button>
         <button className={dicePanelVisible ? "toggle-on" : ""} onClick={() => setDicePanelVisible(v => !v)}>
           Dice {dicePanelVisible ? "ON" : "OFF"}
@@ -6896,9 +6901,9 @@ function App() {
               <option value={20}>D20</option><option value={12}>D12</option><option value={10}>D10</option><option value={8}>D8</option><option value={6}>D6</option><option value={4}>D4</option>
             </select>
             <button className="blue-die-button" disabled={!canRollTeamDie("blue") || blueDieRolling || redDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("blue")}>Blue</button>
-            <span className={`die-result blue-die-result ${blueDieResult === 1 ? "die-min" : blueDieResult === blueLastDieType ? "die-max" : ""}`}>{blueDieResult ?? "—"}</span>
+            <span className={`die-result blue-die-result ${blueDieResult === 1 ? "die-min" : blueDieResult === 20 ? "die-max" : ""}`}>{blueDieRolling ? (blueDiceAnimationValue ?? "—") : (blueDieResult ?? "—")}</span>
             <button className="red-die-button" disabled={!canRollTeamDie("red") || redDieRolling || blueDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("red")}>Red</button>
-            <span className={`die-result red-die-result ${redDieResult === 1 ? "die-min" : redDieResult === redLastDieType ? "die-max" : ""}`}>{redDieResult ?? "—"}</span>
+            <span className={`die-result red-die-result ${redDieResult === 1 ? "die-min" : redDieResult === 20 ? "die-max" : ""}`}>{redDieRolling ? (redDiceAnimationValue ?? "—") : (redDieResult ?? "—")}</span>
           </div>
           <button onClick={() => { const saved = beforeLockViewRef.current; setLockUI(false); if (saved) { setZoom(saved.zoom); setPanOffset(saved.panOffset); } else { setZoom(0.8); setPanOffset({x:0,y:0}); } }}>Unlock</button>
         </div>
@@ -7004,12 +7009,12 @@ function App() {
             <div className="team-dice-grid">
               <div className="team-die-card blue-team-die">
                 <strong>BLUE DIE <small>D{blueLastDieType}</small></strong>
-                <span className={`team-die-value ${!blueDieRolling && blueDieResult === 1 ? "die-min" : !blueDieRolling && blueDieResult === 20 ? "die-twenty" : ""}`}>{blueDieResult ?? "—"}</span>
+                <span className={`team-die-value ${!blueDieRolling && blueDieResult === 1 ? "die-min" : !blueDieRolling && blueDieResult === 20 ? "die-twenty" : ""}`}>{blueDieRolling ? (blueDiceAnimationValue ?? "—") : (blueDieResult ?? "—")}</span>
                 <button disabled={!canRollTeamDie("blue") || blueDieRolling || redDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("blue")}>ROLL</button>
               </div>
               <div className="team-die-card red-team-die">
                 <strong>RED DIE <small>D{redLastDieType}</small></strong>
-                <span className={`team-die-value ${!redDieRolling && redDieResult === 1 ? "die-min" : !redDieRolling && redDieResult === 20 ? "die-twenty" : ""}`}>{redDieResult ?? "—"}</span>
+                <span className={`team-die-value ${!redDieRolling && redDieResult === 1 ? "die-min" : !redDieRolling && redDieResult === 20 ? "die-twenty" : ""}`}>{redDieRolling ? (redDiceAnimationValue ?? "—") : (redDieResult ?? "—")}</span>
                 <button disabled={!canRollTeamDie("red") || redDieRolling || blueDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("red")}>ROLL</button>
               </div>
             </div>
@@ -7019,7 +7024,7 @@ function App() {
       )}
 
       {diceNotice && (
-        <div className={`dice-notice ${diceNotice.team}`}>
+        <div className={`dice-notice ${diceNotice.team} ${diceNotice.result === 1 ? "critical-one" : diceNotice.result === 20 ? "critical-twenty" : ""}`}>
           {diceNotice.team === "blue" ? "BLUE" : "RED"} rolled {diceNotice.result}
         </div>
       )}
