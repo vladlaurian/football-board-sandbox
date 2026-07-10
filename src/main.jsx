@@ -6464,6 +6464,15 @@ function App() {
                           : "Request Flip"}
                     </button>
                   )}
+                  {inspectedCard && isOwnCardPiece(inspectedPiece) && Object.keys(cardRevealPermissions?.[inspectedCard.id] || {}).length > 0 && (
+                    <button
+                      type="button"
+                      className="inspector-flip-request-btn"
+                      disabled
+                    >
+                      Flip Allowed
+                    </button>
+                  )}
                   {inspectedCard && isOwnCardPiece(inspectedPiece) && cardVisibilityMode === "private" && Object.keys(cardRevealRequests?.[inspectedCard.id] || {}).map(viewerUid => (
                     <button
                       type="button"
