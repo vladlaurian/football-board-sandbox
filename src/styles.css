@@ -6606,3 +6606,18 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .dice-notice.blue { background:#165de8; }
 .dice-notice.red { background:#d82727; }
 .team-die-card strong small { opacity:.72; font-size:10px; margin-left:3px; }
+
+/* Team dice refinements: stable resize, critical results and shared notices. */
+.dice-resize { touch-action:none; }
+.team-die-value.die-min {
+  color:#050505 !important;
+  font-size:46px;
+  font-weight:1000;
+  text-shadow:0 1px 0 rgba(255,255,255,.25);
+}
+.team-die-value.die-twenty {
+  color:#39e75f !important;
+  font-size:46px;
+  font-weight:1000;
+  text-shadow:0 0 10px rgba(57,231,95,.35);
+}

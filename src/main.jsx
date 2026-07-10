@@ -1964,6 +1964,7 @@ function App() {
   const [blueDieRolling, setBlueDieRolling] = useState(false);
   const [redDieRolling, setRedDieRolling] = useState(false);
   const [diceNotice, setDiceNotice] = useState(null);
+  const [diceCooldownUntil, setDiceCooldownUntil] = useState(0);
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [showCoordinates, setShowCoordinates] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
@@ -2007,6 +2008,15 @@ function App() {
   const measureInteractionRef = useRef(null);
   const beforeLockViewRef = useRef(null);
   const clientIdRef = useRef(`client_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
+  const dicePanelDragRef = useRef(null);
+  const dicePanelResizeRef = useRef(null);
+  const diceNoticeTimerRef = useRef(null);
+  const diceCooldownTimerRef = useRef(null);
+  const diceCooldownUntilRef = useRef(0);
+  const diceRollingRef = useRef({ blue: false, red: false });
+  const pendingDiceRollRef = useRef({ blue: null, red: null });
+  const diceSeenRollIdsRef = useRef({ blue: "", red: "" });
+  const diceSnapshotInitializedRef = useRef(false);
   const sessionSaveTimerRef = useRef(null);
   const sessionSaveInFlightRef = useRef(false);
   const sessionCardsDirtyRef = useRef(false);
@@ -2717,10 +2727,41 @@ function App() {
       const sharedDice = data.sharedDice || {};
       const blueSharedDie = sharedDice.blue || {};
       const redSharedDie = sharedDice.red || {};
-      setBlueDieResult(Number.isFinite(Number(blueSharedDie.value)) ? Number(blueSharedDie.value) : null);
-      setRedDieResult(Number.isFinite(Number(redSharedDie.value)) ? Number(redSharedDie.value) : null);
+      const blueIncomingRollId = String(blueSharedDie.rollId || "");
+      const redIncomingRollId = String(redSharedDie.rollId || "");
+      const blueIncomingValue = Number.isFinite(Number(blueSharedDie.value)) ? Number(blueSharedDie.value) : null;
+      const redIncomingValue = Number.isFinite(Number(redSharedDie.value)) ? Number(redSharedDie.value) : null;
+
+      if (!diceRollingRef.current.blue && !pendingDiceRollRef.current.blue) setBlueDieResult(blueIncomingValue);
+      if (!diceRollingRef.current.red && !pendingDiceRollRef.current.red) setRedDieResult(redIncomingValue);
       setBlueLastDieType(Math.max(2, Number(blueSharedDie.dieType) || 20));
       setRedLastDieType(Math.max(2, Number(redSharedDie.dieType) || 20));
+
+      if (pendingDiceRollRef.current.blue?.rollId === blueIncomingRollId) {
+        pendingDiceRollRef.current.blue = null;
+        setBlueDieResult(blueIncomingValue);
+      }
+      if (pendingDiceRollRef.current.red?.rollId === redIncomingRollId) {
+        pendingDiceRollRef.current.red = null;
+        setRedDieResult(redIncomingValue);
+      }
+
+      if (!diceSnapshotInitializedRef.current) {
+        diceSeenRollIdsRef.current = { blue: blueIncomingRollId, red: redIncomingRollId };
+        diceSnapshotInitializedRef.current = true;
+      } else {
+        if (blueIncomingRollId && blueIncomingRollId !== diceSeenRollIdsRef.current.blue) {
+          diceSeenRollIdsRef.current.blue = blueIncomingRollId;
+          showDiceNotice("blue", blueIncomingValue, Math.max(2, Number(blueSharedDie.dieType) || 20));
+        }
+        if (redIncomingRollId && redIncomingRollId !== diceSeenRollIdsRef.current.red) {
+          diceSeenRollIdsRef.current.red = redIncomingRollId;
+          showDiceNotice("red", redIncomingValue, Math.max(2, Number(redSharedDie.dieType) || 20));
+        }
+      }
+
+      const sharedCooldownUntil = Math.max(0, Number(data.sharedDiceCooldownUntil) || 0);
+      if (sharedCooldownUntil > diceCooldownUntilRef.current) applyDiceCooldown(sharedCooldownUntil);
       const ruler = data.sharedRuler || {};
       const rulerActive = !!ruler.active;
       setMeasureMode(rulerActive);
@@ -3145,30 +3186,91 @@ function App() {
     setActionLog([]);
   }
 
+  function showDiceNotice(team, result, currentDieType) {
+    if (!Number.isFinite(Number(result))) return;
+    if (diceNoticeTimerRef.current) window.clearTimeout(diceNoticeTimerRef.current);
+    const noticeId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    setDiceNotice({ team, result: Number(result), dieType: currentDieType, id: noticeId });
+    diceNoticeTimerRef.current = window.setTimeout(() => {
+      setDiceNotice(current => current?.id === noticeId ? null : current);
+    }, 5000);
+  }
+
+  function applyDiceCooldown(until) {
+    const safeUntil = Math.max(0, Number(until) || 0);
+    diceCooldownUntilRef.current = safeUntil;
+    setDiceCooldownUntil(safeUntil);
+    if (diceCooldownTimerRef.current) window.clearTimeout(diceCooldownTimerRef.current);
+    const remaining = safeUntil - Date.now();
+    if (remaining > 0) {
+      diceCooldownTimerRef.current = window.setTimeout(() => {
+        diceCooldownUntilRef.current = 0;
+        setDiceCooldownUntil(0);
+      }, remaining + 40);
+    }
+  }
+
   function canRollTeamDie(team) {
+    if (Date.now() < diceCooldownUntilRef.current) return false;
+    if (diceRollingRef.current.blue || diceRollingRef.current.red) return false;
     if (!sessionCode) return true;
     return myTeam === team;
   }
 
+  async function reserveDiceRoll() {
+    const now = Date.now();
+    const until = now + 3000;
+    if (!sessionCode) {
+      applyDiceCooldown(until);
+      return true;
+    }
+    try {
+      const ref = sessionRef(sessionCode.toUpperCase());
+      await runTransaction(db, async transaction => {
+        const snap = await transaction.get(ref);
+        if (!snap.exists()) throw new Error("Session missing");
+        const currentUntil = Math.max(0, Number(snap.data().sharedDiceCooldownUntil) || 0);
+        if (currentUntil > now) {
+          const error = new Error("Dice cooldown");
+          error.code = "dice-cooldown";
+          throw error;
+        }
+        transaction.set(ref, { sharedDiceCooldownUntil: until, updatedAt: serverTimestamp() }, { merge: true });
+      });
+      applyDiceCooldown(until);
+      return true;
+    } catch (error) {
+      if (error?.code !== "dice-cooldown") {
+        console.error("Dice reservation failed", error);
+        setSessionStatus("Dice sync error");
+      }
+      return false;
+    }
+  }
+
   async function rollTeamDie(team) {
     if (!canRollTeamDie(team)) return;
+    if (!(await reserveDiceRoll())) return;
     const setRolling = team === "blue" ? setBlueDieRolling : setRedDieRolling;
     const setResult = team === "blue" ? setBlueDieResult : setRedDieResult;
+    diceRollingRef.current[team] = true;
     setRolling(true);
     let ticks = 0;
     const animation = window.setInterval(() => {
       setResult(Math.floor(Math.random() * dieType) + 1);
       ticks += 1;
-      if (ticks >= 7) window.clearInterval(animation);
-    }, 70);
+      if (ticks >= 10) window.clearInterval(animation);
+    }, 80);
     window.setTimeout(async () => {
       window.clearInterval(animation);
       const result = Math.floor(Math.random() * dieType) + 1;
+      const rollId = `${Date.now()}_${clientIdRef.current}_${team}`;
+      pendingDiceRollRef.current[team] = sessionCode ? { rollId, result } : null;
+      diceSeenRollIdsRef.current[team] = rollId;
       setResult(result);
+      diceRollingRef.current[team] = false;
       setRolling(false);
-      const noticeId = Date.now();
-      setDiceNotice({ team, result, dieType, id: noticeId });
-      window.setTimeout(() => setDiceNotice(current => current?.id === noticeId ? null : current), 1800);
+      showDiceNotice(team, result, dieType);
       logSnapshot(`${team === "blue" ? "Blue" : "Red"} D${dieType}: ${result}`);
       if (team === "blue") setBlueLastDieType(dieType);
       else setRedLastDieType(dieType);
@@ -3182,17 +3284,19 @@ function App() {
             currentDice[team] = {
               value: result,
               dieType,
+              rollId,
               rolledBy: user?.uid || "",
               rolledAt: serverTimestamp(),
             };
             transaction.set(ref, { sharedDice: currentDice, updatedAt: serverTimestamp() }, { merge: true });
           });
         } catch (error) {
+          pendingDiceRollRef.current[team] = null;
           console.error("Dice sync failed", error);
           setSessionStatus("Dice sync error");
         }
       }
-    }, 560);
+    }, 800);
   }
 
   function undo() {
@@ -6061,18 +6165,22 @@ function App() {
 
   function onDicePanelPointerDown(e) {
     e.preventDefault();
-    setDicePanelDragging({
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const drag = {
       startX: e.clientX,
       startY: e.clientY,
       originX: dicePanelPosition.x,
       originY: dicePanelPosition.y,
-    });
+    };
+    dicePanelDragRef.current = drag;
+    setDicePanelDragging(drag);
   }
 
   function onDicePanelPointerMove(e) {
-    if (!dicePanelDragging) return;
-    const nextX = dicePanelDragging.originX + (e.clientX - dicePanelDragging.startX);
-    const nextY = dicePanelDragging.originY + (e.clientY - dicePanelDragging.startY);
+    const drag = dicePanelDragRef.current;
+    if (!drag) return;
+    const nextX = drag.originX + (e.clientX - drag.startX);
+    const nextY = drag.originY + (e.clientY - drag.startY);
     setDicePanelPosition({
       x: clamp(nextX, 0, window.innerWidth - 80),
       y: clamp(nextY, 0, window.innerHeight - 50),
@@ -6082,19 +6190,23 @@ function App() {
   function onDicePanelResizeDown(e) {
     e.preventDefault();
     e.stopPropagation();
-    setDicePanelResizing({
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const resize = {
       startX: e.clientX,
       startY: e.clientY,
       originW: dicePanelSize.w,
       originH: dicePanelSize.h,
-    });
+    };
+    dicePanelResizeRef.current = resize;
+    setDicePanelResizing(resize);
   }
 
   function onDicePanelResizeMove(e) {
-    if (!dicePanelResizing) return;
+    const resize = dicePanelResizeRef.current;
+    if (!resize) return;
     setDicePanelSize({
-      w: clamp(dicePanelResizing.originW + (e.clientX - dicePanelResizing.startX), 220, 520),
-      h: clamp(dicePanelResizing.originH + (e.clientY - dicePanelResizing.startY), 120, 420),
+      w: clamp(resize.originW + (e.clientX - resize.startX), 220, 520),
+      h: clamp(resize.originH + (e.clientY - resize.startY), 120, 420),
     });
   }
 
@@ -6286,6 +6398,8 @@ function App() {
   }
 
   function onDicePanelPointerUp() {
+    dicePanelDragRef.current = null;
+    dicePanelResizeRef.current = null;
     setDicePanelDragging(null);
     setDicePanelResizing(null);
   }
@@ -6781,9 +6895,9 @@ function App() {
             <select value={dieType} onChange={e => setDieType(Number(e.target.value))}>
               <option value={20}>D20</option><option value={12}>D12</option><option value={10}>D10</option><option value={8}>D8</option><option value={6}>D6</option><option value={4}>D4</option>
             </select>
-            <button className="blue-die-button" disabled={!canRollTeamDie("blue") || blueDieRolling} onClick={() => rollTeamDie("blue")}>Blue</button>
+            <button className="blue-die-button" disabled={!canRollTeamDie("blue") || blueDieRolling || redDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("blue")}>Blue</button>
             <span className={`die-result blue-die-result ${blueDieResult === 1 ? "die-min" : blueDieResult === blueLastDieType ? "die-max" : ""}`}>{blueDieResult ?? "—"}</span>
-            <button className="red-die-button" disabled={!canRollTeamDie("red") || redDieRolling} onClick={() => rollTeamDie("red")}>Red</button>
+            <button className="red-die-button" disabled={!canRollTeamDie("red") || redDieRolling || blueDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("red")}>Red</button>
             <span className={`die-result red-die-result ${redDieResult === 1 ? "die-min" : redDieResult === redLastDieType ? "die-max" : ""}`}>{redDieResult ?? "—"}</span>
           </div>
           <button onClick={() => { const saved = beforeLockViewRef.current; setLockUI(false); if (saved) { setZoom(saved.zoom); setPanOffset(saved.panOffset); } else { setZoom(0.8); setPanOffset({x:0,y:0}); } }}>Unlock</button>
@@ -6890,13 +7004,13 @@ function App() {
             <div className="team-dice-grid">
               <div className="team-die-card blue-team-die">
                 <strong>BLUE DIE <small>D{blueLastDieType}</small></strong>
-                <span className={`team-die-value ${blueDieResult === 1 ? "die-min" : blueDieResult === blueLastDieType ? "die-max" : ""}`}>{blueDieRolling ? "…" : (blueDieResult ?? "—")}</span>
-                <button disabled={!canRollTeamDie("blue") || blueDieRolling} onClick={() => rollTeamDie("blue")}>ROLL</button>
+                <span className={`team-die-value ${!blueDieRolling && blueDieResult === 1 ? "die-min" : !blueDieRolling && blueDieResult === 20 ? "die-twenty" : ""}`}>{blueDieResult ?? "—"}</span>
+                <button disabled={!canRollTeamDie("blue") || blueDieRolling || redDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("blue")}>ROLL</button>
               </div>
               <div className="team-die-card red-team-die">
                 <strong>RED DIE <small>D{redLastDieType}</small></strong>
-                <span className={`team-die-value ${redDieResult === 1 ? "die-min" : redDieResult === redLastDieType ? "die-max" : ""}`}>{redDieRolling ? "…" : (redDieResult ?? "—")}</span>
-                <button disabled={!canRollTeamDie("red") || redDieRolling} onClick={() => rollTeamDie("red")}>ROLL</button>
+                <span className={`team-die-value ${!redDieRolling && redDieResult === 1 ? "die-min" : !redDieRolling && redDieResult === 20 ? "die-twenty" : ""}`}>{redDieResult ?? "—"}</span>
+                <button disabled={!canRollTeamDie("red") || redDieRolling || blueDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("red")}>ROLL</button>
               </div>
             </div>
           </div>
