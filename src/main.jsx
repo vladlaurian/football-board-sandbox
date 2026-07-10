@@ -1957,7 +1957,13 @@ function App() {
   const [zoom, setZoom] = useState(0.8);
   const [history, setHistory] = useState([]);
   const [dieType, setDieType] = useState(20);
-  const [dieResult, setDieResult] = useState(null);
+  const [blueDieResult, setBlueDieResult] = useState(null);
+  const [redDieResult, setRedDieResult] = useState(null);
+  const [blueLastDieType, setBlueLastDieType] = useState(20);
+  const [redLastDieType, setRedLastDieType] = useState(20);
+  const [blueDieRolling, setBlueDieRolling] = useState(false);
+  const [redDieRolling, setRedDieRolling] = useState(false);
+  const [diceNotice, setDiceNotice] = useState(null);
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [showCoordinates, setShowCoordinates] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
@@ -2417,6 +2423,10 @@ function App() {
       cardVisibilityMode: "",
       cardRevealPermissions: {},
       cardRevealRequests: {},
+      sharedDice: {
+        blue: { value: null, dieType: 20 },
+        red: { value: null, dieType: 20 },
+      },
       sharedRuler: {
         active: false,
         ownerUid: "",
@@ -2688,6 +2698,13 @@ function App() {
       setCardVisibilityMode(data.cardVisibilityMode || "");
       setCardRevealPermissions(data.cardRevealPermissions || {});
       setCardRevealRequests(data.cardRevealRequests || {});
+      const sharedDice = data.sharedDice || {};
+      const blueSharedDie = sharedDice.blue || {};
+      const redSharedDie = sharedDice.red || {};
+      setBlueDieResult(Number.isFinite(Number(blueSharedDie.value)) ? Number(blueSharedDie.value) : null);
+      setRedDieResult(Number.isFinite(Number(redSharedDie.value)) ? Number(redSharedDie.value) : null);
+      setBlueLastDieType(Math.max(2, Number(blueSharedDie.dieType) || 20));
+      setRedLastDieType(Math.max(2, Number(redSharedDie.dieType) || 20));
       const ruler = data.sharedRuler || {};
       const rulerActive = !!ruler.active;
       setMeasureMode(rulerActive);
@@ -3078,7 +3095,7 @@ function App() {
         settings: JSON.stringify(settings),
         zoom,
         dieType,
-        dieResult,
+        dieResult: { blue: blueDieResult, red: redDieResult },
         createdAt: new Date().toLocaleTimeString(),
       }
     ]);
@@ -3090,7 +3107,13 @@ function App() {
     setSettings(restoredSettings);
     setZoom(entry.zoom ?? 1);
     setDieType(entry.dieType ?? 20);
-    setDieResult(entry.dieResult ?? null);
+    if (entry.dieResult && typeof entry.dieResult === "object") {
+      setBlueDieResult(entry.dieResult.blue ?? null);
+      setRedDieResult(entry.dieResult.red ?? null);
+    } else {
+      setBlueDieResult(entry.dieResult ?? null);
+      setRedDieResult(null);
+    }
   }
 
   function clearHistory() {
@@ -3098,10 +3121,54 @@ function App() {
     setActionLog([]);
   }
 
-  function rollDie() {
-    const result = Math.floor(Math.random() * dieType) + 1;
-    setDieResult(result);
-    logSnapshot(`Zar D${dieType}: ${result}`);
+  function canRollTeamDie(team) {
+    if (!sessionCode) return true;
+    return myTeam === team;
+  }
+
+  async function rollTeamDie(team) {
+    if (!canRollTeamDie(team)) return;
+    const setRolling = team === "blue" ? setBlueDieRolling : setRedDieRolling;
+    const setResult = team === "blue" ? setBlueDieResult : setRedDieResult;
+    setRolling(true);
+    let ticks = 0;
+    const animation = window.setInterval(() => {
+      setResult(Math.floor(Math.random() * dieType) + 1);
+      ticks += 1;
+      if (ticks >= 7) window.clearInterval(animation);
+    }, 70);
+    window.setTimeout(async () => {
+      window.clearInterval(animation);
+      const result = Math.floor(Math.random() * dieType) + 1;
+      setResult(result);
+      setRolling(false);
+      const noticeId = Date.now();
+      setDiceNotice({ team, result, dieType, id: noticeId });
+      window.setTimeout(() => setDiceNotice(current => current?.id === noticeId ? null : current), 1800);
+      logSnapshot(`${team === "blue" ? "Blue" : "Red"} D${dieType}: ${result}`);
+      if (team === "blue") setBlueLastDieType(dieType);
+      else setRedLastDieType(dieType);
+      if (sessionCode) {
+        try {
+          const ref = sessionRef(sessionCode.toUpperCase());
+          await runTransaction(db, async transaction => {
+            const snap = await transaction.get(ref);
+            if (!snap.exists()) throw new Error("Session missing");
+            const currentDice = { ...(snap.data().sharedDice || {}) };
+            currentDice[team] = {
+              value: result,
+              dieType,
+              rolledBy: user?.uid || "",
+              rolledAt: serverTimestamp(),
+            };
+            transaction.set(ref, { sharedDice: currentDice, updatedAt: serverTimestamp() }, { merge: true });
+          });
+        } catch (error) {
+          console.error("Dice sync failed", error);
+          setSessionStatus("Dice sync error");
+        }
+      }
+    }, 560);
   }
 
   function undo() {
@@ -6350,14 +6417,14 @@ function App() {
           }}
         >
           {sharedRulerReadOnly
-            ? `Riglă ${sharedRulerOwnerTeam ? sharedRulerOwnerTeam.toUpperCase() : "IN USE"}`
-            : `Riglă ${measureMode ? "ON" : "OFF"}`}
+            ? `Ruler ${sharedRulerOwnerTeam ? sharedRulerOwnerTeam.toUpperCase() : "IN USE"}`
+            : `Ruler ${measureMode ? "ON" : "OFF"}`}
         </button>
         <button className={historyVisible ? "toggle-on" : ""} onClick={() => setHistoryVisible(v => !v)}>
           History {historyVisible ? "ON" : "OFF"}
         </button>
         <button className={dicePanelVisible ? "toggle-on" : ""} onClick={() => setDicePanelVisible(v => !v)}>
-          Zaruri {dicePanelVisible ? "ON" : "OFF"}
+          Dice {dicePanelVisible ? "ON" : "OFF"}
         </button>
         <button className={cardsPanelOpen ? "toggle-on" : ""} onClick={() => setCardsPanelOpen(v => !v)}>
           Cards
@@ -6685,18 +6752,15 @@ function App() {
         <div className="locked-controls">
           <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.2, 3))}><Minus size={16} /></button>
           <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
-          <div className="dice-box">
+          <div className="dice-box compact-team-dice">
             <Dices size={16} />
             <select value={dieType} onChange={e => setDieType(Number(e.target.value))}>
-              <option value={20}>D20</option>
-              <option value={12}>D12</option>
-              <option value={10}>D10</option>
-              <option value={8}>D8</option>
-              <option value={6}>D6</option>
-              <option value={4}>D4</option>
+              <option value={20}>D20</option><option value={12}>D12</option><option value={10}>D10</option><option value={8}>D8</option><option value={6}>D6</option><option value={4}>D4</option>
             </select>
-            <button onClick={rollDie}>Roll</button>
-            <span className={`die-result ${dieResult === 1 ? "die-min" : dieResult === dieType ? "die-max" : ""}`}>{dieResult === null ? "—" : dieResult}</span>
+            <button className="blue-die-button" disabled={!canRollTeamDie("blue") || blueDieRolling} onClick={() => rollTeamDie("blue")}>Blue</button>
+            <span className={`die-result blue-die-result ${blueDieResult === 1 ? "die-min" : blueDieResult === blueLastDieType ? "die-max" : ""}`}>{blueDieResult ?? "—"}</span>
+            <button className="red-die-button" disabled={!canRollTeamDie("red") || redDieRolling} onClick={() => rollTeamDie("red")}>Red</button>
+            <span className={`die-result red-die-result ${redDieResult === 1 ? "die-min" : redDieResult === redLastDieType ? "die-max" : ""}`}>{redDieResult ?? "—"}</span>
           </div>
           <button onClick={() => { const saved = beforeLockViewRef.current; setLockUI(false); if (saved) { setZoom(saved.zoom); setPanOffset(saved.panOffset); } else { setZoom(0.8); setPanOffset({x:0,y:0}); } }}>Unlock</button>
         </div>
@@ -6704,7 +6768,7 @@ function App() {
 
       {measureMode && measureInfo && (
         <div className={`measure-panel ${measureType === "corner" ? "corner" : "center"}`}>
-          Riglă {measureType === "corner" ? "Corner-to-Corner" : measureType === "cornerCenter" ? "Corner-to-Center" : "Center-to-Center"}: {measureInfo.cellsLabel} căsuțe
+          Ruler {measureType === "corner" ? "Corner-to-Corner" : measureType === "cornerCenter" ? "Corner-to-Center" : "Center-to-Center"}: {measureInfo.cellsLabel} căsuțe
         </div>
       )}
 
@@ -6720,7 +6784,7 @@ function App() {
           onPointerCancel={onRulerPanelPointerUp}
         >
           <div className="ruler-panel-title" onPointerDown={onRulerPanelPointerDown}>
-            <strong>Riglă{sharedRulerReadOnly ? ` — ${sharedRulerOwnerTeam ? sharedRulerOwnerTeam.toUpperCase() : "read only"}` : ""}</strong>
+            <strong>Ruler{sharedRulerReadOnly ? ` — ${sharedRulerOwnerTeam ? sharedRulerOwnerTeam.toUpperCase() : "read only"}` : ""}</strong>
             <div className="ruler-actions">
               <button disabled={sharedRulerReadOnly} onPointerDown={(e) => e.stopPropagation()} onClick={deactivateSharedRuler}>_</button>
             </div>
@@ -6787,27 +6851,38 @@ function App() {
           onPointerCancel={onDicePanelPointerUp}
         >
           <div className="dice-panel-title" onPointerDown={onDicePanelPointerDown}>
-            <strong>Zaruri</strong>
+            <strong>Dice</strong>
             <div className="dice-actions">
               <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setDicePanelVisible(false)}>_</button>
             </div>
           </div>
           <div className="dice-panel-body">
-            <div className="dice-box floating-dice-box">
+            <div className="dice-toolbar">
               <Dices size={18} />
               <select value={dieType} onChange={e => setDieType(Number(e.target.value))}>
-                <option value={20}>D20</option>
-                <option value={12}>D12</option>
-                <option value={10}>D10</option>
-                <option value={8}>D8</option>
-                <option value={6}>D6</option>
-                <option value={4}>D4</option>
+                <option value={20}>D20</option><option value={12}>D12</option><option value={10}>D10</option><option value={8}>D8</option><option value={6}>D6</option><option value={4}>D4</option>
               </select>
-              <button onClick={rollDie}>Roll</button>
-              <span className={`die-result ${dieResult === 1 ? "die-min" : dieResult === dieType ? "die-max" : ""}`}>{dieResult === null ? "—" : dieResult}</span>
+            </div>
+            <div className="team-dice-grid">
+              <div className="team-die-card blue-team-die">
+                <strong>BLUE DIE <small>D{blueLastDieType}</small></strong>
+                <span className={`team-die-value ${blueDieResult === 1 ? "die-min" : blueDieResult === blueLastDieType ? "die-max" : ""}`}>{blueDieRolling ? "…" : (blueDieResult ?? "—")}</span>
+                <button disabled={!canRollTeamDie("blue") || blueDieRolling} onClick={() => rollTeamDie("blue")}>ROLL</button>
+              </div>
+              <div className="team-die-card red-team-die">
+                <strong>RED DIE <small>D{redLastDieType}</small></strong>
+                <span className={`team-die-value ${redDieResult === 1 ? "die-min" : redDieResult === redLastDieType ? "die-max" : ""}`}>{redDieRolling ? "…" : (redDieResult ?? "—")}</span>
+                <button disabled={!canRollTeamDie("red") || redDieRolling} onClick={() => rollTeamDie("red")}>ROLL</button>
+              </div>
             </div>
           </div>
           <div className="dice-resize" onPointerDown={onDicePanelResizeDown} />
+        </div>
+      )}
+
+      {diceNotice && (
+        <div className={`dice-notice ${diceNotice.team}`}>
+          {diceNotice.team === "blue" ? "BLUE" : "RED"} rolled {diceNotice.result}
         </div>
       )}
 
