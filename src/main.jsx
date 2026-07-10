@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import html2canvas from "html2canvas";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInAnonymously, signOut } from "firebase/auth";
-import { doc, getDoc, onSnapshot, runTransaction, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, runTransaction, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { getFirestore } from "firebase/firestore";
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import { RotateCcw, Plus, Minus, Undo2, Edit3, X, Dices } from "lucide-react";
@@ -3253,6 +3253,8 @@ function App() {
   async function rollTeamDie(team) {
     if (!canRollTeamDie(team)) return;
     if (!(await reserveDiceRoll())) return;
+    if (diceNoticeTimerRef.current) window.clearTimeout(diceNoticeTimerRef.current);
+    setDiceNotice(null);
     const setRolling = team === "blue" ? setBlueDieRolling : setRedDieRolling;
     const setAnimationValue = team === "blue" ? setBlueDiceAnimationValue : setRedDiceAnimationValue;
     const setResult = team === "blue" ? setBlueDieResult : setRedDieResult;
@@ -3282,18 +3284,15 @@ function App() {
       if (sessionCode) {
         try {
           const ref = sessionRef(sessionCode.toUpperCase());
-          await runTransaction(db, async transaction => {
-            const snap = await transaction.get(ref);
-            if (!snap.exists()) throw new Error("Session missing");
-            const currentDice = { ...(snap.data().sharedDice || {}) };
-            currentDice[team] = {
+          await updateDoc(ref, {
+            [`sharedDice.${team}`]: {
               value: result,
               dieType,
               rollId,
               rolledBy: user?.uid || "",
               rolledAt: serverTimestamp(),
-            };
-            transaction.set(ref, { sharedDice: currentDice, updatedAt: serverTimestamp() }, { merge: true });
+            },
+            updatedAt: serverTimestamp(),
           });
         } catch (error) {
           pendingDiceRollRef.current[team] = null;
@@ -6901,9 +6900,9 @@ function App() {
               <option value={20}>D20</option><option value={12}>D12</option><option value={10}>D10</option><option value={8}>D8</option><option value={6}>D6</option><option value={4}>D4</option>
             </select>
             <button className="blue-die-button" disabled={!canRollTeamDie("blue") || blueDieRolling || redDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("blue")}>Blue</button>
-            <span className={`die-result blue-die-result ${blueDieResult === 1 ? "die-min" : blueDieResult === 20 ? "die-max" : ""}`}>{blueDieRolling ? (blueDiceAnimationValue ?? "—") : (blueDieResult ?? "—")}</span>
+            <span className={`die-result blue-die-result ${!blueDieRolling && blueDieResult === 1 ? "die-min" : !blueDieRolling && blueDieResult === blueLastDieType ? "die-max" : ""}`}>{blueDieRolling ? (blueDiceAnimationValue ?? "—") : (blueDieResult ?? "—")}</span>
             <button className="red-die-button" disabled={!canRollTeamDie("red") || redDieRolling || blueDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("red")}>Red</button>
-            <span className={`die-result red-die-result ${redDieResult === 1 ? "die-min" : redDieResult === 20 ? "die-max" : ""}`}>{redDieRolling ? (redDiceAnimationValue ?? "—") : (redDieResult ?? "—")}</span>
+            <span className={`die-result red-die-result ${!redDieRolling && redDieResult === 1 ? "die-min" : !redDieRolling && redDieResult === redLastDieType ? "die-max" : ""}`}>{redDieRolling ? (redDiceAnimationValue ?? "—") : (redDieResult ?? "—")}</span>
           </div>
           <button onClick={() => { const saved = beforeLockViewRef.current; setLockUI(false); if (saved) { setZoom(saved.zoom); setPanOffset(saved.panOffset); } else { setZoom(0.8); setPanOffset({x:0,y:0}); } }}>Unlock</button>
         </div>
@@ -7009,12 +7008,12 @@ function App() {
             <div className="team-dice-grid">
               <div className="team-die-card blue-team-die">
                 <strong>BLUE DIE <small>D{blueLastDieType}</small></strong>
-                <span className={`team-die-value ${!blueDieRolling && blueDieResult === 1 ? "die-min" : !blueDieRolling && blueDieResult === 20 ? "die-twenty" : ""}`}>{blueDieRolling ? (blueDiceAnimationValue ?? "—") : (blueDieResult ?? "—")}</span>
+                <span className={`team-die-value ${!blueDieRolling && blueDieResult === 1 ? "die-min" : !blueDieRolling && blueDieResult === blueLastDieType ? "die-twenty" : ""}`}>{blueDieRolling ? (blueDiceAnimationValue ?? "—") : (blueDieResult ?? "—")}</span>
                 <button disabled={!canRollTeamDie("blue") || blueDieRolling || redDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("blue")}>ROLL</button>
               </div>
               <div className="team-die-card red-team-die">
                 <strong>RED DIE <small>D{redLastDieType}</small></strong>
-                <span className={`team-die-value ${!redDieRolling && redDieResult === 1 ? "die-min" : !redDieRolling && redDieResult === 20 ? "die-twenty" : ""}`}>{redDieRolling ? (redDiceAnimationValue ?? "—") : (redDieResult ?? "—")}</span>
+                <span className={`team-die-value ${!redDieRolling && redDieResult === 1 ? "die-min" : !redDieRolling && redDieResult === redLastDieType ? "die-twenty" : ""}`}>{redDieRolling ? (redDiceAnimationValue ?? "—") : (redDieResult ?? "—")}</span>
                 <button disabled={!canRollTeamDie("red") || redDieRolling || blueDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("red")}>ROLL</button>
               </div>
             </div>
@@ -7024,8 +7023,8 @@ function App() {
       )}
 
       {diceNotice && (
-        <div className={`dice-notice ${diceNotice.team} ${diceNotice.result === 1 ? "critical-one" : diceNotice.result === 20 ? "critical-twenty" : ""}`}>
-          {diceNotice.team === "blue" ? "BLUE" : "RED"} rolled {diceNotice.result}
+        <div className={`dice-notice ${diceNotice.team} ${diceNotice.result === 1 ? "critical-one" : diceNotice.result === diceNotice.dieType ? "critical-max" : ""}`}>
+          {diceNotice.team === "blue" ? "BLUE" : "RED"} rolled {diceNotice.result} (D{diceNotice.dieType})
         </div>
       )}
 
