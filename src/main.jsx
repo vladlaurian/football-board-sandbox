@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import html2canvas from "html2canvas";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInAnonymously, signOut } from "firebase/auth";
-import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, runTransaction, serverTimestamp, setDoc } from "firebase/firestore";
 import { getFirestore } from "firebase/firestore";
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import { RotateCcw, Plus, Minus, Undo2, Edit3, X, Dices } from "lucide-react";
@@ -2029,6 +2029,15 @@ function App() {
   const [joinCode, setJoinCode] = useState("");
   const [sessionStatus, setSessionStatus] = useState("Offline");
   const [sessionPlayers, setSessionPlayers] = useState(0);
+  const [myTeam, setMyTeam] = useState("spectator");
+  const [sessionOwnerUid, setSessionOwnerUid] = useState("");
+  const [teamOwners, setTeamOwners] = useState({ blue: "", red: "" });
+  const [cardVisibilityMode, setCardVisibilityMode] = useState("");
+  const [cardRevealPermissions, setCardRevealPermissions] = useState({});
+  const [cardRevealRequests, setCardRevealRequests] = useState({});
+  const [sessionParticipants, setSessionParticipants] = useState({});
+  const presenceClockRef = useRef(Date.now());
+  const dragPieceIdRef = useRef(null);
 
   const pitchStyle = useMemo(() => ({
     "--cols": settings.cols,
@@ -2165,6 +2174,88 @@ function App() {
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
     if (data.cardState) setCardState(nextCardState);
+  }
+
+  function timestampToMillis(value) {
+    if (!value) return 0;
+    if (typeof value.toMillis === "function") return value.toMillis();
+    if (typeof value.seconds === "number") return value.seconds * 1000;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function pieceTeamKey(piece) {
+    if (!piece || piece.team === "BALL") return piece?.team === "BALL" ? "ball" : "";
+    return piece.team === "A" ? "blue" : piece.team === "B" ? "red" : "";
+  }
+
+  function canMovePiece(piece) {
+    if (!sessionCode) return true;
+    if (!piece) return false;
+    if (piece.team === "BALL") return true;
+    return myTeam !== "spectator" && pieceTeamKey(piece) === myTeam;
+  }
+
+  function canAssignPiece(piece) {
+    return !!piece && piece.team !== "BALL" && canMovePiece(piece);
+  }
+
+  function isOwnCardPiece(piece) {
+    return !!piece && piece.team !== "BALL" && myTeam !== "spectator" && pieceTeamKey(piece) === myTeam;
+  }
+
+  function hasBackPermission(cardId) {
+    if (!cardId || !user?.uid) return false;
+    return !!cardRevealPermissions?.[cardId]?.[user.uid];
+  }
+
+  function canViewCardBack(piece, cardId) {
+    if (!sessionCode || cardVisibilityMode === "open") return true;
+    if (isOwnCardPiece(piece)) return true;
+    return hasBackPermission(cardId);
+  }
+
+  async function setSessionCardMode(mode) {
+    if (!sessionCode || !user?.uid || user.uid !== sessionOwnerUid || !["open", "private"].includes(mode)) return;
+    await setDoc(sessionRef(sessionCode.toUpperCase()), { cardVisibilityMode: mode, updatedAt: serverTimestamp() }, { merge: true });
+  }
+
+  async function requestCardBack(cardId) {
+    if (!sessionCode || !user?.uid || !cardId || cardVisibilityMode !== "private") return;
+    const ref = sessionRef(sessionCode.toUpperCase());
+    await runTransaction(db, async transaction => {
+      const snap = await transaction.get(ref);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const requests = { ...(data.cardRevealRequests || {}) };
+      requests[cardId] = { ...(requests[cardId] || {}), [user.uid]: true };
+      transaction.set(ref, { cardRevealRequests: requests, updatedAt: serverTimestamp() }, { merge: true });
+    });
+  }
+
+  async function allowCardBack(cardId, viewerUid) {
+    if (!sessionCode || !user?.uid || !cardId || !viewerUid) return;
+    const ownerPiece = (piecesRef.current || []).find(piece => piece.cardId === cardId);
+    if (!isOwnCardPiece(ownerPiece)) return;
+    const ref = sessionRef(sessionCode.toUpperCase());
+    await runTransaction(db, async transaction => {
+      const snap = await transaction.get(ref);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const permissions = { ...(data.cardRevealPermissions || {}) };
+      permissions[cardId] = { ...(permissions[cardId] || {}), [viewerUid]: true };
+      const requests = { ...(data.cardRevealRequests || {}) };
+      const cardRequests = { ...(requests[cardId] || {}) };
+      delete cardRequests[viewerUid];
+      if (Object.keys(cardRequests).length) requests[cardId] = cardRequests;
+      else delete requests[cardId];
+      transaction.set(ref, { cardRevealPermissions: permissions, cardRevealRequests: requests, updatedAt: serverTimestamp() }, { merge: true });
+    });
+  }
+
+  function handleInspectorSideChange(nextSide) {
+    if (nextSide === "back" && inspectedCard && !canViewCardBack(inspectedPiece, inspectedCard.id)) return;
+    setInspectorCardSide(nextSide);
   }
 
   function buildLiveBoardState(overrides = {}) {
@@ -2306,6 +2397,20 @@ function App() {
           clientId: clientIdRef.current,
         }
       },
+      participants: {
+        [user.uid]: {
+          email: user.email || "",
+          role: "host",
+          team: "pending",
+          joinedAt: new Date().toISOString(),
+          lastSeen: serverTimestamp(),
+          clientId: clientIdRef.current,
+        }
+      },
+      teamOwners: { blue: "", red: "" },
+      cardVisibilityMode: "",
+      cardRevealPermissions: {},
+      cardRevealRequests: {},
       board: encodeForFirestore(buildLiveBoardState({ sessionLibraryById: sessionLibrarySnapshot })),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -2336,23 +2441,83 @@ function App() {
     try {
       setSessionStatus("Joining...");
       const ref = sessionRef(code);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
+      const initialSnap = await getDoc(ref);
+      if (!initialSnap.exists()) {
         setSessionStatus("Code not found");
         return;
       }
+      const initialData = initialSnap.data();
+      const existingOwners = initialData.teamOwners || {};
+      const existingParticipants = initialData.participants || {};
+      const isReturning = !!existingParticipants[sessionUser.uid] || existingOwners.blue === sessionUser.uid || existingOwners.red === sessionUser.uid;
+      let preferredTeam = "";
+      if (!isReturning && !existingOwners.blue && !existingOwners.red && initialData.ownerUid !== sessionUser.uid) {
+        preferredTeam = window.confirm(`Choose your team:
 
-      await setDoc(ref, {
-        players: {
-          [sessionUser.uid]: {
-            email: sessionUser.email || "Guest",
-            guest: !!sessionUser.isAnonymous,
-            joinedAt: new Date().toISOString(),
-            clientId: clientIdRef.current,
+OK = Blue
+Cancel = Red`) ? "blue" : "red";
+      }
+
+      await runTransaction(db, async transaction => {
+        const snap = await transaction.get(ref);
+        if (!snap.exists()) throw new Error("Session missing");
+        const data = snap.data();
+        const owners = { blue: data.teamOwners?.blue || "", red: data.teamOwners?.red || "" };
+        const participants = { ...(data.participants || {}) };
+        const hostUid = data.ownerUid || "";
+        let team = "spectator";
+        let role = participants[sessionUser.uid]?.role || (sessionUser.uid === hostUid ? "host" : "guest");
+
+        if (owners.blue === sessionUser.uid) team = "blue";
+        else if (owners.red === sessionUser.uid) team = "red";
+        else if (participants[sessionUser.uid]?.team) team = participants[sessionUser.uid].team;
+        else if (sessionUser.uid === hostUid && (owners.blue === hostUid || owners.red === hostUid)) team = owners.blue === hostUid ? "blue" : "red";
+        else if (!owners.blue && !owners.red && sessionUser.uid !== hostUid) {
+          team = preferredTeam === "red" ? "red" : "blue";
+          const otherTeam = team === "blue" ? "red" : "blue";
+          owners[team] = sessionUser.uid;
+          owners[otherTeam] = hostUid;
+          if (hostUid) {
+            participants[hostUid] = {
+              ...(participants[hostUid] || {}),
+              role: "host",
+              team: otherTeam,
+            };
           }
-        },
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
+        } else if (!owners.blue && owners.red !== sessionUser.uid && sessionUser.uid !== hostUid) {
+          team = "blue";
+          owners.blue = sessionUser.uid;
+        } else if (!owners.red && owners.blue !== sessionUser.uid && sessionUser.uid !== hostUid) {
+          team = "red";
+          owners.red = sessionUser.uid;
+        } else if (sessionUser.uid === hostUid && !owners.blue && !owners.red) {
+          team = "pending";
+        } else {
+          team = "spectator";
+          role = sessionUser.uid === hostUid ? "host" : "spectator";
+        }
+
+        participants[sessionUser.uid] = {
+          ...(participants[sessionUser.uid] || {}),
+          email: sessionUser.email || "Guest",
+          guest: !!sessionUser.isAnonymous,
+          role,
+          team,
+          joinedAt: participants[sessionUser.uid]?.joinedAt || new Date().toISOString(),
+          lastSeen: serverTimestamp(),
+          clientId: clientIdRef.current,
+        };
+
+        const players = { ...(data.players || {}) };
+        players[sessionUser.uid] = {
+          email: sessionUser.email || "Guest",
+          guest: !!sessionUser.isAnonymous,
+          joinedAt: players[sessionUser.uid]?.joinedAt || new Date().toISOString(),
+          clientId: clientIdRef.current,
+        };
+
+        transaction.set(ref, { teamOwners: owners, participants, players, updatedAt: serverTimestamp() }, { merge: true });
+      });
 
       sessionHydratedRef.current = false;
       setSessionCode(code);
@@ -2371,6 +2536,14 @@ function App() {
     sessionCardsByIdRef.current = {};
     setSessionLibraryById({});
     sessionLibraryByIdRef.current = {};
+    setMyTeam("spectator");
+    setSessionOwnerUid("");
+    setTeamOwners({ blue: "", red: "" });
+    setCardVisibilityMode("");
+    setCardRevealPermissions({});
+    setCardRevealRequests({});
+    setSessionParticipants({});
+    dragPieceIdRef.current = null;
     setSessionStatus("Offline");
   }
 
@@ -2468,8 +2641,24 @@ function App() {
       }
 
       const data = snapshot.data();
-      const players = data.players || {};
-      setSessionPlayers(Object.keys(players).length);
+      const participants = data.participants || {};
+      setSessionParticipants(participants);
+      setSessionOwnerUid(data.ownerUid || "");
+      setTeamOwners({ blue: data.teamOwners?.blue || "", red: data.teamOwners?.red || "" });
+      setCardVisibilityMode(data.cardVisibilityMode || "");
+      setCardRevealPermissions(data.cardRevealPermissions || {});
+      setCardRevealRequests(data.cardRevealRequests || {});
+      const currentUid = user?.uid || "";
+      const resolvedTeam = data.teamOwners?.blue === currentUid
+        ? "blue"
+        : data.teamOwners?.red === currentUid
+          ? "red"
+          : (participants[currentUid]?.team === "blue" || participants[currentUid]?.team === "red")
+            ? participants[currentUid].team
+            : "spectator";
+      setMyTeam(resolvedTeam);
+      presenceClockRef.current = Date.now();
+      setSessionPlayers(Object.values(participants).filter(participant => Date.now() - timestampToMillis(participant?.lastSeen) < 40000).length);
       setSessionStatus("Online");
 
       if (data.updatedBy === clientIdRef.current) {
@@ -2495,6 +2684,37 @@ function App() {
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, sessionCode]);
+
+  useEffect(() => {
+    if (!user?.uid || !sessionCode) return;
+    const ref = sessionRef(sessionCode.toUpperCase());
+    const beat = () => {
+      setDoc(ref, {
+        participants: {
+          [user.uid]: {
+            ...(sessionParticipants[user.uid] || {}),
+            email: user.email || "Guest",
+            lastSeen: serverTimestamp(),
+            clientId: clientIdRef.current,
+          }
+        }
+      }, { merge: true }).catch(error => console.error("Presence heartbeat failed", error));
+    };
+    beat();
+    const heartbeatId = window.setInterval(beat, 15000);
+    return () => window.clearInterval(heartbeatId);
+  }, [user?.uid, sessionCode]);
+
+  useEffect(() => {
+    if (!sessionCode) return;
+    const refreshCount = () => {
+      presenceClockRef.current = Date.now();
+      setSessionPlayers(Object.values(sessionParticipants).filter(participant => Date.now() - timestampToMillis(participant?.lastSeen) < 40000).length);
+    };
+    refreshCount();
+    const countId = window.setInterval(refreshCount, 5000);
+    return () => window.clearInterval(countId);
+  }, [sessionCode, sessionParticipants]);
 
   useEffect(() => {
     scheduleSessionLiveSave();
@@ -2890,28 +3110,36 @@ function App() {
     e.preventDefault();
     e.stopPropagation();
     if (editingPiece) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setSelectedId(pieceId);
+    const piece = (piecesRef.current || pieces).find(item => item.id === pieceId);
     setInspectedPieceId(pieceId);
+    setSelectedId(pieceId);
+    dragPieceIdRef.current = null;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    if (!canMovePiece(piece)) return;
+    dragPieceIdRef.current = pieceId;
     pushHistory();
     movePieceFromPointer(pieceId, e);
   }
 
   function onPointerMove(pieceId, e) {
-    if (selectedId !== pieceId) return;
+    if (selectedId !== pieceId || dragPieceIdRef.current !== pieceId) return;
+    const piece = (piecesRef.current || pieces).find(item => item.id === pieceId);
+    if (!canMovePiece(piece)) return;
     movePieceFromPointer(pieceId, e);
   }
 
   function onPointerUp() {
-    if (selectedId) {
-      const moved = pieces.find(p => p.id === selectedId);
+    const movedId = dragPieceIdRef.current;
+    if (movedId) {
+      const moved = (piecesRef.current || pieces).find(p => p.id === movedId);
       if (moved) logSnapshot(`${moved.team === "A" ? "Blue" : moved.team === "B" ? "Red" : "Ball"} ${moved.label} → ${withBoardPosition(moved, settings).coord}`);
     }
+    dragPieceIdRef.current = null;
     setSelectedId(null);
   }
 
   function openEdit(piece) {
-    if (piece.team === "BALL") return;
+    if (piece.team === "BALL" || !canAssignPiece(piece)) return;
     setEditingPiece(piece);
     setEditLabel(piece.label);
   }
@@ -3349,6 +3577,11 @@ function App() {
     }
 
     const currentPieces = piecesRef.current || pieces;
+    const targetPiece = currentPieces.find(piece => piece.id === targetPieceId);
+    if (!canAssignPiece(targetPiece)) {
+      setAssignTarget(null);
+      return;
+    }
     const existingPiece = currentPieces.find(piece => piece.cardId === cardId && piece.id !== targetPieceId);
     if (existingPiece) {
       const shouldReassign = window.confirm("This card is already assigned to another puck. Do you want to reassign it?");
@@ -3378,6 +3611,8 @@ function App() {
   }
 
   function removePieceCard(pieceId) {
+    const targetPiece = (piecesRef.current || pieces).find(piece => piece.id === pieceId);
+    if (!canAssignPiece(targetPiece)) return;
     const assignmentCardState = sessionCode && Object.keys(sessionLibraryByIdRef.current || {}).length
       ? buildCardStateFromSessionLibrary(sessionLibraryByIdRef.current)
       : cardStateRef.current;
@@ -5161,9 +5396,9 @@ function App() {
         ) : (
           <div className={`team-roster ${teamKey}`}>
             <div className="roster-title">Starting IX</div>
-            <div className="team-layout">{rosterSlots[teamKey].starting.map((slot) => <div key={slot.id} className="team-slot"><div><strong>{slot.position}</strong>{slot.cardId && <small>{cardById[slot.cardId]?.name || "Missing card"}</small>}</div><div className="slot-actions"><button onClick={() => setAssignTarget({ type: "team", team: teamKey, pieceId: slot.pieceId })}>Assign</button>{slot.cardId && <><button onClick={() => setEditingCardId(slot.cardId) || setCardsView("library")}>Edit</button><button onClick={() => removePieceCard(slot.pieceId)}>Remove</button></>}</div></div>)}</div>
+            <div className="team-layout">{rosterSlots[teamKey].starting.map((slot) => <div key={slot.id} className="team-slot"><div><strong>{slot.position}</strong>{slot.cardId && <small>{cardById[slot.cardId]?.name || "Missing card"}</small>}</div><div className="slot-actions"><button disabled={!canAssignPiece(pieces.find(piece => piece.id === slot.pieceId))} onClick={() => setAssignTarget({ type: "team", team: teamKey, pieceId: slot.pieceId })}>Assign</button>{slot.cardId && <>{!sessionCode && <button onClick={() => setEditingCardId(slot.cardId) || setCardsView("library")}>Edit</button>}<button disabled={!canAssignPiece(pieces.find(piece => piece.id === slot.pieceId))} onClick={() => removePieceCard(slot.pieceId)}>Remove</button></>}</div></div>)}</div>
             <div className="roster-title substitutes-title">Substitutes</div>
-            <div className="team-layout substitutes-layout">{rosterSlots[teamKey].substitutes.map((slot) => <div key={slot.id} className="team-slot substitute"><div><strong>{slot.position}</strong>{slot.cardId && <small>{cardById[slot.cardId]?.name || "Missing card"}</small>}</div><div className="slot-actions"><button onClick={() => setAssignTarget({ type: "team", team: teamKey, pieceId: slot.pieceId })}>Assign</button>{slot.cardId && <><button onClick={() => setEditingCardId(slot.cardId) || setCardsView("library")}>Edit</button><button onClick={() => removePieceCard(slot.pieceId)}>Remove</button></>}</div></div>)}</div>
+            <div className="team-layout substitutes-layout">{rosterSlots[teamKey].substitutes.map((slot) => <div key={slot.id} className="team-slot substitute"><div><strong>{slot.position}</strong>{slot.cardId && <small>{cardById[slot.cardId]?.name || "Missing card"}</small>}</div><div className="slot-actions"><button disabled={!canAssignPiece(pieces.find(piece => piece.id === slot.pieceId))} onClick={() => setAssignTarget({ type: "team", team: teamKey, pieceId: slot.pieceId })}>Assign</button>{slot.cardId && <>{!sessionCode && <button onClick={() => setEditingCardId(slot.cardId) || setCardsView("library")}>Edit</button>}<button disabled={!canAssignPiece(pieces.find(piece => piece.id === slot.pieceId))} onClick={() => removePieceCard(slot.pieceId)}>Remove</button></>}</div></div>)}</div>
           </div>
         )}
       </div>
@@ -5837,8 +6072,16 @@ function App() {
             <>
               <span className="session-pill">ONLINE</span>
               <span className="session-code">Code: {sessionCode}</span>
-              <span className="session-players">Players: {sessionPlayers || 1}/2</span>
+              <span className="session-players">Connected: {sessionPlayers}</span>
+              <span className="session-role">{myTeam === "blue" ? "Blue" : myTeam === "red" ? "Red" : "Spectator"}</span>
               <span className="session-status">{sessionStatus}</span>
+              {user?.uid === sessionOwnerUid && teamOwners.blue && teamOwners.red && (
+                <span className="session-card-mode">
+                  <button className={cardVisibilityMode === "open" ? "active" : ""} onClick={() => setSessionCardMode("open")}>Open Cards</button>
+                  <button className={cardVisibilityMode === "private" ? "active" : ""} onClick={() => setSessionCardMode("private")}>Private Cards</button>
+                </span>
+              )}
+              {user?.uid !== sessionOwnerUid && cardVisibilityMode && <span className="session-mode-label">{cardVisibilityMode === "open" ? "Open Cards" : "Private Cards"}</span>}
               <button onClick={leaveSession}>Leave</button>
             </>
           ) : (
@@ -6206,16 +6449,31 @@ function App() {
                           side="front"
                           flippable
                           controlledSide={inspectorCardSide}
-                          onSideChange={setInspectorCardSide}
+                          onSideChange={handleInspectorSideChange}
                         />
                       </div>
                     </div>
                   </div>
                 ) : <div className="card-preview empty">Niciun card atașat</div>}
+                {inspectedCard && cardVisibilityMode === "private" && !canViewCardBack(inspectedPiece, inspectedCard.id) && (
+                  <div className="privacy-actions">
+                    <button type="button" onClick={() => requestCardBack(inspectedCard.id)} disabled={!!cardRevealRequests?.[inspectedCard.id]?.[user?.uid]}>
+                      {cardRevealRequests?.[inspectedCard.id]?.[user?.uid] ? "Back Requested" : "Request Back"}
+                    </button>
+                  </div>
+                )}
+                {inspectedCard && isOwnCardPiece(inspectedPiece) && Object.keys(cardRevealRequests?.[inspectedCard.id] || {}).length > 0 && (
+                  <div className="privacy-requests">
+                    <b>Back requests</b>
+                    {Object.keys(cardRevealRequests[inspectedCard.id]).map(viewerUid => (
+                      <button type="button" key={viewerUid} onClick={() => allowCardBack(inspectedCard.id, viewerUid)}>Allow Back</button>
+                    ))}
+                  </div>
+                )}
                 <div className="inspector-actions">
-                  <button onClick={() => setAssignTarget({ type: "piece", pieceId: inspectedPiece.id })}>Assign Card</button>
-                  {inspectedCard && <button onClick={() => { setCardsPanelOpen(true); setCardsView("library"); setEditingCardId(inspectedCard.id); }}>Edit Card</button>}
-                  {inspectedCard && <button onClick={() => removePieceCard(inspectedPiece.id)}>Remove Card</button>}
+                  {canAssignPiece(inspectedPiece) && <button onClick={() => setAssignTarget({ type: "piece", pieceId: inspectedPiece.id })}>Assign Card</button>}
+                  {inspectedCard && canAssignPiece(inspectedPiece) && !sessionCode && <button onClick={() => { setCardsPanelOpen(true); setCardsView("library"); setEditingCardId(inspectedCard.id); }}>Edit Card</button>}
+                  {inspectedCard && canAssignPiece(inspectedPiece) && <button onClick={() => removePieceCard(inspectedPiece.id)}>Remove Card</button>}
                 </div>
               </>
             )}
