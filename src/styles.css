@@ -6518,3 +6518,24 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .assign-preview-card-shell {
   flex: 0 0 auto;
 }
+
+
+/* Assign list text fit fix: keep name/position inside each row without touching preview layout. */
+.assign-list .assign-card-row {
+  min-height: 52px;
+  padding: 7px 10px;
+  line-height: 1.08;
+}
+.assign-list .assign-card-row .assign-card-row-main {
+  justify-content: center;
+  gap: 1px;
+  line-height: 1.08;
+}
+.assign-list .assign-card-row .assign-card-row-main b,
+.assign-list .assign-card-row .assign-card-row-main small {
+  display: block;
+  line-height: 1.08;
+}
+.assign-list .assign-card-row .assign-card-row-main small {
+  font-size: 10px;
+}

@@ -2001,6 +2001,7 @@ function App() {
   const clientIdRef = useRef(`client_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
   const sessionSaveTimerRef = useRef(null);
   const sessionSaveInFlightRef = useRef(false);
+  const sessionCardsDirtyRef = useRef(false);
   const sessionSavePendingRef = useRef(false);
   const sessionLastSaveAtRef = useRef(0);
   const isApplyingSessionRef = useRef(false);
@@ -2168,13 +2169,19 @@ function App() {
   function buildLiveBoardState(overrides = {}) {
     const effectiveSettings = overrides.settings ? normalizeSettingsForApp(overrides.settings) : settingsRef.current;
     const effectivePieces = overrides.pieces || piecesRef.current;
-    const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, ...restOverrides } = overrides;
+    const {
+      pieces: _overridePieces,
+      cardState: _overrideCardState,
+      settings: _overrideSettings,
+      __includeSessionCards,
+      ...restOverrides
+    } = overrides;
     const effectiveSessionLibraryById = normalizeSessionCardsById(sessionLibraryByIdRef.current);
     const sessionCardSourceState = Object.keys(effectiveSessionLibraryById).length
       ? buildCardStateFromSessionLibrary(effectiveSessionLibraryById)
       : cardStateRef.current;
     const effectiveSessionCardsById = buildSessionCardsById(effectivePieces, sessionCardSourceState, sessionCardsByIdRef.current);
-    return {
+    const liveState = {
       version: "pitch-44-goal-5x2",
       dieType,
       dieResult,
@@ -2183,11 +2190,14 @@ function App() {
       blueFormationId,
       redFormationId,
       actionLog,
-      sessionCardsById: effectiveSessionCardsById,
       ...restOverrides,
       settings: effectiveSettings,
       pieces: sanitizePiecesCardIds(effectivePieces, sessionCardSourceState, effectiveSettings, {}, effectiveSessionCardsById),
     };
+    if (__includeSessionCards || restOverrides.sessionCardsById) {
+      liveState.sessionCardsById = restOverrides.sessionCardsById || effectiveSessionCardsById;
+    }
+    return liveState;
   }
 
   function applyLiveBoardState(data) {
@@ -2228,11 +2238,13 @@ function App() {
     if (!user || !sessionCode) return;
     try {
       const code = sessionCode.toUpperCase();
+      const includeSessionCards = !!sessionCardsDirtyRef.current || !!overrides.__includeSessionCards || !!overrides.sessionCardsById;
       await setDoc(sessionRef(code), {
-        board: encodeForFirestore(buildLiveBoardState(overrides)),
+        board: encodeForFirestore(buildLiveBoardState({ ...overrides, __includeSessionCards: includeSessionCards })),
         updatedAt: serverTimestamp(),
         updatedBy: clientIdRef.current,
       }, { merge: true });
+      if (includeSessionCards) sessionCardsDirtyRef.current = false;
       sessionLastSaveAtRef.current = Date.now();
       setSessionStatus("Online saved");
     } catch (error) {
@@ -3350,6 +3362,7 @@ function App() {
     const nextSessionCardsById = buildSessionCardsById(nextPieces, assignmentCardState, sessionCardsByIdRef.current);
     sessionCardsByIdRef.current = nextSessionCardsById;
     setSessionCardsById(nextSessionCardsById);
+    sessionCardsDirtyRef.current = true;
     setAssignTarget(null);
   }
 
@@ -3369,6 +3382,7 @@ function App() {
     const nextSessionCardsById = buildSessionCardsById(nextPieces, assignmentCardState, sessionCardsByIdRef.current);
     sessionCardsByIdRef.current = nextSessionCardsById;
     setSessionCardsById(nextSessionCardsById);
+    sessionCardsDirtyRef.current = true;
   }
 
 
