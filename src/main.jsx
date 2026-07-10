@@ -2313,7 +2313,6 @@ function App() {
       showCoordinates,
       blueFormationId,
       redFormationId,
-      actionLog,
       ...restOverrides,
       settings: effectiveSettings,
       pieces: sanitizePiecesCardIds(effectivePieces, sessionCardSourceState, effectiveSettings, {}, effectiveSessionCardsById),
@@ -2363,7 +2362,6 @@ function App() {
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
-    if (data.actionLog) setActionLog(data.actionLog);
   }
 
   async function saveSessionState(overrides = {}) {
@@ -2866,7 +2864,6 @@ function App() {
     showCoordinates,
     blueFormationId,
     redFormationId,
-    actionLog,
   ]);
 
   useEffect(() => () => {
@@ -7024,7 +7021,7 @@ function App() {
 
       {diceNotice && (
         <div className={`dice-notice ${diceNotice.team} ${diceNotice.result === 1 ? "critical-one" : diceNotice.result === diceNotice.dieType ? "critical-max" : ""}`}>
-          {diceNotice.team === "blue" ? "BLUE" : "RED"} rolled {diceNotice.result} (D{diceNotice.dieType})
+          {diceNotice.team === "blue" ? "BLUE" : "RED"} rolled {diceNotice.result} <span className="dice-notice-die">(D{diceNotice.dieType})</span>
         </div>
       )}
 
