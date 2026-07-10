@@ -2149,7 +2149,7 @@ function App() {
       blueFormationId,
       redFormationId,
       dieType,
-      dieResult,
+      dieResult: { blue: blueDieResult, red: redDieResult },
       touchMode,
       snapToGrid,
       showCoordinates,
@@ -2181,7 +2181,15 @@ function App() {
       setPieces(nextPieces);
     }
     if (typeof data.dieType === "number") setDieType(data.dieType);
-    if (data.dieResult !== undefined) setDieResult(data.dieResult);
+    if (data.dieResult !== undefined) {
+      if (data.dieResult && typeof data.dieResult === "object") {
+        setBlueDieResult(data.dieResult.blue ?? null);
+        setRedDieResult(data.dieResult.red ?? null);
+      } else {
+        setBlueDieResult(data.dieResult ?? null);
+        setRedDieResult(null);
+      }
+    }
     if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
@@ -2288,7 +2296,7 @@ function App() {
     const liveState = {
       version: "pitch-44-goal-5x2",
       dieType,
-      dieResult,
+      dieResult: { blue: blueDieResult, red: redDieResult },
       snapToGrid,
       showCoordinates,
       blueFormationId,
@@ -2330,7 +2338,15 @@ function App() {
       setPieces(nextPieces);
     }
     if (typeof data.dieType === "number") setDieType(data.dieType);
-    if (data.dieResult !== undefined) setDieResult(data.dieResult);
+    if (data.dieResult !== undefined) {
+      if (data.dieResult && typeof data.dieResult === "object") {
+        setBlueDieResult(data.dieResult.blue ?? null);
+        setRedDieResult(data.dieResult.red ?? null);
+      } else {
+        setBlueDieResult(data.dieResult ?? null);
+        setRedDieResult(null);
+      }
+    }
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
@@ -2801,7 +2817,8 @@ function App() {
     settings,
     pieces,
     dieType,
-    dieResult,
+    blueDieResult,
+    redDieResult,
     snapToGrid,
     showCoordinates,
     blueFormationId,
@@ -2831,7 +2848,8 @@ function App() {
     redFormationId,
     pieces,
     dieType,
-    dieResult,
+    blueDieResult,
+    redDieResult,
     touchMode,
     snapToGrid,
     showCoordinates,
@@ -2971,7 +2989,7 @@ function App() {
       blueFormationId,
       redFormationId,
       dieType,
-      dieResult,
+      dieResult: { blue: blueDieResult, red: redDieResult },
       cardState: buildCardLibraryState(cardState),
     };
   }
@@ -3000,7 +3018,13 @@ function App() {
     setBlueFormationId(situation.snapshot.blueFormationId ?? 1);
     setRedFormationId(situation.snapshot.redFormationId ?? 2);
     setDieType(situation.snapshot.dieType ?? 20);
-    setDieResult(situation.snapshot.dieResult ?? null);
+    if (situation.snapshot.dieResult && typeof situation.snapshot.dieResult === "object") {
+      setBlueDieResult(situation.snapshot.dieResult.blue ?? null);
+      setRedDieResult(situation.snapshot.dieResult.red ?? null);
+    } else {
+      setBlueDieResult(situation.snapshot.dieResult ?? null);
+      setRedDieResult(null);
+    }
     if (situation.snapshot.cardState) setCardState(snapshotCardState);
     logSnapshot(`Load situație: ${situation.name}`, snapshotPieces);
   }
