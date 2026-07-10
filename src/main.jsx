@@ -1966,6 +1966,8 @@ function App() {
   const [shotMark, setShotMark] = useState(12);
   const [measureStart, setMeasureStart] = useState(null);
   const [measureEnd, setMeasureEnd] = useState(null);
+  const [sharedRulerOwnerUid, setSharedRulerOwnerUid] = useState("");
+  const [sharedRulerOwnerTeam, setSharedRulerOwnerTeam] = useState("");
   const [actionLog, setActionLog] = useState([]);
   const [historyPosition, setHistoryPosition] = useState({ x: window.innerWidth - 300, y: 118 });
   const [historySize, setHistorySize] = useState({ w: 280, h: 360 });
@@ -2039,6 +2041,9 @@ function App() {
   const [joinSetup, setJoinSetup] = useState(null);
   const presenceClockRef = useRef(Date.now());
   const dragPieceIdRef = useRef(null);
+  const isSharedRulerOwner = !!sessionCode && !!user?.uid && sharedRulerOwnerUid === user.uid;
+  const sharedRulerReadOnly = !!sessionCode && measureMode && !isSharedRulerOwner;
+  const canUseSharedRuler = !sessionCode || myTeam === "blue" || myTeam === "red";
 
   const pitchStyle = useMemo(() => ({
     "--cols": settings.cols,
@@ -2412,6 +2417,17 @@ function App() {
       cardVisibilityMode: "",
       cardRevealPermissions: {},
       cardRevealRequests: {},
+      sharedRuler: {
+        active: false,
+        ownerUid: "",
+        ownerClientId: "",
+        ownerTeam: "",
+        measureType: "center",
+        passMark: 8,
+        shotMark: 12,
+        start: null,
+        end: null,
+      },
       board: encodeForFirestore(buildLiveBoardState({ sessionLibraryById: sessionLibrarySnapshot })),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -2672,6 +2688,25 @@ function App() {
       setCardVisibilityMode(data.cardVisibilityMode || "");
       setCardRevealPermissions(data.cardRevealPermissions || {});
       setCardRevealRequests(data.cardRevealRequests || {});
+      const ruler = data.sharedRuler || {};
+      const rulerActive = !!ruler.active;
+      setMeasureMode(rulerActive);
+      setSharedRulerOwnerUid(rulerActive ? (ruler.ownerUid || "") : "");
+      setSharedRulerOwnerTeam(rulerActive ? (ruler.ownerTeam || "") : "");
+      if (rulerActive) {
+        setMeasureType(["center", "corner", "cornerCenter"].includes(ruler.measureType) ? ruler.measureType : "center");
+        setPassMark(Math.max(1, Number(ruler.passMark) || 8));
+        setShotMark(Math.max(1, Number(ruler.shotMark) || 12));
+        setMeasureStart(ruler.start && Number.isFinite(Number(ruler.start.x)) && Number.isFinite(Number(ruler.start.y))
+          ? { x: Number(ruler.start.x), y: Number(ruler.start.y) }
+          : null);
+        setMeasureEnd(ruler.end && Number.isFinite(Number(ruler.end.x)) && Number.isFinite(Number(ruler.end.y))
+          ? { x: Number(ruler.end.x), y: Number(ruler.end.y) }
+          : null);
+      } else if (sessionCode) {
+        setMeasureStart(null);
+        setMeasureEnd(null);
+      }
       const currentUid = user?.uid || "";
       const resolvedTeam = data.teamOwners?.blue === currentUid
         ? "blue"
@@ -5684,12 +5719,115 @@ function App() {
     return getRulerPointFromClient(e.clientX, e.clientY);
   }
 
+  function buildSharedRulerState(overrides = {}) {
+    return {
+      active: true,
+      ownerUid: user?.uid || sharedRulerOwnerUid || "",
+      ownerClientId: clientIdRef.current,
+      ownerTeam: myTeam === "blue" || myTeam === "red" ? myTeam : sharedRulerOwnerTeam || "",
+      measureType,
+      passMark,
+      shotMark,
+      start: measureStart,
+      end: measureEnd,
+      ...overrides,
+      updatedAt: serverTimestamp(),
+    };
+  }
+
+  async function activateSharedRuler() {
+    if (!sessionCode) {
+      setMeasureMode(true);
+      setMeasureStart(null);
+      setMeasureEnd(null);
+      return;
+    }
+    if (!user?.uid || !canUseSharedRuler) return;
+    const ref = sessionRef(sessionCode.toUpperCase());
+    try {
+      await runTransaction(db, async transaction => {
+        const snap = await transaction.get(ref);
+        if (!snap.exists()) throw new Error("Session missing");
+        const data = snap.data();
+        const current = data.sharedRuler || {};
+        const currentOwner = current.ownerUid || "";
+        const ownerLastSeen = timestampToMillis(data.participants?.[currentOwner]?.lastSeen);
+        const ownerIsActive = !!currentOwner && Date.now() - ownerLastSeen < 40000;
+        if (current.active && currentOwner !== user.uid && ownerIsActive) {
+          throw new Error("Ruler in use");
+        }
+        transaction.set(ref, {
+          sharedRuler: buildSharedRulerState({ start: null, end: null }),
+        }, { merge: true });
+      });
+      setMeasureMode(true);
+      setSharedRulerOwnerUid(user.uid);
+      setSharedRulerOwnerTeam(myTeam);
+      setMeasureStart(null);
+      setMeasureEnd(null);
+    } catch (error) {
+      console.error(error);
+      setSessionStatus(error.message === "Ruler in use" ? "Ruler in use" : "Ruler error");
+    }
+  }
+
+  async function deactivateSharedRuler() {
+    if (!sessionCode) {
+      setMeasureMode(false);
+      setMeasureStart(null);
+      setMeasureEnd(null);
+      return;
+    }
+    if (!isSharedRulerOwner || !user?.uid) return;
+    try {
+      await setDoc(sessionRef(sessionCode.toUpperCase()), {
+        sharedRuler: {
+          active: false,
+          ownerUid: "",
+          ownerClientId: "",
+          ownerTeam: "",
+          measureType,
+          passMark,
+          shotMark,
+          start: null,
+          end: null,
+          updatedAt: serverTimestamp(),
+        },
+      }, { merge: true });
+      setMeasureMode(false);
+      setSharedRulerOwnerUid("");
+      setSharedRulerOwnerTeam("");
+      setMeasureStart(null);
+      setMeasureEnd(null);
+    } catch (error) {
+      console.error("Could not close shared ruler", error);
+    }
+  }
+
+  function syncSharedRuler(overrides = {}) {
+    if (!sessionCode || !isSharedRulerOwner) return;
+    setDoc(sessionRef(sessionCode.toUpperCase()), {
+      sharedRuler: buildSharedRulerState(overrides),
+    }, { merge: true }).catch(error => console.error("Shared ruler sync failed", error));
+  }
+
+  function setSharedRulerType(nextType) {
+    if (sharedRulerReadOnly) return;
+    setMeasureType(nextType);
+    setMeasureStart(null);
+    setMeasureEnd(null);
+    syncSharedRuler({ measureType: nextType, start: null, end: null });
+  }
+
   function applyRulerPoint(point) {
+    if (sharedRulerReadOnly) return;
     if (!measureStart || (measureStart && measureEnd)) {
       setMeasureStart(point);
       setMeasureEnd(null);
+      syncSharedRuler({ start: point, end: null });
     } else {
       setMeasureEnd(point);
+      syncSharedRuler({ start: measureStart, end: point });
     }
   }
 
@@ -6202,12 +6340,18 @@ function App() {
           <button onClick={saveActiveGameSituation}>Save</button>
         </div>
 
-        <button className={measureMode ? "toggle-on" : ""} onClick={() => {
-          setMeasureMode(v => !v);
-          setMeasureStart(null);
-          setMeasureEnd(null);
-        }}>
-          Riglă {measureMode ? "ON" : "OFF"}
+        <button
+          className={measureMode ? "toggle-on" : ""}
+          disabled={!!sessionCode && (!canUseSharedRuler || (measureMode && !isSharedRulerOwner))}
+          title={sharedRulerReadOnly ? `Ruler in use by ${sharedRulerOwnerTeam || "another player"}` : ""}
+          onClick={() => {
+            if (measureMode) deactivateSharedRuler();
+            else activateSharedRuler();
+          }}
+        >
+          {sharedRulerReadOnly
+            ? `Riglă ${sharedRulerOwnerTeam ? sharedRulerOwnerTeam.toUpperCase() : "IN USE"}`
+            : `Riglă ${measureMode ? "ON" : "OFF"}`}
         </button>
         <button className={historyVisible ? "toggle-on" : ""} onClick={() => setHistoryVisible(v => !v)}>
           History {historyVisible ? "ON" : "OFF"}
@@ -6576,23 +6720,23 @@ function App() {
           onPointerCancel={onRulerPanelPointerUp}
         >
           <div className="ruler-panel-title" onPointerDown={onRulerPanelPointerDown}>
-            <strong>Riglă</strong>
+            <strong>Riglă{sharedRulerReadOnly ? ` — ${sharedRulerOwnerTeam ? sharedRulerOwnerTeam.toUpperCase() : "read only"}` : ""}</strong>
             <div className="ruler-actions">
-              <button onPointerDown={(e) => e.stopPropagation()} onClick={() => { setMeasureMode(false); setMeasureStart(null); setMeasureEnd(null); }}>_</button>
+              <button disabled={sharedRulerReadOnly} onPointerDown={(e) => e.stopPropagation()} onClick={deactivateSharedRuler}>_</button>
             </div>
           </div>
           <div className="ruler-panel-body">
             <div className="ruler-floating-row mode-row">
-              <button className={measureType === "center" ? "toggle-on ruler-center" : ""} onClick={() => { setMeasureType("center"); setMeasureStart(null); setMeasureEnd(null); }}>Center</button>
-              <button className={measureType === "corner" ? "toggle-on ruler-corner" : ""} onClick={() => { setMeasureType("corner"); setMeasureStart(null); setMeasureEnd(null); }}>Corner</button>
-              <button className={measureType === "cornerCenter" ? "toggle-on ruler-corner-center" : ""} onClick={() => { setMeasureType("cornerCenter"); setMeasureStart(null); setMeasureEnd(null); }}>Corner→Center</button>
+              <button disabled={sharedRulerReadOnly} className={measureType === "center" ? "toggle-on ruler-center" : ""} onClick={() => setSharedRulerType("center")}>Center</button>
+              <button disabled={sharedRulerReadOnly} className={measureType === "corner" ? "toggle-on ruler-corner" : ""} onClick={() => setSharedRulerType("corner")}>Corner</button>
+              <button disabled={sharedRulerReadOnly} className={measureType === "cornerCenter" ? "toggle-on ruler-corner-center" : ""} onClick={() => setSharedRulerType("cornerCenter")}>Corner→Center</button>
             </div>
             <div className="ruler-floating-grid">
               <label className="ruler-mark-input pass">P
-                <input type="number" min="1" step="1" value={passMark} onChange={e => setPassMark(Number(e.target.value) || 1)} />
+                <input type="number" min="1" step="1" value={passMark} disabled={sharedRulerReadOnly} onChange={e => setPassMark(Number(e.target.value) || 1)} onBlur={() => syncSharedRuler({ passMark })} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }} />
               </label>
               <label className="ruler-mark-input shot">Șut
-                <input type="number" min="1" step="1" value={shotMark} onChange={e => setShotMark(Number(e.target.value) || 1)} />
+                <input type="number" min="1" step="1" value={shotMark} disabled={sharedRulerReadOnly} onChange={e => setShotMark(Number(e.target.value) || 1)} onBlur={() => syncSharedRuler({ shotMark })} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }} />
               </label>
             </div>
           </div>
