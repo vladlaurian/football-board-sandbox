@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import html2canvas from "html2canvas";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInAnonymously, signOut } from "firebase/auth";
-import { doc, getDoc, onSnapshot, runTransaction, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, onSnapshot, runTransaction, serverTimestamp, setDoc, updateDoc, writeBatch } from "firebase/firestore";
 import { getFirestore } from "firebase/firestore";
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import { RotateCcw, Plus, Minus, Undo2, Edit3, X, Dices } from "lucide-react";
@@ -29,6 +29,18 @@ const CARD_EXPORT_PIXEL_RATIO = 4;
 
 function userStateRef(uid) {
   return doc(db, "users", uid, "footballBoard", "mainState");
+}
+
+function userStateV2Ref(uid) {
+  return doc(db, "users", uid, "footballBoard", "mainStateV2");
+}
+
+function userCardsCollectionRef(uid) {
+  return collection(db, "users", uid, "footballBoardCards");
+}
+
+function userCardRef(uid, cardId) {
+  return doc(db, "users", uid, "footballBoardCards", String(cardId));
 }
 
 function sessionRef(code) {
@@ -2147,15 +2159,78 @@ function App() {
     };
   }, [user?.uid, cardState.cards]);
 
+  function stripCardsFromCardState(rawCardState) {
+    if (!rawCardState) return rawCardState;
+    const normalized = buildCardLibraryState(normalizeCardState(rawCardState));
+    return { ...normalized, cards: [] };
+  }
+
+  function stripCardLibrariesFromSituations(rawSituations = []) {
+    return (rawSituations || []).map(situation => {
+      if (!situation?.snapshot?.cardState) return situation;
+      return {
+        ...situation,
+        snapshot: {
+          ...situation.snapshot,
+          cardState: stripCardsFromCardState(situation.snapshot.cardState),
+        },
+      };
+    });
+  }
+
+  function hydrateCardState(rawCardState, cards) {
+    const base = rawCardState ? normalizeCardState(rawCardState) : normalizeCardState({});
+    return normalizeCardState({ ...base, cards: Array.isArray(cards) ? cards : base.cards });
+  }
+
+  async function writeCardsToCloud(uid, cards) {
+    const normalizedCards = (cards || []).filter(card => card?.id);
+    const existingSnap = await getDocs(userCardsCollectionRef(uid));
+    const existingIds = new Set(existingSnap.docs.map(item => item.id));
+    const desiredIds = new Set(normalizedCards.map(card => String(card.id)));
+    const operations = [];
+
+    for (const card of normalizedCards) {
+      operations.push({ type: "set", ref: userCardRef(uid, card.id), data: encodeForFirestore(stripInlineImagesFromCloudState(card)) });
+    }
+    for (const existingId of existingIds) {
+      if (!desiredIds.has(existingId)) operations.push({ type: "delete", ref: userCardRef(uid, existingId) });
+    }
+
+    for (let start = 0; start < operations.length; start += 450) {
+      const batch = writeBatch(db);
+      for (const operation of operations.slice(start, start + 450)) {
+        if (operation.type === "set") batch.set(operation.ref, { ...operation.data, updatedAtCloud: serverTimestamp() }, { merge: false });
+        else batch.delete(operation.ref);
+      }
+      await batch.commit();
+    }
+  }
+
+  async function readCardsFromCloud(uid) {
+    const snapshot = await getDocs(userCardsCollectionRef(uid));
+    return snapshot.docs.map(item => decodeFromFirestore(item.data()));
+  }
+
+  async function verifyMigratedCards(uid, expectedCards) {
+    const migrated = await readCardsFromCloud(uid);
+    const expectedIds = new Set((expectedCards || []).map(card => String(card.id)));
+    const migratedIds = new Set(migrated.map(card => String(card.id)));
+    const complete = expectedIds.size === migratedIds.size && [...expectedIds].every(id => migratedIds.has(id));
+    if (!complete) throw new Error(`Migrarea cardurilor este incompletă (${migratedIds.size}/${expectedIds.size}). Vechile date au rămas intacte.`);
+    return migrated;
+  }
+
   function buildCloudState(overrides = {}) {
     const effectiveSettings = overrides.settings ? normalizeSettingsForApp(overrides.settings) : settingsRef.current;
     const effectiveCardState = overrides.cardState ? normalizeCardState(overrides.cardState) : cardStateRef.current;
     const effectivePieces = overrides.pieces || piecesRef.current;
-    const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, ...restOverrides } = overrides;
+    const effectiveGameSituations = overrides.gameSituations || gameSituations;
+    const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, gameSituations: _overrideGameSituations, ...restOverrides } = overrides;
     return stripInlineImagesFromCloudState({
       version: "pitch-44-goal-5x2",
       formations,
-      gameSituations,
+      gameSituations: stripCardLibrariesFromSituations(effectiveGameSituations),
       activeSituationId,
       activeSituationName,
       blueFormationId,
@@ -2168,14 +2243,14 @@ function App() {
       ...restOverrides,
       settings: effectiveSettings,
       pieces: sanitizePiecesCardIds(effectivePieces, effectiveCardState, effectiveSettings),
-      cardState: buildCardLibraryState(effectiveCardState),
+      cardState: stripCardsFromCardState(effectiveCardState),
     });
   }
 
   function applyCloudState(data) {
     if (!data) return;
     const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settings;
-    const nextCardState = data.cardState ? normalizeCardState(data.cardState) : cardState;
+    const nextCardState = data.cardState ? hydrateCardState(data.cardState, data.__cloudCards || cardStateRef.current.cards) : cardState;
     const legacyAssignments = getLegacyAssignments(data.cardState);
     const nextPieces = data.pieces
       ? ensureBenchReserveCount(sanitizePiecesCardIds(data.pieces, nextCardState, nextSettings, legacyAssignments), nextSettings)
@@ -2627,10 +2702,14 @@ function App() {
   async function saveCloudState(overrides = {}, label = "Cloud saved") {
     if (!user) return;
     try {
-      setCloudStatus("Saving...");
+      setCloudStatus("Saving cards...");
+      const effectiveCardState = overrides.cardState ? normalizeCardState(overrides.cardState) : cardStateRef.current;
+      await writeCardsToCloud(user.uid, buildCardLibraryState(effectiveCardState).cards);
+      setCloudStatus("Saving board...");
       const payload = encodeForFirestore(buildCloudState(overrides));
-      await setDoc(userStateRef(user.uid), {
+      await setDoc(userStateV2Ref(user.uid), {
         ...payload,
+        storageVersion: 2,
         updatedAt: serverTimestamp(),
       }, { merge: true });
       autosaveDirtyRef.current = false;
@@ -2646,28 +2725,57 @@ function App() {
   async function loadCloudState(currentUser) {
     try {
       setCloudStatus("Loading cloud...");
-      const ref = userStateRef(currentUser.uid);
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
+      const v2Snap = await getDoc(userStateV2Ref(currentUser.uid));
+
+      if (v2Snap.exists()) {
+        const cloudCards = await readCardsFromCloud(currentUser.uid);
+        const decoded = decodeFromFirestore(v2Snap.data());
         isApplyingCloudRef.current = true;
-        applyCloudState(decodeFromFirestore(snap.data()));
-        window.setTimeout(() => {
-          isApplyingCloudRef.current = false;
-        }, 300);
-        setCloudStatus("Cloud loaded");
+        applyCloudState({ ...decoded, __cloudCards: cloudCards });
+        window.setTimeout(() => { isApplyingCloudRef.current = false; }, 300);
+        setCloudStatus(`Cloud loaded (${cloudCards.length} cards)`);
       } else {
-        await setDoc(ref, {
-          ...encodeForFirestore(buildCloudState()),
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-        setCloudStatus("Local data uploaded");
+        const legacySnap = await getDoc(userStateRef(currentUser.uid));
+        if (legacySnap.exists()) {
+          const legacyData = decodeFromFirestore(legacySnap.data());
+          const legacyCardState = normalizeCardState(legacyData.cardState || {});
+          const legacyCards = buildCardLibraryState(legacyCardState).cards || [];
+          setCloudStatus(`Migrating ${legacyCards.length} cards...`);
+          await writeCardsToCloud(currentUser.uid, legacyCards);
+          const verifiedCards = await verifyMigratedCards(currentUser.uid, legacyCards);
+          const v2Payload = encodeForFirestore({
+            ...legacyData,
+            gameSituations: stripCardLibrariesFromSituations(legacyData.gameSituations || []),
+            cardState: stripCardsFromCardState(legacyCardState),
+          });
+          await setDoc(userStateV2Ref(currentUser.uid), {
+            ...v2Payload,
+            storageVersion: 2,
+            migratedFrom: "mainState",
+            migratedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          }, { merge: false });
+          isApplyingCloudRef.current = true;
+          applyCloudState({ ...legacyData, __cloudCards: verifiedCards });
+          window.setTimeout(() => { isApplyingCloudRef.current = false; }, 300);
+          setCloudStatus(`Migration complete (${verifiedCards.length} cards)`);
+        } else {
+          const localCards = buildCardLibraryState(cardStateRef.current).cards || [];
+          await writeCardsToCloud(currentUser.uid, localCards);
+          await setDoc(userStateV2Ref(currentUser.uid), {
+            ...encodeForFirestore(buildCloudState()),
+            storageVersion: 2,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          }, { merge: false });
+          setCloudStatus("Local data uploaded");
+        }
       }
       setCloudReady(true);
       setCloudError("");
     } catch (error) {
       console.error(error);
-      setCloudStatus("Cloud error");
+      setCloudStatus("Cloud migration error");
       setCloudError(error.message || String(error));
       setCloudReady(false);
     }
@@ -3045,7 +3153,7 @@ function App() {
 
     pushHistory();
     const snapshotSettings = normalizeSettingsForApp(situation.snapshot.settings || settings);
-    const snapshotCardState = situation.snapshot.cardState ? normalizeCardState(situation.snapshot.cardState) : cardState;
+    const snapshotCardState = situation.snapshot.cardState ? hydrateCardState(situation.snapshot.cardState, cardStateRef.current.cards) : cardState;
     const legacyAssignments = getLegacyAssignments(situation.snapshot.cardState);
     const snapshotPieces = ensureBenchReserveCount(
       sanitizePiecesCardIds(situation.snapshot.pieces, snapshotCardState, snapshotSettings, legacyAssignments),
