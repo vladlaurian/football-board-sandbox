@@ -3092,6 +3092,79 @@ function App() {
     logSnapshot("Reset poziții", fresh);
   }
 
+  function buildFullBackupPayload() {
+    const effectiveSettings = normalizeSettingsForApp(settingsRef.current);
+    const effectiveCardState = buildCardLibraryState(cardStateRef.current);
+    return {
+      backupType: "football-board-full-backup",
+      backupVersion: 1,
+      exportedAt: new Date().toISOString(),
+      summary: {
+        cardCount: effectiveCardState.cards?.length || 0,
+        formationCount: formations?.length || 0,
+        gameSituationCount: gameSituations?.length || 0,
+      },
+      state: {
+        version: "pitch-44-goal-5x2",
+        formations,
+        gameSituations,
+        activeSituationId,
+        activeSituationName,
+        blueFormationId,
+        redFormationId,
+        dieType,
+        dieResult: { blue: blueDieResult, red: redDieResult },
+        touchMode,
+        snapToGrid,
+        showCoordinates,
+        zoom,
+        settings: effectiveSettings,
+        pieces: sanitizePiecesCardIds(piecesRef.current, effectiveCardState, effectiveSettings),
+        cardState: effectiveCardState,
+      },
+    };
+  }
+
+  function exportFullBackup() {
+    try {
+      const payload = buildFullBackupPayload();
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      a.href = url;
+      a.download = `football-board-full-backup-${stamp}.json`;
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      alert(`Backup complet exportat: ${payload.summary.cardCount} carduri, ${payload.summary.formationCount} formații, ${payload.summary.gameSituationCount} situații.`);
+    } catch (error) {
+      console.error(error);
+      alert(`Backup-ul nu a putut fi exportat: ${error.message || error}`);
+    }
+  }
+
+  async function restoreFullBackup(file) {
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (parsed?.backupType !== "football-board-full-backup" || !parsed?.state?.cardState) {
+        throw new Error("Fișierul nu este un backup complet valid.");
+      }
+      const cardCount = normalizeCardState(parsed.state.cardState).cards?.length || 0;
+      const confirmed = window.confirm(`Restaurezi backup-ul cu ${cardCount} carduri? Datele vor fi încărcate în aplicație, dar nu vor fi trimise în cloud până când apeși Cloud Save.`);
+      if (!confirmed) return;
+      isApplyingCloudRef.current = true;
+      applyCloudState(parsed.state);
+      window.setTimeout(() => { isApplyingCloudRef.current = false; }, 300);
+      setCloudStatus("Backup restored locally");
+      setCloudError("");
+      alert(`Backup restaurat local: ${cardCount} carduri. Verifică biblioteca, apoi apasă Cloud Save doar dacă totul este corect.`);
+    } catch (error) {
+      console.error(error);
+      alert(`Backup-ul nu a putut fi restaurat: ${error.message || error}`);
+    }
+  }
+
   function saveBoard() {
     localStorage.setItem("football-board-sandbox-v35", JSON.stringify({ settings, pieces: sanitizePiecesCardIds(pieces, cardState, settings), zoom, cardState: buildCardLibraryState(cardState) }));
     alert("Salvat în browser.");
@@ -6424,6 +6497,8 @@ function App() {
                 <span className="user-email">{user.email}</span>
                 <span className={`cloud-pill ${cloudError ? "cloud-error" : ""}`}>{cloudStatus}</span>
                 <button onClick={() => saveCloudState({}, "Cloud saved")}>Cloud Save</button>
+                <button onClick={exportFullBackup}>Export Full Backup</button>
+                <label className="import-btn">Restore Full Backup<input type="file" accept="application/json" onChange={e => { restoreFullBackup(e.target.files?.[0]); e.target.value = ""; }} /></label>
                 <button onClick={logout}>Logout</button>
               </>
             )
