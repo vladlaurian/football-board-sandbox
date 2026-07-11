@@ -3250,8 +3250,9 @@ function App() {
       const cardCount = normalizeCardState(parsed.state.cardState).cards?.length || 0;
       const confirmed = window.confirm(`Restaurezi backup-ul cu ${cardCount} carduri? Datele vor fi încărcate în aplicație, dar nu vor fi trimise în cloud până când apeși Cloud Save.`);
       if (!confirmed) return;
+      const restoredCards = normalizeCardState(parsed.state.cardState).cards || [];
       isApplyingCloudRef.current = true;
-      applyCloudState(parsed.state);
+      applyCloudState({ ...parsed.state, __cloudCards: restoredCards });
       window.setTimeout(() => { isApplyingCloudRef.current = false; }, 300);
       setCloudStatus("Backup restored locally");
       setCloudError("");
