@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v9.2.3";
+const APP_VERSION = "v9.3";
 
 function userStateV2Ref(uid) {
   return doc(db, "users", uid, "footballBoard", "mainStateV2");
@@ -2258,13 +2258,12 @@ function App() {
     });
   }
 
-  function applyCloudState(data) {
+  function applyStoredState(data, storedCards = cardStateRef.current.cards) {
     if (!data) return;
     const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settings;
-    const nextCardState = data.cardState ? hydrateCardState(data.cardState, data.__cloudCards || cardStateRef.current.cards) : cardState;
-    const legacyAssignments = getLegacyAssignments(data.cardState);
+    const nextCardState = data.cardState ? hydrateCardState(data.cardState, storedCards) : cardState;
     const nextPieces = data.pieces
-      ? ensureBenchReserveCount(sanitizePiecesCardIds(data.pieces, nextCardState, nextSettings, legacyAssignments), nextSettings)
+      ? ensureBenchReserveCount(sanitizePiecesCardIds(data.pieces, nextCardState, nextSettings), nextSettings)
       : sanitizePiecesCardIds(pieces, nextCardState, nextSettings);
 
     if (data.settings) setSettings(nextSettings);
@@ -2739,7 +2738,7 @@ function App() {
         const cloudCards = await readCardsFromCloud(currentUser.uid);
         const decoded = decodeFromFirestore(v2Snap.data());
         isApplyingCloudRef.current = true;
-        applyCloudState({ ...decoded, __cloudCards: cloudCards });
+        applyStoredState(decoded, cloudCards);
         window.setTimeout(() => { isApplyingCloudRef.current = false; }, 300);
         setCloudStatus(`Cloud loaded (${cloudCards.length} cards)`);
       } else {
@@ -3194,33 +3193,27 @@ function App() {
   function buildFullBackupPayload() {
     const effectiveSettings = normalizeSettingsForApp(settingsRef.current);
     const effectiveCardState = buildCardLibraryState(cardStateRef.current);
+    const mainStateV2 = buildCloudState({
+      settings: effectiveSettings,
+      pieces: piecesRef.current,
+      cardState: effectiveCardState,
+      gameSituations,
+    });
+    const cards = effectiveCardState.cards || [];
+
     return {
-      backupType: "football-board-full-backup",
-      backupVersion: 1,
+      backupType: "football-board-storage-v2-backup",
+      backupVersion: 2,
+      appVersion: APP_VERSION,
+      storageVersion: 2,
       exportedAt: new Date().toISOString(),
       summary: {
-        cardCount: effectiveCardState.cards?.length || 0,
-        formationCount: formations?.length || 0,
-        gameSituationCount: gameSituations?.length || 0,
+        cardCount: cards.length,
+        formationCount: mainStateV2.formations?.length || 0,
+        gameSituationCount: mainStateV2.gameSituations?.length || 0,
       },
-      state: {
-        version: "pitch-44-goal-5x2",
-        formations,
-        gameSituations,
-        activeSituationId,
-        activeSituationName,
-        blueFormationId,
-        redFormationId,
-        dieType,
-        dieResult: { blue: blueDieResult, red: redDieResult },
-        touchMode,
-        snapToGrid,
-        showCoordinates,
-        zoom,
-        settings: effectiveSettings,
-        pieces: sanitizePiecesCardIds(piecesRef.current, effectiveCardState, effectiveSettings),
-        cardState: effectiveCardState,
-      },
+      mainStateV2,
+      cards,
     };
   }
 
@@ -3232,10 +3225,10 @@ function App() {
       const a = document.createElement("a");
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
       a.href = url;
-      a.download = `football-board-full-backup-${stamp}.json`;
+      a.download = `football-board-v9.3-backup-${stamp}.json`;
       a.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      alert(`Backup complet exportat: ${payload.summary.cardCount} carduri, ${payload.summary.formationCount} formații, ${payload.summary.gameSituationCount} situații.`);
+      alert(`Backup v9.3 exportat: ${payload.summary.cardCount} carduri, ${payload.summary.formationCount} formații, ${payload.summary.gameSituationCount} situații.`);
     } catch (error) {
       console.error(error);
       alert(`Backup-ul nu a putut fi exportat: ${error.message || error}`);
@@ -3246,19 +3239,27 @@ function App() {
     if (!file) return;
     try {
       const parsed = JSON.parse(await file.text());
-      if (parsed?.backupType !== "football-board-full-backup" || !parsed?.state?.cardState) {
-        throw new Error("Fișierul nu este un backup complet valid.");
+      const isV2Backup =
+        parsed?.backupType === "football-board-storage-v2-backup" &&
+        parsed?.backupVersion === 2 &&
+        parsed?.storageVersion === 2 &&
+        parsed?.mainStateV2 &&
+        Array.isArray(parsed?.cards);
+
+      if (!isV2Backup) {
+        throw new Error("Fișier incompatibil. v9.3 acceptă exclusiv backup-uri în formatul nou Storage V2.");
       }
-      const cardCount = normalizeCardState(parsed.state.cardState).cards?.length || 0;
-      const confirmed = window.confirm(`Restaurezi backup-ul cu ${cardCount} carduri? Datele vor fi încărcate în aplicație, dar nu vor fi trimise în cloud până când apeși Cloud Save.`);
+
+      const cardCount = parsed.cards.length;
+      const confirmed = window.confirm(`Restaurezi backup-ul Storage V2 cu ${cardCount} carduri? Datele vor fi încărcate local și ajung în cloud numai după Cloud Save.`);
       if (!confirmed) return;
-      const restoredCards = normalizeCardState(parsed.state.cardState).cards || [];
+
       isApplyingCloudRef.current = true;
-      applyCloudState({ ...parsed.state, __cloudCards: restoredCards });
+      applyStoredState(parsed.mainStateV2, parsed.cards);
       window.setTimeout(() => { isApplyingCloudRef.current = false; }, 300);
-      setCloudStatus("Backup restored locally");
+      setCloudStatus("Storage V2 backup restored locally");
       setCloudError("");
-      alert(`Backup restaurat local: ${cardCount} carduri. Verifică biblioteca, apoi apasă Cloud Save doar dacă totul este corect.`);
+      alert(`Backup Storage V2 restaurat local: ${cardCount} carduri. Verifică datele, apoi apasă Cloud Save.`);
     } catch (error) {
       console.error(error);
       alert(`Backup-ul nu a putut fi restaurat: ${error.message || error}`);
@@ -6610,8 +6611,8 @@ function App() {
                 <span className="user-email">{user.email}</span>
                 <span className={`cloud-pill ${cloudError ? "cloud-error" : ""}`}>{cloudStatus}</span>
                 <button onClick={() => saveCloudState({}, "Cloud saved")}>Cloud Save</button>
-                <button onClick={exportFullBackup}>Export Full Backup</button>
-                <label className="import-btn">Restore Full Backup<input type="file" accept="application/json" onChange={e => { restoreFullBackup(e.target.files?.[0]); e.target.value = ""; }} /></label>
+                <button onClick={exportFullBackup}>Export Storage V2 Backup</button>
+                <label className="import-btn">Restore Storage V2 Backup<input type="file" accept="application/json" onChange={e => { restoreFullBackup(e.target.files?.[0]); e.target.value = ""; }} /></label>
                 <button onClick={logout}>Logout</button>
               </>
             )

@@ -1,17 +1,17 @@
-# Final Board v9.2.3 — Reliable Multiplayer Card Assignment Sync
+# Final Board v9.3 — Native Storage V2 Backups
 
-Stable build based on v9.2.1, replacing the unsuccessful v9.2.2 assignment patch.
+Stable build based on v9.2.3.
 
 ## Changes
 
-- Fixed live card assignment synchronization between host and guest.
-- Card assignments now use a dedicated session field instead of depending on full-board autosave timing.
-- Prevents an older in-flight board save from overwriting a newer card assignment.
-- Existing assignments stored in older session board data remain compatible.
-- Removed the obsolete dirty-card assignment save path introduced by v9.2.2.
-- Keeps the v9.2.1 Full Backup restore hotfix.
-- Displays `v9.2.3` in the application header.
-- `package.json`, ZIP filename, README, and in-app version now match.
+- Full Backup now exports directly in the current Storage V2 structure.
+- Backup contains `mainStateV2` and the separate card documents as `cards`.
+- Restore loads the Storage V2 state and cards directly, without legacy backup migration.
+- Removed support for the old `state.cardState.cards` full-backup format.
+- Old v9.0.1–v9.2.3 backup files are intentionally rejected by v9.3.
+- Keeps the reliable multiplayer card-assignment synchronization from v9.2.3.
+- Keeps separate Firestore card documents and incremental card writes.
+- README, in-app version, `package.json`, and ZIP filename identify v9.3.
 
 ## Firestore
 
@@ -20,8 +20,14 @@ Stable build based on v9.2.1, replacing the unsuccessful v9.2.2 assignment patch
 - Multiplayer sessions: `/sessions/{sessionId}`
 - Live multiplayer assignments: `cardAssignments` inside the session document
 
-## Compatibility
+## Backup format
 
-- Full backups from v9.0.1 and later remain supported.
-- Multiplayer session library and existing assigned cards remain supported.
-- Legacy personal `mainState` is not read, modified, or deleted.
+```text
+backupType: football-board-storage-v2-backup
+backupVersion: 2
+storageVersion: 2
+mainStateV2: current personal board document
+cards: current separate card documents
+```
+
+v9.3 accepts only this native Storage V2 backup format.
