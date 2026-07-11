@@ -1,19 +1,19 @@
-# Final Board v9.4.1 — Preferred Foot Layout Fix
+# Final Board v9.5 — Layout Style Tools
 
-Stable build based on v9.3.
+Stable build based on v9.4.1.
 
 ## Changes
 
-- Added a new **Preferred Foot** card field with three options: `Left`, `Right`, and `Both`.
-- Added the Preferred Foot editor section after **Bonuses** and before **Special Ability**.
-- Added the same **Text Color** and **Text** controls used by the Bonuses text.
-- Card backs now display `Preferred Foot: Left`, `Preferred Foot: Right`, or `Preferred Foot: Both`.
-- Moved the previously unused **Bonuses Front** layout from the card front to the card back for Preferred Foot.
-- Preserved the old layout box position and all existing move/resize/layout behavior during migration.
-- Kept the front stars layout unchanged.
-- Renamed backup controls to **Export Cards & Board** and **Import Cards & Board**.
-- Keeps native Storage V2 backups, separate Firestore card documents, and reliable multiplayer card-assignment synchronization.
-- README, in-app version, `package.json`, and ZIP filename identify v9.4.1.
+- Added **Copy Layout Style** for the currently selected layout.
+- Added **Paste Layout Style** for the equivalent layout on another card.
+- Added **Apply Layout Style To All Cards** to propagate one layout presentation across the complete card library.
+- Copies layout position, size, font, font size, alignment, weight, colors, and other visual settings that belong to that layout.
+- Does **not** copy player values or content: name, position, attributes, bonuses, Preferred Foot selection, Special Ability text, images, or star count remain card-specific.
+- Updates existing equivalent layouts instead of creating duplicate layouts.
+- Front star layout propagation preserves each card's star count while copying only visual star sizing/spacing/offset settings.
+- Custom layouts are supported when the equivalent custom layout already exists on the destination card.
+- Keeps v9.4.1 Preferred Foot behavior, Storage V2 backups, separate Firestore card documents, and reliable multiplayer card-assignment synchronization.
+- README, in-app version, `package.json`, and ZIP filename identify v9.5.
 
 ## Firestore
 
@@ -24,13 +24,4 @@ Stable build based on v9.3.
 
 ## Backup format
 
-The native Storage V2 backup now also includes the `preferredFoot` field and its visual settings directly inside every card document.
-
-
-## v9.4.1 changes
-
-- Renders `Preferred Foot: Left/Right/Both` as one continuous single-line text element.
-- Uses one shared font size, weight, alignment, and color for the label and value.
-- Renames the Preferred Foot `Text Color` control to `Color`.
-- Removes the unnecessary `Line` slider from the Preferred Foot text controls.
-- Extends the Preferred Foot `Size` slider down to 20% for substantially smaller text.
+Native Storage V2 backup remains unchanged and automatically includes the copied layout styles stored on each card.

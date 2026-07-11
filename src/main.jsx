@@ -26,7 +26,29 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v9.4.1";
+const APP_VERSION = "v9.5";
+
+
+const BASE_LAYOUT_STYLE_KEYS = {
+  front: {
+    header: { textStyles: ["headerFront"], textColors: ["headerFront"] },
+    position: { textStyles: ["positionFront"], textColors: ["positionFront"] },
+    attributes: { textStyles: [], textColors: [], copyFrontStarsStyle: true },
+  },
+  back: {
+    header: { textStyles: ["headerBack"], textColors: ["headerBack"] },
+    position: { textStyles: ["positionBack"], textColors: ["positionBack"] },
+    attributes: { textStyles: ["attributes", "attributesValue", "attributesTitle"], textColors: ["attributes", "attributesValue", "attributesTitle"] },
+    bonuses: { textStyles: ["bonuses", "bonusesValue", "bonusesTitle"], textColors: ["bonuses", "bonusesValue", "bonusesTitle"] },
+    defensiveArea: { textStyles: ["defensiveArea", "defensiveAreaTitle", "defensiveAreaGoal"], textColors: ["defensiveArea", "defensiveAreaTitle", "defensiveAreaActive"], copyDefensiveGridAdjust: true },
+    specialAbility: { textStyles: ["specialAbility", "specialAbilityTitle"], textColors: ["specialAbility", "specialAbilityTitle"] },
+    preferredFoot: { textStyles: ["preferredFoot"], textColors: ["preferredFoot"] },
+  },
+};
+
+function clonePlain(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
+}
 
 function userStateV2Ref(uid) {
   return doc(db, "users", uid, "footballBoard", "mainStateV2");
@@ -1945,6 +1967,7 @@ function App() {
   const [openGridAdjustKey, setOpenGridAdjustKey] = useState(null);
   const [previewTextStyleDraft, setPreviewTextStyleDraft] = useState(null);
   const [selectedLayout, setSelectedLayout] = useState(null);
+  const [layoutStyleClipboard, setLayoutStyleClipboard] = useState(null);
   const [exportCardId, setExportCardId] = useState("");
   const graphicFrontInputRef = useRef(null);
   const graphicBackInputRef = useRef(null);
@@ -5482,6 +5505,161 @@ function App() {
     setSelectedLayout(null);
   }
 
+  function captureSelectedLayoutStyle(cardId) {
+    if (!cardId || !selectedLayout || selectedLayout.cardId !== cardId) {
+      window.alert("Select a layout on the card first.");
+      return;
+    }
+    const card = cardState.cards.find(item => item.id === cardId);
+    if (!card) return;
+
+    if (selectedLayout.kind === "base") {
+      const config = BASE_LAYOUT_STYLE_KEYS[selectedLayout.side]?.[selectedLayout.zoneKey];
+      if (!config) {
+        window.alert("This layout cannot be copied.");
+        return;
+      }
+      const visualLayout = normalizeCardVisualLayout(card.visualLayout || card.layout);
+      const styles = cardTextStyles(card);
+      const colors = cardTextColors(card);
+      const payload = {
+        kind: "base",
+        side: selectedLayout.side,
+        zoneKey: selectedLayout.zoneKey,
+        label: ZONE_LABELS[selectedLayout.zoneKey] || selectedLayout.zoneKey,
+        box: clonePlain(visualLayout[selectedLayout.side][selectedLayout.zoneKey]),
+        textStyles: Object.fromEntries((config.textStyles || []).map(key => [key, clonePlain(styles[key])])),
+        textColors: Object.fromEntries((config.textColors || []).map(key => [key, colors[key]])),
+      };
+      if (config.copyDefensiveGridAdjust) payload.defensiveGridAdjust = clonePlain(card.defensiveGridAdjust || {});
+      if (config.copyFrontStarsStyle) {
+        const stars = normalizeFrontStars(card.starsFront);
+        payload.frontStarsStyle = { size: stars.size, spacing: stars.spacing, x: stars.x, y: stars.y };
+      }
+      setLayoutStyleClipboard(payload);
+      return;
+    }
+
+    const zone = normalizeCustomZones(card).find(item => item.id === selectedLayout.zoneKey);
+    if (!zone) return;
+    const block = normalizeDuplicateBlocks(card).find(item => item.id === zone.contentBlockId);
+    setLayoutStyleClipboard({
+      kind: "custom",
+      side: selectedLayout.side,
+      zoneKey: selectedLayout.zoneKey,
+      zoneName: zone.name,
+      label: zone.name || "Custom layout",
+      box: clonePlain(zone.box),
+      blockStyle: block ? {
+        kind: block.kind,
+        textColor: block.textColor,
+        numberColor: block.numberColor,
+        titleColor: block.titleColor,
+        textStyle: clonePlain(block.textStyle),
+        numberStyle: clonePlain(block.numberStyle),
+        titleStyle: clonePlain(block.titleStyle),
+      } : null,
+    });
+  }
+
+  function applyLayoutStylePayloadToCard(card, payload, targetSelection = payload) {
+    if (!card || !payload || !targetSelection) return card;
+    const now = new Date().toISOString();
+
+    if (payload.kind === "base" && targetSelection.kind === "base") {
+      if (payload.side !== targetSelection.side || payload.zoneKey !== targetSelection.zoneKey) return card;
+      const currentLayout = normalizeCardVisualLayout(card.visualLayout || card.layout);
+      const currentStyles = cardTextStyles(card);
+      const currentColors = cardTextColors(card);
+      const next = {
+        ...card,
+        visualLayout: {
+          ...currentLayout,
+          [payload.side]: {
+            ...currentLayout[payload.side],
+            [payload.zoneKey]: clonePlain(payload.box),
+          },
+        },
+        textStyles: { ...currentStyles, ...clonePlain(payload.textStyles || {}) },
+        textColors: { ...currentColors, ...(payload.textColors || {}) },
+        updatedAt: now,
+      };
+      if (payload.defensiveGridAdjust) next.defensiveGridAdjust = clonePlain(payload.defensiveGridAdjust);
+      if (payload.frontStarsStyle) {
+        const currentStars = normalizeFrontStars(card.starsFront);
+        next.starsFront = { ...currentStars, ...clonePlain(payload.frontStarsStyle), count: currentStars.count };
+      }
+      return next;
+    }
+
+    if (payload.kind === "custom" && targetSelection.kind === "custom") {
+      const zones = normalizeCustomZones(card);
+      const targetZone = zones.find(item => item.id === targetSelection.zoneKey);
+      if (!targetZone || targetZone.side !== payload.side) return card;
+      let duplicateBlocks = normalizeDuplicateBlocks(card);
+      if (payload.blockStyle && targetZone.contentBlockId) {
+        duplicateBlocks = duplicateBlocks.map(block => block.id === targetZone.contentBlockId && block.kind === payload.blockStyle.kind ? normalizeDuplicateBlock({
+          ...block,
+          textColor: payload.blockStyle.textColor,
+          numberColor: payload.blockStyle.numberColor,
+          titleColor: payload.blockStyle.titleColor,
+          textStyle: clonePlain(payload.blockStyle.textStyle),
+          numberStyle: clonePlain(payload.blockStyle.numberStyle),
+          titleStyle: clonePlain(payload.blockStyle.titleStyle),
+        }) : block);
+      }
+      return {
+        ...card,
+        customZones: zones.map(zone => zone.id === targetZone.id ? { ...zone, box: clonePlain(payload.box) } : zone),
+        duplicateBlocks,
+        updatedAt: now,
+      };
+    }
+
+    return card;
+  }
+
+  function pasteLayoutStyle(cardId) {
+    if (!layoutStyleClipboard) {
+      window.alert("Copy a layout style first.");
+      return;
+    }
+    if (!selectedLayout || selectedLayout.cardId !== cardId) {
+      window.alert("Select the destination layout on this card first.");
+      return;
+    }
+    const compatible = layoutStyleClipboard.kind === selectedLayout.kind &&
+      layoutStyleClipboard.side === selectedLayout.side &&
+      (layoutStyleClipboard.kind === "custom" || layoutStyleClipboard.zoneKey === selectedLayout.zoneKey);
+    if (!compatible) {
+      window.alert("Select the equivalent layout on the destination card.");
+      return;
+    }
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => card.id === cardId ? applyLayoutStylePayloadToCard(card, layoutStyleClipboard, selectedLayout) : card),
+    }));
+  }
+
+  function applyLayoutStyleToAllCards(cardId) {
+    if (!layoutStyleClipboard) {
+      window.alert("Copy a layout style first.");
+      return;
+    }
+    if (!window.confirm(`Apply ${layoutStyleClipboard.label || "this layout"} position, size and text style to all cards? Card values will not be changed.`)) return;
+    updateCardState(prev => ({
+      ...prev,
+      cards: prev.cards.map(card => {
+        if (layoutStyleClipboard.kind === "base") {
+          return applyLayoutStylePayloadToCard(card, layoutStyleClipboard, layoutStyleClipboard);
+        }
+        const targetZone = normalizeCustomZones(card).find(zone => zone.side === layoutStyleClipboard.side && (zone.id === layoutStyleClipboard.zoneKey || zone.name === layoutStyleClipboard.zoneName));
+        if (!targetZone) return card;
+        return applyLayoutStylePayloadToCard(card, layoutStyleClipboard, { kind: "custom", side: targetZone.side, zoneKey: targetZone.id });
+      }),
+    }));
+  }
+
   function updateCardVisualLayoutBox(cardId, side, zoneKey, patch) {
     if (!cardId || !DEFAULT_CARD_VISUAL_LAYOUT[side]?.[zoneKey]) return;
     updateCardState(prev => ({
@@ -5691,6 +5869,9 @@ function App() {
           <strong>Layout Zones</strong>
           <button type="button" className="mini-action-btn layout-action-btn" onClick={() => addCardCustomZone(card.id, "front")}>New layout front</button>
           <button type="button" className="mini-action-btn layout-action-btn" onClick={() => addCardCustomZone(card.id, "back")}>New layout back</button>
+          <button type="button" className="mini-action-btn layout-action-btn" disabled={!selectedLayout || selectedLayout.cardId !== card.id} onClick={() => captureSelectedLayoutStyle(card.id)}>Copy Layout Style</button>
+          <button type="button" className="mini-action-btn layout-action-btn" disabled={!layoutStyleClipboard || !selectedLayout || selectedLayout.cardId !== card.id} onClick={() => pasteLayoutStyle(card.id)}>Paste Layout Style</button>
+          <button type="button" className="mini-action-btn layout-action-btn" disabled={!layoutStyleClipboard} onClick={() => applyLayoutStyleToAllCards(card.id)}>Apply Layout Style To All Cards</button>
           <button type="button" className="mini-action-btn layout-action-btn danger" disabled={!selectedLayout || selectedLayout.cardId !== card.id} onClick={() => deleteSelectedLayoutZone(card.id)}>Delete layout</button>
         </div>
         {customZones.length ? <p className="custom-zone-empty-note">New layouts are empty containers. Select one on the card to move, resize, delete it, or attach duplicated content.</p> : null}
