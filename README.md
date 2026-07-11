@@ -1,4 +1,4 @@
-# Final Board v9.4 — Preferred Foot
+# Final Board v9.4.1 — Preferred Foot Layout Fix
 
 Stable build based on v9.3.
 
@@ -13,7 +13,7 @@ Stable build based on v9.3.
 - Kept the front stars layout unchanged.
 - Renamed backup controls to **Export Cards & Board** and **Import Cards & Board**.
 - Keeps native Storage V2 backups, separate Firestore card documents, and reliable multiplayer card-assignment synchronization.
-- README, in-app version, `package.json`, and ZIP filename identify v9.4.
+- README, in-app version, `package.json`, and ZIP filename identify v9.4.1.
 
 ## Firestore
 
@@ -25,3 +25,12 @@ Stable build based on v9.3.
 ## Backup format
 
 The native Storage V2 backup now also includes the `preferredFoot` field and its visual settings directly inside every card document.
+
+
+## v9.4.1 changes
+
+- Renders `Preferred Foot: Left/Right/Both` as one continuous single-line text element.
+- Uses one shared font size, weight, alignment, and color for the label and value.
+- Renames the Preferred Foot `Text Color` control to `Color`.
+- Removes the unnecessary `Line` slider from the Preferred Foot text controls.
+- Extends the Preferred Foot `Size` slider down to 20% for substantially smaller text.

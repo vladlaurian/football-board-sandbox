@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v9.4";
+const APP_VERSION = "v9.4.1";
 
 function userStateV2Ref(uid) {
   return doc(db, "users", uid, "footballBoard", "mainStateV2");
@@ -419,7 +419,7 @@ function zoneNumberStyleVars(styles, textKey, numberKey) {
 }
 
 
-function StableTextStyleControls({ cardId, styleKey, stats = false, current, isOpen, onToggle, onPatch, onPreview, onPreviewEnd, panelAlign = "right", buttonLabel = "Text", titleMode = false, numbersMode = false, inlinePanel = false }) {
+function StableTextStyleControls({ cardId, styleKey, stats = false, current, isOpen, onToggle, onPatch, onPreview, onPreviewEnd, panelAlign = "right", buttonLabel = "Text", titleMode = false, numbersMode = false, inlinePanel = false, hideLine = false, fontSizeMin = 50 }) {
   if (!cardId || !CARD_TEXT_STYLE_DEFAULTS[styleKey]) return null;
 
   const safeCurrent = current || CARD_TEXT_STYLE_DEFAULTS[styleKey] || CARD_TEXT_STYLE_DEFAULTS.headerFront;
@@ -515,8 +515,8 @@ function StableTextStyleControls({ cardId, styleKey, stats = false, current, isO
             </div>
           )}
           {!titleMode && !numbersMode ? <label>Font<select value={safeCurrent.font} onChange={e => set({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select></label> : null}
-          {renderRange("Size", "fontSize", 50, 260, "%")}
-          {!titleMode && !numbersMode ? renderRange("Line", "lineHeight", 70, 180, "%") : null}
+          {renderRange("Size", "fontSize", fontSizeMin, 260, "%")}
+          {!titleMode && !numbersMode && !hideLine ? renderRange("Line", "lineHeight", 70, 180, "%") : null}
           {!titleMode && !numbersMode ? renderRange("Y", "verticalOffset", -100, 100, "") : null}
         </div>
       ) : null}
@@ -4745,9 +4745,8 @@ function App() {
       const textColor = safeColor(colors.preferredFoot);
       const value = PREFERRED_FOOT_OPTIONS.includes(card?.preferredFoot) ? card.preferredFoot : "Right";
       return (
-        <div className="card-zone-text card-zone-formula zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor, ...zoneTextStyleVarsStable(textStyles, "preferredFoot") }}>
-          <span className="card-zone-label" style={{ color: textColor }}>Preferred Foot:</span>
-          <strong className="card-zone-value" style={{ color: textColor }}>{value}</strong>
+        <div className="card-zone-text card-zone-preferred-foot zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor, ...zoneTextStyleVarsStable(textStyles, "preferredFoot") }}>
+          <span style={{ color: textColor }}>Preferred Foot: {value}</span>
         </div>
       );
     };
@@ -5322,6 +5321,8 @@ function App() {
         titleMode={Boolean(options.titleMode)}
         numbersMode={Boolean(options.numbersMode)}
         inlinePanel={Boolean(options.inlinePanel)}
+        hideLine={Boolean(options.hideLine)}
+        fontSizeMin={Number.isFinite(Number(options.fontSizeMin)) ? Number(options.fontSizeMin) : 50}
       />
     );
   }
@@ -5808,7 +5809,7 @@ function App() {
         {FrontZoneFieldsEditor({ card, storageKey: "frontAttributeFields", title: "Attributes Front", colorKey: "attributesFront", sourceSection: "passiveAttributes" })}
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "attributesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "attributes", "Text Color")}{renderTextStyleControls(card, "attributes", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "attributesValue", "Numbers Color")}{renderTextStyleControls(card, "attributesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "bonusesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "bonuses", "Text Color")}{renderTextStyleControls(card, "bonuses", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "bonusesValue", "Numbers Color")}{renderTextStyleControls(card, "bonusesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
-        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Preferred Foot</strong>{renderColorPicker(card, "preferredFoot", "Text Color")}{renderTextStyleControls(card, "preferredFoot", false, { panelAlign: "left", buttonLabel: "Text" })}</div><select value={PREFERRED_FOOT_OPTIONS.includes(card.preferredFoot) ? card.preferredFoot : "Right"} onChange={e => updateCardField(card.id, "preferredFoot", e.target.value)}>{PREFERRED_FOOT_OPTIONS.map(foot => <option key={foot} value={foot}>{foot}</option>)}</select></div>
+        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Preferred Foot</strong>{renderColorPicker(card, "preferredFoot", "Color")}{renderTextStyleControls(card, "preferredFoot", false, { panelAlign: "left", buttonLabel: "Text", hideLine: true, fontSizeMin: 20 })}</div><select value={PREFERRED_FOOT_OPTIONS.includes(card.preferredFoot) ? card.preferredFoot : "Right"} onChange={e => updateCardField(card.id, "preferredFoot", e.target.value)}>{PREFERRED_FOOT_OPTIONS.map(foot => <option key={foot} value={foot}>{foot}</option>)}</select></div>
         <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "specialAbility")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar">{renderColorPicker(card, "specialAbility", "Text Color")}{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left", inlinePanel: true })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong>{renderColorPicker(card, "defensiveArea", "Grid")}{renderColorPicker(card, "defensiveAreaActive", "Selected Area")}<DefensiveGridAdjustControl card={card} /><OpponentGoalTextControl card={card} /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
         </div>
