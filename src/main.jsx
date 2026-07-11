@@ -27,10 +27,6 @@ const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
 
-function userStateRef(uid) {
-  return doc(db, "users", uid, "footballBoard", "mainState");
-}
-
 function userStateV2Ref(uid) {
   return doc(db, "users", uid, "footballBoard", "mainStateV2");
 }
@@ -2040,6 +2036,7 @@ function App() {
   const isApplyingSessionRef = useRef(false);
   const autosaveDirtyRef = useRef(false);
   const autosaveIntervalRef = useRef(null);
+  const cloudCardHashesRef = useRef(new Map());
   const piecesRef = useRef(pieces);
   const settingsRef = useRef(settings);
   const cardStateRef = useRef(cardState);
@@ -2183,17 +2180,33 @@ function App() {
     return normalizeCardState({ ...base, cards: Array.isArray(cards) ? cards : base.cards });
   }
 
+  function prepareCardForCloud(card) {
+    const clean = stripInlineImagesFromCloudState(card);
+    if (!clean || typeof clean !== "object") return clean;
+    const { updatedAtCloud: _updatedAtCloud, ...withoutCloudMetadata } = clean;
+    return withoutCloudMetadata;
+  }
+
+  function getCardCloudHash(card) {
+    return JSON.stringify(prepareCardForCloud(card));
+  }
+
   async function writeCardsToCloud(uid, cards) {
     const normalizedCards = (cards || []).filter(card => card?.id);
-    const existingSnap = await getDocs(userCardsCollectionRef(uid));
-    const existingIds = new Set(existingSnap.docs.map(item => item.id));
     const desiredIds = new Set(normalizedCards.map(card => String(card.id)));
+    const nextHashes = new Map();
     const operations = [];
 
     for (const card of normalizedCards) {
-      operations.push({ type: "set", ref: userCardRef(uid, card.id), data: encodeForFirestore(stripInlineImagesFromCloudState(card)) });
+      const cardId = String(card.id);
+      const hash = getCardCloudHash(card);
+      nextHashes.set(cardId, hash);
+      if (cloudCardHashesRef.current.get(cardId) !== hash) {
+        operations.push({ type: "set", ref: userCardRef(uid, cardId), data: encodeForFirestore(prepareCardForCloud(card)) });
+      }
     }
-    for (const existingId of existingIds) {
+
+    for (const existingId of cloudCardHashesRef.current.keys()) {
       if (!desiredIds.has(existingId)) operations.push({ type: "delete", ref: userCardRef(uid, existingId) });
     }
 
@@ -2205,20 +2218,21 @@ function App() {
       }
       await batch.commit();
     }
+
+    cloudCardHashesRef.current = nextHashes;
+    return operations.length;
   }
 
   async function readCardsFromCloud(uid) {
     const snapshot = await getDocs(userCardsCollectionRef(uid));
-    return snapshot.docs.map(item => decodeFromFirestore(item.data()));
-  }
-
-  async function verifyMigratedCards(uid, expectedCards) {
-    const migrated = await readCardsFromCloud(uid);
-    const expectedIds = new Set((expectedCards || []).map(card => String(card.id)));
-    const migratedIds = new Set(migrated.map(card => String(card.id)));
-    const complete = expectedIds.size === migratedIds.size && [...expectedIds].every(id => migratedIds.has(id));
-    if (!complete) throw new Error(`Migrarea cardurilor este incompletă (${migratedIds.size}/${expectedIds.size}). Vechile date au rămas intacte.`);
-    return migrated;
+    const cards = snapshot.docs.map(item => {
+      const decoded = decodeFromFirestore(item.data());
+      if (!decoded || typeof decoded !== "object") return decoded;
+      const { updatedAtCloud: _updatedAtCloud, ...card } = decoded;
+      return card;
+    }).filter(Boolean);
+    cloudCardHashesRef.current = new Map(cards.filter(card => card?.id).map(card => [String(card.id), getCardCloudHash(card)]));
+    return cards;
   }
 
   function buildCloudState(overrides = {}) {
@@ -2704,8 +2718,8 @@ function App() {
     try {
       setCloudStatus("Saving cards...");
       const effectiveCardState = overrides.cardState ? normalizeCardState(overrides.cardState) : cardStateRef.current;
-      await writeCardsToCloud(user.uid, buildCardLibraryState(effectiveCardState).cards);
-      setCloudStatus("Saving board...");
+      const changedCardDocuments = await writeCardsToCloud(user.uid, buildCardLibraryState(effectiveCardState).cards);
+      setCloudStatus(changedCardDocuments ? `Saving board... (${changedCardDocuments} card changes)` : "Saving board...");
       const payload = encodeForFirestore(buildCloudState(overrides));
       await setDoc(userStateV2Ref(user.uid), {
         ...payload,
@@ -2735,47 +2749,22 @@ function App() {
         window.setTimeout(() => { isApplyingCloudRef.current = false; }, 300);
         setCloudStatus(`Cloud loaded (${cloudCards.length} cards)`);
       } else {
-        const legacySnap = await getDoc(userStateRef(currentUser.uid));
-        if (legacySnap.exists()) {
-          const legacyData = decodeFromFirestore(legacySnap.data());
-          const legacyCardState = normalizeCardState(legacyData.cardState || {});
-          const legacyCards = buildCardLibraryState(legacyCardState).cards || [];
-          setCloudStatus(`Migrating ${legacyCards.length} cards...`);
-          await writeCardsToCloud(currentUser.uid, legacyCards);
-          const verifiedCards = await verifyMigratedCards(currentUser.uid, legacyCards);
-          const v2Payload = encodeForFirestore({
-            ...legacyData,
-            gameSituations: stripCardLibrariesFromSituations(legacyData.gameSituations || []),
-            cardState: stripCardsFromCardState(legacyCardState),
-          });
-          await setDoc(userStateV2Ref(currentUser.uid), {
-            ...v2Payload,
-            storageVersion: 2,
-            migratedFrom: "mainState",
-            migratedAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          }, { merge: false });
-          isApplyingCloudRef.current = true;
-          applyCloudState({ ...legacyData, __cloudCards: verifiedCards });
-          window.setTimeout(() => { isApplyingCloudRef.current = false; }, 300);
-          setCloudStatus(`Migration complete (${verifiedCards.length} cards)`);
-        } else {
-          const localCards = buildCardLibraryState(cardStateRef.current).cards || [];
-          await writeCardsToCloud(currentUser.uid, localCards);
-          await setDoc(userStateV2Ref(currentUser.uid), {
-            ...encodeForFirestore(buildCloudState()),
-            storageVersion: 2,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          }, { merge: false });
-          setCloudStatus("Local data uploaded");
-        }
+        cloudCardHashesRef.current = new Map();
+        const localCards = buildCardLibraryState(cardStateRef.current).cards || [];
+        await writeCardsToCloud(currentUser.uid, localCards);
+        await setDoc(userStateV2Ref(currentUser.uid), {
+          ...encodeForFirestore(buildCloudState()),
+          storageVersion: 2,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }, { merge: false });
+        setCloudStatus("New cloud storage created");
       }
       setCloudReady(true);
       setCloudError("");
     } catch (error) {
       console.error(error);
-      setCloudStatus("Cloud migration error");
+      setCloudStatus("Cloud load error");
       setCloudError(error.message || String(error));
       setCloudReady(false);
     }
