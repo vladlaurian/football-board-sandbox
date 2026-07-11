@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v9.3";
+const APP_VERSION = "v9.4";
 
 function userStateV2Ref(uid) {
   return doc(db, "users", uid, "footballBoard", "mainStateV2");
@@ -159,6 +159,8 @@ const CARD_POSITION_OPTIONS = [
   "GK", "LWB", "LB", "CB", "RB", "RWB", "LW", "LM", "CDM", "CAM", "CM", "RM", "RW", "ST"
 ];
 
+const PREFERRED_FOOT_OPTIONS = ["Left", "Right", "Both"];
+
 const TEAM_LAYOUT_POSITIONS = ["GK", "LWB", "LB", "CB", "RB", "RWB", "LM", "CDM", "CM", "CAM", "RM", "LW", "ST", "RW"];
 const TEAM_SLOT_POSITIONS = ["GK", "LB", "CB", "CB", "RB", "CDM", "CM", "CAM", "LW", "RW", "ST"];
 const CARD_THEMES = ["Style 1", "Style 2", "Style 3", "Style 4", "Style 5", "Style 6", "Style 7"];
@@ -169,7 +171,6 @@ const DEFAULT_CARD_VISUAL_LAYOUT = {
     header: { x: 12, y: 5, w: 62, h: 10 },
     position: { x: 76, y: 5, w: 12, h: 10 },
     attributes: { x: 12, y: 72, w: 34, h: 20 },
-    bonuses: { x: 54, y: 72, w: 34, h: 20 },
   },
   back: {
     header: { x: 12, y: 5, w: 62, h: 10 },
@@ -178,6 +179,7 @@ const DEFAULT_CARD_VISUAL_LAYOUT = {
     bonuses: { x: 54, y: 18, w: 34, h: 34 },
     defensiveArea: { x: 12, y: 62, w: 38, h: 30 },
     specialAbility: { x: 54, y: 66, w: 34, h: 26 },
+    preferredFoot: { x: 54, y: 72, w: 34, h: 20 },
   },
 };
 
@@ -188,6 +190,7 @@ const ZONE_LABELS = {
   bonuses: "Bonuses",
   defensiveArea: "Defensive Area",
   specialAbility: "Special Ability",
+  preferredFoot: "Preferred Foot",
 };
 
 function normalizeCardVisualLayout(layout) {
@@ -196,7 +199,10 @@ function normalizeCardVisualLayout(layout) {
     const defaults = DEFAULT_CARD_VISUAL_LAYOUT[side] || {};
     const current = source[side] && typeof source[side] === "object" ? source[side] : {};
     return Object.fromEntries(Object.entries(defaults).map(([key, box]) => {
-      const raw = current[key] && typeof current[key] === "object" ? current[key] : {};
+      const migratedPreferredFoot = side === "back" && key === "preferredFoot"
+        ? (source?.back?.preferredFoot || source?.front?.bonuses)
+        : null;
+      const raw = current[key] && typeof current[key] === "object" ? current[key] : (migratedPreferredFoot && typeof migratedPreferredFoot === "object" ? migratedPreferredFoot : {});
       return [key, {
         x: Number.isFinite(Number(raw.x)) ? Number(raw.x) : box.x,
         y: Number.isFinite(Number(raw.y)) ? Number(raw.y) : box.y,
@@ -220,6 +226,7 @@ const CARD_TEXT_COLOR_DEFAULTS = {
   bonusesFront: "#ffffff",
   attributesFrontValue: "#ffffff",
   bonusesFrontValue: "#ffffff",
+  preferredFoot: "#ffffff",
   attributes: "#ffffff",
   bonuses: "#ffffff",
   attributesValue: "#ffffff",
@@ -242,6 +249,7 @@ const CARD_TEXT_STYLE_DEFAULTS = {
   attributesFrontValue: { align: "right", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   bonusesFront: { align: "left", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   bonusesFrontValue: { align: "right", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
+  preferredFoot: { align: "left", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   attributes: { align: "left", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   attributesValue: { align: "right", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   bonuses: { align: "left", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
@@ -1345,6 +1353,7 @@ function createPlayerCard(position = "ST") {
     position: safePosition,
     passiveAttributes: defaultAttributesForPosition(safePosition, "passive"),
     bonuses: defaultAttributesForPosition(safePosition, "bonus"),
+    preferredFoot: "Right",
     frontFields: defaultFrontFields(),
     starsFront: { ...FRONT_STAR_DEFAULTS },
     theme: "Style 1",
@@ -1379,6 +1388,7 @@ function normalizeImportedCard(card) {
     position: safePosition,
     passiveAttributes: normalizeStatItems(Array.isArray(card?.passiveAttributes) ? card.passiveAttributes : (Array.isArray(card?.attributes) ? card.attributes : [])),
     bonuses: normalizeStatItems(Array.isArray(card?.bonuses) ? card.bonuses : []),
+    preferredFoot: PREFERRED_FOOT_OPTIONS.includes(card?.preferredFoot) ? card.preferredFoot : "Right",
     frontFields: normalizeFrontFields(card?.frontFields || card?.frontSummary || card?.summary || card?.front || card?.ratings),
     starsFront: normalizeFrontStars(card?.starsFront || card?.frontStars || card?.stars),
     theme: (card?.theme === CUSTOM_CARD_THEME || card?.theme === "Custom") ? CUSTOM_CARD_THEME : (CARD_THEMES.includes(card?.theme) ? card.theme : (LEGACY_THEME_MAP[card?.theme] || base.theme || "Style 1")),
@@ -3225,10 +3235,10 @@ function App() {
       const a = document.createElement("a");
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
       a.href = url;
-      a.download = `football-board-v9.3-backup-${stamp}.json`;
+      a.download = `football-board-v9.4-backup-${stamp}.json`;
       a.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      alert(`Backup v9.3 exportat: ${payload.summary.cardCount} carduri, ${payload.summary.formationCount} formații, ${payload.summary.gameSituationCount} situații.`);
+      alert(`Backup v9.4 exportat: ${payload.summary.cardCount} carduri, ${payload.summary.formationCount} formații, ${payload.summary.gameSituationCount} situații.`);
     } catch (error) {
       console.error(error);
       alert(`Backup-ul nu a putut fi exportat: ${error.message || error}`);
@@ -3247,7 +3257,7 @@ function App() {
         Array.isArray(parsed?.cards);
 
       if (!isV2Backup) {
-        throw new Error("Fișier incompatibil. v9.3 acceptă exclusiv backup-uri în formatul nou Storage V2.");
+        throw new Error("Fișier incompatibil. v9.4 acceptă exclusiv backup-uri în formatul nou Storage V2.");
       }
 
       const cardCount = parsed.cards.length;
@@ -4731,6 +4741,17 @@ function App() {
       );
     };
 
+    const renderPreferredFootZone = () => {
+      const textColor = safeColor(colors.preferredFoot);
+      const value = PREFERRED_FOOT_OPTIONS.includes(card?.preferredFoot) ? card.preferredFoot : "Right";
+      return (
+        <div className="card-zone-text card-zone-formula zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor, ...zoneTextStyleVarsStable(textStyles, "preferredFoot") }}>
+          <span className="card-zone-label" style={{ color: textColor }}>Preferred Foot:</span>
+          <strong className="card-zone-value" style={{ color: textColor }}>{value}</strong>
+        </div>
+      );
+    };
+
     const renderDefensiveAreaZone = () => {
       const textColor = safeColor(colors.defensiveArea);
       const titleColor = safeColor(colors.defensiveAreaTitle);
@@ -4806,13 +4827,13 @@ function App() {
         if (zoneKey === "header") return renderNameZone("headerFront");
         if (zoneKey === "position") return renderPositionZone("positionFront");
         if (zoneKey === "attributes") return renderFrontStars();
-        if (zoneKey === "bonuses") return null;
       }
       if (zoneKey === "header") return renderNameZone("headerBack");
       if (zoneKey === "position") return renderPositionZone("positionBack");
       if (zoneKey === "attributes") return renderListZone(visibleAttributes, "attributes", "attributes", "attributesTitle");
       if (zoneKey === "bonuses") return renderListZone(visibleBonuses, "bonuses", "bonuses", "bonusesTitle");
       if (zoneKey === "specialAbility") return renderSpecialAbilityZone();
+      if (zoneKey === "preferredFoot") return renderPreferredFootZone();
       if (zoneKey === "defensiveArea") return renderDefensiveAreaZone();
       return null;
     };
@@ -5785,9 +5806,9 @@ function App() {
         <div className="card-edit-section compact-color-row"><strong>Header Back</strong>{renderColorPicker(card, "headerBack", "Color")}{renderTextStyleControls(card, "headerBack", false, { panelAlign: "front" })}</div>
         <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Back</strong>{renderColorPicker(card, "positionBack", "Color")}{renderTextStyleControls(card, "positionBack", false, { panelAlign: "front" })}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
         {FrontZoneFieldsEditor({ card, storageKey: "frontAttributeFields", title: "Attributes Front", colorKey: "attributesFront", sourceSection: "passiveAttributes" })}
-        {FrontZoneFieldsEditor({ card, storageKey: "frontBonusFields", title: "Bonuses Front", colorKey: "bonusesFront", sourceSection: "bonuses" })}
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "attributesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "attributes", "Text Color")}{renderTextStyleControls(card, "attributes", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "attributesValue", "Numbers Color")}{renderTextStyleControls(card, "attributesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "bonusesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "bonuses", "Text Color")}{renderTextStyleControls(card, "bonuses", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "bonusesValue", "Numbers Color")}{renderTextStyleControls(card, "bonusesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
+        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Preferred Foot</strong>{renderColorPicker(card, "preferredFoot", "Text Color")}{renderTextStyleControls(card, "preferredFoot", false, { panelAlign: "left", buttonLabel: "Text" })}</div><select value={PREFERRED_FOOT_OPTIONS.includes(card.preferredFoot) ? card.preferredFoot : "Right"} onChange={e => updateCardField(card.id, "preferredFoot", e.target.value)}>{PREFERRED_FOOT_OPTIONS.map(foot => <option key={foot} value={foot}>{foot}</option>)}</select></div>
         <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "specialAbility")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar">{renderColorPicker(card, "specialAbility", "Text Color")}{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left", inlinePanel: true })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong>{renderColorPicker(card, "defensiveArea", "Grid")}{renderColorPicker(card, "defensiveAreaActive", "Selected Area")}<DefensiveGridAdjustControl card={card} /><OpponentGoalTextControl card={card} /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
         </div>
@@ -6611,8 +6632,8 @@ function App() {
                 <span className="user-email">{user.email}</span>
                 <span className={`cloud-pill ${cloudError ? "cloud-error" : ""}`}>{cloudStatus}</span>
                 <button onClick={() => saveCloudState({}, "Cloud saved")}>Cloud Save</button>
-                <button onClick={exportFullBackup}>Export Storage V2 Backup</button>
-                <label className="import-btn">Restore Storage V2 Backup<input type="file" accept="application/json" onChange={e => { restoreFullBackup(e.target.files?.[0]); e.target.value = ""; }} /></label>
+                <button onClick={exportFullBackup}>Export Cards & Board</button>
+                <label className="import-btn">Import Cards & Board<input type="file" accept="application/json" onChange={e => { restoreFullBackup(e.target.files?.[0]); e.target.value = ""; }} /></label>
                 <button onClick={logout}>Logout</button>
               </>
             )

@@ -1,17 +1,19 @@
-# Final Board v9.3 — Native Storage V2 Backups
+# Final Board v9.4 — Preferred Foot
 
-Stable build based on v9.2.3.
+Stable build based on v9.3.
 
 ## Changes
 
-- Full Backup now exports directly in the current Storage V2 structure.
-- Backup contains `mainStateV2` and the separate card documents as `cards`.
-- Restore loads the Storage V2 state and cards directly, without legacy backup migration.
-- Removed support for the old `state.cardState.cards` full-backup format.
-- Old v9.0.1–v9.2.3 backup files are intentionally rejected by v9.3.
-- Keeps the reliable multiplayer card-assignment synchronization from v9.2.3.
-- Keeps separate Firestore card documents and incremental card writes.
-- README, in-app version, `package.json`, and ZIP filename identify v9.3.
+- Added a new **Preferred Foot** card field with three options: `Left`, `Right`, and `Both`.
+- Added the Preferred Foot editor section after **Bonuses** and before **Special Ability**.
+- Added the same **Text Color** and **Text** controls used by the Bonuses text.
+- Card backs now display `Preferred Foot: Left`, `Preferred Foot: Right`, or `Preferred Foot: Both`.
+- Moved the previously unused **Bonuses Front** layout from the card front to the card back for Preferred Foot.
+- Preserved the old layout box position and all existing move/resize/layout behavior during migration.
+- Kept the front stars layout unchanged.
+- Renamed backup controls to **Export Cards & Board** and **Import Cards & Board**.
+- Keeps native Storage V2 backups, separate Firestore card documents, and reliable multiplayer card-assignment synchronization.
+- README, in-app version, `package.json`, and ZIP filename identify v9.4.
 
 ## Firestore
 
@@ -22,12 +24,4 @@ Stable build based on v9.2.3.
 
 ## Backup format
 
-```text
-backupType: football-board-storage-v2-backup
-backupVersion: 2
-storageVersion: 2
-mainStateV2: current personal board document
-cards: current separate card documents
-```
-
-v9.3 accepts only this native Storage V2 backup format.
+The native Storage V2 backup now also includes the `preferredFoot` field and its visual settings directly inside every card document.
