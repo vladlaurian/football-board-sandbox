@@ -26,6 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
+const APP_VERSION = "v9.2.3";
 
 function userStateV2Ref(uid) {
   return doc(db, "users", uid, "footballBoard", "mainStateV2");
@@ -1453,23 +1454,20 @@ function normalizeSessionCardsById(raw) {
   );
 }
 
-function buildSessionCardsById(rawPieces, cardStateLike, existingSessionCardsById = {}) {
-  const normalizedCardState = normalizeCardState(cardStateLike);
-  const localCardById = Object.fromEntries((normalizedCardState.cards || []).map(card => [String(card.id), card]));
-  const existingCards = normalizeSessionCardsById(existingSessionCardsById);
-  const assignedIds = new Set(
+function buildSessionCardAssignments(rawPieces) {
+  return Object.fromEntries(
     (rawPieces || [])
-      .map(piece => String(piece?.cardId || "").trim())
-      .filter(Boolean)
+      .filter(piece => piece?.team !== "BALL" && String(piece?.id || "").trim() && String(piece?.cardId || "").trim())
+      .map(piece => [String(piece.id), String(piece.cardId)])
   );
+}
 
-  const sessionCards = {};
-  assignedIds.forEach(cardId => {
-    const source = localCardById[cardId] || existingCards[cardId];
-    if (!source) return;
-    sessionCards[cardId] = deepStripInlineImageDataUrls(normalizeImportedCard(source));
-  });
-  return sessionCards;
+function applySessionCardAssignments(rawPieces, rawAssignments) {
+  if (!rawAssignments || typeof rawAssignments !== "object") return rawPieces || [];
+  return (rawPieces || []).map(piece => ({
+    ...piece,
+    cardId: piece?.team === "BALL" ? null : (String(rawAssignments[piece.id] || "").trim() || null),
+  }));
 }
 
 function sanitizePiecesCardIds(rawPieces, cardStateLike, settingsLike = DEFAULT_SETTINGS, legacyAssignments = {}, sessionCardsByIdLike = {}) {
@@ -2029,7 +2027,6 @@ function App() {
   const diceSnapshotInitializedRef = useRef(false);
   const sessionSaveTimerRef = useRef(null);
   const sessionSaveInFlightRef = useRef(false);
-  const sessionCardsDirtyRef = useRef(false);
   const sessionHydratedRef = useRef(false);
   const sessionSavePendingRef = useRef(false);
   const sessionLastSaveAtRef = useRef(0);
@@ -2277,7 +2274,7 @@ function App() {
     if (data.activeSituationName) setActiveSituationName(data.activeSituationName);
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
-    if (data.pieces) {
+    if (data.pieces || sharedAssignments) {
       piecesRef.current = nextPieces;
       setPieces(nextPieces);
     }
@@ -2386,14 +2383,12 @@ function App() {
       pieces: _overridePieces,
       cardState: _overrideCardState,
       settings: _overrideSettings,
-      __includeSessionCards,
       ...restOverrides
     } = overrides;
     const effectiveSessionLibraryById = normalizeSessionCardsById(sessionLibraryByIdRef.current);
     const sessionCardSourceState = Object.keys(effectiveSessionLibraryById).length
       ? buildCardStateFromSessionLibrary(effectiveSessionLibraryById)
       : cardStateRef.current;
-    const effectiveSessionCardsById = buildSessionCardsById(effectivePieces, sessionCardSourceState, sessionCardsByIdRef.current);
     const liveState = {
       version: "pitch-44-goal-5x2",
       dieType,
@@ -2404,15 +2399,12 @@ function App() {
       redFormationId,
       ...restOverrides,
       settings: effectiveSettings,
-      pieces: sanitizePiecesCardIds(effectivePieces, sessionCardSourceState, effectiveSettings, {}, effectiveSessionCardsById),
+      pieces: sanitizePiecesCardIds(effectivePieces, sessionCardSourceState, effectiveSettings, {}, sessionCardsByIdRef.current),
     };
-    if (__includeSessionCards || restOverrides.sessionCardsById) {
-      liveState.sessionCardsById = restOverrides.sessionCardsById || effectiveSessionCardsById;
-    }
     return liveState;
   }
 
-  function applyLiveBoardState(data) {
+  function applyLiveBoardState(data, sharedAssignments = null) {
     if (!data) return;
     const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settings;
     const nextSessionLibraryById = normalizeSessionCardsById(data.sessionLibraryById || sessionLibraryByIdRef.current);
@@ -2420,9 +2412,11 @@ function App() {
       ? buildCardStateFromSessionLibrary(nextSessionLibraryById)
       : cardStateRef.current;
     const nextSessionCardsById = normalizeSessionCardsById(data.sessionCardsById || sessionCardsByIdRef.current);
-    const nextPieces = data.pieces
-      ? ensureBenchReserveCount(sanitizePiecesCardIds(data.pieces, nextSessionCardState, nextSettings, {}, nextSessionCardsById), nextSettings)
-      : sanitizePiecesCardIds(pieces, nextSessionCardState, nextSettings, {}, nextSessionCardsById);
+    const incomingPieces = data.pieces ? data.pieces : piecesRef.current;
+    const assignedPieces = applySessionCardAssignments(incomingPieces, sharedAssignments);
+    const nextPieces = data.pieces || sharedAssignments
+      ? ensureBenchReserveCount(sanitizePiecesCardIds(assignedPieces, nextSessionCardState, nextSettings, {}, nextSessionCardsById), nextSettings)
+      : sanitizePiecesCardIds(piecesRef.current, nextSessionCardState, nextSettings, {}, nextSessionCardsById);
 
     if (data.sessionLibraryById) {
       sessionLibraryByIdRef.current = nextSessionLibraryById;
@@ -2433,7 +2427,7 @@ function App() {
       setSessionCardsById(nextSessionCardsById);
     }
     if (data.settings) setSettings(nextSettings);
-    if (data.pieces) {
+    if (data.pieces || sharedAssignments) {
       piecesRef.current = nextPieces;
       setPieces(nextPieces);
     }
@@ -2458,13 +2452,11 @@ function App() {
     if (!sessionHydratedRef.current) return;
     try {
       const code = sessionCode.toUpperCase();
-      const includeSessionCards = !!sessionCardsDirtyRef.current || !!overrides.__includeSessionCards || !!overrides.sessionCardsById;
       await setDoc(sessionRef(code), {
-        board: encodeForFirestore(buildLiveBoardState({ ...overrides, __includeSessionCards: includeSessionCards })),
+        board: encodeForFirestore(buildLiveBoardState(overrides)),
         updatedAt: serverTimestamp(),
         updatedBy: clientIdRef.current,
       }, { merge: true });
-      if (includeSessionCards) sessionCardsDirtyRef.current = false;
       sessionLastSaveAtRef.current = Date.now();
       setSessionStatus("Online saved");
     } catch (error) {
@@ -2554,6 +2546,8 @@ function App() {
         end: null,
       },
       board: encodeForFirestore(buildLiveBoardState({ sessionLibraryById: sessionLibrarySnapshot })),
+      cardAssignments: buildSessionCardAssignments(piecesRef.current),
+      cardAssignmentsUpdatedBy: clientIdRef.current,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       updatedBy: clientIdRef.current,
@@ -2891,14 +2885,22 @@ function App() {
       setSessionPlayers(Object.values(participants).filter(participant => Date.now() - timestampToMillis(participant?.lastSeen) < 40000).length);
       setSessionStatus("Online");
 
-      if (data.updatedBy === clientIdRef.current) {
-        sessionHydratedRef.current = true;
-        return;
-      }
+      const isOwnBoardUpdate = data.updatedBy === clientIdRef.current;
+      const isOwnAssignmentUpdate = data.cardAssignmentsUpdatedBy === clientIdRef.current;
+      const sharedAssignments = data.cardAssignments && typeof data.cardAssignments === "object"
+        ? data.cardAssignments
+        : null;
 
-      if (data.board) {
+      if (data.board && !isOwnBoardUpdate) {
         isApplyingSessionRef.current = true;
-        applyLiveBoardState(decodeFromFirestore(data.board));
+        applyLiveBoardState(decodeFromFirestore(data.board), sharedAssignments);
+        sessionHydratedRef.current = true;
+        window.setTimeout(() => {
+          isApplyingSessionRef.current = false;
+        }, 250);
+      } else if (sharedAssignments && !isOwnAssignmentUpdate) {
+        isApplyingSessionRef.current = true;
+        applyLiveBoardState({}, sharedAssignments);
         sessionHydratedRef.current = true;
         window.setTimeout(() => {
           isApplyingSessionRef.current = false;
@@ -3994,6 +3996,21 @@ function App() {
     if (editingCardId === cardId) setEditingCardId(null);
   }
 
+  async function saveSessionCardAssignments(nextPieces) {
+    if (!user || !sessionCode || !sessionHydratedRef.current) return;
+    try {
+      await updateDoc(sessionRef(sessionCode.toUpperCase()), {
+        cardAssignments: buildSessionCardAssignments(nextPieces),
+        cardAssignmentsUpdatedBy: clientIdRef.current,
+        cardAssignmentsUpdatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error("Card assignment sync failed", error);
+      setSessionStatus("Online error");
+    }
+  }
+
   function assignCard(cardId) {
     if (!assignTarget) return;
     const targetPieceId = assignTarget.pieceId || null;
@@ -4029,12 +4046,8 @@ function App() {
     );
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
-    const nextSessionCardsById = buildSessionCardsById(nextPieces, assignmentCardState, sessionCardsByIdRef.current);
-    sessionCardsByIdRef.current = nextSessionCardsById;
-    setSessionCardsById(nextSessionCardsById);
-    sessionCardsDirtyRef.current = true;
     if (user && sessionCode && sessionHydratedRef.current) {
-      void saveSessionState({ pieces: nextPieces, sessionCardsById: nextSessionCardsById, __includeSessionCards: true });
+      void saveSessionCardAssignments(nextPieces);
     }
     setAssignTarget(null);
   }
@@ -4054,12 +4067,8 @@ function App() {
     );
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
-    const nextSessionCardsById = buildSessionCardsById(nextPieces, assignmentCardState, sessionCardsByIdRef.current);
-    sessionCardsByIdRef.current = nextSessionCardsById;
-    setSessionCardsById(nextSessionCardsById);
-    sessionCardsDirtyRef.current = true;
     if (user && sessionCode && sessionHydratedRef.current) {
-      void saveSessionState({ pieces: nextPieces, sessionCardsById: nextSessionCardsById, __includeSessionCards: true });
+      void saveSessionCardAssignments(nextPieces);
     }
   }
 
@@ -6585,7 +6594,7 @@ function App() {
   return (
     <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
       <div className="topbar">
-        <strong>Sandbox</strong>
+        <strong>Sandbox <span>{APP_VERSION}</span></strong>
         <div className="authbox">
           {!authReady ? (
             <span>Auth...</span>
