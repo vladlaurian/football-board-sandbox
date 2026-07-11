@@ -4033,6 +4033,9 @@ function App() {
     sessionCardsByIdRef.current = nextSessionCardsById;
     setSessionCardsById(nextSessionCardsById);
     sessionCardsDirtyRef.current = true;
+    if (user && sessionCode && sessionHydratedRef.current) {
+      void saveSessionState({ pieces: nextPieces, sessionCardsById: nextSessionCardsById, __includeSessionCards: true });
+    }
     setAssignTarget(null);
   }
 
@@ -4055,6 +4058,9 @@ function App() {
     sessionCardsByIdRef.current = nextSessionCardsById;
     setSessionCardsById(nextSessionCardsById);
     sessionCardsDirtyRef.current = true;
+    if (user && sessionCode && sessionHydratedRef.current) {
+      void saveSessionState({ pieces: nextPieces, sessionCardsById: nextSessionCardsById, __includeSessionCards: true });
+    }
   }
 
 
