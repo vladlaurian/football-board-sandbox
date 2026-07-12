@@ -1,19 +1,18 @@
-# Final Board v10.0 — Preferred Foot Text Rendering Fix
+# Final Board v11.0 — Separate Position and Card Resets
 
-Stable build based on v9.5.
+Stable build based on v10.0.
 
 ## Changes
 
-- Fixed the lower edge of letters with descenders, such as the `g` in `Preferred Foot: Right`, being visually clipped.
-- Removed the Preferred Foot text rules that caused the clipping: forced `line-height: 1`, text-level `overflow: hidden`, and ellipsis clipping.
-- Uses a safe single-line height while keeping `Preferred Foot: Left / Right / Both` on one continuous line.
-- The correction is applied through the shared card rendering style, preserving visual consistency between editor, inspector, and image export.
-- Keeps all v9.5 Layout Style Tools unchanged:
-  - **Copy Layout Style**
-  - **Paste Layout Style**
-  - **Apply Layout Style To All Cards**
-- Keeps Storage V2 backups, separate Firestore card documents, and reliable multiplayer card-assignment synchronization unchanged.
-- README, in-app version, `package.json`, and ZIP filename identify v10.0.
+- Renamed the existing **Reset** control to **Reset Position**.
+- **Reset Position** keeps its existing board-reset behavior while preserving every card assignment on the same puck ID.
+- Added **Reset Cards** immediately after **Reset Position**.
+- **Reset Cards** detaches all cards from all pucks without moving the pucks, ball, formations, or any other board element.
+- Resetting cards does not delete cards from the card library.
+- Multiplayer card assignments are explicitly synchronized when **Reset Cards** is used, so host and guest see the detach operation immediately.
+- Position reset uses the current session card library when needed, preserving assignments made by either host or guest.
+- Keeps editor, inspector, image export, Storage V2 backups, layout-style tools, and v10.0 Preferred Foot rendering unchanged.
+- README, in-app version, `package.json`, and ZIP filename identify v11.0.
 
 ## Firestore
 

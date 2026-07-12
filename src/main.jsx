@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v10.0";
+const APP_VERSION = "v11.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -3215,12 +3215,54 @@ function App() {
     logSnapshot(`Save situație: ${cleanName}`);
   }
 
-  function resetPieces() {
+  function resetPiecePositions() {
     pushHistory();
-    const fresh = sanitizePiecesCardIds(createInitialPieces(settings.cols, settings.rows, getFormationById(blueFormationId), getFormationById(redFormationId)), cardStateRef.current, settingsRef.current);
+
+    const currentPieces = piecesRef.current || pieces;
+    const cardIdByPieceId = new Map(
+      currentPieces
+        .filter(piece => piece.team !== "BALL" && piece.cardId)
+        .map(piece => [piece.id, piece.cardId])
+    );
+    const assignmentCardState = sessionCode && Object.keys(sessionLibraryByIdRef.current || {}).length
+      ? buildCardStateFromSessionLibrary(sessionLibraryByIdRef.current)
+      : cardStateRef.current;
+    const resetPiecesWithAssignments = createInitialPieces(
+      settings.cols,
+      settings.rows,
+      getFormationById(blueFormationId),
+      getFormationById(redFormationId)
+    ).map(piece => ({
+      ...piece,
+      cardId: piece.team === "BALL" ? null : (cardIdByPieceId.get(piece.id) || null),
+    }));
+    const fresh = sanitizePiecesCardIds(
+      resetPiecesWithAssignments,
+      assignmentCardState,
+      settingsRef.current,
+      {},
+      sessionCardsByIdRef.current
+    );
+
     piecesRef.current = fresh;
     setPieces(fresh);
-    logSnapshot("Reset poziții", fresh);
+    logSnapshot("Reset positions", fresh);
+  }
+
+  function resetPieceCards() {
+    const currentPieces = piecesRef.current || pieces;
+    const hasAssignedCards = currentPieces.some(piece => piece.team !== "BALL" && piece.cardId);
+    if (!hasAssignedCards) return;
+    if (!window.confirm("Detach all cards from all pucks?")) return;
+
+    pushHistory();
+    const cleared = currentPieces.map(piece => ({ ...piece, cardId: null }));
+    piecesRef.current = cleared;
+    setPieces(cleared);
+    if (user && sessionCode && sessionHydratedRef.current) {
+      void saveSessionCardAssignments(cleared);
+    }
+    logSnapshot("Reset cards", cleared);
   }
 
   function buildFullBackupPayload() {
@@ -6883,7 +6925,8 @@ function App() {
         <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.2, 3))}><Minus size={16} /></button>
         <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
         <button onClick={undo}><Undo2 size={16} /> Undo</button>
-        <button onClick={resetPieces}><RotateCcw size={16} /> Reset</button>
+        <button onClick={resetPiecePositions}><RotateCcw size={16} /> Reset Position</button>
+        <button onClick={resetPieceCards}><RotateCcw size={16} /> Reset Cards</button>
         <button className={touchMode ? "toggle-on" : ""} onClick={() => setTouchMode(v => !v)}>
           Touch {touchMode ? "ON" : "OFF"}
         </button>
