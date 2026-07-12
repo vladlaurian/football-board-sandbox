@@ -1,4 +1,4 @@
-# Final Board v11.4 — Measured Special Ability Auto-Fit
+# Final Board v11.5 — Measured Special Ability Auto-Fit
 
 Stable build based on v11.0.
 
@@ -72,3 +72,8 @@ Native Storage V2 backup remains unchanged.
 - Restored progressive Special Ability text fitting with five density levels based on content length.
 - Applied the same Special Ability fitting to duplicated Special Ability blocks.
 - Kept the shared card renderer, so Editor, Inspector and Export use identical rules.
+
+
+## v11.5
+- Special Ability now auto-fits from real measured overflow, while preserving safe descenders.
+- End Session blocks pending session writes, marks the session as ending, disconnects guests, deletes session cards, and invalidates the code.

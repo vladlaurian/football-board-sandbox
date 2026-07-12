@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v11.4";
+const APP_VERSION = "v11.5";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2092,6 +2092,7 @@ function App() {
   const sessionHydratedRef = useRef(false);
   const sessionSavePendingRef = useRef(false);
   const sessionLastSaveAtRef = useRef(0);
+  const sessionEndingRef = useRef(false);
   const isApplyingSessionRef = useRef(false);
   const autosaveDirtyRef = useRef(false);
   const autosaveIntervalRef = useRef(null);
@@ -2388,12 +2389,12 @@ function App() {
   }
 
   async function setSessionCardMode(mode) {
-    if (!sessionCode || !user?.uid || user.uid !== sessionOwnerUid || !["open", "private"].includes(mode)) return;
-    await setDoc(sessionRef(sessionCode.toUpperCase()), { cardVisibilityMode: mode, updatedAt: serverTimestamp(), expiresAt: nextSessionExpiryDate() }, { merge: true });
+    if (!sessionCode || sessionEndingRef.current || !user?.uid || user.uid !== sessionOwnerUid || !["open", "private"].includes(mode)) return;
+    await updateDoc(sessionRef(sessionCode.toUpperCase()), { cardVisibilityMode: mode, updatedAt: serverTimestamp(), expiresAt: nextSessionExpiryDate() });
   }
 
   async function requestCardFlip(cardId) {
-    if (!sessionCode || !user?.uid || !cardId || cardVisibilityMode !== "private") return;
+    if (!sessionCode || sessionEndingRef.current || !user?.uid || !cardId || cardVisibilityMode !== "private") return;
     const ref = sessionRef(sessionCode.toUpperCase());
     await runTransaction(db, async transaction => {
       const snap = await transaction.get(ref);
@@ -2406,7 +2407,7 @@ function App() {
   }
 
   async function allowCardFlip(cardId, viewerUid) {
-    if (!sessionCode || !user?.uid || !cardId || !viewerUid) return;
+    if (!sessionCode || sessionEndingRef.current || !user?.uid || !cardId || !viewerUid) return;
     const ownerPiece = (piecesRef.current || []).find(piece => piece.cardId === cardId);
     if (!isOwnCardPiece(ownerPiece)) return;
     const ref = sessionRef(sessionCode.toUpperCase());
@@ -2504,16 +2505,16 @@ function App() {
   }
 
   async function saveSessionState(overrides = {}) {
-    if (!user || !sessionCode) return;
+    if (!user || !sessionCode || sessionEndingRef.current) return;
     if (!sessionHydratedRef.current) return;
     try {
       const code = sessionCode.toUpperCase();
-      await setDoc(sessionRef(code), {
+      await updateDoc(sessionRef(code), {
         board: encodeForFirestore(buildLiveBoardState(overrides)),
         updatedAt: serverTimestamp(),
         expiresAt: nextSessionExpiryDate(),
         updatedBy: clientIdRef.current,
-      }, { merge: true });
+      });
       sessionLastSaveAtRef.current = Date.now();
       setSessionStatus("Online saved");
     } catch (error) {
@@ -2523,7 +2524,7 @@ function App() {
   }
 
   function scheduleSessionLiveSave() {
-    if (!user || !sessionCode || isApplyingSessionRef.current || !sessionHydratedRef.current) return;
+    if (!user || !sessionCode || sessionEndingRef.current || isApplyingSessionRef.current || !sessionHydratedRef.current) return;
     sessionSavePendingRef.current = true;
     setSessionStatus("Online saving...");
 
@@ -2531,7 +2532,7 @@ function App() {
 
     const run = async () => {
       sessionSaveTimerRef.current = null;
-      if (!sessionSavePendingRef.current || !user || !sessionCode || isApplyingSessionRef.current || !sessionHydratedRef.current) return;
+      if (!sessionSavePendingRef.current || !user || !sessionCode || sessionEndingRef.current || isApplyingSessionRef.current || !sessionHydratedRef.current) return;
 
       const elapsed = Date.now() - sessionLastSaveAtRef.current;
       if (elapsed < SESSION_LIVE_SAVE_INTERVAL_MS) {
@@ -2580,6 +2581,7 @@ function App() {
   }
 
   async function createSession() {
+    sessionEndingRef.current = false;
     if (!user || user.isAnonymous) {
       setSessionStatus("Login first");
       return;
@@ -2741,6 +2743,7 @@ function App() {
   }
 
   async function joinSession() {
+    sessionEndingRef.current = false;
     const code = String(joinCode || "").trim().toUpperCase();
     let sessionUser = user;
     if (!sessionUser) {
@@ -2788,8 +2791,13 @@ function App() {
     }
   }
 
-  function leaveSession() {
+  function leaveSession(finalStatus = "Offline") {
     sessionHydratedRef.current = false;
+    sessionSavePendingRef.current = false;
+    if (sessionSaveTimerRef.current) {
+      window.clearTimeout(sessionSaveTimerRef.current);
+      sessionSaveTimerRef.current = null;
+    }
     setSessionCode("");
     setSessionPlayers(0);
     setSessionCardsById({});
@@ -2805,19 +2813,43 @@ function App() {
     setCardRevealRequests({});
     setSessionParticipants({});
     dragPieceIdRef.current = null;
-    setSessionStatus("Offline");
+    setSessionStatus(finalStatus);
+  }
+
+  async function waitForSessionWritesToFinish(timeoutMs = 2500) {
+    const startedAt = Date.now();
+    while (sessionSaveInFlightRef.current && Date.now() - startedAt < timeoutMs) {
+      await new Promise(resolve => window.setTimeout(resolve, 25));
+    }
   }
 
   async function endSession() {
     if (!sessionCode || !user?.uid || user.uid !== sessionOwnerUid) return;
-    if (!window.confirm("End this session permanently? The code will stop working.")) return;
+    if (!window.confirm("End this session permanently? The code will stop working for everyone.")) return;
+
     const code = sessionCode.toUpperCase();
+    sessionEndingRef.current = true;
+    sessionHydratedRef.current = false;
+    sessionSavePendingRef.current = false;
+    if (sessionSaveTimerRef.current) {
+      window.clearTimeout(sessionSaveTimerRef.current);
+      sessionSaveTimerRef.current = null;
+    }
     setSessionStatus("Ending session...");
+
     try {
+      await waitForSessionWritesToFinish();
+      await updateDoc(sessionRef(code), {
+        status: "ending",
+        endedBy: user.uid,
+        endedAt: serverTimestamp(),
+      });
+      await new Promise(resolve => window.setTimeout(resolve, 150));
       await deleteSessionData(code);
-      leaveSession();
-      setSessionStatus("Session ended");
+      leaveSession("Session ended");
     } catch (error) {
+      sessionEndingRef.current = false;
+      sessionHydratedRef.current = true;
       console.error("End session failed", error);
       setSessionStatus(`End error: ${error?.message || "unknown"}`);
     }
@@ -2921,11 +2953,17 @@ function App() {
     const code = sessionCode.toUpperCase();
     const unsub = onSnapshot(sessionRef(code), (snapshot) => {
       if (!snapshot.exists()) {
-        setSessionStatus("Session missing");
+        sessionEndingRef.current = true;
+        leaveSession("Session ended by host");
         return;
       }
 
       const data = snapshot.data();
+      if (data.status === "ending" || data.status === "ended") {
+        sessionEndingRef.current = true;
+        leaveSession(user?.uid === data.endedBy ? "Session ended" : "Session ended by host");
+        return;
+      }
       const participants = data.participants || {};
       setSessionParticipants(participants);
       setSessionOwnerUid(data.ownerUid || "");
@@ -3041,6 +3079,7 @@ function App() {
     const code = sessionCode.toUpperCase();
     setSessionStatus("Loading session cards...");
     const unsub = onSnapshot(sessionCardsCollectionRef(code), (snapshot) => {
+      if (sessionEndingRef.current) return;
       const nextLibrary = {};
       snapshot.docs.forEach(cardDoc => {
         const raw = cardDoc.data();
@@ -3067,16 +3106,17 @@ function App() {
     if (!user?.uid || !sessionCode) return;
     const ref = sessionRef(sessionCode.toUpperCase());
     const beat = () => {
-      setDoc(ref, {
-        participants: {
-          [user.uid]: {
-            ...(sessionParticipants[user.uid] || {}),
-            email: user.email || "Guest",
-            lastSeen: serverTimestamp(),
-            clientId: clientIdRef.current,
-          }
+      if (sessionEndingRef.current) return;
+      updateDoc(ref, {
+        [`participants.${user.uid}`]: {
+          ...(sessionParticipants[user.uid] || {}),
+          email: user.email || "Guest",
+          lastSeen: serverTimestamp(),
+          clientId: clientIdRef.current,
         }
-      }, { merge: true }).catch(error => console.error("Presence heartbeat failed", error));
+      }).catch(error => {
+        if (!sessionEndingRef.current && error?.code !== "not-found") console.error("Presence heartbeat failed", error);
+      });
     };
     beat();
     const heartbeatId = window.setInterval(beat, 15000);
@@ -4188,7 +4228,7 @@ function App() {
   }
 
   async function saveSessionCardAssignments(nextPieces) {
-    if (!user || !sessionCode || !sessionHydratedRef.current) return;
+    if (!user || !sessionCode || sessionEndingRef.current || !sessionHydratedRef.current) return;
     try {
       await updateDoc(sessionRef(sessionCode.toUpperCase()), {
         cardAssignments: buildSessionCardAssignments(nextPieces),
@@ -4809,13 +4849,22 @@ function App() {
       let frameId = 0;
       let cancelled = false;
 
+      const setFitSize = size => {
+        if (size == null) element.style.removeProperty("--special-fit-font-size");
+        else element.style.setProperty("--special-fit-font-size", `${size}px`);
+      };
+
       const fitText = () => {
         if (cancelled || !element.isConnected) return;
 
-        element.style.fontSize = "";
-        const naturalSize = Number.parseFloat(window.getComputedStyle(element).fontSize) || 3;
+        setFitSize(null);
+        const computed = window.getComputedStyle(element);
+        const naturalSize = Number.parseFloat(computed.fontSize) || 3;
         const minimumSize = 3;
-        const fits = () => element.scrollHeight <= element.clientHeight + 1 && element.scrollWidth <= element.clientWidth + 1;
+        const fits = () => (
+          element.scrollHeight <= element.clientHeight + 0.5
+          && element.scrollWidth <= element.clientWidth + 0.5
+        );
 
         if (fits()) return;
 
@@ -4823,9 +4872,9 @@ function App() {
         let high = naturalSize;
         let best = minimumSize;
 
-        for (let index = 0; index < 12; index += 1) {
+        for (let index = 0; index < 14; index += 1) {
           const candidate = (low + high) / 2;
-          element.style.fontSize = `${candidate}px`;
+          setFitSize(candidate);
           if (fits()) {
             best = candidate;
             low = candidate;
@@ -4834,7 +4883,7 @@ function App() {
           }
         }
 
-        element.style.fontSize = `${Math.max(minimumSize, best - 0.15)}px`;
+        setFitSize(Math.max(minimumSize, best - 0.1));
       };
 
       const scheduleFit = () => {
@@ -6576,6 +6625,7 @@ function App() {
   }
 
   async function deactivateSharedRuler() {
+    if (sessionEndingRef.current) return;
     if (!sessionCode) {
       setMeasureMode(false);
       setMeasureStart(null);
@@ -6584,7 +6634,7 @@ function App() {
     }
     if (!isSharedRulerOwner || !user?.uid) return;
     try {
-      await setDoc(sessionRef(sessionCode.toUpperCase()), {
+      await updateDoc(sessionRef(sessionCode.toUpperCase()), {
         sharedRuler: {
           active: false,
           ownerUid: "",
@@ -6597,7 +6647,7 @@ function App() {
           end: null,
           updatedAt: serverTimestamp(),
         },
-      }, { merge: true });
+      });
       setMeasureMode(false);
       setSharedRulerOwnerUid("");
       setSharedRulerOwnerTeam("");
@@ -6609,10 +6659,12 @@ function App() {
   }
 
   function syncSharedRuler(overrides = {}) {
-    if (!sessionCode || !isSharedRulerOwner) return;
-    setDoc(sessionRef(sessionCode.toUpperCase()), {
+    if (!sessionCode || sessionEndingRef.current || !isSharedRulerOwner) return;
+    updateDoc(sessionRef(sessionCode.toUpperCase()), {
       sharedRuler: buildSharedRulerState(overrides),
-    }, { merge: true }).catch(error => console.error("Shared ruler sync failed", error));
+    }).catch(error => {
+      if (!sessionEndingRef.current && error?.code !== "not-found") console.error("Shared ruler sync failed", error);
+    });
   }
 
   function setSharedRulerType(nextType) {
