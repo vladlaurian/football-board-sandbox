@@ -6670,24 +6670,11 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   padding-block: max(1px, 1.5cqh) !important;
 }
 
-/* Multi-line text keeps glyph-safe spacing and progressively reduces its font size
-   as content grows. These classes replace the layout regression where a fixed
-   !important font size prevented Special Ability from fitting its zone. */
+/* Special Ability starts at its normal configured size. The shared renderer only
+   reduces it when the measured text actually overflows the available box. */
 .card-zone-special {
-  line-height: max(1.08, var(--zone-line-height, 1.08)) !important;
+  line-height: max(1.12, var(--zone-line-height, 1.12)) !important;
+  padding-bottom: max(1px, 0.7cqh) !important;
+  box-sizing: border-box !important;
 }
-.card-zone-special.special-density-0 {
-  font-size: clamp(3px, calc(min(7.5cqw, 22cqh) * var(--zone-font-scale, 1)), 32px) !important;
-}
-.card-zone-special.special-density-1 {
-  font-size: clamp(3px, calc(min(6.6cqw, 19cqh) * var(--zone-font-scale, 1)), 28px) !important;
-}
-.card-zone-special.special-density-2 {
-  font-size: clamp(3px, calc(min(5.7cqw, 16cqh) * var(--zone-font-scale, 1)), 24px) !important;
-}
-.card-zone-special.special-density-3 {
-  font-size: clamp(3px, calc(min(4.9cqw, 13cqh) * var(--zone-font-scale, 1)), 20px) !important;
-}
-.card-zone-special.special-density-4 {
-  font-size: clamp(3px, calc(min(4.1cqw, 10.5cqh) * var(--zone-font-scale, 1)), 17px) !important;
-}
+

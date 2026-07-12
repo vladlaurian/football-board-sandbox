@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import html2canvas from "html2canvas";
 import { initializeApp } from "firebase/app";
@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v11.3";
+const APP_VERSION = "v11.4";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4798,6 +4798,66 @@ function App() {
     );
   }
 
+  function AutoFitSpecialText({ children, style, className = "" }) {
+    const textRef = useRef(null);
+    const styleKey = JSON.stringify(style || {});
+
+    useLayoutEffect(() => {
+      const element = textRef.current;
+      if (!element) return undefined;
+
+      let frameId = 0;
+      let cancelled = false;
+
+      const fitText = () => {
+        if (cancelled || !element.isConnected) return;
+
+        element.style.fontSize = "";
+        const naturalSize = Number.parseFloat(window.getComputedStyle(element).fontSize) || 3;
+        const minimumSize = 3;
+        const fits = () => element.scrollHeight <= element.clientHeight + 1 && element.scrollWidth <= element.clientWidth + 1;
+
+        if (fits()) return;
+
+        let low = minimumSize;
+        let high = naturalSize;
+        let best = minimumSize;
+
+        for (let index = 0; index < 12; index += 1) {
+          const candidate = (low + high) / 2;
+          element.style.fontSize = `${candidate}px`;
+          if (fits()) {
+            best = candidate;
+            low = candidate;
+          } else {
+            high = candidate;
+          }
+        }
+
+        element.style.fontSize = `${Math.max(minimumSize, best - 0.15)}px`;
+      };
+
+      const scheduleFit = () => {
+        cancelAnimationFrame(frameId);
+        frameId = requestAnimationFrame(fitText);
+      };
+
+      const observer = new ResizeObserver(scheduleFit);
+      if (element.parentElement) observer.observe(element.parentElement);
+
+      scheduleFit();
+      if (document.fonts?.ready) document.fonts.ready.then(scheduleFit).catch(() => {});
+
+      return () => {
+        cancelled = true;
+        cancelAnimationFrame(frameId);
+        observer.disconnect();
+      };
+    }, [children, styleKey]);
+
+    return <div ref={textRef} className={`card-zone-special ${className}`.trim()} style={style}>{children}</div>;
+  }
+
   function CardVisualCanvas({ card, side, showZones = false, selectedLayout = null, onSelectLayout = null }) {
     const canvasRef = useRef(null);
     const [activeLayoutEdit, setActiveLayoutEdit] = useState(null);
@@ -4911,22 +4971,13 @@ function App() {
       );
     };
 
-    const specialAbilityDensityClass = value => {
-      const length = String(value || "").trim().length;
-      if (length > 280) return "special-density-4";
-      if (length > 200) return "special-density-3";
-      if (length > 130) return "special-density-2";
-      if (length > 70) return "special-density-1";
-      return "special-density-0";
-    };
-
     const renderSpecialAbilityZone = () => {
       const textColor = safeColor(colors.specialAbility);
       const titleColor = safeColor(colors.specialAbilityTitle);
       return (
         <div className="card-zone-text card-zone-special-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 3, color: textColor }}>
           <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVarsStable(textStyles, "specialAbilityTitle") }}>{cardLayoutTitle(card, "specialAbility")}</div>
-          <div className={`card-zone-special ${specialAbilityDensityClass(card?.specialAbility)}`} style={{ color: textColor, ...zoneTextStyleVarsStable(textStyles, "specialAbility") }}>{card?.specialAbility || ""}</div>
+          <AutoFitSpecialText style={{ color: textColor, ...zoneTextStyleVarsStable(textStyles, "specialAbility") }}>{card?.specialAbility || ""}</AutoFitSpecialText>
         </div>
       );
     };
@@ -4998,7 +5049,7 @@ function App() {
       return (
         <div className="card-zone-text card-zone-special-with-title zone-color-bound duplicate-content-zone" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 3, color: textColor }}>
           <div className="card-zone-section-title" style={{ color: titleColor, ...duplicateStyleVars(block.titleStyle) }}>{block.title}</div>
-          <div className={`card-zone-special ${specialAbilityDensityClass(block.text)}`} style={{ color: textColor, ...duplicateStyleVars(block.textStyle) }}>{block.text || ""}</div>
+          <AutoFitSpecialText style={{ color: textColor, ...duplicateStyleVars(block.textStyle) }}>{block.text || ""}</AutoFitSpecialText>
         </div>
       );
     };

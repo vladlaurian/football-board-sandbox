@@ -1,8 +1,15 @@
-# Final Board v11.3 — Front Name Glyph Fix & Special Ability Auto-Fit
+# Final Board v11.4 — Measured Special Ability Auto-Fit
 
 Stable build based on v11.0.
 
 ## Changes
+
+- Special Ability now keeps its normal configured font size until the rendered text actually overflows its layout box.
+- On overflow, the shared card renderer measures the real available space and reduces the font only as much as necessary.
+- The same measured fit applies to duplicated Special Ability zones.
+- Glyph-safe line height and bottom reserve keep `g`, `j`, `p`, `q`, and `y` visible after shrinking.
+- Editor, Inspector, and Export continue to use the same renderer.
+
 
 - Keeps **Reset Position** and **Reset Cards** behavior from v11.0.
 - Removes the complete multiplayer card library from `/sessions/{sessionId}`.
