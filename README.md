@@ -1,4 +1,4 @@
-# Final Board v11.1.1 — Separate Multiplayer Session Cards
+# Final Board v11.2 — Glyph-Safe Card Text Rendering
 
 Stable build based on v11.0.
 
@@ -48,3 +48,12 @@ Native Storage V2 backup remains unchanged.
 ## v11.1.1 hotfix
 - Moved `timestampToMillis` to module scope so session expiry checks work during guest join.
 - Fixes `ReferenceError: timestampToMillis is not defined`.
+
+
+## v11.2 text rendering audit
+
+- Replaced the Preferred Foot-only descender fix with one canonical glyph-safe rule shared by card text.
+- Single-line name, position, section title, stat label/value, duplicate field and Preferred Foot text now preserve descenders such as g, j, p, q and y.
+- Special Ability keeps multiline wrapping with a safe minimum line box.
+- The same CardVisualCanvas renderer remains the source for Editor, Inspector and Export.
+- No editor-only, inspector-only or export-only text correction was introduced.
