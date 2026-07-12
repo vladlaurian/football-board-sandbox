@@ -1,25 +1,44 @@
-# Final Board v11.0 — Separate Position and Card Resets
+# Final Board v11.1 — Separate Multiplayer Session Cards
 
-Stable build based on v10.0.
+Stable build based on v11.0.
 
 ## Changes
 
-- Renamed the existing **Reset** control to **Reset Position**.
-- **Reset Position** keeps its existing board-reset behavior while preserving every card assignment on the same puck ID.
-- Added **Reset Cards** immediately after **Reset Position**.
-- **Reset Cards** detaches all cards from all pucks without moving the pucks, ball, formations, or any other board element.
-- Resetting cards does not delete cards from the card library.
-- Multiplayer card assignments are explicitly synchronized when **Reset Cards** is used, so host and guest see the detach operation immediately.
-- Position reset uses the current session card library when needed, preserving assignments made by either host or guest.
-- Keeps editor, inspector, image export, Storage V2 backups, layout-style tools, and v10.0 Preferred Foot rendering unchanged.
-- README, in-app version, `package.json`, and ZIP filename identify v11.0.
+- Keeps **Reset Position** and **Reset Cards** behavior from v11.0.
+- Removes the complete multiplayer card library from `/sessions/{sessionId}`.
+- Stores session card copies separately in `/sessions/{sessionId}/cards/{cardId}`.
+- Loads session cards through a dedicated realtime listener.
+- Live board saves no longer resend the full card library.
+- Adds visible error handling for session creation.
+- **Leave** only exits locally; the session code remains valid.
+- **End Session** is available to the host and permanently deletes the session plus all session-card documents.
+- Browser close or refresh does not end a session.
+- Sessions expire after 24 hours without real session activity. Join attempts detect and clean expired sessions.
+- Session activity refreshes `expiresAt`; presence heartbeats do not extend session lifetime.
+- Personal cards remain unchanged in `/users/{uid}/footballBoardCards/{cardId}`.
 
-## Firestore
+## Required Firestore access
 
-- Personal board state: `/users/{uid}/footballBoard/mainStateV2`
-- Personal cards: `/users/{uid}/footballBoardCards/{cardId}`
-- Multiplayer sessions: `/sessions/{sessionId}`
-- Live multiplayer assignments: `cardAssignments` inside the session document
+The existing session rules must also cover the cards subcollection. Example authenticated rule:
+
+```text
+match /sessions/{sessionId} {
+  allow read, write: if request.auth != null;
+
+  match /cards/{cardId} {
+    allow read, write: if request.auth != null;
+  }
+}
+```
+
+Use rules appropriate to the deployed project if access is more restrictive.
+
+## Expiration and cleanup
+
+- Host **End Session** performs complete deletion immediately.
+- A session untouched for 24 hours is treated as expired.
+- When an expired code is used, the client deletes its card documents and parent session document.
+- `expiresAt` is included so a server-side TTL or scheduled cleanup can be added later without changing the data model. Firestore TTL alone does not delete subcollections, so complete unattended cleanup would require a backend cleanup function.
 
 ## Backup format
 

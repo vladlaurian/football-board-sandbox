@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import html2canvas from "html2canvas";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInAnonymously, signOut } from "firebase/auth";
-import { collection, doc, getDoc, getDocs, onSnapshot, runTransaction, serverTimestamp, setDoc, updateDoc, writeBatch } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, runTransaction, serverTimestamp, setDoc, updateDoc, writeBatch } from "firebase/firestore";
 import { getFirestore } from "firebase/firestore";
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import { RotateCcw, Plus, Minus, Undo2, Edit3, X, Dices } from "lucide-react";
@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v11.0";
+const APP_VERSION = "v11.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -64,6 +64,27 @@ function userCardRef(uid, cardId) {
 
 function sessionRef(code) {
   return doc(db, "sessions", String(code || "").toUpperCase());
+}
+
+function sessionCardsCollectionRef(code) {
+  return collection(db, "sessions", String(code || "").toUpperCase(), "cards");
+}
+
+function sessionCardRef(code, cardId) {
+  return doc(db, "sessions", String(code || "").toUpperCase(), "cards", String(cardId));
+}
+
+const SESSION_INACTIVITY_MS = 24 * 60 * 60 * 1000;
+
+function nextSessionExpiryDate() {
+  return new Date(Date.now() + SESSION_INACTIVITY_MS);
+}
+
+function isSessionExpired(data) {
+  const expiry = timestampToMillis(data?.expiresAt);
+  if (expiry) return expiry <= Date.now();
+  const lastActivity = timestampToMillis(data?.updatedAt) || timestampToMillis(data?.createdAt);
+  return !!lastActivity && Date.now() - lastActivity >= SESSION_INACTIVITY_MS;
 }
 
 function generateSessionCode() {
@@ -2074,6 +2095,7 @@ function App() {
   const sessionCardsByIdRef = useRef({});
   const [sessionLibraryById, setSessionLibraryById] = useState({});
   const sessionLibraryByIdRef = useRef({});
+  const sessionAssignmentsRef = useRef({});
 
   const SESSION_LIVE_SAVE_INTERVAL_MS = 250;
   const CLOUD_AUTOSAVE_INTERVAL_MS = 3 * 60 * 1000;
@@ -2367,7 +2389,7 @@ function App() {
 
   async function setSessionCardMode(mode) {
     if (!sessionCode || !user?.uid || user.uid !== sessionOwnerUid || !["open", "private"].includes(mode)) return;
-    await setDoc(sessionRef(sessionCode.toUpperCase()), { cardVisibilityMode: mode, updatedAt: serverTimestamp() }, { merge: true });
+    await setDoc(sessionRef(sessionCode.toUpperCase()), { cardVisibilityMode: mode, updatedAt: serverTimestamp(), expiresAt: nextSessionExpiryDate() }, { merge: true });
   }
 
   async function requestCardFlip(cardId) {
@@ -2379,7 +2401,7 @@ function App() {
       const data = snap.data();
       const requests = { ...(data.cardRevealRequests || {}) };
       requests[cardId] = { ...(requests[cardId] || {}), [user.uid]: true };
-      transaction.set(ref, { cardRevealRequests: requests, updatedAt: serverTimestamp() }, { merge: true });
+      transaction.set(ref, { cardRevealRequests: requests, updatedAt: serverTimestamp(), expiresAt: nextSessionExpiryDate() }, { merge: true });
     });
   }
 
@@ -2399,7 +2421,7 @@ function App() {
       delete cardRequests[viewerUid];
       if (Object.keys(cardRequests).length) requests[cardId] = cardRequests;
       else delete requests[cardId];
-      transaction.set(ref, { cardRevealPermissions: permissions, cardRevealRequests: requests, updatedAt: serverTimestamp() }, { merge: true });
+      transaction.set(ref, { cardRevealPermissions: permissions, cardRevealRequests: requests, updatedAt: serverTimestamp(), expiresAt: nextSessionExpiryDate() }, { merge: true });
     });
   }
 
@@ -2415,6 +2437,8 @@ function App() {
       pieces: _overridePieces,
       cardState: _overrideCardState,
       settings: _overrideSettings,
+      sessionLibraryById: _legacySessionLibraryById,
+      sessionCardsById: _legacySessionCardsById,
       ...restOverrides
     } = overrides;
     const effectiveSessionLibraryById = normalizeSessionCardsById(sessionLibraryByIdRef.current);
@@ -2487,6 +2511,7 @@ function App() {
       await setDoc(sessionRef(code), {
         board: encodeForFirestore(buildLiveBoardState(overrides)),
         updatedAt: serverTimestamp(),
+        expiresAt: nextSessionExpiryDate(),
         updatedBy: clientIdRef.current,
       }, { merge: true });
       sessionLastSaveAtRef.current = Date.now();
@@ -2527,6 +2552,33 @@ function App() {
     sessionSaveTimerRef.current = window.setTimeout(run, 0);
   }
 
+  async function writeSessionCards(code, sessionLibrary) {
+    const entries = Object.entries(normalizeSessionCardsById(sessionLibrary));
+    for (let start = 0; start < entries.length; start += 450) {
+      const batch = writeBatch(db);
+      for (const [cardId, card] of entries.slice(start, start + 450)) {
+        batch.set(sessionCardRef(code, cardId), {
+          card: encodeForFirestore(card),
+          updatedAt: serverTimestamp(),
+        }, { merge: false });
+      }
+      await batch.commit();
+    }
+  }
+
+  async function deleteSessionData(code) {
+    const normalizedCode = String(code || "").trim().toUpperCase();
+    if (!normalizedCode) return;
+    const cardsSnapshot = await getDocs(sessionCardsCollectionRef(normalizedCode));
+    const cardDocs = cardsSnapshot.docs;
+    for (let start = 0; start < cardDocs.length; start += 450) {
+      const batch = writeBatch(db);
+      for (const cardDoc of cardDocs.slice(start, start + 450)) batch.delete(cardDoc.ref);
+      await batch.commit();
+    }
+    await deleteDoc(sessionRef(normalizedCode));
+  }
+
   async function createSession() {
     if (!user || user.isAnonymous) {
       setSessionStatus("Login first");
@@ -2536,58 +2588,68 @@ function App() {
     const sessionLibrarySnapshot = buildSessionLibraryById(cardStateRef.current);
     sessionLibraryByIdRef.current = sessionLibrarySnapshot;
     setSessionLibraryById(sessionLibrarySnapshot);
-    setSessionStatus("Creating...");
-    await setDoc(sessionRef(code), {
-      code,
-      ownerUid: user.uid,
-      ownerEmail: user.email || "",
-      players: {
-        [user.uid]: {
-          email: user.email || "",
-          joinedAt: new Date().toISOString(),
-          clientId: clientIdRef.current,
-        }
-      },
-      participants: {
-        [user.uid]: {
-          email: user.email || "",
-          role: "host",
-          team: "pending",
-          joinedAt: new Date().toISOString(),
-          lastSeen: serverTimestamp(),
-          clientId: clientIdRef.current,
-        }
-      },
-      teamOwners: { blue: "", red: "" },
-      cardVisibilityMode: "",
-      cardRevealPermissions: {},
-      cardRevealRequests: {},
-      sharedDice: {
-        blue: { value: null, dieType: 20 },
-        red: { value: null, dieType: 20 },
-      },
-      sharedRuler: {
-        active: false,
-        ownerUid: "",
-        ownerClientId: "",
-        ownerTeam: "",
-        measureType: "center",
-        passMark: 8,
-        shotMark: 12,
-        start: null,
-        end: null,
-      },
-      board: encodeForFirestore(buildLiveBoardState({ sessionLibraryById: sessionLibrarySnapshot })),
-      cardAssignments: buildSessionCardAssignments(piecesRef.current),
-      cardAssignmentsUpdatedBy: clientIdRef.current,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      updatedBy: clientIdRef.current,
-    }, { merge: true });
-    sessionHydratedRef.current = true;
-    setSessionCode(code);
-    setJoinCode(code);
-    setSessionStatus("Online");
+    setSessionStatus("Creating cards...");
+
+    try {
+      await writeSessionCards(code, sessionLibrarySnapshot);
+      setSessionStatus("Creating session...");
+      await setDoc(sessionRef(code), {
+        code,
+        ownerUid: user.uid,
+        ownerEmail: user.email || "",
+        players: {
+          [user.uid]: {
+            email: user.email || "",
+            joinedAt: new Date().toISOString(),
+            clientId: clientIdRef.current,
+          }
+        },
+        participants: {
+          [user.uid]: {
+            email: user.email || "",
+            role: "host",
+            team: "pending",
+            joinedAt: new Date().toISOString(),
+            lastSeen: serverTimestamp(),
+            clientId: clientIdRef.current,
+          }
+        },
+        teamOwners: { blue: "", red: "" },
+        cardVisibilityMode: "",
+        cardRevealPermissions: {},
+        cardRevealRequests: {},
+        sharedDice: {
+          blue: { value: null, dieType: 20 },
+          red: { value: null, dieType: 20 },
+        },
+        sharedRuler: {
+          active: false,
+          ownerUid: "",
+          ownerClientId: "",
+          ownerTeam: "",
+          measureType: "center",
+          passMark: 8,
+          shotMark: 12,
+          start: null,
+          end: null,
+        },
+        board: encodeForFirestore(buildLiveBoardState()),
+        cardAssignments: buildSessionCardAssignments(piecesRef.current),
+        cardAssignmentsUpdatedBy: clientIdRef.current,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        expiresAt: nextSessionExpiryDate(),
+        updatedBy: clientIdRef.current,
+      }, { merge: false });
+      sessionHydratedRef.current = true;
+      setSessionCode(code);
+      setJoinCode(code);
+      setSessionStatus("Online");
+    } catch (error) {
+      console.error("Session creation failed", error);
+      setSessionStatus(`Create error: ${error?.message || "unknown"}`);
+      try { await deleteSessionData(code); } catch (cleanupError) { console.error("Partial session cleanup failed", cleanupError); }
+    }
   }
 
   async function completeJoinSession(code, sessionUser, preferredTeam = "", preferredCardMode = "") {
@@ -2598,6 +2660,7 @@ function App() {
         const snap = await transaction.get(ref);
         if (!snap.exists()) throw new Error("Session missing");
         const data = snap.data();
+        if (isSessionExpired(data)) throw new Error("Session expired");
         const owners = { blue: data.teamOwners?.blue || "", red: data.teamOwners?.red || "" };
         const participants = { ...(data.participants || {}) };
         const hostUid = data.ownerUid || "";
@@ -2663,6 +2726,7 @@ function App() {
           players,
           ...(nextCardMode ? { cardVisibilityMode: nextCardMode } : {}),
           updatedAt: serverTimestamp(),
+          expiresAt: nextSessionExpiryDate(),
         }, { merge: true });
       });
 
@@ -2701,6 +2765,11 @@ function App() {
         return;
       }
       const initialData = initialSnap.data();
+      if (isSessionExpired(initialData)) {
+        setSessionStatus("Session expired");
+        try { await deleteSessionData(code); } catch (cleanupError) { console.error("Expired session cleanup failed", cleanupError); }
+        return;
+      }
       const existingOwners = initialData.teamOwners || {};
       const existingParticipants = initialData.participants || {};
       const isReturning = !!existingParticipants[sessionUser.uid] || existingOwners.blue === sessionUser.uid || existingOwners.red === sessionUser.uid;
@@ -2727,6 +2796,7 @@ function App() {
     sessionCardsByIdRef.current = {};
     setSessionLibraryById({});
     sessionLibraryByIdRef.current = {};
+    sessionAssignmentsRef.current = {};
     setMyTeam("spectator");
     setSessionOwnerUid("");
     setTeamOwners({ blue: "", red: "" });
@@ -2737,6 +2807,22 @@ function App() {
     dragPieceIdRef.current = null;
     setSessionStatus("Offline");
   }
+
+  async function endSession() {
+    if (!sessionCode || !user?.uid || user.uid !== sessionOwnerUid) return;
+    if (!window.confirm("End this session permanently? The code will stop working.")) return;
+    const code = sessionCode.toUpperCase();
+    setSessionStatus("Ending session...");
+    try {
+      await deleteSessionData(code);
+      leaveSession();
+      setSessionStatus("Session ended");
+    } catch (error) {
+      console.error("End session failed", error);
+      setSessionStatus(`End error: ${error?.message || "unknown"}`);
+    }
+  }
+
 
 
   async function saveCloudState(overrides = {}, label = "Cloud saved") {
@@ -2922,6 +3008,7 @@ function App() {
       const sharedAssignments = data.cardAssignments && typeof data.cardAssignments === "object"
         ? data.cardAssignments
         : null;
+      if (sharedAssignments) sessionAssignmentsRef.current = sharedAssignments;
 
       if (data.board && !isOwnBoardUpdate) {
         isApplyingSessionRef.current = true;
@@ -2945,6 +3032,33 @@ function App() {
       setSessionStatus("Online error");
     });
 
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, sessionCode]);
+
+  useEffect(() => {
+    if (!user || !sessionCode) return;
+    const code = sessionCode.toUpperCase();
+    setSessionStatus("Loading session cards...");
+    const unsub = onSnapshot(sessionCardsCollectionRef(code), (snapshot) => {
+      const nextLibrary = {};
+      snapshot.docs.forEach(cardDoc => {
+        const raw = cardDoc.data();
+        const decoded = decodeFromFirestore(raw?.card ?? raw);
+        if (decoded && typeof decoded === "object") nextLibrary[String(cardDoc.id)] = decoded;
+      });
+      sessionLibraryByIdRef.current = nextLibrary;
+      setSessionLibraryById(nextLibrary);
+      if (Object.keys(sessionAssignmentsRef.current || {}).length) {
+        isApplyingSessionRef.current = true;
+        applyLiveBoardState({}, sessionAssignmentsRef.current);
+        window.setTimeout(() => { isApplyingSessionRef.current = false; }, 250);
+      }
+      setSessionStatus("Online");
+    }, (error) => {
+      console.error("Session cards listener failed", error);
+      setSessionStatus("Cards error");
+    });
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, sessionCode]);
@@ -3483,7 +3597,7 @@ function App() {
           error.code = "dice-cooldown";
           throw error;
         }
-        transaction.set(ref, { sharedDiceCooldownUntil: until, updatedAt: serverTimestamp() }, { merge: true });
+        transaction.set(ref, { sharedDiceCooldownUntil: until, updatedAt: serverTimestamp(), expiresAt: nextSessionExpiryDate() }, { merge: true });
       });
       applyDiceCooldown(until);
       return true;
@@ -3539,6 +3653,7 @@ function App() {
               rolledAt: serverTimestamp(),
             },
             updatedAt: serverTimestamp(),
+            expiresAt: nextSessionExpiryDate(),
           });
         } catch (error) {
           pendingDiceRollRef.current[team] = null;
@@ -4080,6 +4195,7 @@ function App() {
         cardAssignmentsUpdatedBy: clientIdRef.current,
         cardAssignmentsUpdatedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+        expiresAt: nextSessionExpiryDate(),
       });
     } catch (error) {
       console.error("Card assignment sync failed", error);
@@ -6885,6 +7001,7 @@ function App() {
               )}
               {user?.uid !== sessionOwnerUid && cardVisibilityMode && <span className="session-mode-label">{cardVisibilityMode === "open" ? "Open Cards" : "Private Cards"}</span>}
               <button onClick={leaveSession}>Leave</button>
+              {user?.uid === sessionOwnerUid && <button onClick={endSession}>End Session</button>}
             </>
           ) : (
             <>
