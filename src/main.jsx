@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v11.1";
+const APP_VERSION = "v11.1.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -78,6 +78,14 @@ const SESSION_INACTIVITY_MS = 24 * 60 * 60 * 1000;
 
 function nextSessionExpiryDate() {
   return new Date(Date.now() + SESSION_INACTIVITY_MS);
+}
+
+function timestampToMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (typeof value.seconds === "number") return value.seconds * 1000;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function isSessionExpired(data) {
@@ -2346,14 +2354,6 @@ function App() {
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
     if (data.cardState) setCardState(nextCardState);
-  }
-
-  function timestampToMillis(value) {
-    if (!value) return 0;
-    if (typeof value.toMillis === "function") return value.toMillis();
-    if (typeof value.seconds === "number") return value.seconds * 1000;
-    const parsed = Date.parse(value);
-    return Number.isFinite(parsed) ? parsed : 0;
   }
 
   function pieceTeamKey(piece) {

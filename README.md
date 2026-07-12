@@ -1,4 +1,4 @@
-# Final Board v11.1 — Separate Multiplayer Session Cards
+# Final Board v11.1.1 — Separate Multiplayer Session Cards
 
 Stable build based on v11.0.
 
@@ -43,3 +43,8 @@ Use rules appropriate to the deployed project if access is more restrictive.
 ## Backup format
 
 Native Storage V2 backup remains unchanged.
+
+
+## v11.1.1 hotfix
+- Moved `timestampToMillis` to module scope so session expiry checks work during guest join.
+- Fixes `ReferenceError: timestampToMillis is not defined`.
