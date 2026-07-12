@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v11.2";
+const APP_VERSION = "v11.3";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4818,7 +4818,7 @@ function App() {
     const firstFrontBonus = frontBonusFields[0] || makeFrontField("DEF", 0);
 
     const renderNameZone = colorKey => (
-      <div className="card-zone-text card-zone-name zone-color-bound" style={{ "--zone-text-color": safeColor(colors[colorKey]), color: safeColor(colors[colorKey]), ...zoneTextStyleVars(textStyles, colorKey) }} title={card?.name || "Player"}>
+      <div className={`card-zone-text card-zone-name zone-color-bound ${colorKey === "headerFront" ? "card-zone-name-front" : ""}`} style={{ "--zone-text-color": safeColor(colors[colorKey]), color: safeColor(colors[colorKey]), ...zoneTextStyleVars(textStyles, colorKey) }} title={card?.name || "Player"}>
         {card?.name || "Player"}
       </div>
     );
@@ -4911,13 +4911,22 @@ function App() {
       );
     };
 
+    const specialAbilityDensityClass = value => {
+      const length = String(value || "").trim().length;
+      if (length > 280) return "special-density-4";
+      if (length > 200) return "special-density-3";
+      if (length > 130) return "special-density-2";
+      if (length > 70) return "special-density-1";
+      return "special-density-0";
+    };
+
     const renderSpecialAbilityZone = () => {
       const textColor = safeColor(colors.specialAbility);
       const titleColor = safeColor(colors.specialAbilityTitle);
       return (
         <div className="card-zone-text card-zone-special-with-title zone-color-bound" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 3, color: textColor }}>
           <div className="card-zone-section-title" style={{ color: titleColor, ...zoneTextStyleVarsStable(textStyles, "specialAbilityTitle") }}>{cardLayoutTitle(card, "specialAbility")}</div>
-          <div className="card-zone-special" style={{ color: textColor, ...zoneTextStyleVarsStable(textStyles, "specialAbility") }}>{card?.specialAbility || ""}</div>
+          <div className={`card-zone-special ${specialAbilityDensityClass(card?.specialAbility)}`} style={{ color: textColor, ...zoneTextStyleVarsStable(textStyles, "specialAbility") }}>{card?.specialAbility || ""}</div>
         </div>
       );
     };
@@ -4989,7 +4998,7 @@ function App() {
       return (
         <div className="card-zone-text card-zone-special-with-title zone-color-bound duplicate-content-zone" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 3, color: textColor }}>
           <div className="card-zone-section-title" style={{ color: titleColor, ...duplicateStyleVars(block.titleStyle) }}>{block.title}</div>
-          <div className="card-zone-special" style={{ color: textColor, ...duplicateStyleVars(block.textStyle) }}>{block.text || ""}</div>
+          <div className={`card-zone-special ${specialAbilityDensityClass(block.text)}`} style={{ color: textColor, ...duplicateStyleVars(block.textStyle) }}>{block.text || ""}</div>
         </div>
       );
     };

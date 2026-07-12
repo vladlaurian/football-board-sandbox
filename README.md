@@ -1,4 +1,4 @@
-# Final Board v11.2 — Glyph-Safe Card Text Rendering
+# Final Board v11.3 — Front Name Glyph Fix & Special Ability Auto-Fit
 
 Stable build based on v11.0.
 
@@ -50,10 +50,18 @@ Native Storage V2 backup remains unchanged.
 - Fixes `ReferenceError: timestampToMillis is not defined`.
 
 
-## v11.2 text rendering audit
+## v11.3 front-name and Special Ability fixes
 
 - Replaced the Preferred Foot-only descender fix with one canonical glyph-safe rule shared by card text.
 - Single-line name, position, section title, stat label/value, duplicate field and Preferred Foot text now preserve descenders such as g, j, p, q and y.
 - Special Ability keeps multiline wrapping with a safe minimum line box.
 - The same CardVisualCanvas renderer remains the source for Editor, Inspector and Export.
 - No editor-only, inspector-only or export-only text correction was introduced.
+
+
+## v11.3 changes
+
+- Added a front-name-only vertical font cap so large names keep full descenders without changing back-card name rendering.
+- Restored progressive Special Ability text fitting with five density levels based on content length.
+- Applied the same Special Ability fitting to duplicated Special Ability blocks.
+- Kept the shared card renderer, so Editor, Inspector and Export use identical rules.

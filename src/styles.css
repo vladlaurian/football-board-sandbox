@@ -6625,9 +6625,9 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .dice-notice.critical-one { color:#050505 !important; }
 .dice-notice.critical-max { color:#39e75f !important; }
 
-/* v11.2: canonical glyph-safe text rendering for Editor, Inspector and Export.
-   This replaces the old Preferred Foot-only patch. Outer layout zones still control
-   card boundaries; the actual glyph line boxes remain tall enough for g/j/p/q/y. */
+/* v11.3: canonical glyph-safe text rendering and Special Ability auto-fit for
+   Editor, Inspector and Export. Outer layout zones still control card boundaries;
+   the actual glyph line boxes remain tall enough for g/j/p/q/y. */
 .card-zone-preferred-foot {
   width: 100% !important;
   height: 100% !important;
@@ -6663,7 +6663,31 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   text-overflow: clip !important;
 }
 
-/* Multi-line text keeps its chosen spacing, but never uses a clipping-prone line box. */
+/* The front name is the only very large single-line field. Its vertical font cap is
+   deliberately more conservative so the safe line box remains inside the zone. */
+.card-zone-name-front {
+  font-size: clamp(3px, calc(min(15cqw, 56cqh) * var(--zone-font-scale, 1)), 52px) !important;
+  padding-block: max(1px, 1.5cqh) !important;
+}
+
+/* Multi-line text keeps glyph-safe spacing and progressively reduces its font size
+   as content grows. These classes replace the layout regression where a fixed
+   !important font size prevented Special Ability from fitting its zone. */
 .card-zone-special {
   line-height: max(1.08, var(--zone-line-height, 1.08)) !important;
+}
+.card-zone-special.special-density-0 {
+  font-size: clamp(3px, calc(min(7.5cqw, 22cqh) * var(--zone-font-scale, 1)), 32px) !important;
+}
+.card-zone-special.special-density-1 {
+  font-size: clamp(3px, calc(min(6.6cqw, 19cqh) * var(--zone-font-scale, 1)), 28px) !important;
+}
+.card-zone-special.special-density-2 {
+  font-size: clamp(3px, calc(min(5.7cqw, 16cqh) * var(--zone-font-scale, 1)), 24px) !important;
+}
+.card-zone-special.special-density-3 {
+  font-size: clamp(3px, calc(min(4.9cqw, 13cqh) * var(--zone-font-scale, 1)), 20px) !important;
+}
+.card-zone-special.special-density-4 {
+  font-size: clamp(3px, calc(min(4.1cqw, 10.5cqh) * var(--zone-font-scale, 1)), 17px) !important;
 }
