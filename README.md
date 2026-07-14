@@ -1,8 +1,8 @@
-# Final Board v11.9 — Compact Sequential Match Tracker
+# Final Board v12.0 — Compact Sequential Match Tracker
 
 Stable source build of the Football Board Sandbox.
 
-## v11.9 changes
+## v12.0 changes
 
 - The floating Tracker can now be stretched horizontally up to the available viewport width.
 - The Tracker minimum height is reduced so it can be used as a thin control bar above the pitch.
@@ -45,3 +45,14 @@ npm run dev
 ```bash
 npm run build
 ```
+
+
+## v12.0 — Multiplayer host-controlled tracker
+
+- The host is the only participant who can activate, configure, start, reset, or modify the match tracker in an online session.
+- Activating the tracker on the host automatically opens it for connected guests.
+- Guests receive the tracker state live and see all action marks, turns, roles, and settings in read-only mode.
+- Each participant keeps an independent local tracker position, size, and minimized/hidden state.
+- Guests can move, resize, minimize, hide, and reopen the tracker locally without changing it for anyone else.
+- The host closing the tracker disables it for the entire session.
+- Tracker controls and Inspector flip controls now use explicit cross-browser/touch sizing so they render consistently in Chrome, Firefox, and coarse-pointer environments.

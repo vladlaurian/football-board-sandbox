@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v11.9";
+const APP_VERSION = "v12.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2090,6 +2090,7 @@ function App() {
   const [trackerStartingTeam, setTrackerStartingTeam] = useState("red");
   const [trackerCurrentTurn, setTrackerCurrentTurn] = useState(0);
   const [trackerUsedActions, setTrackerUsedActions] = useState({ red: 0, blue: 0 });
+  const [trackerSharedEnabled, setTrackerSharedEnabled] = useState(false);
   const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
   const [lockUI, setLockUI] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -2112,6 +2113,7 @@ function App() {
   const dicePanelResizeRef = useRef(null);
   const trackerDragRef = useRef(null);
   const trackerResizeRef = useRef(null);
+  const trackerSharedEnabledRef = useRef(false);
   const diceNoticeTimerRef = useRef(null);
   const diceCooldownTimerRef = useRef(null);
   const diceCooldownUntilRef = useRef(0);
@@ -2164,6 +2166,8 @@ function App() {
   const isSharedRulerOwner = !!sessionCode && !!user?.uid && sharedRulerOwnerUid === user.uid;
   const sharedRulerReadOnly = !!sessionCode && measureMode && !isSharedRulerOwner;
   const canUseSharedRuler = !sessionCode || myTeam === "blue" || myTeam === "red";
+  const isSessionHost = !!sessionCode && !!user?.uid && user.uid === sessionOwnerUid;
+  const trackerReadOnly = !!sessionCode && !isSessionHost;
 
   const pitchStyle = useMemo(() => ({
     "--cols": settings.cols,
@@ -2668,6 +2672,15 @@ function App() {
           start: null,
           end: null,
         },
+        sharedTracker: {
+          enabled: false,
+          gameStarted: false,
+          startingTeam: "red",
+          currentTurn: 0,
+          usedActions: { red: 0, blue: 0 },
+          settings: { ...trackerSettings },
+          updatedBy: user.uid,
+        },
         board: encodeForFirestore(buildLiveBoardState()),
         cardAssignments: buildSessionCardAssignments(piecesRef.current),
         cardAssignmentsUpdatedBy: clientIdRef.current,
@@ -2845,6 +2858,8 @@ function App() {
     setCardRevealPermissions({});
     setCardRevealRequests({});
     setSessionParticipants({});
+    setTrackerSharedEnabled(false);
+    trackerSharedEnabledRef.current = false;
     dragPieceIdRef.current = null;
     setSessionStatus(finalStatus);
   }
@@ -3060,6 +3075,35 @@ function App() {
       } else if (sessionCode) {
         setMeasureStart(null);
         setMeasureEnd(null);
+      }
+
+      const sharedTracker = data.sharedTracker || {};
+      const sharedTrackerEnabled = !!sharedTracker.enabled;
+      const wasSharedTrackerEnabled = trackerSharedEnabledRef.current;
+      trackerSharedEnabledRef.current = sharedTrackerEnabled;
+      setTrackerSharedEnabled(sharedTrackerEnabled);
+      if (sharedTrackerEnabled) {
+        const incomingSettings = sharedTracker.settings || {};
+        const normalizedSettings = {
+          attackActions: clamp(Number(incomingSettings.attackActions) || 5, 1, 30),
+          defenseActions: clamp(Number(incomingSettings.defenseActions) || 4, 1, 30),
+          turns: clamp(Number(incomingSettings.turns) || 20, 1, 100),
+        };
+        setTrackerSettings(normalizedSettings);
+        setTrackerSettingsDraft(normalizedSettings);
+        setTrackerGameStarted(!!sharedTracker.gameStarted);
+        setTrackerStartingTeam(sharedTracker.startingTeam === "blue" ? "blue" : "red");
+        setTrackerCurrentTurn(clamp(Number(sharedTracker.currentTurn) || 0, 0, normalizedSettings.turns));
+        setTrackerUsedActions({
+          red: Math.max(0, Number(sharedTracker.usedActions?.red) || 0),
+          blue: Math.max(0, Number(sharedTracker.usedActions?.blue) || 0),
+        });
+        if (!wasSharedTrackerEnabled) {
+          setTrackerVisible(true);
+          setTrackerMinimized(false);
+        }
+      } else {
+        setTrackerVisible(false);
       }
       const currentUid = user?.uid || "";
       const resolvedTeam = data.teamOwners?.blue === currentUid
@@ -6956,21 +7000,74 @@ function App() {
     setTrackerDragging(null);
     setTrackerResizing(null);
   }
+  function buildTrackerSnapshot(overrides = {}) {
+    return {
+      enabled: overrides.enabled ?? trackerSharedEnabled,
+      gameStarted: overrides.gameStarted ?? trackerGameStarted,
+      startingTeam: overrides.startingTeam ?? trackerStartingTeam,
+      currentTurn: overrides.currentTurn ?? trackerCurrentTurn,
+      usedActions: overrides.usedActions ?? trackerUsedActions,
+      settings: overrides.settings ?? trackerSettings,
+      updatedBy: user?.uid || "",
+    };
+  }
+
+  async function syncSharedTracker(overrides = {}) {
+    if (!sessionCode || sessionEndingRef.current || !isSessionHost) return;
+    try {
+      await updateDoc(sessionRef(sessionCode), {
+        sharedTracker: buildTrackerSnapshot(overrides),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error("Tracker sync failed", error);
+      setSessionStatus("Tracker sync error");
+    }
+  }
+
+  function setTrackerEnabledForSession(nextEnabled) {
+    if (!sessionCode) {
+      setTrackerVisible(nextEnabled);
+      if (nextEnabled) setTrackerMinimized(false);
+      return;
+    }
+    if (!isSessionHost) {
+      if (trackerSharedEnabled) {
+        setTrackerVisible(nextEnabled);
+        if (nextEnabled) setTrackerMinimized(false);
+      }
+      return;
+    }
+    setTrackerSharedEnabled(nextEnabled);
+    trackerSharedEnabledRef.current = nextEnabled;
+    setTrackerVisible(nextEnabled);
+    if (nextEnabled) setTrackerMinimized(false);
+    syncSharedTracker({ enabled: nextEnabled });
+  }
+
   function startTrackedGame(team) {
+    if (trackerReadOnly) return;
+    const usedActions = { red: 0, blue: 0 };
     setTrackerStartingTeam(team);
     setTrackerCurrentTurn(1);
-    setTrackerUsedActions({ red: 0, blue: 0 });
+    setTrackerUsedActions(usedActions);
     setTrackerGameStarted(true);
     setTrackerStartChoiceOpen(false);
+    syncSharedTracker({ gameStarted: true, startingTeam: team, currentTurn: 1, usedActions });
   }
   function selectTrackerTurn(turn) {
-    if (!trackerGameStarted) return;
+    if (trackerReadOnly || !trackerGameStarted) return;
     if (turn > trackerCurrentTurn + 1) return;
+    const usedActions = { red: 0, blue: 0 };
     setTrackerCurrentTurn(turn);
-    setTrackerUsedActions({ red: 0, blue: 0 });
+    setTrackerUsedActions(usedActions);
+    syncSharedTracker({ currentTurn: turn, usedActions });
   }
   function resetTrackerActions() {
-    setTrackerUsedActions({ red: 0, blue: 0 });
+    if (trackerReadOnly) return;
+    const usedActions = { red: 0, blue: 0 };
+    setTrackerUsedActions(usedActions);
+    syncSharedTracker({ usedActions });
   }
   function trackerRoleFor(team) {
     if (!trackerGameStarted || trackerCurrentTurn < 1) return "waiting";
@@ -6982,8 +7079,10 @@ function App() {
     return trackerRoleFor(team) === "attack" ? trackerSettings.attackActions : trackerSettings.defenseActions;
   }
   function toggleTrackerAction(team, index) {
-    if (!trackerGameStarted) return;
-    setTrackerUsedActions(current => ({ ...current, [team]: current[team] === index + 1 ? index : index + 1 }));
+    if (trackerReadOnly || !trackerGameStarted) return;
+    const usedActions = { ...trackerUsedActions, [team]: trackerUsedActions[team] === index + 1 ? index : index + 1 };
+    setTrackerUsedActions(usedActions);
+    syncSharedTracker({ usedActions });
   }
 
   function onRulerPanelPointerDown(e) {
@@ -7283,7 +7382,11 @@ function App() {
         <button className={showCoordinates ? "toggle-on" : ""} onClick={() => setShowCoordinates(v => !v)}>
           Coordonate
         </button>
-        <button onClick={() => { setTrackerSettingsDraft(trackerSettings); setTrackerSettingsOpen(true); }}>
+        <button
+          disabled={!!sessionCode && !isSessionHost}
+          title={!!sessionCode && !isSessionHost ? "Only the host can change tracker settings" : ""}
+          onClick={() => { setTrackerSettingsDraft(trackerSettings); setTrackerSettingsOpen(true); }}
+        >
           Tracker Settings
         </button>
       </div>
@@ -7356,7 +7459,12 @@ function App() {
         <button className={defAreaMode ? "toggle-on" : ""} onClick={() => setDefAreaMode(v => (v + 1) % 3)}>
           {defAreaButtonLabel}
         </button>
-        <button className={trackerVisible ? "toggle-on" : ""} onClick={() => { setTrackerVisible(v => !v); if (!trackerVisible) setTrackerMinimized(false); }}>
+        <button
+          className={trackerVisible ? "toggle-on" : ""}
+          disabled={!!sessionCode && !isSessionHost && !trackerSharedEnabled}
+          title={!!sessionCode && !isSessionHost && !trackerSharedEnabled ? "The host has not activated the tracker" : ""}
+          onClick={() => setTrackerEnabledForSession(!trackerVisible)}
+        >
           Tracker
         </button>
       </div>
@@ -7808,24 +7916,24 @@ function App() {
 
       {trackerVisible && !lockUI && (
         <div
-          className={`tracker-panel ${trackerMinimized ? "minimized" : ""}`}
+          className={`tracker-panel ${trackerMinimized ? "minimized" : ""} ${trackerReadOnly ? "read-only" : ""}`}
           style={{ left: trackerPosition.x, top: trackerPosition.y, width: trackerSize.w, height: trackerMinimized ? 44 : trackerSize.h }}
           onPointerMove={(e) => { onTrackerPointerMove(e); onTrackerResizeMove(e); }}
           onPointerUp={onTrackerPointerUp}
           onPointerCancel={onTrackerPointerUp}
         >
           <div className="tracker-panel-title" onPointerDown={onTrackerPointerDown}>
-            <strong>TRACKER</strong>
+            <strong>TRACKER{trackerReadOnly ? " — VIEW ONLY" : ""}</strong>
             <div className="tracker-panel-actions">
               <button onPointerDown={e => e.stopPropagation()} onClick={() => setTrackerMinimized(v => !v)}>{trackerMinimized ? "□" : "—"}</button>
-              <button onPointerDown={e => e.stopPropagation()} onClick={() => setTrackerVisible(false)}>×</button>
+              <button onPointerDown={e => e.stopPropagation()} onClick={() => setTrackerEnabledForSession(false)}>×</button>
             </div>
           </div>
           {!trackerMinimized && (
             <div className="tracker-panel-body">
               <div className="tracker-main-actions">
-                <button className="tracker-start-button" onClick={() => setTrackerStartChoiceOpen(true)}>{trackerGameStarted ? "Restart Game" : "Start Game"}</button>
-                <button onClick={resetTrackerActions} disabled={!trackerGameStarted}>Reset Trackers</button>
+                <button className="tracker-start-button" onClick={() => setTrackerStartChoiceOpen(true)} disabled={trackerReadOnly}>{trackerGameStarted ? "Restart Game" : "Start Game"}</button>
+                <button onClick={resetTrackerActions} disabled={trackerReadOnly || !trackerGameStarted}>Reset Trackers</button>
               </div>
               <div className="tracker-team-grid">
                 {["blue", "red"].map(team => {
@@ -7837,7 +7945,7 @@ function App() {
                       <div className="tracker-team-title"><strong>{team.toUpperCase()}</strong><span>{role === "attack" ? "ATTACK" : role === "defense" ? "DEFENSE" : "WAITING"}</span></div>
                       <div className="tracker-action-dots">
                         {Array.from({ length: count }, (_, index) => (
-                          <button key={index} aria-label={`${team} action ${index + 1}`} className={index < used ? "used" : ""} onClick={() => toggleTrackerAction(team, index)} disabled={!trackerGameStarted} />
+                          <button key={index} aria-label={`${team} action ${index + 1}`} className={index < used ? "used" : ""} onClick={() => toggleTrackerAction(team, index)} disabled={!trackerGameStarted} aria-disabled={trackerReadOnly || !trackerGameStarted} />
                         ))}
                       </div>
                     </section>
@@ -7852,7 +7960,7 @@ function App() {
                       key={turn}
                       className={turn === trackerCurrentTurn ? "active" : turn < trackerCurrentTurn ? "completed" : ""}
                       onClick={() => selectTrackerTurn(turn)}
-                      disabled={!trackerGameStarted || turn > trackerCurrentTurn + 1}
+                      disabled={!trackerGameStarted || turn > trackerCurrentTurn + 1} aria-disabled={trackerReadOnly || !trackerGameStarted || turn > trackerCurrentTurn + 1}
                     >{turn}</button>
                   ))}
                 </div>
@@ -7908,7 +8016,16 @@ function App() {
             <label>Attack Actions<input type="number" min="1" max="30" value={trackerSettingsDraft.attackActions} onChange={e => setTrackerSettingsDraft(v => ({ ...v, attackActions: clamp(Number(e.target.value) || 1, 1, 30) }))} /></label>
             <label>Defense Actions<input type="number" min="1" max="30" value={trackerSettingsDraft.defenseActions} onChange={e => setTrackerSettingsDraft(v => ({ ...v, defenseActions: clamp(Number(e.target.value) || 1, 1, 30) }))} /></label>
             <label>Turns<input type="number" min="1" max="100" value={trackerSettingsDraft.turns} onChange={e => setTrackerSettingsDraft(v => ({ ...v, turns: clamp(Number(e.target.value) || 1, 1, 100) }))} /></label>
-            <button className="save-label" onClick={() => { setTrackerSettings(trackerSettingsDraft); setTrackerCurrentTurn(current => Math.min(current, trackerSettingsDraft.turns)); resetTrackerActions(); setTrackerSettingsOpen(false); }}>Save</button>
+            <button className="save-label" onClick={() => {
+              if (trackerReadOnly) return;
+              const nextTurn = Math.min(trackerCurrentTurn, trackerSettingsDraft.turns);
+              const usedActions = { red: 0, blue: 0 };
+              setTrackerSettings(trackerSettingsDraft);
+              setTrackerCurrentTurn(nextTurn);
+              setTrackerUsedActions(usedActions);
+              setTrackerSettingsOpen(false);
+              syncSharedTracker({ settings: trackerSettingsDraft, currentTurn: nextTurn, usedActions });
+            }}>Save</button>
           </div>
         </div>
       )}

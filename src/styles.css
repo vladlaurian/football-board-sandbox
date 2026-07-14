@@ -6705,3 +6705,132 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .tracker-settings-modal{width:min(360px,calc(100vw - 30px));display:flex;flex-direction:column;gap:12px}.tracker-settings-modal label{display:grid;grid-template-columns:1fr 100px;align-items:center;gap:14px;font-weight:700}.tracker-settings-modal input{width:100%;box-sizing:border-box}
 .tracker-start-modal{width:min(380px,calc(100vw - 30px))}.tracker-start-choices{display:grid;grid-template-columns:1fr 1fr;gap:12px}.tracker-start-choices button{padding:14px;font-weight:900}.tracker-start-choices .blue-choice{border-color:#4aa3ff}.tracker-start-choices .red-choice{border-color:#ff6262}
 @media(max-width:700px){.tracker-team-grid{grid-template-columns:1fr}.tracker-panel{max-width:calc(100vw - 8px)}.tracker-team{grid-template-columns:auto 1fr auto}}
+
+/* v12.0 cross-browser/touch normalization for tracker and Inspector flip controls */
+.tracker-panel button,
+.inspector-flip-request-btn {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+.touch-mode .tracker-panel button { font-size: inherit; }
+@media (pointer: coarse) {
+  .tracker-panel button { font-size: inherit; }
+}
+.touch-mode .tracker-action-dots button,
+.tracker-action-dots button {
+  width:18px !important;
+  height:18px !important;
+  min-width:18px !important;
+  min-height:18px !important;
+  max-width:18px !important;
+  max-height:18px !important;
+  padding:0 !important;
+  line-height:1 !important;
+  aspect-ratio:1 / 1;
+  flex:0 0 18px;
+}
+.touch-mode .tracker-turns button,
+.tracker-turns button {
+  width:25px !important;
+  height:24px !important;
+  min-width:25px !important;
+  min-height:24px !important;
+  max-height:24px !important;
+  padding:0 !important;
+  line-height:22px !important;
+  font-size:10px !important;
+}
+.touch-mode .tracker-panel-actions button,
+.tracker-panel-actions button {
+  min-width:28px !important;
+  width:28px;
+  height:26px !important;
+  min-height:26px !important;
+  padding:0 !important;
+  line-height:24px;
+}
+.touch-mode .tracker-main-actions button,
+.tracker-main-actions button {
+  min-height:28px !important;
+  height:28px;
+  padding:4px 8px !important;
+  font-size:12px !important;
+  line-height:18px;
+}
+.inspector-flip-request-btn {
+  min-height:28px !important;
+  height:28px;
+  padding:5px 9px !important;
+  font-size:12px !important;
+  line-height:16px;
+  border-radius:7px;
+}
+.tracker-panel button:disabled { cursor:not-allowed; }
+
+/* v12.0 cross-browser/touch normalization for tracker and Inspector flip controls */
+.tracker-panel button,
+.inspector-flip-request-btn {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+.touch-mode .tracker-panel button { font-size: inherit; }
+@media (pointer: coarse) {
+  .tracker-panel button { font-size: inherit; }
+}
+.touch-mode .tracker-action-dots button,
+.tracker-action-dots button {
+  width:18px !important;
+  height:18px !important;
+  min-width:18px !important;
+  min-height:18px !important;
+  max-width:18px !important;
+  max-height:18px !important;
+  padding:0 !important;
+  line-height:1 !important;
+  aspect-ratio:1 / 1;
+  flex:0 0 18px;
+}
+.touch-mode .tracker-turns button,
+.tracker-turns button {
+  width:25px !important;
+  height:24px !important;
+  min-width:25px !important;
+  min-height:24px !important;
+  max-height:24px !important;
+  padding:0 !important;
+  line-height:22px !important;
+  font-size:10px !important;
+}
+.touch-mode .tracker-panel-actions button,
+.tracker-panel-actions button {
+  min-width:28px !important;
+  width:28px;
+  height:26px !important;
+  min-height:26px !important;
+  padding:0 !important;
+  line-height:24px;
+}
+.touch-mode .tracker-main-actions button,
+.tracker-main-actions button {
+  min-height:28px !important;
+  height:28px;
+  padding:4px 8px !important;
+  font-size:12px !important;
+  line-height:18px;
+}
+.inspector-flip-request-btn {
+  min-height:28px !important;
+  height:28px;
+  padding:5px 9px !important;
+  font-size:12px !important;
+  line-height:16px;
+  border-radius:7px;
+}
+.tracker-panel button:disabled { cursor:not-allowed; }
+
+.tracker-panel.read-only .tracker-action-dots button,
+.tracker-panel.read-only .tracker-turns button { cursor:default; }
