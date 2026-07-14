@@ -2014,6 +2014,7 @@ function App() {
   const [inspectorCardZoom, setInspectorCardZoom] = useState(1);
   const [inspectorCardPan, setInspectorCardPan] = useState({ x: 0, y: 0 });
   const [inspectorCardSide, setInspectorCardSide] = useState("front");
+  const [preferredInspectorCardSide, setPreferredInspectorCardSide] = useState("front");
   const [inspectorCardFitScale, setInspectorCardFitScale] = useState(1);
   const inspectorCardViewportRef = useRef(null);
   const inspectorCardPointersRef = useRef(new Map());
@@ -2429,6 +2430,7 @@ function App() {
   function handleInspectorSideChange(nextSide) {
     if (nextSide === "back" && inspectedCard && !canViewCardBack(inspectedPiece, inspectedCard.id)) return;
     setInspectorCardSide(nextSide);
+    setPreferredInspectorCardSide(nextSide);
   }
 
   function buildLiveBoardState(overrides = {}) {
@@ -3884,10 +3886,13 @@ function App() {
   useEffect(() => {
     setInspectorCardZoom(1);
     setInspectorCardPan({ x: 0, y: 0 });
-    setInspectorCardSide("front");
+    const desiredSide = preferredInspectorCardSide === "back" && inspectedCard && canViewCardBack(inspectedPiece, inspectedCard.id)
+      ? "back"
+      : "front";
+    setInspectorCardSide(desiredSide);
     inspectorCardPointersRef.current.clear();
     inspectorCardGestureRef.current = null;
-  }, [inspectedCardId]);
+  }, [inspectedCardId, preferredInspectorCardSide, inspectedCard, inspectedPiece]);
 
   useEffect(() => {
     inspectorCardZoomRef.current = inspectorCardZoom;
