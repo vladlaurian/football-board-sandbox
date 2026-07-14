@@ -1,24 +1,28 @@
-# Final Board v11.8 — Manual Match Tracker
+# Final Board v11.9 — Compact Sequential Match Tracker
 
 Stable source build of the Football Board Sandbox.
 
-## v11.8 changes
+## v11.9 changes
 
-- Adds a **Tracker** button immediately after **D.A.** in the main control bar.
-- Adds **Tracker Settings** immediately after **Coordonate** in the upper settings bar.
-- Tracker Settings supports configurable:
-  - Attack actions (default 5)
-  - Defense actions (default 4)
-  - Number of turns (default 20)
-- Adds a floating Tracker window that can be moved, resized, minimized, and closed.
-- Tracker window position, size, and settings are remembered locally.
-- **Start Game** asks whether Blue or Red attacks first and automatically selects Turn 1.
-- Each team has its own color-coded manual action circles.
-- The attacking team receives the Attack action count; the defending team receives the Defense action count.
-- Selecting a new turn automatically resets both teams' action circles and alternates Attack / Defense roles.
-- **Reset Trackers** clears both action rows without changing the current turn.
-- The turn tracker is green and supports the configured number of turns.
-- Tracker is local-only in this version and is not synchronized in multiplayer.
+- The floating Tracker can now be stretched horizontally up to the available viewport width.
+- The Tracker minimum height is reduced so it can be used as a thin control bar above the pitch.
+- Blue and Red action sections are more compact, with smaller action circles and reduced vertical spacing.
+- Turn buttons are smaller and stay on one horizontal row; a horizontal scroll remains available when the window is narrow.
+- Completed turns remain visibly highlighted.
+- The current turn has a separate, stronger highlight.
+- Turn progression is sequential: from Turn 3, Turn 4 is available but Turn 5 and later are disabled.
+- Previous turns remain selectable for corrections.
+- Selecting a different permitted turn still resets both action trackers and updates Attack / Defense roles.
+
+## v11.8 tracker foundation
+
+- **Tracker** button immediately after **D.A.** in the main control bar.
+- **Tracker Settings** immediately after **Coordonate** in the upper settings bar.
+- Configurable Attack actions, Defense actions, and number of turns.
+- Floating Tracker window supports move, resize, minimize, close, and local position/size persistence.
+- **Start Game** asks whether Blue or Red attacks first and selects Turn 1 automatically.
+- Manual team-colored action circles, automatic Attack / Defense alternation, automatic reset on turn change, and separate **Reset Trackers**.
+- Tracker remains local-only and is not synchronized in multiplayer.
 
 ## Preserved behavior
 

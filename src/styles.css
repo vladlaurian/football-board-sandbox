@@ -6689,19 +6689,19 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 }
 
 
-/* v11.8 manual match tracker */
-.tracker-panel{position:fixed;z-index:48;min-width:300px;min-height:260px;background:rgba(18,24,31,.97);border:1px solid rgba(255,255,255,.18);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.42);overflow:hidden;display:flex;flex-direction:column;color:#f4f7fa}
+/* v11.9 compact, wide manual match tracker */
+.tracker-panel{position:fixed;z-index:48;min-width:300px;min-height:180px;max-width:calc(100vw - 8px);max-height:calc(100vh - 8px);background:rgba(18,24,31,.97);border:1px solid rgba(255,255,255,.18);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.42);overflow:hidden;display:flex;flex-direction:column;color:#f4f7fa}
 .tracker-panel.minimized{min-height:44px!important}
-.tracker-panel-title{height:44px;min-height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 10px 0 14px;background:rgba(255,255,255,.06);cursor:move;touch-action:none;user-select:none}
-.tracker-panel-actions{display:flex;gap:6px}.tracker-panel-actions button{min-width:30px;height:28px;padding:0}
-.tracker-panel-body{padding:12px;overflow:auto;display:flex;flex-direction:column;gap:14px;min-height:0}
-.tracker-main-actions{display:flex;gap:8px}.tracker-main-actions button{flex:1}.tracker-start-button{font-weight:800}
-.tracker-team-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.tracker-team{border:2px solid currentColor;border-radius:10px;padding:10px;min-width:0}.tracker-team.blue{color:#4aa3ff;background:rgba(31,119,214,.10)}.tracker-team.red{color:#ff6262;background:rgba(214,50,50,.10)}
-.tracker-team-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}.tracker-team-title span{font-size:11px;font-weight:900;letter-spacing:.08em}
-.tracker-action-dots{display:flex;flex-wrap:wrap;gap:8px}.tracker-action-dots button{width:24px;height:24px;min-width:24px;padding:0;border:2px solid currentColor;border-radius:50%;background:transparent}.tracker-action-dots button.used{background:currentColor;box-shadow:inset 0 0 0 4px rgba(18,24,31,.95)}.tracker-action-dots button:disabled{opacity:.45}
-.tracker-turns-block{border:1px solid rgba(75,220,120,.45);border-radius:10px;padding:10px;background:rgba(31,170,85,.08)}.tracker-turns-block>strong{color:#55df82;letter-spacing:.08em}.tracker-turns{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}.tracker-turns button{width:34px;height:30px;padding:0;border-color:rgba(85,223,130,.7);color:#caffd9;background:rgba(85,223,130,.08)}.tracker-turns button.active{background:#45c96f;color:#07150c;border-color:#65ef91;font-weight:900}.tracker-turns button:disabled{opacity:.45}
+.tracker-panel-title{height:38px;min-height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 12px;background:rgba(255,255,255,.06);cursor:move;touch-action:none;user-select:none}
+.tracker-panel-actions{display:flex;gap:5px}.tracker-panel-actions button{min-width:28px;height:26px;padding:0}
+.tracker-panel-body{padding:8px;overflow:auto;display:flex;flex-direction:column;gap:8px;min-height:0}
+.tracker-main-actions{display:flex;gap:6px}.tracker-main-actions button{flex:1;min-height:28px;padding:4px 8px}.tracker-start-button{font-weight:800}
+.tracker-team-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.tracker-team{border:2px solid currentColor;border-radius:8px;padding:6px 8px;min-width:0;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px}.tracker-team.blue{color:#4aa3ff;background:rgba(31,119,214,.10)}.tracker-team.red{color:#ff6262;background:rgba(214,50,50,.10)}
+.tracker-team-title{display:contents}.tracker-team-title strong{font-size:12px}.tracker-team-title span{font-size:9px;font-weight:900;letter-spacing:.07em;grid-column:3}
+.tracker-action-dots{display:flex;flex-wrap:nowrap;gap:5px;min-width:0;grid-column:2;grid-row:1}.tracker-action-dots button{width:18px;height:18px;min-width:18px;padding:0;border:2px solid currentColor;border-radius:50%;background:transparent}.tracker-action-dots button.used{background:currentColor;box-shadow:inset 0 0 0 3px rgba(18,24,31,.95)}.tracker-action-dots button:disabled{opacity:.45}
+.tracker-turns-block{border:1px solid rgba(75,220,120,.45);border-radius:8px;padding:6px 8px;background:rgba(31,170,85,.08);display:flex;align-items:center;gap:8px;min-width:0}.tracker-turns-block>strong{color:#55df82;letter-spacing:.08em;font-size:11px;flex:0 0 auto}.tracker-turns{display:flex;flex-wrap:nowrap;gap:4px;margin-top:0;min-width:0;overflow-x:auto;padding-bottom:1px}.tracker-turns button{width:25px;height:24px;min-width:25px;padding:0;font-size:10px;border-color:rgba(85,223,130,.7);color:#caffd9;background:rgba(85,223,130,.08)}.tracker-turns button.completed{background:rgba(69,201,111,.48);color:#eafff0;border-color:#55df82;font-weight:800}.tracker-turns button.active{background:#45c96f;color:#07150c;border-color:#65ef91;font-weight:900;box-shadow:0 0 0 1px rgba(101,239,145,.55)}.tracker-turns button:disabled{opacity:.28;cursor:not-allowed}
 .tracker-resize{position:absolute;right:0;bottom:0;width:20px;height:20px;cursor:nwse-resize;touch-action:none}.tracker-resize:after{content:"";position:absolute;right:4px;bottom:4px;width:9px;height:9px;border-right:2px solid rgba(255,255,255,.5);border-bottom:2px solid rgba(255,255,255,.5)}
 .tracker-settings-modal{width:min(360px,calc(100vw - 30px));display:flex;flex-direction:column;gap:12px}.tracker-settings-modal label{display:grid;grid-template-columns:1fr 100px;align-items:center;gap:14px;font-weight:700}.tracker-settings-modal input{width:100%;box-sizing:border-box}
 .tracker-start-modal{width:min(380px,calc(100vw - 30px))}.tracker-start-choices{display:grid;grid-template-columns:1fr 1fr;gap:12px}.tracker-start-choices button{padding:14px;font-weight:900}.tracker-start-choices .blue-choice{border-color:#4aa3ff}.tracker-start-choices .red-choice{border-color:#ff6262}
-@media(max-width:700px){.tracker-team-grid{grid-template-columns:1fr}.tracker-panel{max-width:calc(100vw - 12px)}}
+@media(max-width:700px){.tracker-team-grid{grid-template-columns:1fr}.tracker-panel{max-width:calc(100vw - 8px)}.tracker-team{grid-template-columns:auto 1fr auto}}

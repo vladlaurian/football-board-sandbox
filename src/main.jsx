@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v11.8";
+const APP_VERSION = "v11.9";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -6943,9 +6943,11 @@ function App() {
   function onTrackerResizeMove(e) {
     const resize = trackerResizeRef.current;
     if (!resize) return;
+    const maximumWidth = Math.max(300, window.innerWidth - trackerPosition.x - 8);
+    const maximumHeight = Math.max(180, window.innerHeight - trackerPosition.y - 8);
     setTrackerSize({
-      w: clamp(resize.originW + e.clientX - resize.startX, 300, 760),
-      h: clamp(resize.originH + e.clientY - resize.startY, 260, 760),
+      w: clamp(resize.originW + e.clientX - resize.startX, 300, maximumWidth),
+      h: clamp(resize.originH + e.clientY - resize.startY, 180, maximumHeight),
     });
   }
   function onTrackerPointerUp() {
@@ -6963,6 +6965,7 @@ function App() {
   }
   function selectTrackerTurn(turn) {
     if (!trackerGameStarted) return;
+    if (turn > trackerCurrentTurn + 1) return;
     setTrackerCurrentTurn(turn);
     setTrackerUsedActions({ red: 0, blue: 0 });
   }
@@ -7845,7 +7848,12 @@ function App() {
                 <strong>TURN</strong>
                 <div className="tracker-turns">
                   {Array.from({ length: trackerSettings.turns }, (_, index) => index + 1).map(turn => (
-                    <button key={turn} className={turn === trackerCurrentTurn ? "active" : ""} onClick={() => selectTrackerTurn(turn)} disabled={!trackerGameStarted}>{turn}</button>
+                    <button
+                      key={turn}
+                      className={turn === trackerCurrentTurn ? "active" : turn < trackerCurrentTurn ? "completed" : ""}
+                      onClick={() => selectTrackerTurn(turn)}
+                      disabled={!trackerGameStarted || turn > trackerCurrentTurn + 1}
+                    >{turn}</button>
                   ))}
                 </div>
               </div>
