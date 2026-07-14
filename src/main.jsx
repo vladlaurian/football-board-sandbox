@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v12.0";
+const APP_VERSION = "v12.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -6988,10 +6988,10 @@ function App() {
     const resize = trackerResizeRef.current;
     if (!resize) return;
     const maximumWidth = Math.max(300, window.innerWidth - trackerPosition.x - 8);
-    const maximumHeight = Math.max(180, window.innerHeight - trackerPosition.y - 8);
+    const maximumHeight = Math.max(140, window.innerHeight - trackerPosition.y - 8);
     setTrackerSize({
       w: clamp(resize.originW + e.clientX - resize.startX, 300, maximumWidth),
-      h: clamp(resize.originH + e.clientY - resize.startY, 180, maximumHeight),
+      h: clamp(resize.originH + e.clientY - resize.startY, 140, maximumHeight),
     });
   }
   function onTrackerPointerUp() {
@@ -7917,7 +7917,7 @@ function App() {
       {trackerVisible && !lockUI && (
         <div
           className={`tracker-panel ${trackerMinimized ? "minimized" : ""} ${trackerReadOnly ? "read-only" : ""}`}
-          style={{ left: trackerPosition.x, top: trackerPosition.y, width: trackerSize.w, height: trackerMinimized ? 44 : trackerSize.h }}
+          style={{ left: trackerPosition.x, top: trackerPosition.y, width: trackerSize.w, height: trackerMinimized ? 34 : trackerSize.h }}
           onPointerMove={(e) => { onTrackerPointerMove(e); onTrackerResizeMove(e); }}
           onPointerUp={onTrackerPointerUp}
           onPointerCancel={onTrackerPointerUp}

@@ -1,4 +1,4 @@
-# Final Board v12.0 — Compact Sequential Match Tracker
+# Final Board v12.1 — Responsive Compact Multiplayer Tracker
 
 Stable source build of the Football Board Sandbox.
 
@@ -56,3 +56,13 @@ npm run build
 - Guests can move, resize, minimize, hide, and reopen the tracker locally without changing it for anyone else.
 - The host closing the tracker disables it for the entire session.
 - Tracker controls and Inspector flip controls now use explicit cross-browser/touch sizing so they render consistently in Chrome, Firefox, and coarse-pointer environments.
+
+
+## v12.1 — Responsive compact tracker
+
+- Reduced the tracker title bar, window controls, action buttons, team fields, and turn row vertically.
+- Reduced the minimum tracker height so it can be used as a thinner bar above the pitch.
+- Blue/Red, action dots, and Attack/Defense stay on one line while enough width is available.
+- When the tracker becomes narrow, only the action dots move to a second line; team name and role remain aligned at the top.
+- Reduced action-dot and turn-button dimensions while preserving cross-browser and touch normalization.
+- Multiplayer tracker logic and host/guest permissions are unchanged.

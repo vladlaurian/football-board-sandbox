@@ -6834,3 +6834,102 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 
 .tracker-panel.read-only .tracker-action-dots button,
 .tracker-panel.read-only .tracker-turns button { cursor:default; }
+
+
+/* v12.1 compact responsive tracker */
+.tracker-panel {
+  min-height:140px;
+  container-type:inline-size;
+  container-name:match-tracker;
+}
+.tracker-panel.minimized { min-height:34px!important; }
+.tracker-panel-title {
+  height:30px;
+  min-height:30px;
+  padding:0 5px 0 9px;
+  font-size:12px;
+}
+.touch-mode .tracker-panel-actions button,
+.tracker-panel-actions button {
+  min-width:24px!important;
+  width:24px;
+  height:22px!important;
+  min-height:22px!important;
+  max-height:22px!important;
+  padding:0!important;
+  line-height:20px;
+  font-size:12px!important;
+}
+.tracker-panel-actions { gap:3px; }
+.tracker-panel-body {
+  padding:5px;
+  gap:5px;
+}
+.tracker-main-actions { gap:5px; }
+.touch-mode .tracker-main-actions button,
+.tracker-main-actions button {
+  min-height:23px!important;
+  height:23px;
+  padding:2px 6px!important;
+  font-size:11px!important;
+  line-height:17px;
+}
+.tracker-team-grid { gap:5px; }
+.tracker-team {
+  padding:4px 6px;
+  gap:5px;
+  min-height:29px;
+}
+.tracker-team-title strong { font-size:11px; }
+.tracker-team-title span { font-size:8px; }
+.touch-mode .tracker-action-dots button,
+.tracker-action-dots button {
+  width:16px!important;
+  height:16px!important;
+  min-width:16px!important;
+  min-height:16px!important;
+  max-width:16px!important;
+  max-height:16px!important;
+  flex-basis:16px;
+}
+.tracker-action-dots { gap:4px; }
+.tracker-turns-block {
+  padding:4px 6px;
+  gap:6px;
+  min-height:28px;
+}
+.tracker-turns-block>strong { font-size:10px; }
+.tracker-turns { gap:3px; }
+.touch-mode .tracker-turns button,
+.tracker-turns button {
+  width:23px!important;
+  height:21px!important;
+  min-width:23px!important;
+  min-height:21px!important;
+  max-height:21px!important;
+  line-height:19px!important;
+  font-size:9px!important;
+}
+
+/* Keep each team on one row while it fits. Only the action dots drop below
+   when the floating tracker becomes too narrow. */
+@container match-tracker (max-width: 560px) {
+  .tracker-team {
+    grid-template-columns:auto 1fr auto;
+    grid-template-rows:auto auto;
+    row-gap:2px;
+  }
+  .tracker-team-title strong {
+    grid-column:1;
+    grid-row:1;
+  }
+  .tracker-team-title span {
+    grid-column:3;
+    grid-row:1;
+  }
+  .tracker-action-dots {
+    grid-column:1 / 4;
+    grid-row:2;
+    justify-self:center;
+  }
+}
