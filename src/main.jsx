@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v12.3";
+const APP_VERSION = "v12.4";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -7093,11 +7093,17 @@ function App() {
     setTrackerUsedActions(usedActions);
     syncSharedTracker({ usedActions });
   }
+  function changeTrackerPossession() {
+    if (trackerReadOnly || !trackerGameStarted) return;
+    const nextAttackingTeam = trackerStartingTeam === "red" ? "blue" : "red";
+    const usedActions = { red: 0, blue: 0 };
+    setTrackerStartingTeam(nextAttackingTeam);
+    setTrackerUsedActions(usedActions);
+    syncSharedTracker({ startingTeam: nextAttackingTeam, usedActions });
+  }
   function trackerRoleFor(team) {
     if (!trackerGameStarted || trackerCurrentTurn < 1) return "waiting";
-    const starterAttacks = trackerCurrentTurn % 2 === 1;
-    const attackingTeam = starterAttacks ? trackerStartingTeam : (trackerStartingTeam === "red" ? "blue" : "red");
-    return team === attackingTeam ? "attack" : "defense";
+    return team === trackerStartingTeam ? "attack" : "defense";
   }
   function trackerActionCountFor(team) {
     return trackerRoleFor(team) === "attack" ? trackerSettings.attackActions : trackerSettings.defenseActions;
@@ -7967,7 +7973,8 @@ function App() {
           {!trackerMinimized && (
             <div className="tracker-panel-body">
               <div className="tracker-main-actions">
-                <button className="tracker-start-button" onClick={() => setTrackerStartChoiceOpen(true)} disabled={trackerReadOnly}>{trackerGameStarted ? "Restart Game" : "Start Game"}</button>
+                <button className="tracker-primary-button" onClick={() => setTrackerStartChoiceOpen(true)} disabled={trackerReadOnly}>{trackerGameStarted ? "Restart Game" : "Start Game"}</button>
+                <button className="tracker-primary-button" onClick={changeTrackerPossession} disabled={trackerReadOnly || !trackerGameStarted}>Change Possession</button>
                 <button onClick={resetTrackerActions} disabled={trackerReadOnly || !trackerGameStarted}>Reset Trackers</button>
               </div>
               <div className="tracker-team-grid">
