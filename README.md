@@ -38,3 +38,6 @@ npm run dev
 ```bash
 npm run build
 ```
+
+
+v12.5 - Tracker state now persists in cloud saves and restores across devices.

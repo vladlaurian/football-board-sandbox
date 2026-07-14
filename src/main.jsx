@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v12.4";
+const APP_VERSION = "v12.5";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2351,6 +2351,14 @@ function App() {
       touchMode,
       snapToGrid,
       showCoordinates,
+      trackerState: {
+        visible: trackerVisible,
+        gameStarted: trackerGameStarted,
+        startingTeam: trackerStartingTeam,
+        currentTurn: trackerCurrentTurn,
+        usedActions: trackerUsedActions,
+        settings: trackerSettings,
+      },
       ...restOverrides,
       settings: effectiveSettings,
       pieces: sanitizePiecesCardIds(effectivePieces, effectiveCardState, effectiveSettings),
@@ -2390,6 +2398,21 @@ function App() {
     if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
+    if (data.trackerState) {
+      const ts = data.trackerState;
+      const normalizedSettings = {
+        attackActions: clamp(Number(ts.settings?.attackActions) || 5, 1, 30),
+        defenseActions: clamp(Number(ts.settings?.defenseActions) || 4, 1, 30),
+        turns: clamp(Number(ts.settings?.turns) || 20, 1, 100),
+      };
+      setTrackerVisible(!!ts.visible);
+      setTrackerGameStarted(!!ts.gameStarted);
+      setTrackerStartingTeam(ts.startingTeam === "blue" ? "blue" : "red");
+      setTrackerCurrentTurn(clamp(Number(ts.currentTurn) || 0, 0, normalizedSettings.turns));
+      setTrackerUsedActions({ red: Math.max(0, Number(ts.usedActions?.red) || 0), blue: Math.max(0, Number(ts.usedActions?.blue) || 0) });
+      setTrackerSettings(normalizedSettings);
+      setTrackerSettingsDraft(normalizedSettings);
+    }
     if (data.cardState) setCardState(nextCardState);
   }
 
