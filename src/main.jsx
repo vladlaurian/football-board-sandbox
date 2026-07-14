@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v12.1";
+const APP_VERSION = "v12.2";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2398,15 +2398,22 @@ function App() {
     return piece.team === "A" ? "blue" : piece.team === "B" ? "red" : "";
   }
 
-  function canMovePiece(piece) {
+  function canControlPieceStatus(piece) {
+    if (!piece || piece.team === "BALL") return false;
     if (!sessionCode) return true;
+    return myTeam !== "spectator" && pieceTeamKey(piece) === myTeam;
+  }
+
+  function canMovePiece(piece) {
     if (!piece) return false;
+    if (piece.inactive) return false;
+    if (!sessionCode) return true;
     if (piece.team === "BALL") return true;
     return myTeam !== "spectator" && pieceTeamKey(piece) === myTeam;
   }
 
   function canAssignPiece(piece) {
-    return !!piece && piece.team !== "BALL" && canMovePiece(piece);
+    return !!piece && piece.team !== "BALL" && !piece.inactive && canControlPieceStatus(piece);
   }
 
   function isOwnCardPiece(piece) {
@@ -3888,6 +3895,19 @@ function App() {
     setEditLabel("");
   }
 
+  function togglePieceInactive(pieceId) {
+    const currentPiece = (piecesRef.current || pieces).find(piece => piece.id === pieceId);
+    if (!currentPiece || !currentPiece.cardId || !canControlPieceStatus(currentPiece)) return;
+    const nextInactive = !currentPiece.inactive;
+    const nextPieces = ensureBenchReserveCount((piecesRef.current || pieces).map(piece =>
+      piece.id === pieceId ? { ...piece, inactive: nextInactive } : piece
+    ), settingsRef.current);
+    piecesRef.current = nextPieces;
+    setPieces(nextPieces);
+    dragPieceIdRef.current = null;
+    logSnapshot(`${currentPiece.team === "A" ? "Blue" : "Red"} ${getPieceDisplayLabel(currentPiece)} → ${nextInactive ? "INACTIVE" : "ACTIVE"}`, nextPieces);
+  }
+
   const sessionLibraryCards = useMemo(() => Object.values(normalizeSessionCardsById(sessionLibraryById)), [sessionLibraryById]);
   const activeAssignCards = sessionCode ? sessionLibraryCards : (cardState.cards || []);
   const assignPositionOptions = useMemo(() => Array.from(new Set((activeAssignCards || []).map(card => card.position).filter(Boolean))).sort((a, b) => {
@@ -4162,8 +4182,8 @@ function App() {
   const defensiveAreaOverlays = useMemo(() => {
     if (defAreaMode === 0) return [];
     const sourcePieces = defAreaMode === 1
-      ? (inspectedPiece && inspectedPiece.team !== "BALL" ? [inspectedPiece] : [])
-      : pieces.filter(piece => piece.team !== "BALL");
+      ? (inspectedPiece && inspectedPiece.team !== "BALL" && !inspectedPiece.inactive ? [inspectedPiece] : [])
+      : pieces.filter(piece => piece.team !== "BALL" && !piece.inactive);
     return sourcePieces.flatMap(piece => {
       const card = cardById[piece.cardId];
       if (!card || !Array.isArray(card.defensiveArea)) return [];
@@ -7646,8 +7666,8 @@ function App() {
               <div
                 key={p.id}
                 data-coord={withBoardPosition(p, settings).coord}
-                title={`${getPieceDisplayLabel(p)} ${withBoardPosition(p, settings).coord}${p.cardId ? " · Card attached" : ""}`}
-                className={`piece ${p.team === "A" ? "team-a" : p.team === "B" ? "team-b" : "ball"} ${selectedId === p.id ? "selected" : ""} ${p.cardId ? "has-card" : ""}`}
+                title={`${getPieceDisplayLabel(p)} ${withBoardPosition(p, settings).coord}${p.cardId ? " · Card attached" : ""}${p.inactive ? " · INACTIVE" : ""}`}
+                className={`piece ${p.team === "A" ? "team-a" : p.team === "B" ? "team-b" : "ball"} ${selectedId === p.id ? "selected" : ""} ${p.cardId ? "has-card" : ""} ${p.inactive ? "inactive" : ""}`}
                 style={{
                   left: `calc(${p.x} * var(--cell) + var(--cell) * ${p.team === "BALL" ? 0.2 : 0.08})`,
                   top: `calc(${p.y} * var(--cell) + var(--cell) * ${p.team === "BALL" ? 0.2 : 0.08})`,
@@ -7689,7 +7709,7 @@ function App() {
               <>
                 <div className="inspector-piece-line">
                   <span><b>Post puc:</b> {inspectedPiece.label || "—"}</span>
-                  {inspectedCard && !isOwnCardPiece(inspectedPiece) && (
+                  {inspectedCard && !inspectedPiece.inactive && !isOwnCardPiece(inspectedPiece) && (
                     <button
                       type="button"
                       className="inspector-flip-request-btn"
@@ -7707,7 +7727,7 @@ function App() {
                           : "Request Flip"}
                     </button>
                   )}
-                  {inspectedCard && isOwnCardPiece(inspectedPiece) && Object.keys(cardRevealPermissions?.[inspectedCard.id] || {}).length > 0 && (
+                  {inspectedCard && !inspectedPiece.inactive && isOwnCardPiece(inspectedPiece) && Object.keys(cardRevealPermissions?.[inspectedCard.id] || {}).length > 0 && (
                     <button
                       type="button"
                       className="inspector-flip-request-btn"
@@ -7716,7 +7736,7 @@ function App() {
                       Flip Allowed
                     </button>
                   )}
-                  {inspectedCard && isOwnCardPiece(inspectedPiece) && cardVisibilityMode === "private" && Object.keys(cardRevealRequests?.[inspectedCard.id] || {})
+                  {inspectedCard && !inspectedPiece.inactive && isOwnCardPiece(inspectedPiece) && cardVisibilityMode === "private" && Object.keys(cardRevealRequests?.[inspectedCard.id] || {})
                     .filter(viewerUid => !cardRevealPermissions?.[inspectedCard.id]?.[viewerUid])
                     .map(viewerUid => (
                     <button
@@ -7729,7 +7749,9 @@ function App() {
                     </button>
                   ))}
                 </div>
-                {inspectedCard ? (
+                {inspectedPiece.inactive ? (
+                  <div className="inspector-inactive-state" role="status">INACTIVE</div>
+                ) : inspectedCard ? (
                   <div className="inspector-card-zoom-block">
                     <div className="inspector-card-zoom-tools">
                       <span>Zoom {Math.round(inspectorCardZoom * 100)}%</span>
@@ -7764,6 +7786,11 @@ function App() {
                   </div>
                 ) : <div className="card-preview empty">Niciun card atașat</div>}
                 <div className="inspector-actions">
+                  {inspectedCard && canControlPieceStatus(inspectedPiece) && (
+                    <button className={`piece-status-btn ${inspectedPiece.inactive ? "activate" : "deactivate"}`} onClick={() => togglePieceInactive(inspectedPiece.id)}>
+                      {inspectedPiece.inactive ? "ACTIVE" : "INACTIVE"}
+                    </button>
+                  )}
                   {canAssignPiece(inspectedPiece) && <button onClick={() => setAssignTarget({ type: "piece", pieceId: inspectedPiece.id })}>Assign Card</button>}
                   {inspectedCard && canAssignPiece(inspectedPiece) && !sessionCode && <button onClick={() => { setCardsPanelOpen(true); setCardsView("library"); setEditingCardId(inspectedCard.id); }}>Edit Card</button>}
                   {inspectedCard && canAssignPiece(inspectedPiece) && <button onClick={() => removePieceCard(inspectedPiece.id)}>Remove Card</button>}

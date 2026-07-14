@@ -66,3 +66,14 @@ npm run build
 - When the tracker becomes narrow, only the action dots move to a second line; team name and role remain aligned at the top.
 - Reduced action-dot and turn-button dimensions while preserving cross-browser and touch normalization.
 - Multiplayer tracker logic and host/guest permissions are unchanged.
+
+## v12.2 — Inactive players
+
+- Added an `INACTIVE` / `ACTIVE` control in Inspector for pucks with attached cards.
+- In multiplayer, each participant can change the status only for pucks owned by their team.
+- Inactive pucks remain selectable but cannot be dragged.
+- Inactive pucks are clearly translucent on the board.
+- Defensive areas are never rendered for inactive players, in either selected-player or all-player D.A. mode.
+- Inspector hides the card while the player is inactive and shows a large `INACTIVE` status instead.
+- Reactivating the player restores the card, puck appearance, drag behavior, and defensive-area behavior.
+- Inactive state is stored on the puck and is included in normal local, cloud, scenario, and multiplayer board synchronization.

@@ -6933,3 +6933,35 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
     justify-self:center;
   }
 }
+
+
+/* v12.2 — inactive player state */
+.piece.inactive {
+  opacity: .34;
+  filter: saturate(.45) brightness(.88);
+  cursor: pointer;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.28), 0 3px 8px rgba(0,0,0,.28);
+}
+.piece.inactive:active { cursor: pointer; }
+.piece.inactive.has-card { box-shadow: 0 0 0 2px rgba(255,255,255,.3), 0 3px 8px rgba(0,0,0,.28); }
+.inspector-inactive-state {
+  width: 100%;
+  min-height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 10px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+  color: rgba(255,255,255,.82);
+  font-size: clamp(28px, 8vw, 58px);
+  font-weight: 950;
+  letter-spacing: .08em;
+  line-height: 1;
+  overflow: hidden;
+  text-align: center;
+}
+.inspector-actions .piece-status-btn { font-weight: 900; letter-spacing: .04em; }
+.inspector-actions .piece-status-btn.deactivate { border-color: rgba(255,110,110,.5); background: rgba(120,25,25,.42); }
+.inspector-actions .piece-status-btn.activate { border-color: rgba(100,230,140,.5); background: rgba(20,100,55,.45); }
