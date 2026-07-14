@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v11.5";
+const APP_VERSION = "v11.7";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -7492,7 +7492,9 @@ function App() {
                       Flip Allowed
                     </button>
                   )}
-                  {inspectedCard && isOwnCardPiece(inspectedPiece) && cardVisibilityMode === "private" && Object.keys(cardRevealRequests?.[inspectedCard.id] || {}).map(viewerUid => (
+                  {inspectedCard && isOwnCardPiece(inspectedPiece) && cardVisibilityMode === "private" && Object.keys(cardRevealRequests?.[inspectedCard.id] || {})
+                    .filter(viewerUid => !cardRevealPermissions?.[inspectedCard.id]?.[viewerUid])
+                    .map(viewerUid => (
                     <button
                       type="button"
                       className="inspector-flip-request-btn"

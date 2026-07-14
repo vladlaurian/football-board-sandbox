@@ -1,4 +1,4 @@
-# Final Board v11.5 — Measured Special Ability Auto-Fit
+# Final Board v11.7 — Inspector Face Memory and Flip Permission UI Fix
 
 Stable build based on v11.0.
 
@@ -77,3 +77,16 @@ Native Storage V2 backup remains unchanged.
 ## v11.5
 - Special Ability now auto-fits from real measured overflow, while preserving safe descenders.
 - End Session blocks pending session writes, marks the session as ending, disconnects guests, deletes session cards, and invalidates the code.
+
+## v11.6
+- Inspector remembers the last side viewed globally: Front or Back.
+- Selecting another assigned card opens the same side when access rules allow it.
+- In private multiplayer mode, cards without back permission safely fall back to Front.
+- Existing permissions are respected, so an approved card opens on Back when Back was the last side used.
+
+## v11.7
+- Fixed the owner-side permission controls so `Allow Flip` disappears immediately when that viewer already has permission.
+- `Flip Allowed` remains as the single disabled status button after approval.
+- The UI now guards against delayed or stale request data by excluding already-approved viewers from pending requests.
+- Updated the visible sandbox version and package metadata to v11.7.
+
