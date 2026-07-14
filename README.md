@@ -1,92 +1,43 @@
-# Final Board v11.7 — Inspector Face Memory and Flip Permission UI Fix
+# Final Board v11.8 — Manual Match Tracker
 
-Stable build based on v11.0.
+Stable source build of the Football Board Sandbox.
 
-## Changes
+## v11.8 changes
 
-- Special Ability now keeps its normal configured font size until the rendered text actually overflows its layout box.
-- On overflow, the shared card renderer measures the real available space and reduces the font only as much as necessary.
-- The same measured fit applies to duplicated Special Ability zones.
-- Glyph-safe line height and bottom reserve keep `g`, `j`, `p`, `q`, and `y` visible after shrinking.
-- Editor, Inspector, and Export continue to use the same renderer.
+- Adds a **Tracker** button immediately after **D.A.** in the main control bar.
+- Adds **Tracker Settings** immediately after **Coordonate** in the upper settings bar.
+- Tracker Settings supports configurable:
+  - Attack actions (default 5)
+  - Defense actions (default 4)
+  - Number of turns (default 20)
+- Adds a floating Tracker window that can be moved, resized, minimized, and closed.
+- Tracker window position, size, and settings are remembered locally.
+- **Start Game** asks whether Blue or Red attacks first and automatically selects Turn 1.
+- Each team has its own color-coded manual action circles.
+- The attacking team receives the Attack action count; the defending team receives the Defense action count.
+- Selecting a new turn automatically resets both teams' action circles and alternates Attack / Defense roles.
+- **Reset Trackers** clears both action rows without changing the current turn.
+- The turn tracker is green and supports the configured number of turns.
+- Tracker is local-only in this version and is not synchronized in multiplayer.
 
+## Preserved behavior
 
-- Keeps **Reset Position** and **Reset Cards** behavior from v11.0.
-- Removes the complete multiplayer card library from `/sessions/{sessionId}`.
-- Stores session card copies separately in `/sessions/{sessionId}/cards/{cardId}`.
-- Loads session cards through a dedicated realtime listener.
-- Live board saves no longer resend the full card library.
-- Adds visible error handling for session creation.
-- **Leave** only exits locally; the session code remains valid.
-- **End Session** is available to the host and permanently deletes the session plus all session-card documents.
-- Browser close or refresh does not end a session.
-- Sessions expire after 24 hours without real session activity. Join attempts detect and clean expired sessions.
-- Session activity refreshes `expiresAt`; presence heartbeats do not extend session lifetime.
-- Personal cards remain unchanged in `/users/{uid}/footballBoardCards/{cardId}`.
+- Inspector remembers the last viewed Front / Back face.
+- Back-face permissions remain enforced in private multiplayer sessions.
+- `Allow Flip` disappears after approval and is replaced by disabled `Flip Allowed`.
+- Special Ability measured auto-fit and glyph-safe rendering remain unchanged.
+- Multiplayer session cards remain stored in `/sessions/{sessionId}/cards/{cardId}`.
+- Host End Session protection, session expiry, Storage V2 backups, card editor, exports, and board tools remain unchanged.
 
-## Required Firestore access
+## Run
 
-The existing session rules must also cover the cards subcollection. Example authenticated rule:
-
-```text
-match /sessions/{sessionId} {
-  allow read, write: if request.auth != null;
-
-  match /cards/{cardId} {
-    allow read, write: if request.auth != null;
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-Use rules appropriate to the deployed project if access is more restrictive.
+## Production build
 
-## Expiration and cleanup
-
-- Host **End Session** performs complete deletion immediately.
-- A session untouched for 24 hours is treated as expired.
-- When an expired code is used, the client deletes its card documents and parent session document.
-- `expiresAt` is included so a server-side TTL or scheduled cleanup can be added later without changing the data model. Firestore TTL alone does not delete subcollections, so complete unattended cleanup would require a backend cleanup function.
-
-## Backup format
-
-Native Storage V2 backup remains unchanged.
-
-
-## v11.1.1 hotfix
-- Moved `timestampToMillis` to module scope so session expiry checks work during guest join.
-- Fixes `ReferenceError: timestampToMillis is not defined`.
-
-
-## v11.3 front-name and Special Ability fixes
-
-- Replaced the Preferred Foot-only descender fix with one canonical glyph-safe rule shared by card text.
-- Single-line name, position, section title, stat label/value, duplicate field and Preferred Foot text now preserve descenders such as g, j, p, q and y.
-- Special Ability keeps multiline wrapping with a safe minimum line box.
-- The same CardVisualCanvas renderer remains the source for Editor, Inspector and Export.
-- No editor-only, inspector-only or export-only text correction was introduced.
-
-
-## v11.3 changes
-
-- Added a front-name-only vertical font cap so large names keep full descenders without changing back-card name rendering.
-- Restored progressive Special Ability text fitting with five density levels based on content length.
-- Applied the same Special Ability fitting to duplicated Special Ability blocks.
-- Kept the shared card renderer, so Editor, Inspector and Export use identical rules.
-
-
-## v11.5
-- Special Ability now auto-fits from real measured overflow, while preserving safe descenders.
-- End Session blocks pending session writes, marks the session as ending, disconnects guests, deletes session cards, and invalidates the code.
-
-## v11.6
-- Inspector remembers the last side viewed globally: Front or Back.
-- Selecting another assigned card opens the same side when access rules allow it.
-- In private multiplayer mode, cards without back permission safely fall back to Front.
-- Existing permissions are respected, so an approved card opens on Back when Back was the last side used.
-
-## v11.7
-- Fixed the owner-side permission controls so `Allow Flip` disappears immediately when that viewer already has permission.
-- `Flip Allowed` remains as the single disabled status button after approval.
-- The UI now guards against delayed or stale request data by excluding already-approved viewers from pending requests.
-- Updated the visible sandbox version and package metadata to v11.7.
-
+```bash
+npm run build
+```

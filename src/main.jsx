@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v11.7";
+const APP_VERSION = "v11.8";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2061,6 +2061,35 @@ function App() {
   const [rulerPanelSize, setRulerPanelSize] = useState({ w: 280, h: 230 });
   const [rulerPanelDragging, setRulerPanelDragging] = useState(null);
   const [rulerPanelResizing, setRulerPanelResizing] = useState(null);
+  const [trackerVisible, setTrackerVisible] = useState(false);
+  const [trackerMinimized, setTrackerMinimized] = useState(false);
+  const [trackerSettingsOpen, setTrackerSettingsOpen] = useState(false);
+  const [trackerSettings, setTrackerSettings] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("football-board-tracker-settings-v1") || "null");
+      return {
+        attackActions: clamp(Number(saved?.attackActions) || 5, 1, 30),
+        defenseActions: clamp(Number(saved?.defenseActions) || 4, 1, 30),
+        turns: clamp(Number(saved?.turns) || 20, 1, 100),
+      };
+    } catch { return { attackActions: 5, defenseActions: 4, turns: 20 }; }
+  });
+  const [trackerSettingsDraft, setTrackerSettingsDraft] = useState(trackerSettings);
+  const [trackerPosition, setTrackerPosition] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("football-board-tracker-position-v1")) || { x: 24, y: 420 }; }
+    catch { return { x: 24, y: 420 }; }
+  });
+  const [trackerSize, setTrackerSize] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("football-board-tracker-size-v1")) || { w: 390, h: 390 }; }
+    catch { return { w: 390, h: 390 }; }
+  });
+  const [trackerDragging, setTrackerDragging] = useState(null);
+  const [trackerResizing, setTrackerResizing] = useState(null);
+  const [trackerStartChoiceOpen, setTrackerStartChoiceOpen] = useState(false);
+  const [trackerGameStarted, setTrackerGameStarted] = useState(false);
+  const [trackerStartingTeam, setTrackerStartingTeam] = useState("red");
+  const [trackerCurrentTurn, setTrackerCurrentTurn] = useState(0);
+  const [trackerUsedActions, setTrackerUsedActions] = useState({ red: 0, blue: 0 });
   const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
   const [lockUI, setLockUI] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -2081,6 +2110,8 @@ function App() {
   const clientIdRef = useRef(`client_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
   const dicePanelDragRef = useRef(null);
   const dicePanelResizeRef = useRef(null);
+  const trackerDragRef = useRef(null);
+  const trackerResizeRef = useRef(null);
   const diceNoticeTimerRef = useRef(null);
   const diceCooldownTimerRef = useRef(null);
   const diceCooldownUntilRef = useRef(0);
@@ -6876,6 +6907,82 @@ function App() {
     });
   }
 
+  useEffect(() => {
+    localStorage.setItem("football-board-tracker-settings-v1", JSON.stringify(trackerSettings));
+  }, [trackerSettings]);
+  useEffect(() => {
+    localStorage.setItem("football-board-tracker-position-v1", JSON.stringify(trackerPosition));
+  }, [trackerPosition]);
+  useEffect(() => {
+    localStorage.setItem("football-board-tracker-size-v1", JSON.stringify(trackerSize));
+  }, [trackerSize]);
+
+  function onTrackerPointerDown(e) {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const drag = { startX: e.clientX, startY: e.clientY, originX: trackerPosition.x, originY: trackerPosition.y };
+    trackerDragRef.current = drag;
+    setTrackerDragging(drag);
+  }
+  function onTrackerPointerMove(e) {
+    const drag = trackerDragRef.current;
+    if (!drag) return;
+    setTrackerPosition({
+      x: clamp(drag.originX + e.clientX - drag.startX, 0, window.innerWidth - 80),
+      y: clamp(drag.originY + e.clientY - drag.startY, 0, window.innerHeight - 50),
+    });
+  }
+  function onTrackerResizeDown(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const resize = { startX: e.clientX, startY: e.clientY, originW: trackerSize.w, originH: trackerSize.h };
+    trackerResizeRef.current = resize;
+    setTrackerResizing(resize);
+  }
+  function onTrackerResizeMove(e) {
+    const resize = trackerResizeRef.current;
+    if (!resize) return;
+    setTrackerSize({
+      w: clamp(resize.originW + e.clientX - resize.startX, 300, 760),
+      h: clamp(resize.originH + e.clientY - resize.startY, 260, 760),
+    });
+  }
+  function onTrackerPointerUp() {
+    trackerDragRef.current = null;
+    trackerResizeRef.current = null;
+    setTrackerDragging(null);
+    setTrackerResizing(null);
+  }
+  function startTrackedGame(team) {
+    setTrackerStartingTeam(team);
+    setTrackerCurrentTurn(1);
+    setTrackerUsedActions({ red: 0, blue: 0 });
+    setTrackerGameStarted(true);
+    setTrackerStartChoiceOpen(false);
+  }
+  function selectTrackerTurn(turn) {
+    if (!trackerGameStarted) return;
+    setTrackerCurrentTurn(turn);
+    setTrackerUsedActions({ red: 0, blue: 0 });
+  }
+  function resetTrackerActions() {
+    setTrackerUsedActions({ red: 0, blue: 0 });
+  }
+  function trackerRoleFor(team) {
+    if (!trackerGameStarted || trackerCurrentTurn < 1) return "waiting";
+    const starterAttacks = trackerCurrentTurn % 2 === 1;
+    const attackingTeam = starterAttacks ? trackerStartingTeam : (trackerStartingTeam === "red" ? "blue" : "red");
+    return team === attackingTeam ? "attack" : "defense";
+  }
+  function trackerActionCountFor(team) {
+    return trackerRoleFor(team) === "attack" ? trackerSettings.attackActions : trackerSettings.defenseActions;
+  }
+  function toggleTrackerAction(team, index) {
+    if (!trackerGameStarted) return;
+    setTrackerUsedActions(current => ({ ...current, [team]: current[team] === index + 1 ? index : index + 1 }));
+  }
+
   function onRulerPanelPointerDown(e) {
     e.preventDefault();
     setRulerPanelDragging({
@@ -7173,6 +7280,9 @@ function App() {
         <button className={showCoordinates ? "toggle-on" : ""} onClick={() => setShowCoordinates(v => !v)}>
           Coordonate
         </button>
+        <button onClick={() => { setTrackerSettingsDraft(trackerSettings); setTrackerSettingsOpen(true); }}>
+          Tracker Settings
+        </button>
       </div>
       <div className="controlbar">
         <div className="formation-control blue">
@@ -7242,6 +7352,9 @@ function App() {
         </button>
         <button className={defAreaMode ? "toggle-on" : ""} onClick={() => setDefAreaMode(v => (v + 1) % 3)}>
           {defAreaButtonLabel}
+        </button>
+        <button className={trackerVisible ? "toggle-on" : ""} onClick={() => { setTrackerVisible(v => !v); if (!trackerVisible) setTrackerMinimized(false); }}>
+          Tracker
         </button>
       </div>
 
@@ -7690,6 +7803,58 @@ function App() {
         </div>
       )}
 
+      {trackerVisible && !lockUI && (
+        <div
+          className={`tracker-panel ${trackerMinimized ? "minimized" : ""}`}
+          style={{ left: trackerPosition.x, top: trackerPosition.y, width: trackerSize.w, height: trackerMinimized ? 44 : trackerSize.h }}
+          onPointerMove={(e) => { onTrackerPointerMove(e); onTrackerResizeMove(e); }}
+          onPointerUp={onTrackerPointerUp}
+          onPointerCancel={onTrackerPointerUp}
+        >
+          <div className="tracker-panel-title" onPointerDown={onTrackerPointerDown}>
+            <strong>TRACKER</strong>
+            <div className="tracker-panel-actions">
+              <button onPointerDown={e => e.stopPropagation()} onClick={() => setTrackerMinimized(v => !v)}>{trackerMinimized ? "□" : "—"}</button>
+              <button onPointerDown={e => e.stopPropagation()} onClick={() => setTrackerVisible(false)}>×</button>
+            </div>
+          </div>
+          {!trackerMinimized && (
+            <div className="tracker-panel-body">
+              <div className="tracker-main-actions">
+                <button className="tracker-start-button" onClick={() => setTrackerStartChoiceOpen(true)}>{trackerGameStarted ? "Restart Game" : "Start Game"}</button>
+                <button onClick={resetTrackerActions} disabled={!trackerGameStarted}>Reset Trackers</button>
+              </div>
+              <div className="tracker-team-grid">
+                {["blue", "red"].map(team => {
+                  const role = trackerRoleFor(team);
+                  const count = role === "waiting" ? (team === "red" ? trackerSettings.attackActions : trackerSettings.defenseActions) : trackerActionCountFor(team);
+                  const used = trackerUsedActions[team];
+                  return (
+                    <section key={team} className={`tracker-team ${team}`}>
+                      <div className="tracker-team-title"><strong>{team.toUpperCase()}</strong><span>{role === "attack" ? "ATTACK" : role === "defense" ? "DEFENSE" : "WAITING"}</span></div>
+                      <div className="tracker-action-dots">
+                        {Array.from({ length: count }, (_, index) => (
+                          <button key={index} aria-label={`${team} action ${index + 1}`} className={index < used ? "used" : ""} onClick={() => toggleTrackerAction(team, index)} disabled={!trackerGameStarted} />
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+              <div className="tracker-turns-block">
+                <strong>TURN</strong>
+                <div className="tracker-turns">
+                  {Array.from({ length: trackerSettings.turns }, (_, index) => index + 1).map(turn => (
+                    <button key={turn} className={turn === trackerCurrentTurn ? "active" : ""} onClick={() => selectTrackerTurn(turn)} disabled={!trackerGameStarted}>{turn}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {!trackerMinimized && <div className="tracker-resize" onPointerDown={onTrackerResizeDown} />}
+        </div>
+      )}
+
       {diceNotice && (
         <div className={`dice-notice ${diceNotice.team} ${diceNotice.result === 1 ? "critical-one" : diceNotice.result === diceNotice.dieType ? "critical-max" : ""}`}>
           {diceNotice.team === "blue" ? "BLUE" : "RED"} rolled {diceNotice.result} <span className="dice-notice-die">(D{diceNotice.dieType})</span>
@@ -7724,6 +7889,31 @@ function App() {
             >
               Join Session
             </button>
+          </div>
+        </div>
+      )}
+
+      {trackerSettingsOpen && (
+        <div className="modal-backdrop" onPointerDown={() => setTrackerSettingsOpen(false)}>
+          <div className="modal tracker-settings-modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="modal-title"><strong>Tracker Settings</strong><button className="icon-btn" onClick={() => setTrackerSettingsOpen(false)}>×</button></div>
+            <label>Attack Actions<input type="number" min="1" max="30" value={trackerSettingsDraft.attackActions} onChange={e => setTrackerSettingsDraft(v => ({ ...v, attackActions: clamp(Number(e.target.value) || 1, 1, 30) }))} /></label>
+            <label>Defense Actions<input type="number" min="1" max="30" value={trackerSettingsDraft.defenseActions} onChange={e => setTrackerSettingsDraft(v => ({ ...v, defenseActions: clamp(Number(e.target.value) || 1, 1, 30) }))} /></label>
+            <label>Turns<input type="number" min="1" max="100" value={trackerSettingsDraft.turns} onChange={e => setTrackerSettingsDraft(v => ({ ...v, turns: clamp(Number(e.target.value) || 1, 1, 100) }))} /></label>
+            <button className="save-label" onClick={() => { setTrackerSettings(trackerSettingsDraft); setTrackerCurrentTurn(current => Math.min(current, trackerSettingsDraft.turns)); resetTrackerActions(); setTrackerSettingsOpen(false); }}>Save</button>
+          </div>
+        </div>
+      )}
+
+      {trackerStartChoiceOpen && (
+        <div className="modal-backdrop" onPointerDown={() => setTrackerStartChoiceOpen(false)}>
+          <div className="modal tracker-start-modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="modal-title"><strong>Who starts?</strong><button className="icon-btn" onClick={() => setTrackerStartChoiceOpen(false)}>×</button></div>
+            <p>Choose the team that attacks first.</p>
+            <div className="tracker-start-choices">
+              <button className="blue-choice" onClick={() => startTrackedGame("blue")}>Blue Team</button>
+              <button className="red-choice" onClick={() => startTrackedGame("red")}>Red Team</button>
+            </div>
           </div>
         </div>
       )}
