@@ -6769,69 +6769,6 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 }
 .tracker-panel button:disabled { cursor:not-allowed; }
 
-/* v12.0 cross-browser/touch normalization for tracker and Inspector flip controls */
-.tracker-panel button,
-.inspector-flip-request-btn {
-  -webkit-appearance: none;
-  appearance: none;
-  box-sizing: border-box;
-  font-family: inherit;
-}
-.touch-mode .tracker-panel button { font-size: inherit; }
-@media (pointer: coarse) {
-  .tracker-panel button { font-size: inherit; }
-}
-.touch-mode .tracker-action-dots button,
-.tracker-action-dots button {
-  width:18px !important;
-  height:18px !important;
-  min-width:18px !important;
-  min-height:18px !important;
-  max-width:18px !important;
-  max-height:18px !important;
-  padding:0 !important;
-  line-height:1 !important;
-  aspect-ratio:1 / 1;
-  flex:0 0 18px;
-}
-.touch-mode .tracker-turns button,
-.tracker-turns button {
-  width:25px !important;
-  height:24px !important;
-  min-width:25px !important;
-  min-height:24px !important;
-  max-height:24px !important;
-  padding:0 !important;
-  line-height:22px !important;
-  font-size:10px !important;
-}
-.touch-mode .tracker-panel-actions button,
-.tracker-panel-actions button {
-  min-width:28px !important;
-  width:28px;
-  height:26px !important;
-  min-height:26px !important;
-  padding:0 !important;
-  line-height:24px;
-}
-.touch-mode .tracker-main-actions button,
-.tracker-main-actions button {
-  min-height:28px !important;
-  height:28px;
-  padding:4px 8px !important;
-  font-size:12px !important;
-  line-height:18px;
-}
-.inspector-flip-request-btn {
-  min-height:28px !important;
-  height:28px;
-  padding:5px 9px !important;
-  font-size:12px !important;
-  line-height:16px;
-  border-radius:7px;
-}
-.tracker-panel button:disabled { cursor:not-allowed; }
-
 .tracker-panel.read-only .tracker-action-dots button,
 .tracker-panel.read-only .tracker-turns button { cursor:default; }
 
@@ -6962,6 +6899,15 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   overflow: hidden;
   text-align: center;
 }
-.inspector-actions .piece-status-btn { font-weight: 900; letter-spacing: .04em; }
-.inspector-actions .piece-status-btn.deactivate { border-color: rgba(255,110,110,.5); background: rgba(120,25,25,.42); }
-.inspector-actions .piece-status-btn.activate { border-color: rgba(100,230,140,.5); background: rgba(20,100,55,.45); }
+.inspector-piece-line .piece-status-btn {
+  font-weight: 900;
+  letter-spacing: .04em;
+}
+.inspector-piece-line .piece-status-btn.deactivate {
+  border-color: rgba(255,110,110,.5);
+  background: rgba(120,25,25,.42);
+}
+.inspector-piece-line .piece-status-btn.activate {
+  border-color: rgba(100,230,140,.5);
+  background: rgba(20,100,55,.45);
+}

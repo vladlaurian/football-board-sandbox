@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v12.2";
+const APP_VERSION = "v12.3";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -3905,6 +3905,10 @@ function App() {
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
     dragPieceIdRef.current = null;
+    if (!nextInactive && selectedId === pieceId) {
+      setInspectorCardZoom(1);
+      setInspectorCardPan({ x: 0, y: 0 });
+    }
     logSnapshot(`${currentPiece.team === "A" ? "Blue" : "Red"} ${getPieceDisplayLabel(currentPiece)} → ${nextInactive ? "INACTIVE" : "ACTIVE"}`, nextPieces);
   }
 
@@ -4016,7 +4020,7 @@ function App() {
       observer.disconnect();
       window.removeEventListener("resize", updateFit);
     };
-  }, [inspectorVisible, inspectorMinimized, inspectorSize.w, inspectorSize.h, inspectedCardId]);
+  }, [inspectorVisible, inspectorMinimized, inspectorSize.w, inspectorSize.h, inspectedCardId, inspectedPiece?.inactive]);
 
   function clampInspectorCardZoom(value) {
     const numeric = Number(value);
@@ -7709,6 +7713,15 @@ function App() {
               <>
                 <div className="inspector-piece-line">
                   <span><b>Post puc:</b> {inspectedPiece.label || "—"}</span>
+                  {inspectedCard && canControlPieceStatus(inspectedPiece) && (
+                    <button
+                      type="button"
+                      className={`inspector-flip-request-btn piece-status-btn ${inspectedPiece.inactive ? "activate" : "deactivate"}`}
+                      onClick={() => togglePieceInactive(inspectedPiece.id)}
+                    >
+                      {inspectedPiece.inactive ? "ACTIVE" : "INACTIVE"}
+                    </button>
+                  )}
                   {inspectedCard && !inspectedPiece.inactive && !isOwnCardPiece(inspectedPiece) && (
                     <button
                       type="button"
@@ -7786,11 +7799,6 @@ function App() {
                   </div>
                 ) : <div className="card-preview empty">Niciun card atașat</div>}
                 <div className="inspector-actions">
-                  {inspectedCard && canControlPieceStatus(inspectedPiece) && (
-                    <button className={`piece-status-btn ${inspectedPiece.inactive ? "activate" : "deactivate"}`} onClick={() => togglePieceInactive(inspectedPiece.id)}>
-                      {inspectedPiece.inactive ? "ACTIVE" : "INACTIVE"}
-                    </button>
-                  )}
                   {canAssignPiece(inspectedPiece) && <button onClick={() => setAssignTarget({ type: "piece", pieceId: inspectedPiece.id })}>Assign Card</button>}
                   {inspectedCard && canAssignPiece(inspectedPiece) && !sessionCode && <button onClick={() => { setCardsPanelOpen(true); setCardsView("library"); setEditingCardId(inspectedCard.id); }}>Edit Card</button>}
                   {inspectedCard && canAssignPiece(inspectedPiece) && <button onClick={() => removePieceCard(inspectedPiece.id)}>Remove Card</button>}
