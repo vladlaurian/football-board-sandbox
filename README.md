@@ -1,6 +1,14 @@
-# Final Board v12.5 — Tracker Persistence Fix
+# Final Board v12.6 — Ruler Session Cleanup Fix
 
 Stable source build of the Football Board Sandbox.
+
+## v12.6 changes
+
+- Fixed intermittent ruler panels that could remain visible and become impossible to close after a multiplayer session ended, disappeared, or was left.
+- Centralized local ruler cleanup in `leaveSession()` so every session-exit path clears ruler visibility, ownership, measurement points, drag state, and resize state.
+- Reset the session-ending guard only after the local session code has been cleared, preserving protection during teardown without blocking later offline ruler use.
+- Added a visible session status when closing the shared ruler fails, while preserving the existing multiplayer ownership and Firestore authority model.
+- Shared ruler payloads, host/guest permissions, board state, tracker, cards, inspector, and export flows remain unchanged.
 
 ## v12.5 changes
 

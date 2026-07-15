@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v12.5";
+const APP_VERSION = "v12.6";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2177,6 +2177,10 @@ function App() {
   const [sessionCode, setSessionCode] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [sessionStatus, setSessionStatus] = useState("Offline");
+
+  useEffect(() => {
+    if (!sessionCode) sessionEndingRef.current = false;
+  }, [sessionCode]);
   const [sessionPlayers, setSessionPlayers] = useState(0);
   const [myTeam, setMyTeam] = useState("spectator");
   const [sessionOwnerUid, setSessionOwnerUid] = useState("");
@@ -2916,6 +2920,13 @@ function App() {
     setSessionParticipants({});
     setTrackerSharedEnabled(false);
     trackerSharedEnabledRef.current = false;
+    setMeasureMode(false);
+    setSharedRulerOwnerUid("");
+    setSharedRulerOwnerTeam("");
+    setMeasureStart(null);
+    setMeasureEnd(null);
+    setRulerPanelDragging(null);
+    setRulerPanelResizing(null);
     dragPieceIdRef.current = null;
     setSessionStatus(finalStatus);
   }
@@ -6807,6 +6818,7 @@ function App() {
       setMeasureEnd(null);
     } catch (error) {
       console.error("Could not close shared ruler", error);
+      setSessionStatus("Could not close ruler");
     }
   }
 
