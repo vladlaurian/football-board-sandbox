@@ -1631,6 +1631,31 @@ function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
 
+function normalizeTrackerSnapshot(raw = {}) {
+  const rawSettings = raw.settings || {};
+  const settings = {
+    attackActions: clamp(Number(rawSettings.attackActions) || 5, 1, 30),
+    defenseActions: clamp(Number(rawSettings.defenseActions) || 4, 1, 30),
+    turns: clamp(Number(rawSettings.turns) || 20, 1, 100),
+  };
+  const startingTeam = raw.startingTeam === "blue" ? "blue" : "red";
+  const attackTeam = startingTeam;
+  const redLimit = attackTeam === "red" ? settings.attackActions : settings.defenseActions;
+  const blueLimit = attackTeam === "blue" ? settings.attackActions : settings.defenseActions;
+
+  return {
+    enabled: !!raw.enabled,
+    gameStarted: !!raw.gameStarted,
+    startingTeam,
+    currentTurn: clamp(Number(raw.currentTurn) || 0, 0, settings.turns),
+    usedActions: {
+      red: clamp(Number(raw.usedActions?.red) || 0, 0, redLimit),
+      blue: clamp(Number(raw.usedActions?.blue) || 0, 0, blueLimit),
+    },
+    settings,
+  };
+}
+
 function forceOddDirectional(value, previousValue, fallback = 1) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
@@ -2332,12 +2357,24 @@ function App() {
     return cards;
   }
 
+  function buildPersistentTrackerSnapshot(overrides = {}) {
+    return normalizeTrackerSnapshot({
+      enabled: overrides.enabled ?? (sessionCode ? trackerSharedEnabled : trackerVisible),
+      gameStarted: overrides.gameStarted ?? trackerGameStarted,
+      startingTeam: overrides.startingTeam ?? trackerStartingTeam,
+      currentTurn: overrides.currentTurn ?? trackerCurrentTurn,
+      usedActions: overrides.usedActions ?? trackerUsedActions,
+      settings: overrides.settings ?? trackerSettings,
+    });
+  }
+
   function buildCloudState(overrides = {}) {
     const effectiveSettings = overrides.settings ? normalizeSettingsForApp(overrides.settings) : settingsRef.current;
     const effectiveCardState = overrides.cardState ? normalizeCardState(overrides.cardState) : cardStateRef.current;
     const effectivePieces = overrides.pieces || piecesRef.current;
     const effectiveGameSituations = overrides.gameSituations || gameSituations;
-    const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, gameSituations: _overrideGameSituations, ...restOverrides } = overrides;
+    const effectiveTrackerState = buildPersistentTrackerSnapshot(overrides.trackerState || {});
+    const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, gameSituations: _overrideGameSituations, trackerState: _overrideTrackerState, ...restOverrides } = overrides;
     return stripInlineImagesFromCloudState({
       version: "pitch-44-goal-5x2",
       formations,
@@ -2351,14 +2388,7 @@ function App() {
       touchMode,
       snapToGrid,
       showCoordinates,
-      trackerState: {
-        visible: trackerVisible,
-        gameStarted: trackerGameStarted,
-        startingTeam: trackerStartingTeam,
-        currentTurn: trackerCurrentTurn,
-        usedActions: trackerUsedActions,
-        settings: trackerSettings,
-      },
+      trackerState: effectiveTrackerState,
       ...restOverrides,
       settings: effectiveSettings,
       pieces: sanitizePiecesCardIds(effectivePieces, effectiveCardState, effectiveSettings),
@@ -2381,7 +2411,7 @@ function App() {
     if (data.activeSituationName) setActiveSituationName(data.activeSituationName);
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
-    if (data.pieces || sharedAssignments) {
+    if (data.pieces) {
       piecesRef.current = nextPieces;
       setPieces(nextPieces);
     }
@@ -2398,20 +2428,16 @@ function App() {
     if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
     if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
-    if (data.trackerState) {
-      const ts = data.trackerState;
-      const normalizedSettings = {
-        attackActions: clamp(Number(ts.settings?.attackActions) || 5, 1, 30),
-        defenseActions: clamp(Number(ts.settings?.defenseActions) || 4, 1, 30),
-        turns: clamp(Number(ts.settings?.turns) || 20, 1, 100),
-      };
-      setTrackerVisible(!!ts.visible);
-      setTrackerGameStarted(!!ts.gameStarted);
-      setTrackerStartingTeam(ts.startingTeam === "blue" ? "blue" : "red");
-      setTrackerCurrentTurn(clamp(Number(ts.currentTurn) || 0, 0, normalizedSettings.turns));
-      setTrackerUsedActions({ red: Math.max(0, Number(ts.usedActions?.red) || 0), blue: Math.max(0, Number(ts.usedActions?.blue) || 0) });
-      setTrackerSettings(normalizedSettings);
-      setTrackerSettingsDraft(normalizedSettings);
+    if (data.trackerState && !sessionCode) {
+      const restoredTracker = normalizeTrackerSnapshot(data.trackerState);
+      setTrackerVisible(restoredTracker.enabled);
+      if (restoredTracker.enabled) setTrackerMinimized(false);
+      setTrackerSettings(restoredTracker.settings);
+      setTrackerSettingsDraft(restoredTracker.settings);
+      setTrackerGameStarted(restoredTracker.gameStarted);
+      setTrackerStartingTeam(restoredTracker.startingTeam);
+      setTrackerCurrentTurn(restoredTracker.currentTurn);
+      setTrackerUsedActions(restoredTracker.usedActions);
     }
     if (data.cardState) setCardState(nextCardState);
   }
@@ -3113,21 +3139,13 @@ function App() {
       trackerSharedEnabledRef.current = sharedTrackerEnabled;
       setTrackerSharedEnabled(sharedTrackerEnabled);
       if (sharedTrackerEnabled) {
-        const incomingSettings = sharedTracker.settings || {};
-        const normalizedSettings = {
-          attackActions: clamp(Number(incomingSettings.attackActions) || 5, 1, 30),
-          defenseActions: clamp(Number(incomingSettings.defenseActions) || 4, 1, 30),
-          turns: clamp(Number(incomingSettings.turns) || 20, 1, 100),
-        };
-        setTrackerSettings(normalizedSettings);
-        setTrackerSettingsDraft(normalizedSettings);
-        setTrackerGameStarted(!!sharedTracker.gameStarted);
-        setTrackerStartingTeam(sharedTracker.startingTeam === "blue" ? "blue" : "red");
-        setTrackerCurrentTurn(clamp(Number(sharedTracker.currentTurn) || 0, 0, normalizedSettings.turns));
-        setTrackerUsedActions({
-          red: Math.max(0, Number(sharedTracker.usedActions?.red) || 0),
-          blue: Math.max(0, Number(sharedTracker.usedActions?.blue) || 0),
-        });
+        const normalizedTracker = normalizeTrackerSnapshot(sharedTracker);
+        setTrackerSettings(normalizedTracker.settings);
+        setTrackerSettingsDraft(normalizedTracker.settings);
+        setTrackerGameStarted(normalizedTracker.gameStarted);
+        setTrackerStartingTeam(normalizedTracker.startingTeam);
+        setTrackerCurrentTurn(normalizedTracker.currentTurn);
+        setTrackerUsedActions(normalizedTracker.usedActions);
         if (!wasSharedTrackerEnabled) {
           setTrackerVisible(true);
           setTrackerMinimized(false);
@@ -3286,6 +3304,13 @@ function App() {
     snapToGrid,
     showCoordinates,
     cardState,
+    trackerVisible,
+    trackerSharedEnabled,
+    trackerGameStarted,
+    trackerStartingTeam,
+    trackerCurrentTurn,
+    trackerUsedActions,
+    trackerSettings,
   ]);
 
   useEffect(() => {
@@ -7049,12 +7074,14 @@ function App() {
   }
   function buildTrackerSnapshot(overrides = {}) {
     return {
-      enabled: overrides.enabled ?? trackerSharedEnabled,
-      gameStarted: overrides.gameStarted ?? trackerGameStarted,
-      startingTeam: overrides.startingTeam ?? trackerStartingTeam,
-      currentTurn: overrides.currentTurn ?? trackerCurrentTurn,
-      usedActions: overrides.usedActions ?? trackerUsedActions,
-      settings: overrides.settings ?? trackerSettings,
+      ...normalizeTrackerSnapshot({
+        enabled: overrides.enabled ?? trackerSharedEnabled,
+        gameStarted: overrides.gameStarted ?? trackerGameStarted,
+        startingTeam: overrides.startingTeam ?? trackerStartingTeam,
+        currentTurn: overrides.currentTurn ?? trackerCurrentTurn,
+        usedActions: overrides.usedActions ?? trackerUsedActions,
+        settings: overrides.settings ?? trackerSettings,
+      }),
       updatedBy: user?.uid || "",
     };
   }
