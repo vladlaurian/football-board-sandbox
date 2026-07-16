@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v14.3";
+const APP_VERSION = "v14.4";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -68,7 +68,8 @@ function normalizeMovementState(raw) {
     const distance = Number.isFinite(suppliedDistance) && suppliedDistance >= 0
       ? Math.floor(suppliedDistance)
       : inferMovementDistance(axis, spent);
-    if (axis || spent || distance) out[id] = { axis, spent, distance };
+    const threeTwoUsed = Boolean(value?.threeTwoUsed);
+    if (axis || spent || distance || threeTwoUsed) out[id] = { axis, spent, distance, threeTwoUsed };
   }
   return out;
 }
@@ -2161,6 +2162,7 @@ function App() {
   const movementStateRef = useRef({});
   const [illegalMoveNotice, setIllegalMoveNotice] = useState(null);
   const [pendingTurnChange, setPendingTurnChange] = useState(null);
+  const [pendingThreeTwoMove, setPendingThreeTwoMove] = useState(null);
   const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
   const [lockUI, setLockUI] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -3977,6 +3979,19 @@ function App() {
     const value = Number(attr?.value);
     return Number.isFinite(value) ? Math.max(0, value) : null;
   }
+  function getThreeTwoEligibility(piece, x, y) {
+    const geometry = getMovementGeometry(piece, { x, y });
+    const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false };
+    const hasBall = (piecesRef.current || pieces).some(item => item.team === "BALL" && item.x === x && item.y === y);
+    if (gameMode !== "match" || piece.team === "BALL" || !hasBall) return { eligible: false, reason: "not-ball", geometry, current };
+    if (current.threeTwoUsed) return { eligible: false, reason: "used", geometry, current };
+    if (geometry.kind === "same" || geometry.kind === "mixed") return { eligible: false, reason: "geometry", geometry, current };
+    const withinRange = geometry.kind === "straight" ? geometry.distance <= 3 : geometry.distance <= 2;
+    if (!withinRange) return { eligible: false, reason: "range", geometry, current };
+    const speed = getPieceSpeed(piece);
+    if (speed === null) return { eligible: false, reason: "no-speed", geometry, current };
+    return { eligible: true, geometry, current, speed };
+  }
   function evaluateMove(piece, x, y) {
     const geometry = getMovementGeometry(piece, { x, y });
     const targetOccupiedByPlayer = (piecesRef.current || pieces).some(item => item.id !== piece.id && item.team !== "BALL" && item.x === x && item.y === y);
@@ -3986,7 +4001,7 @@ function App() {
     if (geometry.kind === "mixed") return { legal: false, reason: "mixed", geometry };
     const speed = getPieceSpeed(piece);
     if (speed === null) return { legal: false, reason: "no-speed", geometry };
-    const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0 };
+    const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false };
     if (current.axis && current.axis !== geometry.axis) return { legal: false, reason: "axis", geometry, speed, current };
     const currentDistance = Math.max(0, Number(current.distance) || 0);
     const moveCost = geometry.kind === "diagonal"
@@ -4032,36 +4047,79 @@ function App() {
     }
   }
 
-  function moveSelectedPieceTo(x, y) {
-    const piece = (piecesRef.current || pieces).find(item => item.id === selectedId);
-    if (!piece || !canMovePiece(piece)) return false;
-    const evaluation = evaluateMove(piece, x, y);
-    if (!evaluation.legal) {
-      if (evaluation.reason !== "same" && gameMode === "match" && piece.team !== "BALL") setIllegalMoveNotice(evaluation);
-      return false;
-    }
+  function commitPieceMove(piece, x, y, evaluation, { useThreeTwo = false } = {}) {
     pushHistory(piecesRef.current || pieces, movementStateRef.current);
     const nextPieces = ensureBenchReserveCount((piecesRef.current || pieces).map(item => item.id === piece.id ? { ...item, x, y } : item), settingsRef.current);
     let nextMovement = movementStateRef.current;
     if (gameMode === "match" && piece.team !== "BALL") {
-      const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0 };
-      nextMovement = {
-        ...movementStateRef.current,
-        [piece.id]: {
-          axis: current.axis || evaluation.geometry.axis,
-          spent: current.spent + (evaluation.moveCost ?? evaluation.geometry.cost),
-          distance: Math.max(0, Number(current.distance) || 0) + evaluation.geometry.distance,
-        },
-      };
+      const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false };
+      if (useThreeTwo) {
+        const hadMoved = (Number(current.spent) || 0) > 0;
+        nextMovement = {
+          ...movementStateRef.current,
+          [piece.id]: {
+            axis: hadMoved ? evaluation.geometry.axis : null,
+            spent: hadMoved ? evaluation.speed : 0,
+            distance: hadMoved ? evaluation.geometry.distance : 0,
+            threeTwoUsed: true,
+          },
+        };
+      } else {
+        nextMovement = {
+          ...movementStateRef.current,
+          [piece.id]: {
+            axis: current.axis || evaluation.geometry.axis,
+            spent: current.spent + (evaluation.moveCost ?? evaluation.geometry.cost),
+            distance: Math.max(0, Number(current.distance) || 0) + evaluation.geometry.distance,
+            threeTwoUsed: Boolean(current.threeTwoUsed),
+          },
+        };
+      }
       movementStateRef.current = nextMovement;
       setMovementStateByPieceId(nextMovement);
     }
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
     if (sessionCode) syncSessionMove(nextPieces, nextMovement);
-    logSnapshot(`${piece.team === "A" ? "Blue" : piece.team === "B" ? "Red" : "Ball"} ${piece.label} → ${toCoord(x, y)}`, nextPieces);
+    logSnapshot(`${piece.team === "A" ? "Blue" : piece.team === "B" ? "Red" : "Ball"} ${piece.label} → ${toCoord(x, y)}${useThreeTwo ? " (3/2)" : ""}`, nextPieces);
     setSelectedId(null); setHoveredCell(null);
     return true;
+  }
+
+  function moveSelectedPieceTo(x, y) {
+    const piece = (piecesRef.current || pieces).find(item => item.id === selectedId);
+    if (!piece || !canMovePiece(piece)) return false;
+    const threeTwo = getThreeTwoEligibility(piece, x, y);
+    if (threeTwo.eligible) {
+      setPendingThreeTwoMove({ pieceId: piece.id, x, y, evaluation: threeTwo });
+      return true;
+    }
+    const evaluation = evaluateMove(piece, x, y);
+    if (!evaluation.legal) {
+      if (evaluation.reason !== "same" && gameMode === "match" && piece.team !== "BALL") setIllegalMoveNotice(evaluation);
+      return false;
+    }
+    return commitPieceMove(piece, x, y, evaluation);
+  }
+
+  function confirmThreeTwoMove(useThreeTwo) {
+    const pending = pendingThreeTwoMove;
+    setPendingThreeTwoMove(null);
+    if (!pending) return;
+    const piece = (piecesRef.current || pieces).find(item => item.id === pending.pieceId);
+    if (!piece || !canMovePiece(piece)) return;
+    if (useThreeTwo) {
+      const refreshed = getThreeTwoEligibility(piece, pending.x, pending.y);
+      if (!refreshed.eligible) return;
+      commitPieceMove(piece, pending.x, pending.y, refreshed, { useThreeTwo: true });
+      return;
+    }
+    const normal = evaluateMove(piece, pending.x, pending.y);
+    if (!normal.legal) {
+      if (normal.reason !== "same") setIllegalMoveNotice(normal);
+      return;
+    }
+    commitPieceMove(piece, pending.x, pending.y, normal);
   }
 
   function onInspectorDragDown(e) {
@@ -6861,6 +6919,8 @@ function App() {
   const selectedPiece = pieces.find(p => p.id === selectedId);
   const movementPreview = useMemo(() => {
     if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL" || !canPreviewMovementForPiece(selectedPiece)) return null;
+    const threeTwo = getThreeTwoEligibility(selectedPiece, hoveredCell.x, hoveredCell.y);
+    if (threeTwo.eligible) return { ...threeTwo, legal: true, label: "3/2" };
     const result = evaluateMove(selectedPiece, hoveredCell.x, hoveredCell.y);
     const axisIcon = movementAxisSymbol(result.geometry.axis);
     if (gameMode === "editor") {
@@ -8394,6 +8454,21 @@ function App() {
             >
               Join Session
             </button>
+          </div>
+        </div>
+      )}
+
+      {pendingThreeTwoMove && (
+        <div className="modal-backdrop three-two-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setPendingThreeTwoMove(null); }}>
+          <div className="modal three-two-modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="modal-title"><strong>Use 3/2 rule?</strong></div>
+            <div className="three-two-message">
+              Move into the ball cell without spending the distance travelled?
+            </div>
+            <div className="modal-actions three-two-actions">
+              <button onClick={() => confirmThreeTwoMove(true)}>Yes</button>
+              <button onClick={() => confirmThreeTwoMove(false)}>No</button>
+            </div>
           </div>
         </div>
       )}

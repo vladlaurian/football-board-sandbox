@@ -57,3 +57,17 @@ npm run dev
 ```bash
 npm run build
 ```
+
+## v14.4 — 3/2 rule
+
+The 3/2 possession rule is active only in Match Mode.
+
+- A player may enter the ball cell for free when the ball is on a legal movement line at a maximum distance of 3 orthogonal cells or 2 diagonal cells.
+- Valid distances are 1, 2, or 3 cells orthogonally and 1 or 2 cells diagonally.
+- The rule may be used once per player per turn.
+- Entering the ball cell with 3/2 does not charge the travelled cells.
+- If the player had not moved earlier in the turn, all movement points remain available and no movement axis is locked by the 3/2 entry.
+- If the player had already moved at least one cell, 3/2 may change to any legal orthogonal or diagonal line leading to the ball, but all remaining movement points are then lost and that player's movement ends.
+- The rule remains available even when the player has no movement points remaining, provided all other 3/2 conditions are met.
+- A Yes/No confirmation is shown before applying 3/2. Choosing No attempts the move using the normal movement rules.
+- The used state and resulting board position are synchronized atomically in multiplayer and reset with the turn movement state.
