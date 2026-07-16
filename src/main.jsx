@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v15.3";
+const APP_VERSION = "v15.4";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -1732,6 +1732,7 @@ function normalizeTrackerSnapshot(raw = {}) {
     currentTurn: clamp(Number(raw.currentTurn) || 0, 0, settings.turns),
     actionLog: normalizeTrackerActionLog(raw.actionLog),
     matchActionState: normalizeMatchActionState(raw.matchActionState),
+    turnPhase: ["attack", "defense", "complete"].includes(raw.turnPhase) ? raw.turnPhase : "attack",
     usedActions: {
       red: clamp(Number(raw.usedActions?.red ?? raw.actionLog?.red?.length) || 0, 0, redLimit),
       blue: clamp(Number(raw.usedActions?.blue ?? raw.actionLog?.blue?.length) || 0, 0, blueLimit),
@@ -2201,6 +2202,8 @@ function App() {
   const [trackerUsedActions, setTrackerUsedActions] = useState({ red: 0, blue: 0 });
   const [trackerActionLog, setTrackerActionLog] = useState({ red: [], blue: [] });
   const [matchActionState, setMatchActionState] = useState(() => normalizeMatchActionState({}));
+  const [turnPhase, setTurnPhase] = useState("attack");
+  const [pendingEndTurn, setPendingEndTurn] = useState(null);
   const [trackerSharedEnabled, setTrackerSharedEnabled] = useState(false);
   const [gameMode, setGameMode] = useState("editor");
   const [movementStateByPieceId, setMovementStateByPieceId] = useState({});
@@ -2464,6 +2467,7 @@ function App() {
       usedActions: overrides.usedActions ?? trackerUsedActions,
       actionLog: overrides.actionLog ?? trackerActionLog,
       matchActionState: overrides.matchActionState ?? matchActionState,
+      turnPhase: overrides.turnPhase ?? turnPhase,
       settings: overrides.settings ?? trackerSettings,
     });
   }
@@ -2544,6 +2548,7 @@ function App() {
       setTrackerUsedActions(restoredTracker.usedActions);
       setTrackerActionLog(restoredTracker.actionLog);
       setMatchActionState(restoredTracker.matchActionState);
+      setTurnPhase(restoredTracker.turnPhase);
     }
     if (data.cardState) setCardState(nextCardState);
   }
@@ -3280,6 +3285,7 @@ function App() {
         setTrackerUsedActions(normalizedTracker.usedActions);
         setTrackerActionLog(normalizedTracker.actionLog);
         setMatchActionState(normalizedTracker.matchActionState);
+        setTurnPhase(normalizedTracker.turnPhase);
         if (!wasSharedTrackerEnabled) {
           setTrackerVisible(true);
           setTrackerMinimized(false);
@@ -4079,6 +4085,8 @@ function App() {
     else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE before moving this player, or advance to next turn.</>;
     else if (result.reason === "team-exhausted") primary = <>Wait for opponent team or advance to next turn.</>;
     else if (result.reason === "wait-opponent") primary = <>Wait for opponent team.</>;
+    else if (result.reason === "wait-active-team") primary = <>Wait for the opponent to finish their turn, or use FREE.</>;
+    else if (result.reason === "all-actions-complete") primary = <>All actions are complete. Advance to the next turn.</>;
     else if (result.reason === "advance-turn") primary = <>Advance to next turn.</>;
     else primary = <>This move is not allowed.</>;
     if (!result.threeTwoAlreadyUsed) return primary;
@@ -4165,7 +4173,14 @@ function App() {
     const piece = (piecesRef.current || pieces).find(item => item.id === selectedId);
     if (!piece || !canMovePiece(piece)) return false;
 
-    // The 3/2 rule is a free exception and must be checked before MOVE/FREE/GROUP MOVE authorization.
+    const phaseTeam = piece.team === "BALL" ? null : pieceTeamKey(piece);
+    const pieceActionState = piece.team === "BALL" ? {} : (matchActionState.byPieceId[piece.id] || {});
+    if (gameMode === "match" && piece.team !== "BALL" && !pieceActionState.freeMoveAuthorized && !isTeamPhaseActive(phaseTeam)) {
+      setIllegalMoveNotice({ reason: phaseBlockReason() });
+      return false;
+    }
+
+    // The 3/2 rule is a free action, but only during this team's active phase.
     const threeTwo = getThreeTwoEligibility(piece, x, y);
     if (threeTwo.eligible) {
       setPendingThreeTwoMove({ pieceId: piece.id, x, y, evaluation: threeTwo });
@@ -4178,7 +4193,7 @@ function App() {
         const team = pieceTeamKey(piece);
         const teamExhausted = trackerGameStarted && getTeamActionStatus(team).exhausted;
         const bothExhausted = trackerGameStarted && getTeamActionStatus("red").exhausted && getTeamActionStatus("blue").exhausted;
-        setIllegalMoveNotice({ reason: bothExhausted ? "advance-turn" : teamExhausted ? "team-exhausted" : "move-not-authorized" });
+        setIllegalMoveNotice({ reason: authorization.reason || (bothExhausted ? "advance-turn" : teamExhausted ? "team-exhausted" : "move-not-authorized") });
       }
       return false;
     }
@@ -7522,6 +7537,7 @@ function App() {
         usedActions: overrides.usedActions ?? trackerUsedActions,
         actionLog: overrides.actionLog ?? trackerActionLog,
         matchActionState: overrides.matchActionState ?? matchActionState,
+        turnPhase: overrides.turnPhase ?? turnPhase,
         settings: overrides.settings ?? trackerSettings,
       }),
       gameMode: normalizeGameMode(overrides.gameMode ?? gameMode),
@@ -7568,6 +7584,17 @@ function App() {
     const used = clamp(Number(usedOverride?.[team]) || 0, 0, limit);
     return { limit, used, remaining: Math.max(0, limit - used), exhausted: used >= limit };
   }
+  function activeTeamForPhase(phase = turnPhase) {
+    if (phase === "attack") return trackerStartingTeam;
+    if (phase === "defense") return trackerStartingTeam === "red" ? "blue" : "red";
+    return null;
+  }
+  function isTeamPhaseActive(team) {
+    return Boolean(team && activeTeamForPhase() === team);
+  }
+  function phaseBlockReason() {
+    return turnPhase === "complete" ? "all-actions-complete" : "wait-active-team";
+  }
   function canUseActionForPiece(piece) {
     if (!piece || piece.team === "BALL" || piece.inactive || gameMode !== "match" || !trackerGameStarted) return false;
     if (!sessionCode) return true;
@@ -7593,6 +7620,10 @@ function App() {
       const nextState = normalizeMatchActionState({ ...matchActionState, byPieceId: { ...matchActionState.byPieceId, [piece.id]: { ...currentPieceState, freeMoveAuthorized: true } } });
       setMatchActionState(nextState); setSelectedId(piece.id);
       if (sessionCode) updateDoc(sessionRef(sessionCode), { "sharedTracker.matchActionState": nextState, updatedAt: serverTimestamp() }).catch(console.error);
+      return;
+    }
+    if (!isTeamPhaseActive(team)) {
+      setIllegalMoveNotice({ reason: phaseBlockReason() });
       return;
     }
     const status = getTeamActionStatus(team);
@@ -7665,9 +7696,32 @@ function App() {
     const team = pieceTeamKey(piece);
     const state = matchActionState.byPieceId[piece.id] || {};
     if (state.freeMoveAuthorized) return { allowed: true, mode: "free" };
+    if (!isTeamPhaseActive(team)) return { allowed: false, mode: "blocked", reason: phaseBlockReason() };
     if (hasValidGroupMoveAuthorization(team)) return { allowed: true, mode: "group" };
     if (state.moveAuthorized) return { allowed: true, mode: "normal" };
     return { allowed: false, mode: "blocked" };
+  }
+
+  function requestEndTurn(piece) {
+    if (!canUseActionForPiece(piece)) return;
+    const team = pieceTeamKey(piece);
+    if (!isTeamPhaseActive(team)) {
+      setIllegalMoveNotice({ reason: phaseBlockReason() });
+      return;
+    }
+    setPendingEndTurn({ team });
+  }
+  async function confirmEndTurn() {
+    if (!pendingEndTurn) return;
+    const nextPhase = turnPhase === "attack" ? "defense" : "complete";
+    setPendingEndTurn(null);
+    setTurnPhase(nextPhase);
+    setSelectedId(null);
+    setHoveredCell(null);
+    if (sessionCode) {
+      try { await updateDoc(sessionRef(sessionCode), { "sharedTracker.turnPhase": nextPhase, updatedAt: serverTimestamp() }); }
+      catch (error) { console.error("End turn sync failed", error); setSessionStatus("Turn phase sync error"); }
+    }
   }
 
   function startTrackedGame(team) {
@@ -7677,16 +7731,18 @@ function App() {
     setTrackerCurrentTurn(1);
     setTrackerUsedActions(usedActions); setTrackerActionLog({ red: [], blue: [] }); setMatchActionState(normalizeMatchActionState({}));
     setTrackerGameStarted(true);
+    setTurnPhase("attack");
     setMovementStateByPieceId({}); movementStateRef.current = {};
     setTrackerStartChoiceOpen(false);
-    syncSharedTracker({ gameStarted: true, startingTeam: team, currentTurn: 1, usedActions, actionLog: { red: [], blue: [] }, matchActionState: normalizeMatchActionState({}), movementStateByPieceId: {} });
+    syncSharedTracker({ gameStarted: true, startingTeam: team, currentTurn: 1, usedActions, actionLog: { red: [], blue: [] }, matchActionState: normalizeMatchActionState({}), turnPhase: "attack", movementStateByPieceId: {} });
   }
   function applyTrackerTurn(turn) {
     const usedActions = { red: 0, blue: 0 };
     setTrackerCurrentTurn(turn);
+    setTurnPhase("attack");
     setTrackerUsedActions(usedActions); setTrackerActionLog({ red: [], blue: [] }); setMatchActionState(normalizeMatchActionState({}));
     setMovementStateByPieceId({}); movementStateRef.current = {};
-    syncSharedTracker({ currentTurn: turn, usedActions, actionLog: { red: [], blue: [] }, matchActionState: normalizeMatchActionState({}), movementStateByPieceId: {} });
+    syncSharedTracker({ currentTurn: turn, usedActions, actionLog: { red: [], blue: [] }, matchActionState: normalizeMatchActionState({}), turnPhase: "attack", movementStateByPieceId: {} });
   }
   function selectTrackerTurn(turn) {
     if (trackerReadOnly || !trackerGameStarted || turn === trackerCurrentTurn) return;
@@ -7710,9 +7766,10 @@ function App() {
     const nextAttackingTeam = trackerStartingTeam === "red" ? "blue" : "red";
     const usedActions = { red: 0, blue: 0 };
     setTrackerStartingTeam(nextAttackingTeam);
+    setTurnPhase("attack");
     setTrackerUsedActions(usedActions); setTrackerActionLog({ red: [], blue: [] }); setMatchActionState(normalizeMatchActionState({}));
     setMovementStateByPieceId({}); movementStateRef.current = {};
-    syncSharedTracker({ startingTeam: nextAttackingTeam, usedActions, actionLog: { red: [], blue: [] }, matchActionState: normalizeMatchActionState({}), movementStateByPieceId: {} });
+    syncSharedTracker({ startingTeam: nextAttackingTeam, usedActions, actionLog: { red: [], blue: [] }, matchActionState: normalizeMatchActionState({}), turnPhase: "attack", movementStateByPieceId: {} });
   }
   function trackerRoleFor(team) {
     if (!trackerGameStarted || trackerCurrentTurn < 1) return "waiting";
@@ -8360,14 +8417,6 @@ function App() {
                         {inspectedPiece.inactive ? "ACTIVE" : "INACTIVE"}
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className="inspector-flip-request-btn free-action-btn"
-                      disabled={!canUseActionForPiece(inspectedPiece)}
-                      onClick={() => consumeInspectorAction("FREE", inspectedPiece)}
-                    >
-                      FREE
-                    </button>
                   </div>
                   {inspectedCard && !inspectedPiece.inactive && !isOwnCardPiece(inspectedPiece) && (
                     <button
@@ -8408,6 +8457,24 @@ function App() {
                       Allow Flip
                     </button>
                   ))}
+                  <div className="inspector-turn-actions">
+                    <button
+                      type="button"
+                      className={`inspector-flip-request-btn team-action-btn ${pieceTeamKey(inspectedPiece)}`}
+                      disabled={!canUseActionForPiece(inspectedPiece)}
+                      onClick={() => requestEndTurn(inspectedPiece)}
+                    >
+                      END TURN
+                    </button>
+                    <button
+                      type="button"
+                      className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)}`}
+                      disabled={!canUseActionForPiece(inspectedPiece)}
+                      onClick={() => consumeInspectorAction("FREE", inspectedPiece)}
+                    >
+                      FREE
+                    </button>
+                  </div>
                 </div>
                 <div className="match-action-row" aria-label="Match actions">
                   {["MOVE", "GROUP_MOVE", "PASS", "SHOT", "CROSS", "DRIBBLE", "TACKLING"].map(type => {
@@ -8418,7 +8485,7 @@ function App() {
                       || status.exhausted
                       || (type === "MOVE" && pieceState.moveUsed)
                       || (type === "GROUP_MOVE" && status.remaining !== 1);
-                    return <button key={type} type="button" disabled={disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{type.replace("GROUP_MOVE", "GROUP MOVE")}</button>;
+                    return <button className={`team-action-btn ${team}`} key={type} type="button" disabled={disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{type.replace("GROUP_MOVE", "GROUP MOVE")}</button>;
                   })}
                 </div>
                 {inspectedPiece.inactive ? (
@@ -8753,6 +8820,19 @@ function App() {
             <div className="modal-actions turn-confirm-actions">
               <button onClick={confirmTrackerTurnChange}>Yes</button>
               <button onClick={() => setPendingTurnChange(null)}>No</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingEndTurn && (
+        <div className="modal-backdrop turn-confirm-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setPendingEndTurn(null); }}>
+          <div className="modal turn-confirm-modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="modal-title"><strong>End your turn?</strong></div>
+            <div className="turn-confirm-message">End your turn?</div>
+            <div className="modal-actions turn-confirm-actions">
+              <button onClick={confirmEndTurn}>Yes</button>
+              <button onClick={() => setPendingEndTurn(null)}>No</button>
             </div>
           </div>
         </div>

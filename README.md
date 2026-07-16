@@ -140,3 +140,11 @@ The 3/2 possession rule is active only in Match Mode.
 - PASS/SHOT/CROSS/DRIBBLE/TACKLING currently consume and label tracker actions only.
 - Match movement requires MOVE, GROUP MOVE, or FREE authorization; ball and Editor Mode remain free.
 - Action state is persisted and synchronized in multiplayer.
+
+## v15.4
+- Added explicit Match Mode phases: attack, defense, complete.
+- Added team-colored END TURN and FREE controls with confirmation for END TURN.
+- The defending team must wait for the attacking team to end its phase; only FREE remains available outside the active phase.
+- After both phases end, normal actions are blocked until the next turn; FREE remains available.
+- Compact team-colored action controls remove the Inspector horizontal scrollbar.
+- Turn phase is included in local saves and shared tracker state for multiplayer compatibility.
