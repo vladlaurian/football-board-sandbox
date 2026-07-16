@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v15.4";
+const APP_VERSION = "v15.5";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2204,6 +2204,7 @@ function App() {
   const [matchActionState, setMatchActionState] = useState(() => normalizeMatchActionState({}));
   const [turnPhase, setTurnPhase] = useState("attack");
   const [pendingEndTurn, setPendingEndTurn] = useState(null);
+  const [pendingAutoMove, setPendingAutoMove] = useState(null);
   const [trackerSharedEnabled, setTrackerSharedEnabled] = useState(false);
   const [gameMode, setGameMode] = useState("editor");
   const [movementStateByPieceId, setMovementStateByPieceId] = useState({});
@@ -4120,9 +4121,9 @@ function App() {
     }
   }
 
-  function commitPieceMove(piece, x, y, evaluation, { useThreeTwo = false } = {}) {
+  function commitPieceMove(piece, x, y, evaluation, { useThreeTwo = false, authorizationOverride = null } = {}) {
     pushHistory(piecesRef.current || pieces, movementStateRef.current);
-    const authorization = movementAuthorization(piece);
+    const authorization = authorizationOverride || movementAuthorization(piece);
     const isFreePlacement = authorization.mode === "free" || authorization.mode === "group";
     const nextPieces = ensureBenchReserveCount((piecesRef.current || pieces).map(item => item.id === piece.id ? { ...item, x, y } : item), settingsRef.current);
     let nextMovement = movementStateRef.current;
@@ -4189,6 +4190,20 @@ function App() {
 
     const authorization = movementAuthorization(piece);
     if (!authorization.allowed) {
+      if (gameMode === "match" && piece.team !== "BALL" && !authorization.reason) {
+        const team = pieceTeamKey(piece);
+        const status = getTeamActionStatus(team);
+        const pieceState = matchActionState.byPieceId[piece.id] || {};
+        if (isTeamPhaseActive(team) && !status.exhausted && !pieceState.moveUsed) {
+          const evaluation = evaluateMove(piece, x, y);
+          if (!evaluation.legal) {
+            if (evaluation.reason !== "same") setIllegalMoveNotice(evaluation);
+            return false;
+          }
+          setPendingAutoMove({ pieceId: piece.id, x, y, evaluation });
+          return true;
+        }
+      }
       if (gameMode === "match" && piece.team !== "BALL") {
         const team = pieceTeamKey(piece);
         const teamExhausted = trackerGameStarted && getTeamActionStatus(team).exhausted;
@@ -7702,6 +7717,47 @@ function App() {
     return { allowed: false, mode: "blocked" };
   }
 
+  async function confirmAutoMove(shouldMove) {
+    const pending = pendingAutoMove;
+    setPendingAutoMove(null);
+    if (!pending || !shouldMove) return;
+    const piece = (piecesRef.current || pieces).find(item => item.id === pending.pieceId);
+    if (!piece || !canMovePiece(piece) || !canUseActionForPiece(piece)) return;
+    const team = pieceTeamKey(piece);
+    const status = getTeamActionStatus(team);
+    const currentPieceState = matchActionState.byPieceId[piece.id] || {};
+    if (!isTeamPhaseActive(team)) { setIllegalMoveNotice({ reason: phaseBlockReason() }); return; }
+    if (status.exhausted || currentPieceState.moveUsed) {
+      setIllegalMoveNotice({ reason: status.exhausted ? "team-exhausted" : "move-not-authorized" });
+      return;
+    }
+    const refreshedEvaluation = evaluateMove(piece, pending.x, pending.y);
+    if (!refreshedEvaluation.legal) {
+      if (refreshedEvaluation.reason !== "same") setIllegalMoveNotice(refreshedEvaluation);
+      return;
+    }
+    const currentMovementSnapshot = movementStateRef.current[piece.id] || null;
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      type: "MOVE",
+      pieceId: piece.id,
+      startX: Number(piece.x),
+      startY: Number(piece.y),
+      startMovementState: currentMovementSnapshot ? { ...currentMovementSnapshot } : null,
+    };
+    const nextLog = { ...trackerActionLog, [team]: [...trackerActionLog[team], entry] };
+    const nextUsed = { ...trackerUsedActions, [team]: nextLog[team].length };
+    const nextState = normalizeMatchActionState({
+      ...matchActionState,
+      byPieceId: {
+        ...matchActionState.byPieceId,
+        [piece.id]: { ...currentPieceState, moveUsed: true, moveAuthorized: true },
+      },
+    });
+    await applyActionStateUpdate(nextLog, nextState, nextUsed);
+    commitPieceMove(piece, pending.x, pending.y, refreshedEvaluation, { authorizationOverride: { allowed: true, mode: "normal" } });
+  }
+
   function requestEndTurn(piece) {
     if (!canUseActionForPiece(piece)) return;
     const team = pieceTeamKey(piece);
@@ -8779,6 +8835,19 @@ function App() {
             >
               Join Session
             </button>
+          </div>
+        </div>
+      )}
+
+      {pendingAutoMove && (
+        <div className="modal-backdrop turn-confirm-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setPendingAutoMove(null); }}>
+          <div className="modal turn-confirm-modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="modal-title"><strong>Move player?</strong></div>
+            <div className="turn-confirm-message">Do you want to move this player?</div>
+            <div className="modal-actions turn-confirm-actions">
+              <button onClick={() => confirmAutoMove(true)}>Yes</button>
+              <button onClick={() => confirmAutoMove(false)}>No</button>
+            </div>
           </div>
         </div>
       )}

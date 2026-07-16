@@ -7124,3 +7124,46 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   flex-wrap: wrap;
 }
 .inspector-piece-line > span { margin-right: auto; }
+
+
+/* v15.5 compact Inspector controls and direct MOVE confirmation */
+.inspector-piece-line {
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: 3px !important;
+  min-height: 24px;
+}
+.inspector-piece-line > span {
+  margin-right: auto !important;
+  line-height: 1.1;
+}
+.inspector-piece-primary-actions,
+.inspector-turn-actions {
+  align-items: center !important;
+  gap: 2px !important;
+}
+.inspector-piece-line .inspector-flip-request-btn,
+.inspector-piece-line .piece-status-btn,
+.inspector-piece-line .team-action-btn {
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 2px 5px !important;
+  font-size: 8px !important;
+  line-height: 1 !important;
+  border-radius: 7px !important;
+  white-space: nowrap !important;
+}
+.match-action-row {
+  gap: 2px !important;
+  padding: 2px 0 3px !important;
+}
+.match-action-row button {
+  height: 23px !important;
+  min-height: 23px !important;
+  padding: 2px 2px !important;
+  font-size: 7.5px !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  overflow: hidden;
+  text-overflow: clip;
+}

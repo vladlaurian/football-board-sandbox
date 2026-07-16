@@ -1,6 +1,18 @@
-# Football Board Sandbox v15.3
+# Football Board Sandbox v15.5
 
 Source build of the football board sandbox.
+
+
+## v15.5 — Compact Inspector controls and direct MOVE confirmation
+
+- Reduced the height, font size, padding, and gaps of all controls above the Inspector card without changing the card size or rendering path.
+- Aligned INACTIVE, flip controls, END TURN, and FREE on the same horizontal line.
+- Ensured GROUP MOVE and TACKLING fit inside their buttons without horizontal scrolling.
+- Added direct board movement confirmation when a player has not yet activated MOVE: “Do you want to move this player?”
+- Yes records the normal MOVE action and executes the requested legal movement; No cancels without moving or consuming an action.
+- Once MOVE has been activated for that player in the current turn, later legal movement continues without another prompt.
+- Kept MOVE, FREE, GROUP MOVE, and the free 3/2 flow compatible with the existing action authorization rules.
+- Updated the in-app Sandbox version and package version to v15.5.
 
 
 
