@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v14.5";
+const APP_VERSION = "v14.6";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -69,7 +69,8 @@ function normalizeMovementState(raw) {
       ? Math.floor(suppliedDistance)
       : inferMovementDistance(axis, spent);
     const threeTwoUsed = Boolean(value?.threeTwoUsed);
-    if (axis || spent || distance || threeTwoUsed) out[id] = { axis, spent, distance, threeTwoUsed };
+    const movementEnded = Boolean(value?.movementEnded);
+    if (axis || spent || distance || threeTwoUsed || movementEnded) out[id] = { axis, spent, distance, threeTwoUsed, movementEnded };
   }
   return out;
 }
@@ -3981,7 +3982,7 @@ function App() {
   }
   function getThreeTwoEligibility(piece, x, y) {
     const geometry = getMovementGeometry(piece, { x, y });
-    const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false };
+    const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false, movementEnded: false };
     const boardPieces = piecesRef.current || pieces;
     const hasBall = boardPieces.some(item => item.team === "BALL" && item.x === x && item.y === y);
     if (gameMode !== "match" || piece.team === "BALL" || !hasBall) return { eligible: false, reason: "not-ball", geometry, current };
@@ -4002,9 +4003,10 @@ function App() {
     if (geometry.kind === "same") return { legal: false, reason: "same", geometry };
     if (piece.team === "BALL" || gameMode === "editor") return { legal: true, geometry };
     if (geometry.kind === "mixed") return { legal: false, reason: "mixed", geometry };
+    const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false, movementEnded: false };
+    if (current.movementEnded) return { legal: false, reason: "movement-ended", geometry, current, remaining: 0 };
     const speed = getPieceSpeed(piece);
     if (speed === null) return { legal: false, reason: "no-speed", geometry };
-    const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false };
     if (current.axis && current.axis !== geometry.axis) return { legal: false, reason: "axis", geometry, speed, current };
     const currentDistance = Math.max(0, Number(current.distance) || 0);
     const moveCost = geometry.kind === "diagonal"
@@ -4021,6 +4023,7 @@ function App() {
     else if (result.reason === "mixed") primary = <>Mixed movement is not allowed.</>;
     else if (result.reason === "no-speed") primary = <>No Speed value is assigned to this player.</>;
     else if (result.reason === "occupied") primary = <>The destination cell is occupied by another player.</>;
+    else if (result.reason === "movement-ended") primary = <>This player has no legal movement remaining during the current turn.</>;
     else primary = <>This move is not allowed.</>;
     if (!result.threeTwoAlreadyUsed) return primary;
     return <>{primary}<br/><br/><strong>The 3/2 rule has already been used by this player during the current turn.</strong></>;
@@ -4058,7 +4061,7 @@ function App() {
     const nextPieces = ensureBenchReserveCount((piecesRef.current || pieces).map(item => item.id === piece.id ? { ...item, x, y } : item), settingsRef.current);
     let nextMovement = movementStateRef.current;
     if (gameMode === "match" && piece.team !== "BALL") {
-      const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false };
+      const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false, movementEnded: false };
       if (useThreeTwo) {
         const hadMoved = (Number(current.spent) || 0) > 0;
         nextMovement = {
@@ -4068,6 +4071,7 @@ function App() {
             spent: hadMoved ? evaluation.speed : 0,
             distance: hadMoved ? evaluation.geometry.distance : 0,
             threeTwoUsed: true,
+            movementEnded: hadMoved,
           },
         };
       } else {
@@ -4078,6 +4082,7 @@ function App() {
             spent: current.spent + (evaluation.moveCost ?? evaluation.geometry.cost),
             distance: Math.max(0, Number(current.distance) || 0) + evaluation.geometry.distance,
             threeTwoUsed: Boolean(current.threeTwoUsed),
+            movementEnded: Boolean(current.movementEnded),
           },
         };
       }
@@ -6947,8 +6952,9 @@ function App() {
     return { ...result, label: `${axisIcon ? `${axisIcon} ` : ""}${result.moveCost ?? result.geometry.cost} / ${result.remaining}` };
   }, [selectedPiece, hoveredCell, gameMode, movementStateByPieceId, cardState, sessionCardsById, sessionLibraryById, pieces, sessionCode, myTeam, cardVisibilityMode, cardRevealPermissions, user?.uid]);
 
-  const selectedMovementAxis = selectedPiece && selectedPiece.team !== "BALL" && canPreviewMovementForPiece(selectedPiece)
-    ? movementStateByPieceId[selectedPiece.id]?.axis || null
+  const selectedMovementState = selectedPiece ? movementStateByPieceId[selectedPiece.id] : null;
+  const selectedMovementAxis = selectedPiece && selectedPiece.team !== "BALL" && canPreviewMovementForPiece(selectedPiece) && !selectedMovementState?.movementEnded
+    ? selectedMovementState?.axis || null
     : null;
 
   useEffect(() => {

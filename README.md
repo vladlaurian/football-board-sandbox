@@ -1,6 +1,17 @@
-# Football Board Sandbox v14.5
+# Football Board Sandbox v14.6
 
 Source build of the football board sandbox.
+
+
+## v14.6 — explicit movement-ended state
+
+- Added an explicit `movementEnded` flag to each player movement state.
+- Using the 3/2 rule after at least one normal movement sets `movementEnded: true`.
+- The central movement evaluator now rejects every later destination for that player during the same turn.
+- Cursor preview shows the move as unavailable instead of displaying remaining movement points.
+- The locked-axis badge is hidden because no movement direction remains available.
+- The flag is normalized, saved, restored, included in Undo/Redo, and synchronized through multiplayer state.
+- The flag resets together with the rest of movement state when the turn changes.
 
 ## v14.5 — 3/2 repeat-use feedback and occupied ball-cell protection
 
