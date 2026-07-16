@@ -1,8 +1,16 @@
-# Football Board Sandbox v15.2
+# Football Board Sandbox v15.3
 
 Source build of the football board sandbox.
 
 
+
+## v15.3 — Movement preview and free 3/2 access
+
+- Movement preview is now shown immediately after selecting a player, without requiring MOVE or FREE first.
+- Preview remains informational only; normal movement still requires MOVE, FREE, or GROUP MOVE authorization.
+- The 3/2 rule is checked before action authorization, so an eligible player can move directly to the ball without consuming a MOVE action.
+- Declining the 3/2 confirmation no longer bypasses normal movement authorization.
+- Updated the in-app Sandbox version and package version to v15.3.
 
 ## v15.2 — Inspector card-action layout fix
 

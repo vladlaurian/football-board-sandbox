@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v15.2";
+const APP_VERSION = "v15.3";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4164,6 +4164,14 @@ function App() {
   function moveSelectedPieceTo(x, y) {
     const piece = (piecesRef.current || pieces).find(item => item.id === selectedId);
     if (!piece || !canMovePiece(piece)) return false;
+
+    // The 3/2 rule is a free exception and must be checked before MOVE/FREE/GROUP MOVE authorization.
+    const threeTwo = getThreeTwoEligibility(piece, x, y);
+    if (threeTwo.eligible) {
+      setPendingThreeTwoMove({ pieceId: piece.id, x, y, evaluation: threeTwo });
+      return true;
+    }
+
     const authorization = movementAuthorization(piece);
     if (!authorization.allowed) {
       if (gameMode === "match" && piece.team !== "BALL") {
@@ -4180,11 +4188,6 @@ function App() {
       const geometry = getMovementGeometry(piece, { x, y });
       if (geometry.kind === "same") return false;
       return commitPieceMove(piece, x, y, { legal: true, geometry, moveCost: 0, remaining: 0 });
-    }
-    const threeTwo = getThreeTwoEligibility(piece, x, y);
-    if (threeTwo.eligible) {
-      setPendingThreeTwoMove({ pieceId: piece.id, x, y, evaluation: threeTwo });
-      return true;
     }
     const evaluation = evaluateMove(piece, x, y);
     if (!evaluation.legal) {
@@ -4205,6 +4208,22 @@ function App() {
       const refreshed = getThreeTwoEligibility(piece, pending.x, pending.y);
       if (!refreshed.eligible) return;
       commitPieceMove(piece, pending.x, pending.y, refreshed, { useThreeTwo: true });
+      return;
+    }
+    const authorization = movementAuthorization(piece);
+    if (!authorization.allowed) {
+      const team = pieceTeamKey(piece);
+      const teamExhausted = trackerGameStarted && getTeamActionStatus(team).exhausted;
+      const bothExhausted = trackerGameStarted && getTeamActionStatus("red").exhausted && getTeamActionStatus("blue").exhausted;
+      setIllegalMoveNotice({ reason: bothExhausted ? "advance-turn" : teamExhausted ? "team-exhausted" : "move-not-authorized" });
+      return;
+    }
+    if (authorization.mode === "free" || authorization.mode === "group") {
+      const occupied = (piecesRef.current || pieces).some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === Number(pending.x) && Number(item.y) === Number(pending.y));
+      if (occupied) { setIllegalMoveNotice({ reason: "occupied" }); return; }
+      const geometry = getMovementGeometry(piece, { x: pending.x, y: pending.y });
+      if (geometry.kind === "same") return;
+      commitPieceMove(piece, pending.x, pending.y, { legal: true, geometry, moveCost: 0, remaining: 0 });
       return;
     }
     const normal = evaluateMove(piece, pending.x, pending.y);
@@ -7011,7 +7030,7 @@ function App() {
 
   const selectedPiece = pieces.find(p => p.id === selectedId);
   const movementPreview = useMemo(() => {
-    if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL" || !canPreviewMovementForPiece(selectedPiece) || !movementAuthorization(selectedPiece).allowed) return null;
+    if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL" || !canPreviewMovementForPiece(selectedPiece)) return null;
     const threeTwo = getThreeTwoEligibility(selectedPiece, hoveredCell.x, hoveredCell.y);
     if (threeTwo.eligible) return { ...threeTwo, legal: true, label: "3/2" };
     const result = evaluateMove(selectedPiece, hoveredCell.x, hoveredCell.y);
