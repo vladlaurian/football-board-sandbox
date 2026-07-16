@@ -1,7 +1,16 @@
-# Football Board Sandbox v15.1
+# Football Board Sandbox v15.2
 
 Source build of the football board sandbox.
 
+
+
+## v15.2 — Inspector card-action layout fix
+
+- Kept Reset Tracker behavior unchanged: it clears tracker actions without reverting player positions.
+- Removed the sticky overlay behavior from Assign Card / Edit Card / Remove Card.
+- The three card-management buttons now remain in normal document flow below the Inspector card and never cover the card artwork.
+- Preserved the shared Editor = Inspector = Export card-rendering path.
+- Updated the in-app Sandbox version and package version to v15.2.
 
 ## v15.1 — single-player tracker and movement authorization fixes
 
