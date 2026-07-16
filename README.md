@@ -1,6 +1,14 @@
-# Football Board Sandbox v14.3
+# Football Board Sandbox v14.5
 
 Source build of the football board sandbox.
+
+## v14.5 — 3/2 repeat-use feedback and occupied ball-cell protection
+
+- A second 3/2 attempt by the same player in the same turn now explicitly states that the 3/2 rule has already been used, in addition to the normal illegal-move explanation.
+- The 3/2 confirmation is no longer shown when the ball cell is already occupied by another player.
+- A player can never enter a ball cell occupied by another player through the 3/2 rule.
+- The checks use the synchronized live board and movement state, so the same protection applies in multiplayer.
+
 
 ## v14.3 — Cumulative diagonal cost, private movement information, turn confirmation
 

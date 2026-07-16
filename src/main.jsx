@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v14.4";
+const APP_VERSION = "v14.5";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -3982,8 +3982,11 @@ function App() {
   function getThreeTwoEligibility(piece, x, y) {
     const geometry = getMovementGeometry(piece, { x, y });
     const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false };
-    const hasBall = (piecesRef.current || pieces).some(item => item.team === "BALL" && item.x === x && item.y === y);
+    const boardPieces = piecesRef.current || pieces;
+    const hasBall = boardPieces.some(item => item.team === "BALL" && item.x === x && item.y === y);
     if (gameMode !== "match" || piece.team === "BALL" || !hasBall) return { eligible: false, reason: "not-ball", geometry, current };
+    const occupiedByAnotherPlayer = boardPieces.some(item => item.id !== piece.id && item.team !== "BALL" && item.x === x && item.y === y);
+    if (occupiedByAnotherPlayer) return { eligible: false, reason: "occupied", geometry, current };
     if (current.threeTwoUsed) return { eligible: false, reason: "used", geometry, current };
     if (geometry.kind === "same" || geometry.kind === "mixed") return { eligible: false, reason: "geometry", geometry, current };
     const withinRange = geometry.kind === "straight" ? geometry.distance <= 3 : geometry.distance <= 2;
@@ -4012,12 +4015,15 @@ function App() {
     return { legal: true, geometry, moveCost, speed, current, remaining };
   }
   function illegalMoveMessage(result) {
-    if (result.reason === "speed") return <>Movement cost: {result.moveCost ?? result.geometry.cost}<br/>Movement remaining: {result.remaining}</>;
-    if (result.reason === "axis") return <>The player cannot change movement axis during the same turn.</>;
-    if (result.reason === "mixed") return <>Mixed movement is not allowed.</>;
-    if (result.reason === "no-speed") return <>No Speed value is assigned to this player.</>;
-    if (result.reason === "occupied") return <>The destination cell is occupied by another player.</>;
-    return <>This move is not allowed.</>;
+    let primary;
+    if (result.reason === "speed") primary = <>Movement cost: {result.moveCost ?? result.geometry.cost}<br/>Movement remaining: {result.remaining}</>;
+    else if (result.reason === "axis") primary = <>The player cannot change movement axis during the same turn.</>;
+    else if (result.reason === "mixed") primary = <>Mixed movement is not allowed.</>;
+    else if (result.reason === "no-speed") primary = <>No Speed value is assigned to this player.</>;
+    else if (result.reason === "occupied") primary = <>The destination cell is occupied by another player.</>;
+    else primary = <>This move is not allowed.</>;
+    if (!result.threeTwoAlreadyUsed) return primary;
+    return <>{primary}<br/><br/><strong>The 3/2 rule has already been used by this player during the current turn.</strong></>;
   }
   async function syncSessionMove(nextPieces, nextMovement) {
     if (!sessionCode || sessionEndingRef.current) return;
@@ -4096,7 +4102,8 @@ function App() {
     }
     const evaluation = evaluateMove(piece, x, y);
     if (!evaluation.legal) {
-      if (evaluation.reason !== "same" && gameMode === "match" && piece.team !== "BALL") setIllegalMoveNotice(evaluation);
+      const notice = threeTwo.reason === "used" ? { ...evaluation, threeTwoAlreadyUsed: true } : evaluation;
+      if (evaluation.reason !== "same" && gameMode === "match" && piece.team !== "BALL") setIllegalMoveNotice(notice);
       return false;
     }
     return commitPieceMove(piece, x, y, evaluation);
