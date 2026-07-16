@@ -1,6 +1,15 @@
-# Football Board Sandbox v15.0
+# Football Board Sandbox v15.1
 
 Source build of the football board sandbox.
+
+
+## v15.1 — single-player tracker and movement authorization fixes
+
+- Restored manual tracker-dot toggling in Editor Mode.
+- Match Mode keeps typed action initials and only allows removing the latest logged action.
+- Hardened GROUP MOVE authorization: free team movement is now allowed only when the team’s final tracker entry is a valid GROUP MOVE that fills the tracker.
+- Prevented stale or restored `groupMove.active` state from granting the attacking team unintended Editor-like movement.
+- Updated the in-app Sandbox version and package version to v15.1.
 
 
 ## v15.0 — action workflow, tracker clarity, and movement rollback

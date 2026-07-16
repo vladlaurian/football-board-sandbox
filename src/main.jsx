@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v15.0";
+const APP_VERSION = "v15.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -7629,12 +7629,24 @@ function App() {
     await applyActionStateUpdate(nextLog, nextState, nextUsed);
     if (restoredPieces && sessionCode) await syncSessionMove(restoredPieces, restoredMovement || movementStateRef.current);
   }
+  function hasValidGroupMoveAuthorization(team) {
+    if (!matchActionState.groupMove.active || matchActionState.groupMove.team !== team) return false;
+    const log = Array.isArray(trackerActionLog?.[team]) ? trackerActionLog[team] : [];
+    const lastAction = log[log.length - 1];
+    const status = getTeamActionStatus(team);
+    return Boolean(
+      trackerGameStarted &&
+      lastAction?.type === "GROUP_MOVE" &&
+      status.exhausted &&
+      log.length === status.limit
+    );
+  }
   function movementAuthorization(piece) {
     if (!piece || piece.team === "BALL" || gameMode === "editor") return { allowed: true, mode: "normal" };
     const team = pieceTeamKey(piece);
     const state = matchActionState.byPieceId[piece.id] || {};
     if (state.freeMoveAuthorized) return { allowed: true, mode: "free" };
-    if (matchActionState.groupMove.active && matchActionState.groupMove.team === team) return { allowed: true, mode: "group" };
+    if (hasValidGroupMoveAuthorization(team)) return { allowed: true, mode: "group" };
     if (state.moveAuthorized) return { allowed: true, mode: "normal" };
     return { allowed: false, mode: "blocked" };
   }
@@ -8608,9 +8620,21 @@ function App() {
                     <section key={team} className={`tracker-team ${team}`}>
                       <div className="tracker-team-title"><strong>{team.toUpperCase()}</strong><span>{role === "attack" ? "ATTACK" : role === "defense" ? "DEFENSE" : "WAITING"}</span></div>
                       <div className="tracker-action-dots">
-                        {Array.from({ length: count }, (_, index) => (
-                          <button key={index} aria-label={`${team} action ${index + 1}`} className={index < used ? "used" : ""} onClick={() => index === used - 1 && removeLastTrackerAction(team)} disabled={!trackerGameStarted || index !== used - 1} aria-disabled={!trackerGameStarted || index !== used - 1}>{index < used ? (TRACKER_ACTION_ABBR[trackerActionLog[team]?.[index]?.type] || "•") : ""}</button>
-                        ))}
+                        {Array.from({ length: count }, (_, index) => {
+                          const editorMode = gameMode === "editor";
+                          const isUsed = index < used;
+                          const canEditDot = !trackerReadOnly && trackerGameStarted && (editorMode || index === used - 1);
+                          return (
+                            <button
+                              key={index}
+                              aria-label={`${team} action ${index + 1}`}
+                              className={isUsed ? "used" : ""}
+                              onClick={() => editorMode ? toggleTrackerAction(team, index) : (index === used - 1 && removeLastTrackerAction(team))}
+                              disabled={!canEditDot}
+                              aria-disabled={!canEditDot}
+                            >{isUsed && !editorMode ? (TRACKER_ACTION_ABBR[trackerActionLog[team]?.[index]?.type] || "•") : ""}</button>
+                          );
+                        })}
                       </div>
                     </section>
                   );
