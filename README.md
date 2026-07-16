@@ -1,6 +1,20 @@
-# Football Board Sandbox v14.6
+# Football Board Sandbox v15.0
 
 Source build of the football board sandbox.
+
+
+## v15.0 — action workflow, tracker clarity, and movement rollback
+
+- Promoted the match-action system to v15.0 and updated the in-app Sandbox version.
+- Kept the action row on one line in this order: MOVE, GROUP MOVE, PASS, SHOT, CROSS, DRIBBLE, TACKLING.
+- Moved FREE beside the ACTIVE/INACTIVE control at the top of the Inspector.
+- Removing the latest MOVE action now restores that player's position and movement state to the moment MOVE was activated.
+- Tracker action circles are larger, action abbreviations are white and unobstructed, and consumed actions remain fully visible.
+- Match movement feedback now distinguishes an exhausted team from a player who simply has not activated MOVE.
+- Exhaustion messages direct the user to wait for the opponent or advance to the next turn; when both teams are exhausted, the game explicitly requests the next turn.
+- The locked movement-axis icon remains visible from actual movement state even if MOVE authorization is later removed.
+- Stabilized the Inspector footer so Assign Card, Edit Card, and Remove Card are not pushed out of view by the action row or card resize calculations.
+- Preserved the Editor = Inspector = Export rendering rule; no card-rendering path was forked or restyled.
 
 
 ## v14.6 — explicit movement-ended state

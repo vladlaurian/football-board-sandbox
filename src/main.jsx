@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v14.6";
+const APP_VERSION = "v15.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -82,6 +82,11 @@ function normalizeTrackerActionLog(raw) {
       id: String(item?.id || `${team}-${index}`),
       type: ["MOVE", "GROUP_MOVE", "PASS", "SHOT", "CROSS", "DRIBBLE", "TACKLING"].includes(item?.type) ? item.type : "PASS",
       pieceId: item?.pieceId ? String(item.pieceId) : "",
+      startX: Number.isFinite(Number(item?.startX)) ? Number(item.startX) : null,
+      startY: Number.isFinite(Number(item?.startY)) ? Number(item.startY) : null,
+      startMovementState: item?.startMovementState && typeof item.startMovementState === "object"
+        ? normalizeMovementState({ snapshot: item.startMovementState }).snapshot || null
+        : null,
     }));
   }
   return out;
@@ -4071,7 +4076,8 @@ function App() {
     else if (result.reason === "no-speed") primary = <>No Speed value is assigned to this player.</>;
     else if (result.reason === "occupied") primary = <>The destination cell is occupied by another player.</>;
     else if (result.reason === "movement-ended") primary = <>This player has no legal movement remaining during the current turn.</>;
-    else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE before moving this player.</>;
+    else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE before moving this player, or advance to next turn.</>;
+    else if (result.reason === "team-exhausted") primary = <>Wait for opponent team or advance to next turn.</>;
     else if (result.reason === "wait-opponent") primary = <>Wait for opponent team.</>;
     else if (result.reason === "advance-turn") primary = <>Advance to next turn.</>;
     else primary = <>This move is not allowed.</>;
@@ -4161,8 +4167,10 @@ function App() {
     const authorization = movementAuthorization(piece);
     if (!authorization.allowed) {
       if (gameMode === "match" && piece.team !== "BALL") {
-        const bothExhausted = trackerGameStarted && trackerUsedActions.red >= trackerActionCountFor("red") && trackerUsedActions.blue >= trackerActionCountFor("blue");
-        setIllegalMoveNotice({ reason: bothExhausted ? "advance-turn" : "move-not-authorized" });
+        const team = pieceTeamKey(piece);
+        const teamExhausted = trackerGameStarted && getTeamActionStatus(team).exhausted;
+        const bothExhausted = trackerGameStarted && getTeamActionStatus("red").exhausted && getTeamActionStatus("blue").exhausted;
+        setIllegalMoveNotice({ reason: bothExhausted ? "advance-turn" : teamExhausted ? "team-exhausted" : "move-not-authorized" });
       }
       return false;
     }
@@ -7026,7 +7034,7 @@ function App() {
   }, [selectedPiece, hoveredCell, gameMode, movementStateByPieceId, matchActionState, trackerUsedActions, cardState, sessionCardsById, sessionLibraryById, pieces, sessionCode, myTeam, cardVisibilityMode, cardRevealPermissions, user?.uid]);
 
   const selectedMovementState = selectedPiece ? movementStateByPieceId[selectedPiece.id] : null;
-  const selectedMovementAxis = selectedPiece && selectedPiece.team !== "BALL" && canPreviewMovementForPiece(selectedPiece) && movementAuthorization(selectedPiece).mode === "normal" && !selectedMovementState?.movementEnded
+  const selectedMovementAxis = selectedPiece && selectedPiece.team !== "BALL" && canPreviewMovementForPiece(selectedPiece) && !selectedMovementState?.movementEnded
     ? selectedMovementState?.axis || null
     : null;
 
@@ -7572,7 +7580,15 @@ function App() {
     if (status.exhausted) { setIllegalMoveNotice({ reason: trackerUsedActions.red >= trackerActionCountFor("red") && trackerUsedActions.blue >= trackerActionCountFor("blue") ? "advance-turn" : "wait-opponent" }); return; }
     if (type === "MOVE" && currentPieceState.moveUsed) return;
     if (type === "GROUP_MOVE" && status.remaining !== 1) return;
-    const entry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, type, pieceId: piece.id };
+    const currentMovementSnapshot = movementStateRef.current[piece.id] || null;
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      type,
+      pieceId: piece.id,
+      startX: type === "MOVE" ? Number(piece.x) : null,
+      startY: type === "MOVE" ? Number(piece.y) : null,
+      startMovementState: type === "MOVE" && currentMovementSnapshot ? { ...currentMovementSnapshot } : null,
+    };
     const nextLog = { ...trackerActionLog, [team]: [...trackerActionLog[team], entry] };
     const nextUsed = { ...trackerUsedActions, [team]: nextLog[team].length };
     let nextState = matchActionState;
@@ -7589,12 +7605,29 @@ function App() {
     const nextLog = { ...trackerActionLog, [team]: trackerActionLog[team].slice(0, -1) };
     const nextUsed = { ...trackerUsedActions, [team]: nextLog[team].length };
     let nextState = matchActionState;
+    let restoredPieces = null;
+    let restoredMovement = null;
     if (removed.type === "MOVE" && removed.pieceId) {
       const byPieceId = { ...matchActionState.byPieceId }; delete byPieceId[removed.pieceId];
       nextState = normalizeMatchActionState({ ...matchActionState, byPieceId });
+      if (Number.isFinite(removed.startX) && Number.isFinite(removed.startY)) {
+        restoredPieces = (piecesRef.current || pieces).map(piece => piece.id === removed.pieceId
+          ? { ...piece, x: removed.startX, y: removed.startY }
+          : piece);
+        restoredMovement = { ...movementStateRef.current };
+        if (removed.startMovementState) restoredMovement[removed.pieceId] = { ...removed.startMovementState };
+        else delete restoredMovement[removed.pieceId];
+        piecesRef.current = restoredPieces;
+        movementStateRef.current = restoredMovement;
+        setPieces(restoredPieces);
+        setMovementStateByPieceId(restoredMovement);
+        setSelectedId(null);
+        setHoveredCell(null);
+      }
     }
     if (removed.type === "GROUP_MOVE") nextState = normalizeMatchActionState({ ...matchActionState, groupMove: { active: false, team: null } });
     await applyActionStateUpdate(nextLog, nextState, nextUsed);
+    if (restoredPieces && sessionCode) await syncSessionMove(restoredPieces, restoredMovement || movementStateRef.current);
   }
   function movementAuthorization(piece) {
     if (!piece || piece.team === "BALL" || gameMode === "editor") return { allowed: true, mode: "normal" };
@@ -8286,15 +8319,25 @@ function App() {
               <>
                 <div className="inspector-piece-line">
                   <span><b>Post puc:</b> {inspectedPiece.label || "—"}</span>
-                  {inspectedCard && canControlPieceStatus(inspectedPiece) && (
+                  <div className="inspector-piece-primary-actions">
+                    {inspectedCard && canControlPieceStatus(inspectedPiece) && (
+                      <button
+                        type="button"
+                        className={`inspector-flip-request-btn piece-status-btn ${inspectedPiece.inactive ? "activate" : "deactivate"}`}
+                        onClick={() => togglePieceInactive(inspectedPiece.id)}
+                      >
+                        {inspectedPiece.inactive ? "ACTIVE" : "INACTIVE"}
+                      </button>
+                    )}
                     <button
                       type="button"
-                      className={`inspector-flip-request-btn piece-status-btn ${inspectedPiece.inactive ? "activate" : "deactivate"}`}
-                      onClick={() => togglePieceInactive(inspectedPiece.id)}
+                      className="inspector-flip-request-btn free-action-btn"
+                      disabled={!canUseActionForPiece(inspectedPiece)}
+                      onClick={() => consumeInspectorAction("FREE", inspectedPiece)}
                     >
-                      {inspectedPiece.inactive ? "ACTIVE" : "INACTIVE"}
+                      FREE
                     </button>
-                  )}
+                  </div>
                   {inspectedCard && !inspectedPiece.inactive && !isOwnCardPiece(inspectedPiece) && (
                     <button
                       type="button"
@@ -8336,12 +8379,12 @@ function App() {
                   ))}
                 </div>
                 <div className="match-action-row" aria-label="Match actions">
-                  {["MOVE", "GROUP_MOVE", "PASS", "SHOT", "CROSS", "DRIBBLE", "TACKLING", "FREE"].map(type => {
+                  {["MOVE", "GROUP_MOVE", "PASS", "SHOT", "CROSS", "DRIBBLE", "TACKLING"].map(type => {
                     const team = pieceTeamKey(inspectedPiece);
                     const status = getTeamActionStatus(team);
                     const pieceState = matchActionState.byPieceId[inspectedPiece.id] || {};
                     const disabled = !canUseActionForPiece(inspectedPiece)
-                      || (type !== "FREE" && status.exhausted)
+                      || status.exhausted
                       || (type === "MOVE" && pieceState.moveUsed)
                       || (type === "GROUP_MOVE" && status.remaining !== 1);
                     return <button key={type} type="button" disabled={disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{type.replace("GROUP_MOVE", "GROUP MOVE")}</button>;
