@@ -1,8 +1,8 @@
-# Final Board v12.6 — Ruler Session Cleanup Fix
+# Final Board v13.0 — Ruler Session Cleanup Fix
 
 Stable source build of the Football Board Sandbox.
 
-## v12.6 changes
+## v13.0 changes
 
 - Fixed intermittent ruler panels that could remain visible and become impossible to close after a multiplayer session ended, disappeared, or was left.
 - Centralized local ruler cleanup in `leaveSession()` so every session-exit path clears ruler visibility, ownership, measurement points, drag state, and resize state.
@@ -48,3 +48,13 @@ npm run dev
 ```bash
 npm run build
 ```
+
+
+## v13.0
+- Click/tap a player or ball, then click/tap a destination cell to move.
+- Desktop board pan starts only after a 5 px drag threshold and preserves selection.
+- Touch board pan/zoom uses two fingers; one-finger taps select and move.
+- Player pieces cannot enter a cell occupied by another player; the ball can share a player cell.
+- Touch double-tap on a player opens label editing; desktop double-click remains available.
+- Grid snapping is always enabled; Snap Off and its saved/session state were removed.
+- Added Redo alongside Undo.

@@ -6,7 +6,7 @@ import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signI
 import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, runTransaction, serverTimestamp, setDoc, updateDoc, writeBatch } from "firebase/firestore";
 import { getFirestore } from "firebase/firestore";
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
-import { RotateCcw, Plus, Minus, Undo2, Edit3, X, Dices } from "lucide-react";
+import { RotateCcw, Plus, Minus, Undo2, Redo2, Edit3, X, Dices } from "lucide-react";
 import "./styles.css";
 
 const firebaseConfig = {
@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v12.6";
+const APP_VERSION = "v13.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -1742,11 +1742,10 @@ function normalizeGridPosition(x, y, settingsLike = DEFAULT_SETTINGS) {
 }
 
 function withBoardPosition(piece, settingsLike = DEFAULT_SETTINGS) {
-  // x/y rămân poziția vizuală reală, inclusiv fracționară când Snap este OFF.
-  // coord/position reprezintă pătrățica logică, rotunjită la celula cea mai apropiată.
-  const rawY = clampBoardY(Number(piece.y) || 0, settingsLike);
-  const rawX = clampBoardXForY(Number(piece.x) || 0, rawY, settingsLike);
-  const grid = normalizeGridPosition(rawX, rawY, settingsLike);
+  // v13: toate piesele sunt normalizate permanent pe grilă.
+  const grid = normalizeGridPosition(Number(piece.x) || 0, Number(piece.y) || 0, settingsLike);
+  const rawX = grid.x;
+  const rawY = grid.y;
   return {
     ...piece,
     x: rawX,
@@ -2050,6 +2049,7 @@ function App() {
   const [editLabel, setEditLabel] = useState("");
   const [zoom, setZoom] = useState(0.8);
   const [history, setHistory] = useState([]);
+  const [redoHistory, setRedoHistory] = useState([]);
   const [dieType, setDieType] = useState(20);
   const [blueDieResult, setBlueDieResult] = useState(null);
   const [redDieResult, setRedDieResult] = useState(null);
@@ -2061,7 +2061,6 @@ function App() {
   const [redDiceAnimationValue, setRedDiceAnimationValue] = useState(null);
   const [diceNotice, setDiceNotice] = useState(null);
   const [diceCooldownUntil, setDiceCooldownUntil] = useState(0);
-  const [snapToGrid, setSnapToGrid] = useState(true);
   const [showCoordinates, setShowCoordinates] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
   const [measureType, setMeasureType] = useState("center");
@@ -2130,6 +2129,8 @@ function App() {
   const autosaveTimerRef = useRef(null);
   const touchGestureRef = useRef(null);
   const lastTapRef = useRef({ time: 0, x: 0, y: 0 });
+  const lastPieceTapRef = useRef({ time: 0, pieceId: "" });
+  const multiTouchUntilRef = useRef(0);
   const boardPanRef = useRef(null);
   const measureInteractionRef = useRef(null);
   const beforeLockViewRef = useRef(null);
@@ -2191,7 +2192,6 @@ function App() {
   const [sessionParticipants, setSessionParticipants] = useState({});
   const [joinSetup, setJoinSetup] = useState(null);
   const presenceClockRef = useRef(Date.now());
-  const dragPieceIdRef = useRef(null);
   const isSharedRulerOwner = !!sessionCode && !!user?.uid && sharedRulerOwnerUid === user.uid;
   const sharedRulerReadOnly = !!sessionCode && measureMode && !isSharedRulerOwner;
   const canUseSharedRuler = !sessionCode || myTeam === "blue" || myTeam === "red";
@@ -2390,7 +2390,6 @@ function App() {
       dieType,
       dieResult: { blue: blueDieResult, red: redDieResult },
       touchMode,
-      snapToGrid,
       showCoordinates,
       trackerState: effectiveTrackerState,
       ...restOverrides,
@@ -2430,7 +2429,6 @@ function App() {
       }
     }
     if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
-    if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
     if (data.trackerState && !sessionCode) {
       const restoredTracker = normalizeTrackerSnapshot(data.trackerState);
@@ -2547,7 +2545,6 @@ function App() {
       version: "pitch-44-goal-5x2",
       dieType,
       dieResult: { blue: blueDieResult, red: redDieResult },
-      snapToGrid,
       showCoordinates,
       blueFormationId,
       redFormationId,
@@ -2595,7 +2592,6 @@ function App() {
         setRedDieResult(null);
       }
     }
-    if (typeof data.snapToGrid === "boolean") setSnapToGrid(data.snapToGrid);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
@@ -2927,7 +2923,6 @@ function App() {
     setMeasureEnd(null);
     setRulerPanelDragging(null);
     setRulerPanelResizing(null);
-    dragPieceIdRef.current = null;
     setSessionStatus(finalStatus);
   }
 
@@ -3281,7 +3276,6 @@ function App() {
     dieType,
     blueDieResult,
     redDieResult,
-    snapToGrid,
     showCoordinates,
     blueFormationId,
     redFormationId,
@@ -3312,7 +3306,6 @@ function App() {
     blueDieResult,
     redDieResult,
     touchMode,
-    snapToGrid,
     showCoordinates,
     cardState,
     trackerVisible,
@@ -3345,8 +3338,9 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, cloudReady]);
 
-  function pushHistory(nextPieces = pieces) {
+  function pushHistory(nextPieces = piecesRef.current || pieces) {
     setHistory(h => [...h.slice(-60), JSON.stringify(nextPieces)]);
+    setRedoHistory([]);
   }
 
   function updateSetting(key, value) {
@@ -3847,31 +3841,55 @@ function App() {
     }, 800);
   }
 
-  function undo() {
-    if (!history.length) return;
-    const last = history[history.length - 1];
-    setPieces(normalizePiecesForBoard(JSON.parse(last), settings));
-    setHistory(h => h.slice(0, -1));
+  function applyPieceSnapshot(snapshot) {
+    const nextPieces = ensureBenchReserveCount(normalizePiecesForBoard(JSON.parse(snapshot), settingsRef.current), settingsRef.current);
+    piecesRef.current = nextPieces;
+    setPieces(nextPieces);
   }
 
-  function movePieceFromPointer(pieceId, e) {
+  function undo() {
+    if (!history.length) return;
+    const previous = history[history.length - 1];
+    setRedoHistory(r => [...r.slice(-60), JSON.stringify(piecesRef.current || pieces)]);
+    applyPieceSnapshot(previous);
+    setHistory(h => h.slice(0, -1));
+    setSelectedId(null);
+  }
+
+  function redo() {
+    if (!redoHistory.length) return;
+    const next = redoHistory[redoHistory.length - 1];
+    setHistory(h => [...h.slice(-60), JSON.stringify(piecesRef.current || pieces)]);
+    applyPieceSnapshot(next);
+    setRedoHistory(r => r.slice(0, -1));
+    setSelectedId(null);
+  }
+
+  function gridPointFromClient(clientX, clientY) {
     const pitch = pitchRef.current;
+    if (!pitch) return null;
     const rect = pitch.getBoundingClientRect();
-    const localX = (e.clientX - rect.left) / zoom;
-    const localY = (e.clientY - rect.top) / zoom;
+    const localX = (clientX - rect.left) / zoom;
+    const localY = (clientY - rect.top) / zoom;
+    const y = clampBoardY(Math.floor(localY / settings.cellSize), settings);
+    const x = clampBoardXForY(Math.floor(localX / settings.cellSize), y, settings);
+    return { x, y };
+  }
 
-    let x;
-    let y;
+  function moveSelectedPieceTo(x, y) {
+    const piece = (piecesRef.current || pieces).find(item => item.id === selectedId);
+    if (!piece || !canMovePiece(piece)) return false;
+    const targetOccupiedByPlayer = (piecesRef.current || pieces).some(item => item.id !== piece.id && item.team !== "BALL" && item.x === x && item.y === y);
+    if (piece.team !== "BALL" && targetOccupiedByPlayer) return false;
+    if (piece.x === x && piece.y === y) return false;
 
-    if (snapToGrid) {
-      y = clampBoardY(Math.floor(localY / settings.cellSize), settings);
-      x = clampBoardXForY(Math.floor(localX / settings.cellSize), y, settings);
-    } else {
-      y = clampBoardY(localY / settings.cellSize - 0.5, settings);
-      x = clampBoardXForY(localX / settings.cellSize - 0.5, y, settings);
-    }
-
-    setPieces(prev => ensureBenchReserveCount(prev.map(p => p.id === pieceId ? { ...p, x, y } : p), settings));
+    pushHistory(piecesRef.current || pieces);
+    const nextPieces = ensureBenchReserveCount((piecesRef.current || pieces).map(item => item.id === piece.id ? { ...item, x, y } : item), settingsRef.current);
+    piecesRef.current = nextPieces;
+    setPieces(nextPieces);
+    logSnapshot(`${piece.team === "A" ? "Blue" : piece.team === "B" ? "Red" : "Ball"} ${piece.label} → ${toCoord(x, y)}`, nextPieces);
+    setSelectedId(null);
+    return true;
   }
 
   function onInspectorDragDown(e) {
@@ -3908,36 +3926,33 @@ function App() {
     setInspectorResizing(null);
   }
 
-  function onPointerDown(pieceId, e) {
+  function onPiecePointerDown(pieceId, e) {
     e.preventDefault();
     e.stopPropagation();
-    if (editingPiece) return;
+    if (editingPiece || measureMode) return;
     const piece = (piecesRef.current || pieces).find(item => item.id === pieceId);
+    if (!piece) return;
+
     setInspectedPieceId(pieceId);
-    setSelectedId(pieceId);
-    dragPieceIdRef.current = null;
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    if (!canMovePiece(piece)) return;
-    dragPieceIdRef.current = pieceId;
-    pushHistory();
-    movePieceFromPointer(pieceId, e);
-  }
 
-  function onPointerMove(pieceId, e) {
-    if (selectedId !== pieceId || dragPieceIdRef.current !== pieceId) return;
-    const piece = (piecesRef.current || pieces).find(item => item.id === pieceId);
-    if (!canMovePiece(piece)) return;
-    movePieceFromPointer(pieceId, e);
-  }
-
-  function onPointerUp() {
-    const movedId = dragPieceIdRef.current;
-    if (movedId) {
-      const moved = (piecesRef.current || pieces).find(p => p.id === movedId);
-      if (moved) logSnapshot(`${moved.team === "A" ? "Blue" : moved.team === "B" ? "Red" : "Ball"} ${moved.label} → ${withBoardPosition(moved, settings).coord}`);
+    if (e.pointerType === "touch") {
+      const now = Date.now();
+      const last = lastPieceTapRef.current;
+      if (last.pieceId === pieceId && now - last.time < 330) {
+        lastPieceTapRef.current = { time: 0, pieceId: "" };
+        openEdit(piece);
+        return;
+      }
+      lastPieceTapRef.current = { time: now, pieceId };
     }
-    dragPieceIdRef.current = null;
-    setSelectedId(null);
+
+    const selectedPiece = (piecesRef.current || pieces).find(item => item.id === selectedId);
+    if (selectedPiece?.team === "BALL" && piece.team !== "BALL" && canMovePiece(selectedPiece)) {
+      moveSelectedPieceTo(piece.x, piece.y);
+      return;
+    }
+
+    setSelectedId(pieceId);
   }
 
   function openEdit(piece) {
@@ -3963,7 +3978,6 @@ function App() {
     ), settingsRef.current);
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
-    dragPieceIdRef.current = null;
     if (!nextInactive && selectedId === pieceId) {
       setInspectorCardZoom(1);
       setInspectorCardPan({ x: 0, y: 0 });
@@ -6852,63 +6866,57 @@ function App() {
   }
 
   function onPitchPointerDown(e) {
-    if (!measureMode) return;
-
-    // Pe touch nu schimbăm rigla la începutul unui gest de zoom/pan.
-    // Tap-ul real este tratat în onBoardTouchEnd; drag/zoom lasă rigla fixată.
-    if (e.pointerType === "touch") return;
-
-    e.preventDefault();
-    e.stopPropagation();
-    pitchRef.current?.setPointerCapture?.(e.pointerId);
-    measureInteractionRef.current = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      originPanX: panOffset.x,
-      originPanY: panOffset.y,
-      point: getRulerPointFromPointer(e),
-      panning: false,
-    };
+    if (measureMode) {
+      if (e.pointerType === "touch") return;
+      e.preventDefault();
+      e.stopPropagation();
+      pitchRef.current?.setPointerCapture?.(e.pointerId);
+      measureInteractionRef.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        originPanX: panOffset.x,
+        originPanY: panOffset.y,
+        point: getRulerPointFromPointer(e),
+        panning: false,
+      };
+    }
   }
 
   function onPitchPointerMove(e) {
     const interaction = measureInteractionRef.current;
     if (!interaction || interaction.pointerId !== e.pointerId) return;
-
     const dx = e.clientX - interaction.startX;
     const dy = e.clientY - interaction.startY;
-    if (!interaction.panning && Math.sqrt(dx * dx + dy * dy) > 4) {
-      interaction.panning = true;
-    }
-
+    if (!interaction.panning && Math.sqrt(dx * dx + dy * dy) > 5) interaction.panning = true;
     if (interaction.panning) {
       e.preventDefault();
       e.stopPropagation();
-      setPanOffset({
-        x: interaction.originPanX + dx,
-        y: interaction.originPanY + dy,
-      });
+      setPanOffset({ x: interaction.originPanX + dx, y: interaction.originPanY + dy });
     }
   }
 
   function onPitchPointerUp(e) {
-    const interaction = measureInteractionRef.current;
-    if (!interaction || interaction.pointerId !== e.pointerId) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-    if (!interaction.panning) {
-      applyRulerPoint(interaction.point);
+    if (measureMode) {
+      const interaction = measureInteractionRef.current;
+      if (!interaction || interaction.pointerId !== e.pointerId) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (!interaction.panning) applyRulerPoint(interaction.point);
+      measureInteractionRef.current = null;
+      pitchRef.current?.releasePointerCapture?.(e.pointerId);
+      return;
     }
-    measureInteractionRef.current = null;
-    pitchRef.current?.releasePointerCapture?.(e.pointerId);
+
+    if (e.pointerType === "touch" && Date.now() < multiTouchUntilRef.current) return;
+    if (boardPanRef.current?.panning) return;
+    if (!selectedId || e.target?.closest?.(".piece")) return;
+    const point = gridPointFromClient(e.clientX, e.clientY);
+    if (point) moveSelectedPieceTo(point.x, point.y);
   }
 
   function onPitchPointerCancel(e) {
-    if (measureInteractionRef.current?.pointerId === e.pointerId) {
-      measureInteractionRef.current = null;
-    }
+    if (measureInteractionRef.current?.pointerId === e.pointerId) measureInteractionRef.current = null;
   }
 
   function canStartBoardPan(e) {
@@ -6922,7 +6930,6 @@ function App() {
 
   function startBoardPan(e) {
     if (!canStartBoardPan(e)) return;
-    e.preventDefault();
     boardWrapRef.current?.setPointerCapture?.(e.pointerId);
     boardPanRef.current = {
       pointerId: e.pointerId,
@@ -6930,22 +6937,24 @@ function App() {
       startY: e.clientY,
       originX: panOffset.x,
       originY: panOffset.y,
+      panning: false,
     };
   }
 
   function moveBoardPan(e) {
     const pan = boardPanRef.current;
     if (!pan || pan.pointerId !== e.pointerId) return;
+    const dx = e.clientX - pan.startX;
+    const dy = e.clientY - pan.startY;
+    if (!pan.panning && Math.sqrt(dx * dx + dy * dy) > 5) pan.panning = true;
+    if (!pan.panning) return;
     e.preventDefault();
-    setPanOffset({
-      x: pan.originX + (e.clientX - pan.startX),
-      y: pan.originY + (e.clientY - pan.startY),
-    });
+    setPanOffset({ x: pan.originX + dx, y: pan.originY + dy });
   }
 
   function endBoardPan(e) {
-    if (boardPanRef.current && boardPanRef.current.pointerId === e.pointerId) {
-      boardPanRef.current = null;
+    if (boardPanRef.current?.pointerId === e.pointerId) {
+      window.setTimeout(() => { if (boardPanRef.current?.pointerId === e.pointerId) boardPanRef.current = null; }, 0);
     }
   }
 
@@ -7260,6 +7269,7 @@ function App() {
   function onBoardTouchStart(e) {
     if (e.touches.length === 2) {
       e.preventDefault();
+      multiTouchUntilRef.current = Date.now() + 400;
       const [t1, t2] = e.touches;
       touchGestureRef.current = {
         mode: "two-finger",
@@ -7273,28 +7283,13 @@ function App() {
 
     if (e.touches.length === 1 && isPitchTouchTarget(e.target)) {
       const touch = e.touches[0];
-      const now = Date.now();
-      const last = lastTapRef.current;
-      const dx = touch.clientX - last.x;
-      const dy = touch.clientY - last.y;
-      const closeEnough = Math.sqrt(dx * dx + dy * dy) < 32;
-      if (now - last.time < 320 && closeEnough) {
-        e.preventDefault();
-        resetView();
-        lastTapRef.current = { time: 0, x: 0, y: 0 };
-        touchGestureRef.current = null;
-      } else {
-        lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
-        touchGestureRef.current = {
-          mode: "one-finger",
-          startX: touch.clientX,
-          startY: touch.clientY,
-          originPanX: panOffset.x,
-          originPanY: panOffset.y,
-          point: measureMode ? getRulerPointFromClient(touch.clientX, touch.clientY) : null,
-          moved: false,
-        };
-      }
+      touchGestureRef.current = {
+        mode: "one-finger",
+        startX: touch.clientX,
+        startY: touch.clientY,
+        point: measureMode ? getRulerPointFromClient(touch.clientX, touch.clientY) : null,
+        moved: false,
+      };
     }
   }
 
@@ -7459,7 +7454,8 @@ function App() {
 
         <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.2, 3))}><Minus size={16} /></button>
         <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
-        <button onClick={undo}><Undo2 size={16} /> Undo</button>
+        <button onClick={undo} disabled={!history.length}><Undo2 size={16} /> Undo</button>
+        <button onClick={redo} disabled={!redoHistory.length}><Redo2 size={16} /> Redo</button>
         <button onClick={resetPiecePositions}><RotateCcw size={16} /> Reset Position</button>
         <button onClick={resetPieceCards}><RotateCcw size={16} /> Reset Cards</button>
         <button className={touchMode ? "toggle-on" : ""} onClick={() => setTouchMode(v => !v)}>
@@ -7467,9 +7463,6 @@ function App() {
         </button>
         <button className={lockUI ? "toggle-on" : ""} onClick={() => { beforeLockViewRef.current = { zoom, panOffset }; setPanOffset({x:0,y:0}); setZoom(z=>Math.min(3, Number((z+0.2).toFixed(2)))); setLockUI(true); }}>
           Lock UI
-        </button>
-        <button className={snapToGrid ? "toggle-on" : ""} onClick={() => setSnapToGrid(v => !v)}>
-          Snap {snapToGrid ? "ON" : "OFF"}
         </button>
         <button className={showCoordinates ? "toggle-on" : ""} onClick={() => setShowCoordinates(v => !v)}>
           Coordonate
@@ -7565,7 +7558,7 @@ function App() {
 
       <div className="board-and-inspector">
       <div
-        className="board-wrap"
+        className={`board-wrap ${selectedId ? "piece-selected" : ""}`}
         ref={boardWrapRef}
         onPointerDown={startBoardPan}
         onPointerMove={moveBoardPan}
@@ -7744,10 +7737,7 @@ function App() {
                   left: `calc(${p.x} * var(--cell) + var(--cell) * ${p.team === "BALL" ? 0.2 : 0.08})`,
                   top: `calc(${p.y} * var(--cell) + var(--cell) * ${p.team === "BALL" ? 0.2 : 0.08})`,
                 }}
-                onPointerDown={(e) => onPointerDown(p.id, e)}
-                onPointerMove={(e) => onPointerMove(p.id, e)}
-                onPointerUp={onPointerUp}
-                onPointerCancel={onPointerUp}
+                onPointerDown={(e) => onPiecePointerDown(p.id, e)}
                 onDoubleClick={() => openEdit(p)}
               >
                 <span className="piece-label">{p.team === "BALL" ? p.label : getPieceDisplayLabel(p)}</span>

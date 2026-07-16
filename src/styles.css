@@ -6911,3 +6911,12 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   border-color: rgba(100,230,140,.5);
   background: rgba(20,100,55,.45);
 }
+
+/* v13 click/tap movement */
+.piece { cursor: default; }
+.piece:active { cursor: default; }
+.board-wrap.piece-selected,
+.board-wrap.piece-selected:active,
+.board-wrap.piece-selected .pitch,
+.board-wrap.piece-selected .pitch-shell { cursor: default; }
+.topbar button:disabled { opacity: .42; cursor: not-allowed; transform: none; }
