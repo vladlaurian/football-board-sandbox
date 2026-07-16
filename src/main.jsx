@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v14.2";
+const APP_VERSION = "v14.3";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -47,13 +47,28 @@ const BASE_LAYOUT_STYLE_KEYS = {
 };
 
 function normalizeGameMode(value) { return value === "match" ? "match" : "editor"; }
+function diagonalCostForDistance(distance) {
+  const safeDistance = Math.max(0, Math.floor(Number(distance) || 0));
+  return safeDistance + Math.floor(safeDistance / 2);
+}
+function inferMovementDistance(axis, spent) {
+  const safeSpent = Math.max(0, Math.floor(Number(spent) || 0));
+  if (!axis?.startsWith("diagonal")) return safeSpent;
+  let distance = 0;
+  while (diagonalCostForDistance(distance + 1) <= safeSpent) distance += 1;
+  return distance;
+}
 function normalizeMovementState(raw) {
   if (!raw || typeof raw !== "object") return {};
   const out = {};
   for (const [id, value] of Object.entries(raw)) {
     const axis = ["horizontal", "vertical", "diagonal-nw-se", "diagonal-ne-sw"].includes(value?.axis) ? value.axis : null;
     const spent = Math.max(0, Number(value?.spent) || 0);
-    if (axis || spent) out[id] = { axis, spent };
+    const suppliedDistance = Number(value?.distance);
+    const distance = Number.isFinite(suppliedDistance) && suppliedDistance >= 0
+      ? Math.floor(suppliedDistance)
+      : inferMovementDistance(axis, spent);
+    if (axis || spent || distance) out[id] = { axis, spent, distance };
   }
   return out;
 }
@@ -2145,6 +2160,7 @@ function App() {
   const [movementStateByPieceId, setMovementStateByPieceId] = useState({});
   const movementStateRef = useRef({});
   const [illegalMoveNotice, setIllegalMoveNotice] = useState(null);
+  const [pendingTurnChange, setPendingTurnChange] = useState(null);
   const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
   const [lockUI, setLockUI] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -2517,6 +2533,14 @@ function App() {
     if (!sessionCode || !cardVisibilityMode || cardVisibilityMode === "open") return true;
     if (isOwnCardPiece(piece)) return true;
     return hasBackPermission(cardId);
+  }
+
+  function canPreviewMovementForPiece(piece) {
+    if (!piece || piece.team === "BALL") return false;
+    if (!sessionCode || isOwnCardPiece(piece)) return true;
+    if (cardVisibilityMode === "open") return true;
+    if (cardVisibilityMode === "private") return canViewCardBack(piece, piece.cardId);
+    return false;
   }
 
   async function setSessionCardMode(mode) {
@@ -3962,14 +3986,18 @@ function App() {
     if (geometry.kind === "mixed") return { legal: false, reason: "mixed", geometry };
     const speed = getPieceSpeed(piece);
     if (speed === null) return { legal: false, reason: "no-speed", geometry };
-    const current = movementStateRef.current[piece.id] || { axis: null, spent: 0 };
+    const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0 };
     if (current.axis && current.axis !== geometry.axis) return { legal: false, reason: "axis", geometry, speed, current };
+    const currentDistance = Math.max(0, Number(current.distance) || 0);
+    const moveCost = geometry.kind === "diagonal"
+      ? diagonalCostForDistance(currentDistance + geometry.distance) - diagonalCostForDistance(currentDistance)
+      : geometry.cost;
     const remaining = Math.max(0, speed - current.spent);
-    if (geometry.cost > remaining) return { legal: false, reason: "speed", geometry, speed, current, remaining };
-    return { legal: true, geometry, speed, current, remaining };
+    if (moveCost > remaining) return { legal: false, reason: "speed", geometry, moveCost, speed, current, remaining };
+    return { legal: true, geometry, moveCost, speed, current, remaining };
   }
   function illegalMoveMessage(result) {
-    if (result.reason === "speed") return <>Movement cost: {result.geometry.cost}<br/>Movement remaining: {result.remaining}</>;
+    if (result.reason === "speed") return <>Movement cost: {result.moveCost ?? result.geometry.cost}<br/>Movement remaining: {result.remaining}</>;
     if (result.reason === "axis") return <>The player cannot change movement axis during the same turn.</>;
     if (result.reason === "mixed") return <>Mixed movement is not allowed.</>;
     if (result.reason === "no-speed") return <>No Speed value is assigned to this player.</>;
@@ -4016,8 +4044,15 @@ function App() {
     const nextPieces = ensureBenchReserveCount((piecesRef.current || pieces).map(item => item.id === piece.id ? { ...item, x, y } : item), settingsRef.current);
     let nextMovement = movementStateRef.current;
     if (gameMode === "match" && piece.team !== "BALL") {
-      const current = movementStateRef.current[piece.id] || { axis: null, spent: 0 };
-      nextMovement = { ...movementStateRef.current, [piece.id]: { axis: current.axis || evaluation.geometry.axis, spent: current.spent + evaluation.geometry.cost } };
+      const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0 };
+      nextMovement = {
+        ...movementStateRef.current,
+        [piece.id]: {
+          axis: current.axis || evaluation.geometry.axis,
+          spent: current.spent + (evaluation.moveCost ?? evaluation.geometry.cost),
+          distance: Math.max(0, Number(current.distance) || 0) + evaluation.geometry.distance,
+        },
+      };
       movementStateRef.current = nextMovement;
       setMovementStateByPieceId(nextMovement);
     }
@@ -6825,7 +6860,7 @@ function App() {
 
   const selectedPiece = pieces.find(p => p.id === selectedId);
   const movementPreview = useMemo(() => {
-    if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL") return null;
+    if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL" || !canPreviewMovementForPiece(selectedPiece)) return null;
     const result = evaluateMove(selectedPiece, hoveredCell.x, hoveredCell.y);
     const axisIcon = movementAxisSymbol(result.geometry.axis);
     if (gameMode === "editor") {
@@ -6838,14 +6873,14 @@ function App() {
       return {
         ...result,
         label: result.reason === "speed"
-          ? `⚠ ${result.geometry.cost} / ${result.remaining}`
+          ? `⚠ ${result.moveCost ?? result.geometry.cost} / ${result.remaining}`
           : "🚫",
       };
     }
-    return { ...result, label: `${axisIcon ? `${axisIcon} ` : ""}${result.geometry.cost} / ${result.remaining}` };
-  }, [selectedPiece, hoveredCell, gameMode, movementStateByPieceId, cardState, sessionCardsById, sessionLibraryById, pieces]);
+    return { ...result, label: `${axisIcon ? `${axisIcon} ` : ""}${result.moveCost ?? result.geometry.cost} / ${result.remaining}` };
+  }, [selectedPiece, hoveredCell, gameMode, movementStateByPieceId, cardState, sessionCardsById, sessionLibraryById, pieces, sessionCode, myTeam, cardVisibilityMode, cardRevealPermissions, user?.uid]);
 
-  const selectedMovementAxis = selectedPiece && selectedPiece.team !== "BALL"
+  const selectedMovementAxis = selectedPiece && selectedPiece.team !== "BALL" && canPreviewMovementForPiece(selectedPiece)
     ? movementStateByPieceId[selectedPiece.id]?.axis || null
     : null;
 
@@ -7364,14 +7399,22 @@ function App() {
     setTrackerStartChoiceOpen(false);
     syncSharedTracker({ gameStarted: true, startingTeam: team, currentTurn: 1, usedActions, movementStateByPieceId: {} });
   }
-  function selectTrackerTurn(turn) {
-    if (trackerReadOnly || !trackerGameStarted) return;
-    if (turn > trackerCurrentTurn + 1) return;
+  function applyTrackerTurn(turn) {
     const usedActions = { red: 0, blue: 0 };
     setTrackerCurrentTurn(turn);
     setTrackerUsedActions(usedActions);
     setMovementStateByPieceId({}); movementStateRef.current = {};
     syncSharedTracker({ currentTurn: turn, usedActions, movementStateByPieceId: {} });
+  }
+  function selectTrackerTurn(turn) {
+    if (trackerReadOnly || !trackerGameStarted || turn === trackerCurrentTurn) return;
+    if (turn > trackerCurrentTurn + 1) return;
+    setPendingTurnChange({ turn, direction: turn > trackerCurrentTurn ? "advance" : "reverse" });
+  }
+  function confirmTrackerTurnChange() {
+    if (!pendingTurnChange) return;
+    applyTrackerTurn(pendingTurnChange.turn);
+    setPendingTurnChange(null);
   }
   function resetTrackerActions() {
     if (trackerReadOnly) return;
@@ -7834,8 +7877,8 @@ function App() {
               </>
             )}
 
-            {selectedPiece && hoveredCell && (
-              <div className={`destination-cell-highlight ${movementPreview && !movementPreview.legal ? "illegal" : "legal"}`} style={{
+            {movementPreview && hoveredCell && (
+              <div className={`destination-cell-highlight ${!movementPreview.legal ? "illegal" : "legal"}`} style={{
                 left: `calc(${hoveredCell.x} * var(--cell))`,
                 top: `calc(${hoveredCell.y} * var(--cell))`,
               }} />
@@ -8361,6 +8404,23 @@ function App() {
             <div className="modal-title"><strong>Illegal move</strong></div>
             <div className="illegal-move-message">{illegalMoveMessage(illegalMoveNotice)}</div>
             <div className="modal-actions"><button onClick={() => setIllegalMoveNotice(null)}>OK</button></div>
+          </div>
+        </div>
+      )}
+
+      {pendingTurnChange && (
+        <div className="modal-backdrop turn-confirm-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setPendingTurnChange(null); }}>
+          <div className="modal turn-confirm-modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="modal-title"><strong>{pendingTurnChange.direction === "advance" ? "Advance Turn?" : "Reverse Turn?"}</strong></div>
+            <div className="turn-confirm-message">
+              {pendingTurnChange.direction === "advance"
+                ? `Advance to turn ${pendingTurnChange.turn}?`
+                : `Return to turn ${pendingTurnChange.turn}?`}
+            </div>
+            <div className="modal-actions turn-confirm-actions">
+              <button onClick={confirmTrackerTurnChange}>Yes</button>
+              <button onClick={() => setPendingTurnChange(null)}>No</button>
+            </div>
           </div>
         </div>
       )}

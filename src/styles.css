@@ -6978,3 +6978,10 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   font-size: 20px;
 }
 .inspector-ball-icon { font-size: 72px; line-height: 1; }
+
+/* v14.3 turn-change confirmation */
+.turn-confirm-backdrop { z-index: 2000; }
+.turn-confirm-modal { width: min(340px, calc(100vw - 32px)); }
+.turn-confirm-message { padding: 18px 4px; line-height: 1.5; opacity: .9; }
+.turn-confirm-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.turn-confirm-actions button { min-width: 86px; padding: 9px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,.22); background: #292929; color: white; cursor: pointer; }
