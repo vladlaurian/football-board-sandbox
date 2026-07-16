@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v13.1";
+const APP_VERSION = "v13.2";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -1997,6 +1997,7 @@ function App() {
   const [activeSituationName, setActiveSituationName] = useState("Situația 1");
   const [pieces, setPieces] = useState(() => normalizePiecesForBoard(createInitialPieces(DEFAULT_SETTINGS.cols, DEFAULT_SETTINGS.rows, FORMATION_SLOTS[0], FORMATION_SLOTS[1]), DEFAULT_SETTINGS));
   const [selectedId, setSelectedId] = useState(null);
+  const [hoveredCell, setHoveredCell] = useState(null);
   const [inspectedPieceId, setInspectedPieceId] = useState(null);
   const [cardState, setCardState] = useState(() => {
     try {
@@ -3865,14 +3866,22 @@ function App() {
     setSelectedId(null);
   }
 
-  function gridPointFromClient(clientX, clientY) {
+  function gridPointFromClient(clientX, clientY, { clampToBoard = true } = {}) {
     const pitch = pitchRef.current;
     if (!pitch) return null;
     const rect = pitch.getBoundingClientRect();
     const localX = (clientX - rect.left) / zoom;
     const localY = (clientY - rect.top) / zoom;
-    const y = clampBoardY(Math.floor(localY / settings.cellSize), settings);
-    const x = clampBoardXForY(Math.floor(localX / settings.cellSize), y, settings);
+    const rawX = Math.floor(localX / settings.cellSize);
+    const rawY = Math.floor(localY / settings.cellSize);
+
+    if (!clampToBoard) {
+      if (rawX < 0 || rawX >= settings.cols || rawY < 0 || rawY >= settings.rows) return null;
+      return { x: rawX, y: rawY };
+    }
+
+    const y = clampBoardY(rawY, settings);
+    const x = clampBoardXForY(rawX, y, settings);
     return { x, y };
   }
 
@@ -3947,7 +3956,11 @@ function App() {
     }
 
     const selectedPiece = (piecesRef.current || pieces).find(item => item.id === selectedId);
-    if (selectedPiece?.team === "BALL" && piece.team !== "BALL" && canMovePiece(selectedPiece)) {
+    const clickedCompatibleOccupant = selectedPiece && selectedPiece.id !== piece.id && (
+      (selectedPiece.team === "BALL" && piece.team !== "BALL") ||
+      (selectedPiece.team !== "BALL" && piece.team === "BALL")
+    );
+    if (clickedCompatibleOccupant && canMovePiece(selectedPiece)) {
       moveSelectedPieceTo(piece.x, piece.y);
       return;
     }
@@ -6655,6 +6668,11 @@ function App() {
   const rightArc = arcMask("right");
 
   const selectedPiece = pieces.find(p => p.id === selectedId);
+
+  useEffect(() => {
+    if (!selectedId) setHoveredCell(null);
+  }, [selectedId]);
+
   const coordinateCells = useMemo(() => {
     if (!showCoordinates) return [];
     const cells = [];
@@ -6934,12 +6952,17 @@ function App() {
   }
 
   function moveBoardPan(e) {
+    if (selectedId && e.pointerType !== "touch") {
+      setHoveredCell(gridPointFromClient(e.clientX, e.clientY, { clampToBoard: false }));
+    }
+
     const pan = boardPanRef.current;
     if (!pan || pan.pointerId !== e.pointerId) return;
     const dx = e.clientX - pan.startX;
     const dy = e.clientY - pan.startY;
     if (!pan.panning && Math.sqrt(dx * dx + dy * dy) > 5) pan.panning = true;
     if (!pan.panning) return;
+    setHoveredCell(null);
     e.preventDefault();
     setPanOffset({ x: pan.originX + dx, y: pan.originY + dy });
   }
@@ -6950,6 +6973,7 @@ function App() {
 
     const wasPanning = pan.panning;
     boardPanRef.current = null;
+    if (wasPanning) setHoveredCell(null);
     boardWrapRef.current?.releasePointerCapture?.(e.pointerId);
 
     if (measureMode || wasPanning) return;
@@ -7566,6 +7590,7 @@ function App() {
         onPointerMove={moveBoardPan}
         onPointerUp={endBoardPan}
         onPointerCancel={endBoardPan}
+        onPointerLeave={() => setHoveredCell(null)}
         onWheel={onBoardWheel}
         onTouchStart={onBoardTouchStart}
         onTouchMove={onBoardTouchMove}
@@ -7604,6 +7629,13 @@ function App() {
               <div className="selected-cell" style={{
                 left: `calc(${Math.floor(selectedPiece.x)} * var(--cell))`,
                 top: `calc(${Math.floor(selectedPiece.y)} * var(--cell))`,
+              }} />
+            )}
+
+            {selectedPiece && hoveredCell && (
+              <div className="destination-cell-highlight" style={{
+                left: `calc(${hoveredCell.x} * var(--cell))`,
+                top: `calc(${hoveredCell.y} * var(--cell))`,
               }} />
             )}
 

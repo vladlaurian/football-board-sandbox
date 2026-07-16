@@ -1,8 +1,8 @@
-# Football Board Sandbox v13.1
+# Football Board Sandbox v13.2
 
 Source build of the football board sandbox.
 
-## v13.1 — click-to-move routing fix
+## v13.2 — click-to-move routing fix
 
 - Fixed selected players not moving when an empty destination cell was clicked.
 - Fixed the misleading case where the ball could move only by clicking a cell already occupied by a player.
