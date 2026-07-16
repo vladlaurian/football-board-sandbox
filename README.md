@@ -90,3 +90,13 @@ The 3/2 possession rule is active only in Match Mode.
 - The rule remains available even when the player has no movement points remaining, provided all other 3/2 conditions are met.
 - A Yes/No confirmation is shown before applying 3/2. Choosing No attempts the move using the normal movement rules.
 - The used state and resulting board position are synchronized atomically in multiplayer and reset with the turn movement state.
+
+## v14.7 — Match action authorization
+- Inspector action buttons on one row: MOVE, GROUP MOVE, PASS, SHOT, CROSS, DRIBBLE, TACKLING, FREE.
+- Typed tracker action log with abbreviations and latest-action removal confirmation.
+- MOVE authorizes normal movement once per player per turn.
+- FREE authorizes one unrestricted placement without consuming an action.
+- GROUP MOVE is available only when one tracker action remains and enables unrestricted team repositioning until reset/turn change.
+- PASS/SHOT/CROSS/DRIBBLE/TACKLING currently consume and label tracker actions only.
+- Match movement requires MOVE, GROUP MOVE, or FREE authorization; ball and Editor Mode remain free.
+- Action state is persisted and synchronized in multiplayer.

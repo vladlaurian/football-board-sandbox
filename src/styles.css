@@ -6989,3 +6989,28 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .three-two-modal { max-width: 420px; }
 .three-two-message { margin: 14px 0 18px; line-height: 1.45; }
 .three-two-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+/* v14.7 match action controls */
+.match-action-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 5px;
+  width: 100%;
+  overflow-x: auto;
+  padding: 6px 0 8px;
+  scrollbar-width: thin;
+}
+.match-action-row button {
+  flex: 0 0 auto;
+  min-width: max-content;
+  padding: 6px 8px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+.tracker-action-dots button.used {
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}

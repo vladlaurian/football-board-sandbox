@@ -74,6 +74,41 @@ function normalizeMovementState(raw) {
   }
   return out;
 }
+function normalizeTrackerActionLog(raw) {
+  const out = { red: [], blue: [] };
+  for (const team of ["red", "blue"]) {
+    const list = Array.isArray(raw?.[team]) ? raw[team] : [];
+    out[team] = list.map((item, index) => ({
+      id: String(item?.id || `${team}-${index}`),
+      type: ["MOVE", "GROUP_MOVE", "PASS", "SHOT", "CROSS", "DRIBBLE", "TACKLING"].includes(item?.type) ? item.type : "PASS",
+      pieceId: item?.pieceId ? String(item.pieceId) : "",
+    }));
+  }
+  return out;
+}
+function normalizeMatchActionState(raw) {
+  const byPieceId = {};
+  if (raw?.byPieceId && typeof raw.byPieceId === "object") {
+    for (const [id, value] of Object.entries(raw.byPieceId)) {
+      if (!value || typeof value !== "object") continue;
+      const next = {
+        moveUsed: Boolean(value.moveUsed),
+        moveAuthorized: Boolean(value.moveAuthorized),
+        freeMoveAuthorized: Boolean(value.freeMoveAuthorized),
+      };
+      if (next.moveUsed || next.moveAuthorized || next.freeMoveAuthorized) byPieceId[id] = next;
+    }
+  }
+  return {
+    byPieceId,
+    groupMove: {
+      active: Boolean(raw?.groupMove?.active),
+      team: raw?.groupMove?.team === "blue" || raw?.groupMove?.team === "red" ? raw.groupMove.team : null,
+    },
+  };
+}
+const TRACKER_ACTION_ABBR = { MOVE: "MV", GROUP_MOVE: "GM", PASS: "PS", SHOT: "SH", CROSS: "CR", DRIBBLE: "DR", TACKLING: "TK" };
+
 function getMovementGeometry(from, to) {
   const dx = Number(to.x) - Number(from.x);
   const dy = Number(to.y) - Number(from.y);
@@ -1690,9 +1725,11 @@ function normalizeTrackerSnapshot(raw = {}) {
     gameStarted: !!raw.gameStarted,
     startingTeam,
     currentTurn: clamp(Number(raw.currentTurn) || 0, 0, settings.turns),
+    actionLog: normalizeTrackerActionLog(raw.actionLog),
+    matchActionState: normalizeMatchActionState(raw.matchActionState),
     usedActions: {
-      red: clamp(Number(raw.usedActions?.red) || 0, 0, redLimit),
-      blue: clamp(Number(raw.usedActions?.blue) || 0, 0, blueLimit),
+      red: clamp(Number(raw.usedActions?.red ?? raw.actionLog?.red?.length) || 0, 0, redLimit),
+      blue: clamp(Number(raw.usedActions?.blue ?? raw.actionLog?.blue?.length) || 0, 0, blueLimit),
     },
     settings,
   };
@@ -2157,6 +2194,8 @@ function App() {
   const [trackerStartingTeam, setTrackerStartingTeam] = useState("red");
   const [trackerCurrentTurn, setTrackerCurrentTurn] = useState(0);
   const [trackerUsedActions, setTrackerUsedActions] = useState({ red: 0, blue: 0 });
+  const [trackerActionLog, setTrackerActionLog] = useState({ red: [], blue: [] });
+  const [matchActionState, setMatchActionState] = useState(() => normalizeMatchActionState({}));
   const [trackerSharedEnabled, setTrackerSharedEnabled] = useState(false);
   const [gameMode, setGameMode] = useState("editor");
   const [movementStateByPieceId, setMovementStateByPieceId] = useState({});
@@ -2418,6 +2457,8 @@ function App() {
       startingTeam: overrides.startingTeam ?? trackerStartingTeam,
       currentTurn: overrides.currentTurn ?? trackerCurrentTurn,
       usedActions: overrides.usedActions ?? trackerUsedActions,
+      actionLog: overrides.actionLog ?? trackerActionLog,
+      matchActionState: overrides.matchActionState ?? matchActionState,
       settings: overrides.settings ?? trackerSettings,
     });
   }
@@ -2496,6 +2537,8 @@ function App() {
       setTrackerStartingTeam(restoredTracker.startingTeam);
       setTrackerCurrentTurn(restoredTracker.currentTurn);
       setTrackerUsedActions(restoredTracker.usedActions);
+      setTrackerActionLog(restoredTracker.actionLog);
+      setMatchActionState(restoredTracker.matchActionState);
     }
     if (data.cardState) setCardState(nextCardState);
   }
@@ -3230,6 +3273,8 @@ function App() {
         setTrackerStartingTeam(normalizedTracker.startingTeam);
         setTrackerCurrentTurn(normalizedTracker.currentTurn);
         setTrackerUsedActions(normalizedTracker.usedActions);
+        setTrackerActionLog(normalizedTracker.actionLog);
+        setMatchActionState(normalizedTracker.matchActionState);
         if (!wasSharedTrackerEnabled) {
           setTrackerVisible(true);
           setTrackerMinimized(false);
@@ -3392,6 +3437,8 @@ function App() {
     trackerStartingTeam,
     trackerCurrentTurn,
     trackerUsedActions,
+    trackerActionLog,
+    matchActionState,
     trackerSettings,
   ]);
 
@@ -4024,6 +4071,9 @@ function App() {
     else if (result.reason === "no-speed") primary = <>No Speed value is assigned to this player.</>;
     else if (result.reason === "occupied") primary = <>The destination cell is occupied by another player.</>;
     else if (result.reason === "movement-ended") primary = <>This player has no legal movement remaining during the current turn.</>;
+    else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE before moving this player.</>;
+    else if (result.reason === "wait-opponent") primary = <>Wait for opponent team.</>;
+    else if (result.reason === "advance-turn") primary = <>Advance to next turn.</>;
     else primary = <>This move is not allowed.</>;
     if (!result.threeTwoAlreadyUsed) return primary;
     return <>{primary}<br/><br/><strong>The 3/2 rule has already been used by this player during the current turn.</strong></>;
@@ -4058,9 +4108,11 @@ function App() {
 
   function commitPieceMove(piece, x, y, evaluation, { useThreeTwo = false } = {}) {
     pushHistory(piecesRef.current || pieces, movementStateRef.current);
+    const authorization = movementAuthorization(piece);
+    const isFreePlacement = authorization.mode === "free" || authorization.mode === "group";
     const nextPieces = ensureBenchReserveCount((piecesRef.current || pieces).map(item => item.id === piece.id ? { ...item, x, y } : item), settingsRef.current);
     let nextMovement = movementStateRef.current;
-    if (gameMode === "match" && piece.team !== "BALL") {
+    if (gameMode === "match" && piece.team !== "BALL" && !isFreePlacement) {
       const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false, movementEnded: false };
       if (useThreeTwo) {
         const hadMoved = (Number(current.spent) || 0) > 0;
@@ -4091,6 +4143,12 @@ function App() {
     }
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
+    if (authorization.mode === "free") {
+      const byPieceId = { ...matchActionState.byPieceId, [piece.id]: { ...(matchActionState.byPieceId[piece.id] || {}), freeMoveAuthorized: false } };
+      const nextActionState = normalizeMatchActionState({ ...matchActionState, byPieceId });
+      setMatchActionState(nextActionState);
+      if (sessionCode) updateDoc(sessionRef(sessionCode), { "sharedTracker.matchActionState": nextActionState, updatedAt: serverTimestamp() }).catch(console.error);
+    }
     if (sessionCode) syncSessionMove(nextPieces, nextMovement);
     logSnapshot(`${piece.team === "A" ? "Blue" : piece.team === "B" ? "Red" : "Ball"} ${piece.label} → ${toCoord(x, y)}${useThreeTwo ? " (3/2)" : ""}`, nextPieces);
     setSelectedId(null); setHoveredCell(null);
@@ -4100,6 +4158,21 @@ function App() {
   function moveSelectedPieceTo(x, y) {
     const piece = (piecesRef.current || pieces).find(item => item.id === selectedId);
     if (!piece || !canMovePiece(piece)) return false;
+    const authorization = movementAuthorization(piece);
+    if (!authorization.allowed) {
+      if (gameMode === "match" && piece.team !== "BALL") {
+        const bothExhausted = trackerGameStarted && trackerUsedActions.red >= trackerActionCountFor("red") && trackerUsedActions.blue >= trackerActionCountFor("blue");
+        setIllegalMoveNotice({ reason: bothExhausted ? "advance-turn" : "move-not-authorized" });
+      }
+      return false;
+    }
+    if ((authorization.mode === "free" || authorization.mode === "group") && piece.team !== "BALL") {
+      const occupied = (piecesRef.current || pieces).some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === Number(x) && Number(item.y) === Number(y));
+      if (occupied) { setIllegalMoveNotice({ reason: "occupied" }); return false; }
+      const geometry = getMovementGeometry(piece, { x, y });
+      if (geometry.kind === "same") return false;
+      return commitPieceMove(piece, x, y, { legal: true, geometry, moveCost: 0, remaining: 0 });
+    }
     const threeTwo = getThreeTwoEligibility(piece, x, y);
     if (threeTwo.eligible) {
       setPendingThreeTwoMove({ pieceId: piece.id, x, y, evaluation: threeTwo });
@@ -6930,7 +7003,7 @@ function App() {
 
   const selectedPiece = pieces.find(p => p.id === selectedId);
   const movementPreview = useMemo(() => {
-    if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL" || !canPreviewMovementForPiece(selectedPiece)) return null;
+    if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL" || !canPreviewMovementForPiece(selectedPiece) || !movementAuthorization(selectedPiece).allowed) return null;
     const threeTwo = getThreeTwoEligibility(selectedPiece, hoveredCell.x, hoveredCell.y);
     if (threeTwo.eligible) return { ...threeTwo, legal: true, label: "3/2" };
     const result = evaluateMove(selectedPiece, hoveredCell.x, hoveredCell.y);
@@ -6950,10 +7023,10 @@ function App() {
       };
     }
     return { ...result, label: `${axisIcon ? `${axisIcon} ` : ""}${result.moveCost ?? result.geometry.cost} / ${result.remaining}` };
-  }, [selectedPiece, hoveredCell, gameMode, movementStateByPieceId, cardState, sessionCardsById, sessionLibraryById, pieces, sessionCode, myTeam, cardVisibilityMode, cardRevealPermissions, user?.uid]);
+  }, [selectedPiece, hoveredCell, gameMode, movementStateByPieceId, matchActionState, trackerUsedActions, cardState, sessionCardsById, sessionLibraryById, pieces, sessionCode, myTeam, cardVisibilityMode, cardRevealPermissions, user?.uid]);
 
   const selectedMovementState = selectedPiece ? movementStateByPieceId[selectedPiece.id] : null;
-  const selectedMovementAxis = selectedPiece && selectedPiece.team !== "BALL" && canPreviewMovementForPiece(selectedPiece) && !selectedMovementState?.movementEnded
+  const selectedMovementAxis = selectedPiece && selectedPiece.team !== "BALL" && canPreviewMovementForPiece(selectedPiece) && movementAuthorization(selectedPiece).mode === "normal" && !selectedMovementState?.movementEnded
     ? selectedMovementState?.axis || null
     : null;
 
@@ -7420,6 +7493,8 @@ function App() {
         startingTeam: overrides.startingTeam ?? trackerStartingTeam,
         currentTurn: overrides.currentTurn ?? trackerCurrentTurn,
         usedActions: overrides.usedActions ?? trackerUsedActions,
+        actionLog: overrides.actionLog ?? trackerActionLog,
+        matchActionState: overrides.matchActionState ?? matchActionState,
         settings: overrides.settings ?? trackerSettings,
       }),
       gameMode: normalizeGameMode(overrides.gameMode ?? gameMode),
@@ -7461,23 +7536,93 @@ function App() {
     syncSharedTracker({ enabled: nextEnabled });
   }
 
+  function getTeamActionStatus(team, usedOverride = trackerUsedActions) {
+    const limit = trackerActionCountFor(team);
+    const used = clamp(Number(usedOverride?.[team]) || 0, 0, limit);
+    return { limit, used, remaining: Math.max(0, limit - used), exhausted: used >= limit };
+  }
+  function canUseActionForPiece(piece) {
+    if (!piece || piece.team === "BALL" || piece.inactive || gameMode !== "match" || !trackerGameStarted) return false;
+    if (!sessionCode) return true;
+    return myTeam !== "spectator" && pieceTeamKey(piece) === myTeam;
+  }
+  async function applyActionStateUpdate(nextLog, nextState, nextUsed) {
+    setTrackerActionLog(nextLog); setMatchActionState(nextState); setTrackerUsedActions(nextUsed);
+    if (!sessionCode) return;
+    try {
+      await updateDoc(sessionRef(sessionCode), {
+        "sharedTracker.actionLog": nextLog,
+        "sharedTracker.matchActionState": nextState,
+        "sharedTracker.usedActions": nextUsed,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) { console.error("Action sync failed", error); setSessionStatus("Action sync error"); }
+  }
+  async function consumeInspectorAction(type, piece) {
+    if (!canUseActionForPiece(piece)) return;
+    const team = pieceTeamKey(piece);
+    const currentPieceState = matchActionState.byPieceId[piece.id] || {};
+    if (type === "FREE") {
+      const nextState = normalizeMatchActionState({ ...matchActionState, byPieceId: { ...matchActionState.byPieceId, [piece.id]: { ...currentPieceState, freeMoveAuthorized: true } } });
+      setMatchActionState(nextState); setSelectedId(piece.id);
+      if (sessionCode) updateDoc(sessionRef(sessionCode), { "sharedTracker.matchActionState": nextState, updatedAt: serverTimestamp() }).catch(console.error);
+      return;
+    }
+    const status = getTeamActionStatus(team);
+    if (status.exhausted) { setIllegalMoveNotice({ reason: trackerUsedActions.red >= trackerActionCountFor("red") && trackerUsedActions.blue >= trackerActionCountFor("blue") ? "advance-turn" : "wait-opponent" }); return; }
+    if (type === "MOVE" && currentPieceState.moveUsed) return;
+    if (type === "GROUP_MOVE" && status.remaining !== 1) return;
+    const entry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, type, pieceId: piece.id };
+    const nextLog = { ...trackerActionLog, [team]: [...trackerActionLog[team], entry] };
+    const nextUsed = { ...trackerUsedActions, [team]: nextLog[team].length };
+    let nextState = matchActionState;
+    if (type === "MOVE") nextState = normalizeMatchActionState({ ...matchActionState, byPieceId: { ...matchActionState.byPieceId, [piece.id]: { ...currentPieceState, moveUsed: true, moveAuthorized: true } } });
+    if (type === "GROUP_MOVE") nextState = normalizeMatchActionState({ ...matchActionState, groupMove: { active: true, team } });
+    await applyActionStateUpdate(nextLog, nextState, nextUsed);
+    if (type === "MOVE" || type === "GROUP_MOVE") setSelectedId(piece.id);
+  }
+  async function removeLastTrackerAction(team) {
+    if (!trackerGameStarted || !trackerActionLog[team]?.length) return;
+    if (sessionCode && myTeam !== team && !isSessionHost) return;
+    if (!window.confirm("Remove the latest action from this tracker?")) return;
+    const removed = trackerActionLog[team][trackerActionLog[team].length - 1];
+    const nextLog = { ...trackerActionLog, [team]: trackerActionLog[team].slice(0, -1) };
+    const nextUsed = { ...trackerUsedActions, [team]: nextLog[team].length };
+    let nextState = matchActionState;
+    if (removed.type === "MOVE" && removed.pieceId) {
+      const byPieceId = { ...matchActionState.byPieceId }; delete byPieceId[removed.pieceId];
+      nextState = normalizeMatchActionState({ ...matchActionState, byPieceId });
+    }
+    if (removed.type === "GROUP_MOVE") nextState = normalizeMatchActionState({ ...matchActionState, groupMove: { active: false, team: null } });
+    await applyActionStateUpdate(nextLog, nextState, nextUsed);
+  }
+  function movementAuthorization(piece) {
+    if (!piece || piece.team === "BALL" || gameMode === "editor") return { allowed: true, mode: "normal" };
+    const team = pieceTeamKey(piece);
+    const state = matchActionState.byPieceId[piece.id] || {};
+    if (state.freeMoveAuthorized) return { allowed: true, mode: "free" };
+    if (matchActionState.groupMove.active && matchActionState.groupMove.team === team) return { allowed: true, mode: "group" };
+    if (state.moveAuthorized) return { allowed: true, mode: "normal" };
+    return { allowed: false, mode: "blocked" };
+  }
+
   function startTrackedGame(team) {
     if (trackerReadOnly) return;
     const usedActions = { red: 0, blue: 0 };
     setTrackerStartingTeam(team);
     setTrackerCurrentTurn(1);
-    setTrackerUsedActions(usedActions);
+    setTrackerUsedActions(usedActions); setTrackerActionLog({ red: [], blue: [] }); setMatchActionState(normalizeMatchActionState({}));
     setTrackerGameStarted(true);
     setMovementStateByPieceId({}); movementStateRef.current = {};
     setTrackerStartChoiceOpen(false);
-    syncSharedTracker({ gameStarted: true, startingTeam: team, currentTurn: 1, usedActions, movementStateByPieceId: {} });
+    syncSharedTracker({ gameStarted: true, startingTeam: team, currentTurn: 1, usedActions, actionLog: { red: [], blue: [] }, matchActionState: normalizeMatchActionState({}), movementStateByPieceId: {} });
   }
   function applyTrackerTurn(turn) {
     const usedActions = { red: 0, blue: 0 };
     setTrackerCurrentTurn(turn);
-    setTrackerUsedActions(usedActions);
+    setTrackerUsedActions(usedActions); setTrackerActionLog({ red: [], blue: [] }); setMatchActionState(normalizeMatchActionState({}));
     setMovementStateByPieceId({}); movementStateRef.current = {};
-    syncSharedTracker({ currentTurn: turn, usedActions, movementStateByPieceId: {} });
+    syncSharedTracker({ currentTurn: turn, usedActions, actionLog: { red: [], blue: [] }, matchActionState: normalizeMatchActionState({}), movementStateByPieceId: {} });
   }
   function selectTrackerTurn(turn) {
     if (trackerReadOnly || !trackerGameStarted || turn === trackerCurrentTurn) return;
@@ -7492,16 +7637,18 @@ function App() {
   function resetTrackerActions() {
     if (trackerReadOnly) return;
     const usedActions = { red: 0, blue: 0 };
-    setTrackerUsedActions(usedActions);
-    syncSharedTracker({ usedActions });
+    setTrackerUsedActions(usedActions); setTrackerActionLog({ red: [], blue: [] }); setMatchActionState(normalizeMatchActionState({}));
+    setMovementStateByPieceId({}); movementStateRef.current = {};
+    syncSharedTracker({ usedActions, actionLog: { red: [], blue: [] }, matchActionState: normalizeMatchActionState({}), movementStateByPieceId: {} });
   }
   function changeTrackerPossession() {
     if (trackerReadOnly || !trackerGameStarted) return;
     const nextAttackingTeam = trackerStartingTeam === "red" ? "blue" : "red";
     const usedActions = { red: 0, blue: 0 };
     setTrackerStartingTeam(nextAttackingTeam);
-    setTrackerUsedActions(usedActions);
-    syncSharedTracker({ startingTeam: nextAttackingTeam, usedActions });
+    setTrackerUsedActions(usedActions); setTrackerActionLog({ red: [], blue: [] }); setMatchActionState(normalizeMatchActionState({}));
+    setMovementStateByPieceId({}); movementStateRef.current = {};
+    syncSharedTracker({ startingTeam: nextAttackingTeam, usedActions, actionLog: { red: [], blue: [] }, matchActionState: normalizeMatchActionState({}), movementStateByPieceId: {} });
   }
   function trackerRoleFor(team) {
     if (!trackerGameStarted || trackerCurrentTurn < 1) return "waiting";
@@ -8188,6 +8335,18 @@ function App() {
                     </button>
                   ))}
                 </div>
+                <div className="match-action-row" aria-label="Match actions">
+                  {["MOVE", "GROUP_MOVE", "PASS", "SHOT", "CROSS", "DRIBBLE", "TACKLING", "FREE"].map(type => {
+                    const team = pieceTeamKey(inspectedPiece);
+                    const status = getTeamActionStatus(team);
+                    const pieceState = matchActionState.byPieceId[inspectedPiece.id] || {};
+                    const disabled = !canUseActionForPiece(inspectedPiece)
+                      || (type !== "FREE" && status.exhausted)
+                      || (type === "MOVE" && pieceState.moveUsed)
+                      || (type === "GROUP_MOVE" && status.remaining !== 1);
+                    return <button key={type} type="button" disabled={disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{type.replace("GROUP_MOVE", "GROUP MOVE")}</button>;
+                  })}
+                </div>
                 {inspectedPiece.inactive ? (
                   <div className="inspector-inactive-state" role="status">INACTIVE</div>
                 ) : inspectedCard ? (
@@ -8407,7 +8566,7 @@ function App() {
                       <div className="tracker-team-title"><strong>{team.toUpperCase()}</strong><span>{role === "attack" ? "ATTACK" : role === "defense" ? "DEFENSE" : "WAITING"}</span></div>
                       <div className="tracker-action-dots">
                         {Array.from({ length: count }, (_, index) => (
-                          <button key={index} aria-label={`${team} action ${index + 1}`} className={index < used ? "used" : ""} onClick={() => toggleTrackerAction(team, index)} disabled={!trackerGameStarted} aria-disabled={trackerReadOnly || !trackerGameStarted} />
+                          <button key={index} aria-label={`${team} action ${index + 1}`} className={index < used ? "used" : ""} onClick={() => index === used - 1 && removeLastTrackerAction(team)} disabled={!trackerGameStarted || index !== used - 1} aria-disabled={!trackerGameStarted || index !== used - 1}>{index < used ? (TRACKER_ACTION_ABBR[trackerActionLog[team]?.[index]?.type] || "•") : ""}</button>
                         ))}
                       </div>
                     </section>

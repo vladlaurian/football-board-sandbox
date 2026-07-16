@@ -9,12 +9,12 @@
     "firebase": "^11.0.0",
     "html2canvas": "^1.4.1",
     "lucide-react": "^0.468.0",
-    "puppeteer-core": "^25.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "vite": "^7.0.0"
+    "vite": "^7.0.0",
+    "puppeteer-core": "^25.3.0"
   },
   "name": "football-board-sandbox",
-  "version": "14.6.0",
+  "version": "14.7.0",
   "private": true
 }
