@@ -1,6 +1,15 @@
-# Football Board Sandbox v14.1
+# Football Board Sandbox v14.2
 
 Source build of the football board sandbox.
+
+## v14.2 — Ruler targets, inspector selection and movement symbols
+
+- The ruler can now start or end on a cell occupied by a player or the match ball. Pieces no longer block ruler cell selection.
+- The Inspector follows the active board selection. Deselecting a piece clears the Inspector instead of leaving stale player information visible.
+- Selecting the ball displays a football icon and `Match Ball` in the Inspector.
+- The movement preview now shows axis symbols: `↔` horizontal, `↕` vertical, `⤡` NW–SE diagonal, and `⤢` NE–SW diagonal.
+- Speed-limit previews use `⚠ cost / remaining`; invalid axis or mixed movement previews use `🚫`.
+- A selected player that already locked an axis in Match Mode shows a small persistent axis badge beside the piece.
 
 ## v14.1 — Selection and multiplayer match-rule fixes
 

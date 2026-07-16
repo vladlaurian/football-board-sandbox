@@ -6947,3 +6947,34 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .illegal-move-backdrop { z-index: 2000; }
 .illegal-move-modal { width: min(360px, calc(100vw - 32px)); }
 .illegal-move-message { padding: 18px 4px; line-height: 1.55; }
+
+
+/* v14.2 ruler targets, inspector sync and movement symbols */
+.selected-axis-badge {
+  position: absolute;
+  z-index: 38;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(12, 18, 28, .94);
+  border: 1px solid rgba(255, 221, 92, .92);
+  color: #ffe778;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 2px 8px rgba(0,0,0,.38);
+}
+.inspector-ball-state {
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 20px;
+}
+.inspector-ball-icon { font-size: 72px; line-height: 1; }

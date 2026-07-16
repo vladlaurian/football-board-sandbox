@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v14.1";
+const APP_VERSION = "v14.2";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4066,7 +4066,22 @@ function App() {
   function onPiecePointerDown(pieceId, e) {
     e.preventDefault();
     e.stopPropagation();
-    if (editingPiece || measureMode) return;
+    if (editingPiece) return;
+    if (measureMode) {
+      if (e.pointerType === "touch") return;
+      if (sharedRulerReadOnly) return;
+      pitchRef.current?.setPointerCapture?.(e.pointerId);
+      measureInteractionRef.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        originPanX: panOffset.x,
+        originPanY: panOffset.y,
+        point: getRulerPointFromPointer(e),
+        panning: false,
+      };
+      return;
+    }
     const piece = (piecesRef.current || pieces).find(item => item.id === pieceId);
     if (!piece) return;
 
@@ -6800,17 +6815,47 @@ function App() {
   const leftArc = arcMask("left");
   const rightArc = arcMask("right");
 
+  function movementAxisSymbol(axis) {
+    if (axis === "horizontal") return "↔";
+    if (axis === "vertical") return "↕";
+    if (axis === "diagonal-nw-se") return "⤡";
+    if (axis === "diagonal-ne-sw") return "⤢";
+    return "";
+  }
+
   const selectedPiece = pieces.find(p => p.id === selectedId);
   const movementPreview = useMemo(() => {
     if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL") return null;
     const result = evaluateMove(selectedPiece, hoveredCell.x, hoveredCell.y);
-    if (gameMode === "editor") return { ...result, label: result.geometry.kind === "mixed" ? "—" : String(result.geometry.cost ?? "—") };
-    if (!result.legal) return { ...result, label: result.reason === "speed" ? `${result.geometry.cost} / ${result.remaining}` : "Illegal" };
-    return { ...result, label: `${result.geometry.cost} / ${result.remaining}` };
+    const axisIcon = movementAxisSymbol(result.geometry.axis);
+    if (gameMode === "editor") {
+      return {
+        ...result,
+        label: result.geometry.kind === "mixed" ? "—" : `${axisIcon ? `${axisIcon} ` : ""}${result.geometry.cost ?? "—"}`,
+      };
+    }
+    if (!result.legal) {
+      return {
+        ...result,
+        label: result.reason === "speed"
+          ? `⚠ ${result.geometry.cost} / ${result.remaining}`
+          : "🚫",
+      };
+    }
+    return { ...result, label: `${axisIcon ? `${axisIcon} ` : ""}${result.geometry.cost} / ${result.remaining}` };
   }, [selectedPiece, hoveredCell, gameMode, movementStateByPieceId, cardState, sessionCardsById, sessionLibraryById, pieces]);
 
+  const selectedMovementAxis = selectedPiece && selectedPiece.team !== "BALL"
+    ? movementStateByPieceId[selectedPiece.id]?.axis || null
+    : null;
+
   useEffect(() => {
-    if (!selectedId) setHoveredCell(null);
+    if (!selectedId) {
+      setHoveredCell(null);
+      setInspectedPieceId(null);
+    } else {
+      setInspectedPieceId(selectedId);
+    }
   }, [selectedId]);
 
   const coordinateCells = useMemo(() => {
@@ -7773,10 +7818,20 @@ function App() {
             }} />
 
             {selectedPiece && (
-              <div className="selected-cell" style={{
-                left: `calc(${Math.floor(selectedPiece.x)} * var(--cell))`,
-                top: `calc(${Math.floor(selectedPiece.y)} * var(--cell))`,
-              }} />
+              <>
+                <div className="selected-cell" style={{
+                  left: `calc(${Math.floor(selectedPiece.x)} * var(--cell))`,
+                  top: `calc(${Math.floor(selectedPiece.y)} * var(--cell))`,
+                }} />
+                {selectedMovementAxis && (
+                  <div className="selected-axis-badge" style={{
+                    left: `calc((${selectedPiece.x} + .82) * var(--cell))`,
+                    top: `calc((${selectedPiece.y} + .08) * var(--cell))`,
+                  }}>
+                    {movementAxisSymbol(selectedMovementAxis)}
+                  </div>
+                )}
+              </>
             )}
 
             {selectedPiece && hoveredCell && (
@@ -7784,6 +7839,17 @@ function App() {
                 left: `calc(${hoveredCell.x} * var(--cell))`,
                 top: `calc(${hoveredCell.y} * var(--cell))`,
               }} />
+            )}
+            {movementPreview && hoveredCell && (
+              <div
+                className={`movement-cost-badge ${movementPreview.legal ? "" : "illegal"}`}
+                style={{
+                  left: `calc((${hoveredCell.x} + .5) * var(--cell))`,
+                  top: `calc(${hoveredCell.y} * var(--cell) - 4px)`,
+                }}
+              >
+                {movementPreview.label}
+              </div>
             )}
 
             {coordinateCells.map(c => (
@@ -7939,15 +8005,20 @@ function App() {
         <div className="inspector-head inspector-drag-handle" onPointerDown={onInspectorDragDown}>
           <strong>Inspector</strong>
           <div className="inspector-head-right">
-            {inspectedPiece && <span>{inspectedPiece.team === "A" ? "Blue" : inspectedPiece.team === "B" ? "Red" : "Ball"} · {inspectedPiece.team === "BALL" ? inspectedPiece.label : getPieceDisplayLabel(inspectedPiece)}</span>}
+            {inspectedPiece && <span>{inspectedPiece.team === "A" ? "Blue" : inspectedPiece.team === "B" ? "Red" : "Match Ball"}{inspectedPiece.team === "BALL" ? "" : ` · ${getPieceDisplayLabel(inspectedPiece)}`}</span>}
             <button className="inspector-window-btn" title="Minimize" onPointerDown={e => e.stopPropagation()} onClick={() => setInspectorMinimized(v => !v)}>{inspectorMinimized ? "□" : "—"}</button>
             <button className="inspector-window-btn" title="Close" onPointerDown={e => e.stopPropagation()} onClick={() => setInspectorVisible(false)}>×</button>
           </div>
         </div>
         {!inspectorMinimized && (
           <div className="inspector-body">
-            {!inspectedPiece || inspectedPiece.team === "BALL" ? (
-              <p className="muted">Click/tap pe un puc ca să vezi cardul atașat.</p>
+            {!inspectedPiece ? (
+              <p className="muted">No selection.</p>
+            ) : inspectedPiece.team === "BALL" ? (
+              <div className="inspector-ball-state" role="status">
+                <span className="inspector-ball-icon" aria-hidden="true">⚽</span>
+                <strong>Match Ball</strong>
+              </div>
             ) : (
               <>
                 <div className="inspector-piece-line">
