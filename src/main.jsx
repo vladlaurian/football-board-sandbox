@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v13.0";
+const APP_VERSION = "v13.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -6897,22 +6897,14 @@ function App() {
   }
 
   function onPitchPointerUp(e) {
-    if (measureMode) {
-      const interaction = measureInteractionRef.current;
-      if (!interaction || interaction.pointerId !== e.pointerId) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (!interaction.panning) applyRulerPoint(interaction.point);
-      measureInteractionRef.current = null;
-      pitchRef.current?.releasePointerCapture?.(e.pointerId);
-      return;
-    }
-
-    if (e.pointerType === "touch" && Date.now() < multiTouchUntilRef.current) return;
-    if (boardPanRef.current?.panning) return;
-    if (!selectedId || e.target?.closest?.(".piece")) return;
-    const point = gridPointFromClient(e.clientX, e.clientY);
-    if (point) moveSelectedPieceTo(point.x, point.y);
+    if (!measureMode) return;
+    const interaction = measureInteractionRef.current;
+    if (!interaction || interaction.pointerId !== e.pointerId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!interaction.panning) applyRulerPoint(interaction.point);
+    measureInteractionRef.current = null;
+    pitchRef.current?.releasePointerCapture?.(e.pointerId);
   }
 
   function onPitchPointerCancel(e) {
@@ -6953,9 +6945,19 @@ function App() {
   }
 
   function endBoardPan(e) {
-    if (boardPanRef.current?.pointerId === e.pointerId) {
-      window.setTimeout(() => { if (boardPanRef.current?.pointerId === e.pointerId) boardPanRef.current = null; }, 0);
-    }
+    const pan = boardPanRef.current;
+    if (!pan || pan.pointerId !== e.pointerId) return;
+
+    const wasPanning = pan.panning;
+    boardPanRef.current = null;
+    boardWrapRef.current?.releasePointerCapture?.(e.pointerId);
+
+    if (measureMode || wasPanning) return;
+    if (e.pointerType === "touch" && Date.now() < multiTouchUntilRef.current) return;
+    if (!selectedId || e.target?.closest?.(".piece")) return;
+
+    const point = gridPointFromClient(e.clientX, e.clientY);
+    if (point) moveSelectedPieceTo(point.x, point.y);
   }
 
   function onHistoryPointerDown(e) {

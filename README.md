@@ -1,42 +1,39 @@
-# Final Board v13.0 — Ruler Session Cleanup Fix
+# Football Board Sandbox v13.1
 
-Stable source build of the Football Board Sandbox.
+Source build of the football board sandbox.
 
-## v13.0 changes
+## v13.1 — click-to-move routing fix
 
-- Fixed intermittent ruler panels that could remain visible and become impossible to close after a multiplayer session ended, disappeared, or was left.
-- Centralized local ruler cleanup in `leaveSession()` so every session-exit path clears ruler visibility, ownership, measurement points, drag state, and resize state.
-- Reset the session-ending guard only after the local session code has been cleared, preserving protection during teardown without blocking later offline ruler use.
-- Added a visible session status when closing the shared ruler fails, while preserving the existing multiplayer ownership and Firestore authority model.
-- Shared ruler payloads, host/guest permissions, board state, tracker, cards, inspector, and export flows remain unchanged.
+- Fixed selected players not moving when an empty destination cell was clicked.
+- Fixed the misleading case where the ball could move only by clicking a cell already occupied by a player.
+- Destination clicks are now resolved by the same board-level interaction that distinguishes a click from a pan.
+- A desktop drag that exceeds the 5 px threshold pans the board and does not move the selected piece.
+- A simple desktop click moves the selected piece and then clears the selection.
+- Panning preserves the current selection.
+- Piece and ball hover use the normal arrow cursor.
+- While a piece is selected, the board uses the normal arrow cursor.
 
-## v12.5 changes
+## v13.0 — interaction redesign
 
-- Added persistent cloud storage for the functional Match Tracker state.
-- The saved tracker state now includes whether the tracker is enabled, whether a tracked game has started, current possession/attacking team, current turn, used actions for both teams, and tracker settings.
-- Tracker changes now mark the cloud state as changed so they are included in autosave.
-- Added one shared tracker-normalization path for cloud restoration and multiplayer snapshots.
-- Kept multiplayer authority unchanged: live sessions still use only the dedicated `sharedTracker` document field, with host control and guest read-only behavior.
-- Cloud restoration does not write into or override an active multiplayer tracker.
-- Tracker window position, size, minimize state, and guest-local visibility remain local UI preferences.
-- Removed an invalid residual `sharedAssignments` reference from personal cloud restoration.
+- Click or tap a player or the ball to select it.
+- Click or tap a destination cell to move the selected piece.
+- Players cannot move into a cell occupied by another player.
+- The ball may share a cell with a player; clicking that player while the ball is selected moves the ball onto the player's cell.
+- Desktop board panning starts only after a 5 px drag threshold.
+- Touch uses one finger for selection and movement, and two fingers for board pan/zoom.
+- Desktop double-click and touch double-tap open player label editing.
+- Grid snapping is always enabled; the Snap Off control and stored snap state were removed.
+- Added Redo next to Undo. A new move clears the redo stack.
 
-## Preserved v12.4 behavior
+## Preserved systems
 
-- Manual possession control remains independent of turn parity.
-- Advancing or revisiting a turn resets action circles while preserving possession.
-- **Change Possession** swaps attacking and defending teams and resets both action trackers.
-- The attacking team is selected explicitly when starting or restarting a tracked game.
-- Multiplayer synchronization remains host-controlled: guests see tracker changes in real time but cannot modify them.
+- Multiplayer ownership and synchronization rules.
+- Cloud save and autosave.
+- Match Tracker persistence and host authority.
+- Ruler and ruler session cleanup.
+- Cards, inspector, formations, dice, history, imported graphics, and export flows.
 
-## Preserved card and sandbox behavior
-
-- Inspector Front / Back memory and private multiplayer flip permissions.
-- Session card subcollection architecture and protected host End Session behavior.
-- Card editor, inspector, imported graphics, front/back rendering, and export logic are unchanged by this build.
-- Board, pieces, formations, dice, ruler, snap, coordinates, and cloud card storage retain their existing architecture.
-
-## Run
+## Run locally
 
 ```bash
 npm install
@@ -48,13 +45,3 @@ npm run dev
 ```bash
 npm run build
 ```
-
-
-## v13.0
-- Click/tap a player or ball, then click/tap a destination cell to move.
-- Desktop board pan starts only after a 5 px drag threshold and preserves selection.
-- Touch board pan/zoom uses two fingers; one-finger taps select and move.
-- Player pieces cannot enter a cell occupied by another player; the ball can share a player cell.
-- Touch double-tap on a player opens label editing; desktop double-click remains available.
-- Grid snapping is always enabled; Snap Off and its saved/session state were removed.
-- Added Redo alongside Undo.
