@@ -7167,26 +7167,3 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   overflow: hidden;
   text-overflow: clip;
 }
-
-
-/* v15.6 tighter Inspector header and completed-action feedback */
-.card-inspector { padding: 9px !important; }
-.inspector-head { margin-bottom: 5px !important; min-height: 18px !important; gap: 5px !important; }
-.inspector-head > strong { font-size: 15px !important; line-height: 1 !important; }
-.inspector-head-right { gap: 3px !important; }
-.inspector-head-right span { font-size: 10px !important; line-height: 1 !important; }
-.inspector-window-btn {
-  width: 17px !important; height: 17px !important; min-width: 17px !important; min-height: 17px !important;
-  border-radius: 5px !important; font-size: 10px !important;
-}
-.inspector-piece-line { margin-bottom: 3px !important; min-height: 20px !important; font-size: 11px !important; }
-.inspector-piece-line .inspector-flip-request-btn,
-.inspector-piece-line .piece-status-btn,
-.inspector-piece-line .team-action-btn {
-  height: 20px !important; min-height: 20px !important; padding: 1px 4px !important; font-size: 7px !important; border-radius: 6px !important;
-}
-.match-action-row { padding: 1px 0 2px !important; gap: 2px !important; }
-.match-action-row button { height: 20px !important; min-height: 20px !important; font-size: 7px !important; padding: 1px !important; }
-.match-action-row button.group-move-btn { font-size: 5.8px !important; letter-spacing: -.02em !important; }
-.match-action-row button.action-locked { opacity: .42 !important; filter: saturate(.55); cursor: not-allowed; }
-.inspector-card-zoom-tools { min-height: 20px !important; padding: 1px 0 !important; font-size: 11px !important; }

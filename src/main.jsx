@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v15.6";
+const APP_VERSION = "v15.5";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4087,7 +4087,6 @@ function App() {
     else if (result.reason === "team-exhausted") primary = <>Wait for opponent team or advance to next turn.</>;
     else if (result.reason === "wait-opponent") primary = <>Wait for opponent team.</>;
     else if (result.reason === "wait-active-team") primary = <>Wait for the opponent to finish their turn, or use FREE.</>;
-    else if (result.reason === "actions-complete-end-turn") primary = <>All actions are complete. Press END TURN to finish your turn.</>;
     else if (result.reason === "all-actions-complete") primary = <>All actions are complete. Advance to the next turn.</>;
     else if (result.reason === "advance-turn") primary = <>Advance to next turn.</>;
     else primary = <>This move is not allowed.</>;
@@ -4181,12 +4180,8 @@ function App() {
       setIllegalMoveNotice({ reason: phaseBlockReason() });
       return false;
     }
-    if (gameMode === "match" && piece.team !== "BALL" && !pieceActionState.freeMoveAuthorized && isTeamPhaseActive(phaseTeam) && getTeamActionStatus(phaseTeam).exhausted) {
-      setIllegalMoveNotice({ reason: "actions-complete-end-turn" });
-      return false;
-    }
 
-    // The 3/2 rule is a free action, but only during this team's active phase and before its action tracker is complete.
+    // The 3/2 rule is a free action, but only during this team's active phase.
     const threeTwo = getThreeTwoEligibility(piece, x, y);
     if (threeTwo.eligible) {
       setPendingThreeTwoMove({ pieceId: piece.id, x, y, evaluation: threeTwo });
@@ -4213,7 +4208,7 @@ function App() {
         const team = pieceTeamKey(piece);
         const teamExhausted = trackerGameStarted && getTeamActionStatus(team).exhausted;
         const bothExhausted = trackerGameStarted && getTeamActionStatus("red").exhausted && getTeamActionStatus("blue").exhausted;
-        setIllegalMoveNotice({ reason: authorization.reason || (isTeamPhaseActive(team) && teamExhausted ? "actions-complete-end-turn" : bothExhausted ? "advance-turn" : teamExhausted ? "team-exhausted" : "move-not-authorized") });
+        setIllegalMoveNotice({ reason: authorization.reason || (bothExhausted ? "advance-turn" : teamExhausted ? "team-exhausted" : "move-not-authorized") });
       }
       return false;
     }
@@ -4324,6 +4319,8 @@ function App() {
     }
     const piece = (piecesRef.current || pieces).find(item => item.id === pieceId);
     if (!piece) return;
+
+    setInspectedPieceId(pieceId);
 
     if (e.pointerType === "touch") {
       const now = Date.now();
@@ -7645,7 +7642,7 @@ function App() {
       return;
     }
     const status = getTeamActionStatus(team);
-    if (status.exhausted) { setIllegalMoveNotice({ reason: "actions-complete-end-turn" }); return; }
+    if (status.exhausted) { setIllegalMoveNotice({ reason: trackerUsedActions.red >= trackerActionCountFor("red") && trackerUsedActions.blue >= trackerActionCountFor("blue") ? "advance-turn" : "wait-opponent" }); return; }
     if (type === "MOVE" && currentPieceState.moveUsed) return;
     if (type === "GROUP_MOVE" && status.remaining !== 1) return;
     const currentMovementSnapshot = movementStateRef.current[piece.id] || null;
@@ -8540,11 +8537,11 @@ function App() {
                     const team = pieceTeamKey(inspectedPiece);
                     const status = getTeamActionStatus(team);
                     const pieceState = matchActionState.byPieceId[inspectedPiece.id] || {};
-                    const trackerComplete = status.exhausted;
                     const disabled = !canUseActionForPiece(inspectedPiece)
+                      || status.exhausted
                       || (type === "MOVE" && pieceState.moveUsed)
-                      || (type === "GROUP_MOVE" && status.remaining !== 1 && !trackerComplete);
-                    return <button className={`team-action-btn ${team} ${type === "GROUP_MOVE" ? "group-move-btn" : ""} ${trackerComplete ? "action-locked" : ""}`} key={type} type="button" disabled={disabled} aria-disabled={trackerComplete || disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{type.replace("GROUP_MOVE", "GROUP MOVE")}</button>;
+                      || (type === "GROUP_MOVE" && status.remaining !== 1);
+                    return <button className={`team-action-btn ${team}`} key={type} type="button" disabled={disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{type.replace("GROUP_MOVE", "GROUP MOVE")}</button>;
                   })}
                 </div>
                 {inspectedPiece.inactive ? (
