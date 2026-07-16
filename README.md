@@ -45,3 +45,16 @@ npm run dev
 ```bash
 npm run build
 ```
+
+
+## v14.0 — Editor Mode / Match Mode
+
+- Added a host-authoritative Editor Mode / Match Mode control next to Tracker Settings.
+- Editor Mode keeps free sandbox movement and shows only the straight/diagonal movement cost under the cursor. Mixed destinations show an em dash.
+- Match Mode reads the assigned card's numeric Speed passive attribute.
+- The first movement of each player in a turn locks horizontal, vertical, NW-SE diagonal, or NE-SW diagonal axis. The player may reverse direction on that same axis.
+- Movement cost accumulates across multiple selections during the same turn. Diagonal cost follows 1, 3, 4, 6, 7, 9...
+- Illegal moves are blocked and display a single OK dialog. There is no Ignore option.
+- Starting/restarting a tracked game and changing tracker turn reset all per-player movement usage.
+- Undo/Redo snapshots include both piece positions and per-turn movement state.
+- Game mode and movement state persist in cloud saves and synchronize in multiplayer. Only the host may change mode.

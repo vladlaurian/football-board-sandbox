@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v13.2";
+const APP_VERSION = "v14.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -45,6 +45,31 @@ const BASE_LAYOUT_STYLE_KEYS = {
     preferredFoot: { textStyles: ["preferredFoot"], textColors: ["preferredFoot"] },
   },
 };
+
+function normalizeGameMode(value) { return value === "match" ? "match" : "editor"; }
+function normalizeMovementState(raw) {
+  if (!raw || typeof raw !== "object") return {};
+  const out = {};
+  for (const [id, value] of Object.entries(raw)) {
+    const axis = ["horizontal", "vertical", "diagonal-nw-se", "diagonal-ne-sw"].includes(value?.axis) ? value.axis : null;
+    const spent = Math.max(0, Number(value?.spent) || 0);
+    if (axis || spent) out[id] = { axis, spent };
+  }
+  return out;
+}
+function getMovementGeometry(from, to) {
+  const dx = Number(to.x) - Number(from.x);
+  const dy = Number(to.y) - Number(from.y);
+  const ax = Math.abs(dx); const ay = Math.abs(dy);
+  if (!dx && !dy) return { kind: "same", axis: null, distance: 0, cost: 0 };
+  if (!dy) return { kind: "straight", axis: "horizontal", distance: ax, cost: ax };
+  if (!dx) return { kind: "straight", axis: "vertical", distance: ay, cost: ay };
+  if (ax === ay) {
+    const axis = Math.sign(dx) === Math.sign(dy) ? "diagonal-nw-se" : "diagonal-ne-sw";
+    return { kind: "diagonal", axis, distance: ax, cost: ax + Math.floor(ax / 2) };
+  }
+  return { kind: "mixed", axis: null, distance: null, cost: null };
+}
 
 function clonePlain(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
@@ -2116,6 +2141,10 @@ function App() {
   const [trackerCurrentTurn, setTrackerCurrentTurn] = useState(0);
   const [trackerUsedActions, setTrackerUsedActions] = useState({ red: 0, blue: 0 });
   const [trackerSharedEnabled, setTrackerSharedEnabled] = useState(false);
+  const [gameMode, setGameMode] = useState("editor");
+  const [movementStateByPieceId, setMovementStateByPieceId] = useState({});
+  const movementStateRef = useRef({});
+  const [illegalMoveNotice, setIllegalMoveNotice] = useState(null);
   const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
   const [lockUI, setLockUI] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -2173,6 +2202,7 @@ function App() {
   useEffect(() => { piecesRef.current = pieces; }, [pieces]);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { cardStateRef.current = cardState; }, [cardState]);
+  useEffect(() => { movementStateRef.current = movementStateByPieceId; }, [movementStateByPieceId]);
   useEffect(() => { sessionCardsByIdRef.current = sessionCardsById; }, [sessionCardsById]);
   useEffect(() => { sessionLibraryByIdRef.current = sessionLibraryById; }, [sessionLibraryById]);
 
@@ -2393,6 +2423,8 @@ function App() {
       touchMode,
       showCoordinates,
       trackerState: effectiveTrackerState,
+      gameMode: normalizeGameMode(overrides.gameMode ?? gameMode),
+      movementStateByPieceId: normalizeMovementState(overrides.movementStateByPieceId ?? movementStateRef.current),
       ...restOverrides,
       settings: effectiveSettings,
       pieces: sanitizePiecesCardIds(effectivePieces, effectiveCardState, effectiveSettings),
@@ -2431,6 +2463,10 @@ function App() {
     }
     if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
+    if (!sessionCode) {
+      setGameMode(normalizeGameMode(data.gameMode));
+      setMovementStateByPieceId(normalizeMovementState(data.movementStateByPieceId));
+    }
     if (data.trackerState && !sessionCode) {
       const restoredTracker = normalizeTrackerSnapshot(data.trackerState);
       setTrackerVisible(restoredTracker.enabled);
@@ -2594,6 +2630,10 @@ function App() {
       }
     }
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
+    if (!sessionCode) {
+      setGameMode(normalizeGameMode(data.gameMode));
+      setMovementStateByPieceId(normalizeMovementState(data.movementStateByPieceId));
+    }
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
   }
@@ -2736,6 +2776,8 @@ function App() {
           currentTurn: 0,
           usedActions: { red: 0, blue: 0 },
           settings: { ...trackerSettings },
+          gameMode: "editor",
+          movementStateByPieceId: {},
           updatedBy: user.uid,
         },
         board: encodeForFirestore(buildLiveBoardState()),
@@ -3153,6 +3195,8 @@ function App() {
         setTrackerStartingTeam(normalizedTracker.startingTeam);
         setTrackerCurrentTurn(normalizedTracker.currentTurn);
         setTrackerUsedActions(normalizedTracker.usedActions);
+        setGameMode(normalizeGameMode(sharedTracker.gameMode));
+        setMovementStateByPieceId(normalizeMovementState(sharedTracker.movementStateByPieceId));
         if (!wasSharedTrackerEnabled) {
           setTrackerVisible(true);
           setTrackerMinimized(false);
@@ -3339,8 +3383,11 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, cloudReady]);
 
-  function pushHistory(nextPieces = piecesRef.current || pieces) {
-    setHistory(h => [...h.slice(-60), JSON.stringify(nextPieces)]);
+  function makeHistorySnapshot(nextPieces = piecesRef.current || pieces, nextMovement = movementStateRef.current) {
+    return JSON.stringify({ pieces: nextPieces, movementStateByPieceId: normalizeMovementState(nextMovement) });
+  }
+  function pushHistory(nextPieces = piecesRef.current || pieces, nextMovement = movementStateRef.current) {
+    setHistory(h => [...h.slice(-60), makeHistorySnapshot(nextPieces, nextMovement)]);
     setRedoHistory([]);
   }
 
@@ -3843,15 +3890,18 @@ function App() {
   }
 
   function applyPieceSnapshot(snapshot) {
-    const nextPieces = ensureBenchReserveCount(normalizePiecesForBoard(JSON.parse(snapshot), settingsRef.current), settingsRef.current);
-    piecesRef.current = nextPieces;
-    setPieces(nextPieces);
+    const parsed = JSON.parse(snapshot);
+    const rawPieces = Array.isArray(parsed) ? parsed : parsed.pieces;
+    const nextPieces = ensureBenchReserveCount(normalizePiecesForBoard(rawPieces, settingsRef.current), settingsRef.current);
+    const nextMovement = normalizeMovementState(Array.isArray(parsed) ? {} : parsed.movementStateByPieceId);
+    piecesRef.current = nextPieces; movementStateRef.current = nextMovement;
+    setPieces(nextPieces); setMovementStateByPieceId(nextMovement);
   }
 
   function undo() {
     if (!history.length) return;
     const previous = history[history.length - 1];
-    setRedoHistory(r => [...r.slice(-60), JSON.stringify(piecesRef.current || pieces)]);
+    setRedoHistory(r => [...r.slice(-60), makeHistorySnapshot(piecesRef.current || pieces, movementStateRef.current)]);
     applyPieceSnapshot(previous);
     setHistory(h => h.slice(0, -1));
     setSelectedId(null);
@@ -3860,7 +3910,7 @@ function App() {
   function redo() {
     if (!redoHistory.length) return;
     const next = redoHistory[redoHistory.length - 1];
-    setHistory(h => [...h.slice(-60), JSON.stringify(piecesRef.current || pieces)]);
+    setHistory(h => [...h.slice(-60), makeHistorySnapshot(piecesRef.current || pieces, movementStateRef.current)]);
     applyPieceSnapshot(next);
     setRedoHistory(r => r.slice(0, -1));
     setSelectedId(null);
@@ -3885,19 +3935,75 @@ function App() {
     return { x, y };
   }
 
+  function findCardForPiece(piece) {
+    if (!piece?.cardId) return null;
+    const id = String(piece.cardId);
+    const sessionCard = sessionCardsByIdRef.current?.[id] || sessionLibraryByIdRef.current?.[id];
+    return sessionCard || (cardStateRef.current.cards || []).find(card => String(card.id) === id) || null;
+  }
+  function getPieceSpeed(piece) {
+    const card = findCardForPiece(piece);
+    const attr = (card?.passiveAttributes || []).find(item => String(item?.name ?? item?.label ?? "").trim().toLowerCase() === "speed");
+    const value = Number(attr?.value);
+    return Number.isFinite(value) ? Math.max(0, value) : null;
+  }
+  function evaluateMove(piece, x, y) {
+    const geometry = getMovementGeometry(piece, { x, y });
+    const targetOccupiedByPlayer = (piecesRef.current || pieces).some(item => item.id !== piece.id && item.team !== "BALL" && item.x === x && item.y === y);
+    if (piece.team !== "BALL" && targetOccupiedByPlayer) return { legal: false, reason: "occupied", geometry };
+    if (geometry.kind === "same") return { legal: false, reason: "same", geometry };
+    if (piece.team === "BALL" || gameMode === "editor") return { legal: true, geometry };
+    if (geometry.kind === "mixed") return { legal: false, reason: "mixed", geometry };
+    const speed = getPieceSpeed(piece);
+    if (speed === null) return { legal: false, reason: "no-speed", geometry };
+    const current = movementStateRef.current[piece.id] || { axis: null, spent: 0 };
+    if (current.axis && current.axis !== geometry.axis) return { legal: false, reason: "axis", geometry, speed, current };
+    const remaining = Math.max(0, speed - current.spent);
+    if (geometry.cost > remaining) return { legal: false, reason: "speed", geometry, speed, current, remaining };
+    return { legal: true, geometry, speed, current, remaining };
+  }
+  function illegalMoveMessage(result) {
+    if (result.reason === "speed") return <>Movement cost: {result.geometry.cost}<br/>Movement remaining: {result.remaining}</>;
+    if (result.reason === "axis") return <>The player cannot change movement axis during the same turn.</>;
+    if (result.reason === "mixed") return <>Mixed movement is not allowed.</>;
+    if (result.reason === "no-speed") return <>No Speed value is assigned to this player.</>;
+    if (result.reason === "occupied") return <>The destination cell is occupied by another player.</>;
+    return <>This move is not allowed.</>;
+  }
+  async function syncMovementState(nextMovement) {
+    if (!sessionCode || sessionEndingRef.current) return;
+    try { await updateDoc(sessionRef(sessionCode), { "sharedTracker.movementStateByPieceId": normalizeMovementState(nextMovement), updatedAt: serverTimestamp() }); }
+    catch (error) { console.error("Movement state sync failed", error); setSessionStatus("Movement sync error"); }
+  }
+  async function toggleGameMode() {
+    if (sessionCode && !isSessionHost) return;
+    const next = gameMode === "editor" ? "match" : "editor";
+    setGameMode(next);
+    if (sessionCode) {
+      try { await updateDoc(sessionRef(sessionCode), { "sharedTracker.gameMode": next, updatedAt: serverTimestamp() }); }
+      catch (error) { console.error("Game mode sync failed", error); setSessionStatus("Mode sync error"); }
+    }
+  }
+
   function moveSelectedPieceTo(x, y) {
     const piece = (piecesRef.current || pieces).find(item => item.id === selectedId);
     if (!piece || !canMovePiece(piece)) return false;
-    const targetOccupiedByPlayer = (piecesRef.current || pieces).some(item => item.id !== piece.id && item.team !== "BALL" && item.x === x && item.y === y);
-    if (piece.team !== "BALL" && targetOccupiedByPlayer) return false;
-    if (piece.x === x && piece.y === y) return false;
-
-    pushHistory(piecesRef.current || pieces);
+    const evaluation = evaluateMove(piece, x, y);
+    if (!evaluation.legal) {
+      if (evaluation.reason !== "same" && gameMode === "match" && piece.team !== "BALL") setIllegalMoveNotice(evaluation);
+      return false;
+    }
+    pushHistory(piecesRef.current || pieces, movementStateRef.current);
     const nextPieces = ensureBenchReserveCount((piecesRef.current || pieces).map(item => item.id === piece.id ? { ...item, x, y } : item), settingsRef.current);
-    piecesRef.current = nextPieces;
-    setPieces(nextPieces);
+    let nextMovement = movementStateRef.current;
+    if (gameMode === "match" && piece.team !== "BALL") {
+      const current = movementStateRef.current[piece.id] || { axis: null, spent: 0 };
+      nextMovement = { ...movementStateRef.current, [piece.id]: { axis: current.axis || evaluation.geometry.axis, spent: current.spent + evaluation.geometry.cost } };
+      movementStateRef.current = nextMovement; setMovementStateByPieceId(nextMovement); syncMovementState(nextMovement);
+    }
+    piecesRef.current = nextPieces; setPieces(nextPieces);
     logSnapshot(`${piece.team === "A" ? "Blue" : piece.team === "B" ? "Red" : "Ball"} ${piece.label} → ${toCoord(x, y)}`, nextPieces);
-    setSelectedId(null);
+    setSelectedId(null); setHoveredCell(null);
     return true;
   }
 
@@ -6668,6 +6774,13 @@ function App() {
   const rightArc = arcMask("right");
 
   const selectedPiece = pieces.find(p => p.id === selectedId);
+  const movementPreview = useMemo(() => {
+    if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL") return null;
+    const result = evaluateMove(selectedPiece, hoveredCell.x, hoveredCell.y);
+    if (gameMode === "editor") return { ...result, label: result.geometry.kind === "mixed" ? "—" : String(result.geometry.cost ?? "—") };
+    if (!result.legal) return { ...result, label: result.reason === "speed" ? `${result.geometry.cost} / ${result.remaining}` : "Illegal" };
+    return { ...result, label: `${result.geometry.cost} / ${result.remaining}` };
+  }, [selectedPiece, hoveredCell, gameMode, movementStateByPieceId, cardState, sessionCardsById, sessionLibraryById, pieces]);
 
   useEffect(() => {
     if (!selectedId) setHoveredCell(null);
@@ -7129,6 +7242,8 @@ function App() {
         usedActions: overrides.usedActions ?? trackerUsedActions,
         settings: overrides.settings ?? trackerSettings,
       }),
+      gameMode: normalizeGameMode(overrides.gameMode ?? gameMode),
+      movementStateByPieceId: normalizeMovementState(overrides.movementStateByPieceId ?? movementStateRef.current),
       updatedBy: user?.uid || "",
     };
   }
@@ -7173,8 +7288,9 @@ function App() {
     setTrackerCurrentTurn(1);
     setTrackerUsedActions(usedActions);
     setTrackerGameStarted(true);
+    setMovementStateByPieceId({}); movementStateRef.current = {};
     setTrackerStartChoiceOpen(false);
-    syncSharedTracker({ gameStarted: true, startingTeam: team, currentTurn: 1, usedActions });
+    syncSharedTracker({ gameStarted: true, startingTeam: team, currentTurn: 1, usedActions, movementStateByPieceId: {} });
   }
   function selectTrackerTurn(turn) {
     if (trackerReadOnly || !trackerGameStarted) return;
@@ -7182,7 +7298,8 @@ function App() {
     const usedActions = { red: 0, blue: 0 };
     setTrackerCurrentTurn(turn);
     setTrackerUsedActions(usedActions);
-    syncSharedTracker({ currentTurn: turn, usedActions });
+    setMovementStateByPieceId({}); movementStateRef.current = {};
+    syncSharedTracker({ currentTurn: turn, usedActions, movementStateByPieceId: {} });
   }
   function resetTrackerActions() {
     if (trackerReadOnly) return;
@@ -7500,6 +7617,9 @@ function App() {
         >
           Tracker Settings
         </button>
+        <button className={`game-mode-btn ${gameMode}`} disabled={!!sessionCode && !isSessionHost} title={!!sessionCode && !isSessionHost ? "Only the host can change game mode." : ""} onClick={toggleGameMode}>
+          {gameMode === "editor" ? "Editor Mode" : "Match Mode"}
+        </button>
       </div>
       <div className="controlbar">
         <div className="formation-control blue">
@@ -7633,7 +7753,7 @@ function App() {
             )}
 
             {selectedPiece && hoveredCell && (
-              <div className="destination-cell-highlight" style={{
+              <div className={`destination-cell-highlight ${movementPreview && !movementPreview.legal ? "illegal" : "legal"}`} style={{
                 left: `calc(${hoveredCell.x} * var(--cell))`,
                 top: `calc(${hoveredCell.y} * var(--cell))`,
               }} />
@@ -8133,6 +8253,16 @@ function App() {
             >
               Join Session
             </button>
+          </div>
+        </div>
+      )}
+
+      {illegalMoveNotice && (
+        <div className="modal-backdrop illegal-move-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setIllegalMoveNotice(null); }}>
+          <div className="modal illegal-move-modal">
+            <div className="modal-title"><strong>Illegal move</strong></div>
+            <div className="illegal-move-message">{illegalMoveMessage(illegalMoveNotice)}</div>
+            <div className="modal-actions"><button onClick={() => setIllegalMoveNotice(null)}>OK</button></div>
           </div>
         </div>
       )}
