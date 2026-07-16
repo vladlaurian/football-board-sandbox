@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v14.0";
+const APP_VERSION = "v14.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -3187,6 +3187,14 @@ function App() {
       const wasSharedTrackerEnabled = trackerSharedEnabledRef.current;
       trackerSharedEnabledRef.current = sharedTrackerEnabled;
       setTrackerSharedEnabled(sharedTrackerEnabled);
+
+      // Game rules are session-wide and must apply even when the tracker window is disabled.
+      const sharedGameMode = normalizeGameMode(sharedTracker.gameMode);
+      const sharedMovementState = normalizeMovementState(sharedTracker.movementStateByPieceId);
+      setGameMode(sharedGameMode);
+      movementStateRef.current = sharedMovementState;
+      setMovementStateByPieceId(sharedMovementState);
+
       if (sharedTrackerEnabled) {
         const normalizedTracker = normalizeTrackerSnapshot(sharedTracker);
         setTrackerSettings(normalizedTracker.settings);
@@ -3195,8 +3203,6 @@ function App() {
         setTrackerStartingTeam(normalizedTracker.startingTeam);
         setTrackerCurrentTurn(normalizedTracker.currentTurn);
         setTrackerUsedActions(normalizedTracker.usedActions);
-        setGameMode(normalizeGameMode(sharedTracker.gameMode));
-        setMovementStateByPieceId(normalizeMovementState(sharedTracker.movementStateByPieceId));
         if (!wasSharedTrackerEnabled) {
           setTrackerVisible(true);
           setTrackerMinimized(false);
@@ -3970,10 +3976,23 @@ function App() {
     if (result.reason === "occupied") return <>The destination cell is occupied by another player.</>;
     return <>This move is not allowed.</>;
   }
-  async function syncMovementState(nextMovement) {
+  async function syncSessionMove(nextPieces, nextMovement) {
     if (!sessionCode || sessionEndingRef.current) return;
-    try { await updateDoc(sessionRef(sessionCode), { "sharedTracker.movementStateByPieceId": normalizeMovementState(nextMovement), updatedAt: serverTimestamp() }); }
-    catch (error) { console.error("Movement state sync failed", error); setSessionStatus("Movement sync error"); }
+    try {
+      await updateDoc(sessionRef(sessionCode), {
+        board: encodeForFirestore(buildLiveBoardState({ pieces: nextPieces })),
+        "sharedTracker.movementStateByPieceId": normalizeMovementState(nextMovement),
+        updatedAt: serverTimestamp(),
+        updatedBy: clientIdRef.current,
+      });
+      sessionLastSaveAtRef.current = Date.now();
+      setSessionStatus("Online saved");
+    } catch (error) {
+      console.error("Move sync failed", error);
+      setSessionStatus("Move sync error");
+      // Keep the pending live-save path active so the board position is retried.
+      scheduleSessionLiveSave();
+    }
   }
   async function toggleGameMode() {
     if (sessionCode && !isSessionHost) return;
@@ -3999,9 +4018,12 @@ function App() {
     if (gameMode === "match" && piece.team !== "BALL") {
       const current = movementStateRef.current[piece.id] || { axis: null, spent: 0 };
       nextMovement = { ...movementStateRef.current, [piece.id]: { axis: current.axis || evaluation.geometry.axis, spent: current.spent + evaluation.geometry.cost } };
-      movementStateRef.current = nextMovement; setMovementStateByPieceId(nextMovement); syncMovementState(nextMovement);
+      movementStateRef.current = nextMovement;
+      setMovementStateByPieceId(nextMovement);
     }
-    piecesRef.current = nextPieces; setPieces(nextPieces);
+    piecesRef.current = nextPieces;
+    setPieces(nextPieces);
+    if (sessionCode) syncSessionMove(nextPieces, nextMovement);
     logSnapshot(`${piece.team === "A" ? "Blue" : piece.team === "B" ? "Red" : "Ball"} ${piece.label} → ${toCoord(x, y)}`, nextPieces);
     setSelectedId(null); setHoveredCell(null);
     return true;
@@ -4062,6 +4084,11 @@ function App() {
     }
 
     const selectedPiece = (piecesRef.current || pieces).find(item => item.id === selectedId);
+    if (selectedPiece?.id === piece.id) {
+      setSelectedId(null);
+      setHoveredCell(null);
+      return;
+    }
     const clickedCompatibleOccupant = selectedPiece && selectedPiece.id !== piece.id && (
       (selectedPiece.team === "BALL" && piece.team !== "BALL") ||
       (selectedPiece.team !== "BALL" && piece.team === "BALL")
