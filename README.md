@@ -1,7 +1,17 @@
-# Football Board Sandbox v15.5
+# Football Board Sandbox v15.6
 
 Source build of the football board sandbox.
 
+
+
+## v15.6 — Inspector compaction, completed-action messaging, and selection consistency
+
+- Further reduced the Inspector header, title, window controls, status row, and action-row height without resizing the rendered card.
+- Added a smaller dedicated font for `GROUP MOVE`.
+- When the active team has used every tracker action but has not pressed `END TURN`, movement and action attempts now show: `All actions are complete. Press END TURN to finish your turn.`
+- Kept the existing post-`END TURN` phase messages unchanged.
+- Unified Inspector content with the board's actual selected piece, preventing the Match Ball from appearing in Inspector while a player remains selected on the pitch.
+- Updated the in-app Sandbox version and package version to v15.6.
 
 ## v15.5 — Compact Inspector controls and direct MOVE confirmation
 
