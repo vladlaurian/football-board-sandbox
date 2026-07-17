@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v15.9";
+const APP_VERSION = "v16.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4086,6 +4086,16 @@ function App() {
     if (moveCost > remaining) return { legal: false, reason: "speed", geometry, moveCost, speed, current, remaining };
     return { legal: true, geometry, moveCost, speed, current, remaining };
   }
+  function evaluateGroupMove(piece, x, y) {
+    const geometry = getMovementGeometry(piece, { x, y });
+    const targetOccupiedByPlayer = (piecesRef.current || pieces).some(item => item.id !== piece.id && item.team !== "BALL" && item.x === x && item.y === y);
+    if (piece.team !== "BALL" && targetOccupiedByPlayer) return { legal: false, reason: "occupied", geometry };
+    if (geometry.kind === "same") return { legal: false, reason: "same", geometry };
+    if (geometry.kind === "mixed") return { legal: false, reason: "mixed", geometry };
+    const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false, movementEnded: false };
+    if (current.axis && current.axis !== geometry.axis) return { legal: false, reason: "axis", geometry, current };
+    return { legal: true, geometry, moveCost: 0, current, remaining: Infinity };
+  }
   function illegalMoveMessage(result) {
     let primary;
     if (result.reason === "speed") primary = <>Movement cost: {result.moveCost ?? result.geometry.cost}<br/>Movement remaining: {result.remaining}</>;
@@ -4138,11 +4148,21 @@ function App() {
     pushHistory(piecesRef.current || pieces, movementStateRef.current);
     const authorization = authorizationOverride || movementAuthorization(piece);
     const isFreePlacement = authorization.mode === "free";
+    const isGroupPlacement = authorization.mode === "group";
     const nextPieces = ensureBenchReserveCount((piecesRef.current || pieces).map(item => item.id === piece.id ? { ...item, x, y } : item), settingsRef.current);
     let nextMovement = movementStateRef.current;
     if (gameMode === "match" && piece.team !== "BALL" && !isFreePlacement) {
       const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false, movementEnded: false };
-      if (useThreeTwo) {
+      if (isGroupPlacement) {
+        nextMovement = {
+          ...movementStateRef.current,
+          [piece.id]: {
+            ...current,
+            axis: current.axis || evaluation.geometry.axis,
+            distance: Math.max(0, Number(current.distance) || 0) + evaluation.geometry.distance,
+          },
+        };
+      } else if (useThreeTwo) {
         const hadMoved = (Number(current.spent) || 0) > 0;
         nextMovement = {
           ...movementStateRef.current,
@@ -4234,7 +4254,7 @@ function App() {
       if (geometry.kind === "same") return false;
       return commitPieceMove(piece, x, y, { legal: true, geometry, moveCost: 0, remaining: 0 });
     }
-    const evaluation = evaluateMove(piece, x, y);
+    const evaluation = authorization.mode === "group" ? evaluateGroupMove(piece, x, y) : evaluateMove(piece, x, y);
     if (!evaluation.legal) {
       const notice = threeTwo.reason === "used" ? { ...evaluation, threeTwoAlreadyUsed: true } : evaluation;
       if (evaluation.reason !== "same" && gameMode === "match" && piece.team !== "BALL") setIllegalMoveNotice(notice);
@@ -7644,6 +7664,9 @@ function App() {
     if (!sessionCode) return true;
     return myTeam !== "spectator" && pieceTeamKey(piece) === myTeam;
   }
+  function canUseFreeModeForPiece(piece) {
+    return Boolean(piece && piece.team !== "BALL" && !piece.inactive && gameMode === "match" && trackerGameStarted && (!sessionCode || myTeam !== "spectator"));
+  }
   async function applyActionStateUpdate(nextLog, nextState, nextUsed) {
     setTrackerActionLog(nextLog); setMatchActionState(nextState); setTrackerUsedActions(nextUsed);
     if (!sessionCode) return;
@@ -7657,7 +7680,9 @@ function App() {
     } catch (error) { console.error("Action sync failed", error); setSessionStatus("Action sync error"); }
   }
   async function consumeInspectorAction(type, piece) {
-    if (!canUseActionForPiece(piece)) return;
+    if (type === "FREE") {
+      if (!canUseFreeModeForPiece(piece)) return;
+    } else if (!canUseActionForPiece(piece)) return;
     const team = pieceTeamKey(piece);
     const currentPieceState = matchActionState.byPieceId[piece.id] || {};
     if (hasValidGroupMoveAuthorization(team)) return;
@@ -8591,7 +8616,7 @@ function App() {
                     <button
                       type="button"
                       className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id ? "is-active" : ""}`}
-                      disabled={!canUseActionForPiece(inspectedPiece) || hasValidGroupMoveAuthorization(pieceTeamKey(inspectedPiece)) || (matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId !== inspectedPiece.id)}
+                      disabled={!canUseFreeModeForPiece(inspectedPiece) || hasValidGroupMoveAuthorization(pieceTeamKey(inspectedPiece)) || (matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId !== inspectedPiece.id)}
                       aria-pressed={Boolean(matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id)}
                       onClick={() => consumeInspectorAction("FREE", inspectedPiece)}
                     >
