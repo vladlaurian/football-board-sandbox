@@ -1,8 +1,15 @@
-# Football Board Sandbox v16.0
+# Football Board Sandbox v16.1
 
 Source build of the football board sandbox.
 
 
+
+
+## v16.1 — Free Mode always available
+
+- Updated error messages to use the new `Free Mode` name instead of `FREE`.
+- FREE MODE remains available after END TURN and can be activated even while GROUP MOVE authorization is still active.
+- No other gameplay behavior was changed.
 
 
 ## v16.0 — Legal Group Move and persistent Free Mode

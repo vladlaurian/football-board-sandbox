@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v16.0";
+const APP_VERSION = "v16.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4104,10 +4104,10 @@ function App() {
     else if (result.reason === "no-speed") primary = <>No Speed value is assigned to this player.</>;
     else if (result.reason === "occupied") primary = <>The destination cell is occupied by another player.</>;
     else if (result.reason === "movement-ended") primary = <>This player has no legal movement remaining during the current turn.</>;
-    else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE before moving this player, or advance to next turn.</>;
+    else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE MODE before moving this player, or advance to next turn.</>;
     else if (result.reason === "team-exhausted") primary = <>Wait for opponent team or advance to next turn.</>;
     else if (result.reason === "wait-opponent") primary = <>Wait for opponent team.</>;
-    else if (result.reason === "wait-active-team") primary = <>Wait for the opponent to finish their turn, or use FREE.</>;
+    else if (result.reason === "wait-active-team") primary = <>Wait for the opponent to finish their turn, or use Free Mode.</>;
     else if (result.reason === "actions-complete-end-turn") primary = <>All actions are complete. Press END TURN to finish your turn.</>;
     else if (result.reason === "all-actions-complete") primary = <>All actions are complete. Advance to the next turn.</>;
     else if (result.reason === "exit-free-mode") primary = <>Exit FREE MODE first.</>;
@@ -7685,7 +7685,7 @@ function App() {
     } else if (!canUseActionForPiece(piece)) return;
     const team = pieceTeamKey(piece);
     const currentPieceState = matchActionState.byPieceId[piece.id] || {};
-    if (hasValidGroupMoveAuthorization(team)) return;
+    if (type !== "FREE" && hasValidGroupMoveAuthorization(team)) return;
     if (type === "FREE") {
       const freeModeActive = Boolean(matchActionState.freeMode?.active);
       const isSameFreePiece = freeModeActive && matchActionState.freeMode?.pieceId === piece.id;
@@ -8616,7 +8616,7 @@ function App() {
                     <button
                       type="button"
                       className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id ? "is-active" : ""}`}
-                      disabled={!canUseFreeModeForPiece(inspectedPiece) || hasValidGroupMoveAuthorization(pieceTeamKey(inspectedPiece)) || (matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId !== inspectedPiece.id)}
+                      disabled={!canUseFreeModeForPiece(inspectedPiece) || (matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId !== inspectedPiece.id)}
                       aria-pressed={Boolean(matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id)}
                       onClick={() => consumeInspectorAction("FREE", inspectedPiece)}
                     >
