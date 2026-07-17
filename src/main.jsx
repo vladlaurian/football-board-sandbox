@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v16.5";
+const APP_VERSION = "v16.6";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -8515,22 +8515,29 @@ function App() {
               />
             ))}
 
-            {pieces.map(p => (
-              <div
-                key={p.id}
-                data-coord={withBoardPosition(p, settings).coord}
-                title={`${getPieceDisplayLabel(p)} ${withBoardPosition(p, settings).coord}${p.cardId ? " · Card attached" : ""}${p.inactive ? " · INACTIVE" : ""}`}
-                className={`piece ${p.team === "A" ? "team-a" : p.team === "B" ? "team-b" : "ball"} ${selectedId === p.id ? "selected" : ""} ${p.cardId ? "has-card" : ""} ${p.inactive ? "inactive" : ""}`}
-                style={{
-                  left: `calc(${p.x} * var(--cell) + var(--cell) * ${p.team === "BALL" ? 0.2 : 0.08})`,
-                  top: `calc(${p.y} * var(--cell) + var(--cell) * ${p.team === "BALL" ? 0.2 : 0.08})`,
-                }}
-                onPointerDown={(e) => onPiecePointerDown(p.id, e)}
-                onDoubleClick={() => openEdit(p)}
-              >
-                <span className="piece-label">{p.team === "BALL" ? p.label : getPieceDisplayLabel(p)}</span>
-              </div>
-            ))}
+            {pieces.map(p => {
+              const isBall = p.team === "BALL";
+              return (
+                <div
+                  key={p.id}
+                  data-coord={withBoardPosition(p, settings).coord}
+                  title={`${getPieceDisplayLabel(p)} ${withBoardPosition(p, settings).coord}${p.cardId ? " · Card attached" : ""}${p.inactive ? " · INACTIVE" : ""}`}
+                  className={`piece-hitbox ${isBall ? "ball-hitbox" : "player-hitbox"}`}
+                  style={{
+                    left: `calc(${p.x} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})`,
+                    top: `calc(${p.y} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})`,
+                  }}
+                  onPointerDown={(e) => onPiecePointerDown(p.id, e)}
+                  onDoubleClick={() => openEdit(p)}
+                >
+                  <div
+                    className={`piece ${p.team === "A" ? "team-a" : p.team === "B" ? "team-b" : "ball"} ${selectedId === p.id ? "selected" : ""} ${p.cardId ? "has-card" : ""} ${p.inactive ? "inactive" : ""}`}
+                  >
+                    <span className="piece-label">{isBall ? p.label : getPieceDisplayLabel(p)}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

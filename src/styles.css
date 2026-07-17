@@ -7247,3 +7247,61 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   pointer-events: auto;
   touch-action: none;
 }
+
+/* v16.6 — explicit player/ball hitboxes shared by mouse, pen, and touch */
+.piece-hitbox {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  cursor: default;
+  z-index: 6;
+}
+
+.player-hitbox {
+  width: var(--cell);
+  height: var(--cell);
+}
+
+.ball-hitbox {
+  width: calc(var(--cell) * .5);
+  height: calc(var(--cell) * .5);
+  z-index: 9;
+}
+
+.piece-hitbox > .piece {
+  position: relative;
+  left: auto;
+  top: auto;
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+
+.player-hitbox > .piece:not(.ball) {
+  width: calc(var(--cell) * .84) !important;
+  height: calc(var(--cell) * .84) !important;
+}
+
+.ball-hitbox > .piece.ball {
+  width: calc(var(--cell) * .6) !important;
+  height: calc(var(--cell) * .6) !important;
+}
+
+/* Retire the old pseudo-element hitboxes; the wrappers above are now the single source of truth. */
+.piece::after {
+  content: none !important;
+  pointer-events: none !important;
+}
+
+@media (pointer: coarse) {
+  .ball-hitbox {
+    width: calc(var(--cell) * .6);
+    height: calc(var(--cell) * .6);
+  }
+
+  .piece-hitbox.ball-hitbox {
+    margin-left: calc(var(--cell) * -.05);
+    margin-top: calc(var(--cell) * -.05);
+  }
+}

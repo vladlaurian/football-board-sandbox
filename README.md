@@ -1,5 +1,14 @@
 # Football Board Sandbox
 
+## v16.6 — Reliable player and ball hitboxes
+
+- Player interaction now uses an explicit hitbox covering the full occupied grid cell.
+- The Match Ball uses a separate centered hitbox with higher priority when it overlaps a player.
+- The ball target is compact with mouse/pen and larger on coarse touch screens, so it remains practical to select without blocking the player cell.
+- Mouse, pen, and touch now share the same pointer-event path.
+- Removed the previous pseudo-element hitbox workaround.
+- No gameplay behavior was changed.
+
 ## v16.5 — Easier player/ball selection
 
 - Player selection now covers the entire occupied grid cell.
