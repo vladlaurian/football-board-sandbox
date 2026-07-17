@@ -7216,3 +7216,34 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   opacity: 1 !important;
   filter: brightness(1.28) saturate(1.35) !important;
 }
+
+/* v16.5 — clearer selection when the ball overlaps a player.
+   The player can be selected from the whole occupied cell, while the ball
+   keeps a compact central hit area so the two targets do not compete. */
+.piece:not(.ball)::after {
+  content: "";
+  position: absolute;
+  inset: calc(var(--cell) * -0.08);
+  border-radius: 0;
+  background: rgba(255,255,255,0.001);
+  pointer-events: auto;
+}
+
+.piece.ball {
+  pointer-events: none;
+}
+
+.piece.ball::after {
+  pointer-events: none !important;
+}
+
+.piece.ball .piece-label {
+  width: calc(var(--cell) * 0.34);
+  height: calc(var(--cell) * 0.34);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  pointer-events: auto;
+  touch-action: none;
+}

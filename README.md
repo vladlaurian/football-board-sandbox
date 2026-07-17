@@ -1,5 +1,12 @@
 # Football Board Sandbox
 
+## v16.5 — Easier player/ball selection
+
+- Player selection now covers the entire occupied grid cell.
+- When the ball overlaps a player, only the compact central area of the ball selects the ball.
+- Clicking elsewhere in that cell selects the player.
+- No gameplay behavior was changed.
+
 ## v16.4 — Ball follows player
 
 - When the Match Ball shares a cell with a player, moving that player also moves the ball.
