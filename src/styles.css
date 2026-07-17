@@ -4810,6 +4810,22 @@ select option {
   border-color: rgba(248,113,113,.85) !important;
   background: rgba(239,68,68,.18) !important;
 }
+.delete-piece-btn {
+  margin-top: 10px;
+  width: 100%;
+  border: 1px solid rgba(248,113,113,.72);
+  border-radius: 12px;
+  padding: 11px;
+  background: rgba(185,28,28,.28);
+  color: #fecaca;
+  font-weight: 900;
+  cursor: pointer;
+}
+.delete-piece-btn:hover {
+  border-color: #f87171;
+  background: rgba(220,38,38,.42);
+  color: #fff;
+}
 .custom-zone-editor-list {
   display: grid !important;
   gap: 10px !important;

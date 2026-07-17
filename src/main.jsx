@@ -9,6 +9,11 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "fir
 import { RotateCcw, Plus, Minus, Undo2, Redo2, Edit3, X, Dices } from "lucide-react";
 import { createGameState } from "./game/gameState.mjs";
 import {
+  isBenchReservePiece,
+  normalizeFormationPlayers,
+  normalizeFormationSlots,
+} from "./board/formationUtils.mjs";
+import {
   closeTimeline,
   commitTimelineEntry,
   createTimeline,
@@ -44,7 +49,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v17.3";
+const APP_VERSION = "v17.4";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2036,13 +2041,7 @@ function loadStoredFormations() {
   try {
     const raw = localStorage.getItem("football-board-formations-v18");
     if (!raw) return FORMATION_SLOTS;
-    const stored = JSON.parse(raw);
-    return FORMATION_SLOTS.map(base => {
-      const saved = stored.find(s => s.id === base.id);
-      if (!saved) return base;
-      if (!saved.players || saved.players.length === 0) return base;
-      return saved;
-    });
+    return normalizeFormationSlots(JSON.parse(raw), FORMATION_SLOTS);
   } catch {
     return FORMATION_SLOTS;
   }
@@ -2073,7 +2072,7 @@ function createInitialPieces(cols, rows, blueFormation = FORMATION_SLOTS[0], red
 
   function addFormation(team, formation) {
     const isBlue = team === "A";
-    formation.players.forEach(([label, coord], i) => {
+    normalizeFormationPlayers(formation?.players).forEach(([label, coord], i) => {
       const pos = fromCoord(coord);
       const x = isBlue ? pos.x : cols - 1 - pos.x;
       pieces.push({
@@ -2555,7 +2554,7 @@ function App() {
       : sanitizePiecesCardIds(pieces, nextCardState, nextSettings);
 
     if (data.settings) setSettings(nextSettings);
-    if (data.formations) setFormations(data.formations);
+    if (data.formations) setFormations(normalizeFormationSlots(data.formations, FORMATION_SLOTS));
     if (data.gameSituations) setGameSituations(data.gameSituations);
     if (typeof data.activeSituationId === "number") setActiveSituationId(data.activeSituationId);
     if (data.activeSituationName) setActiveSituationName(data.activeSituationName);
@@ -3831,7 +3830,8 @@ function App() {
   }
 
   function getFormationById(id) {
-    return formations.find(f => f.id === Number(id)) || formations[0];
+    const formation = formations.find(f => f.id === Number(id)) || formations[0] || FORMATION_SLOTS[0];
+    return { ...formation, players: normalizeFormationPlayers(formation.players) };
   }
 
   function applyFormation(team, formationId) {
@@ -3859,19 +3859,20 @@ function App() {
     const name = window.prompt(`Nume formație pentru slotul ${slotId}:`, defaultName || `Formație ${slotId}`);
     if (name === null) return;
 
-    const teamPieces = pieces
-      .filter(p => p.team === team)
+    const teamPieces = (piecesRef.current || pieces)
+      .filter(p => p.team === team && !isBenchReservePiece(p))
+      .slice(0, 11)
       .map(p => {
         const x = team === "A" ? Math.round(p.x) : settings.cols - 1 - Math.round(p.x);
         const y = Math.round(p.y);
         return [p.label, normalizeGridPosition(x, y, settings).coord];
       });
 
-    const nextFormations = formations.map(f =>
+    const nextFormations = normalizeFormationSlots(formations.map(f =>
       f.id === Number(slotId)
         ? { id: Number(slotId), name: name.trim() || `Formație ${slotId}`, players: teamPieces }
         : f
-    );
+    ), FORMATION_SLOTS);
 
     setFormations(nextFormations);
     localStorage.setItem("football-board-formations-v18", JSON.stringify(nextFormations));
@@ -4804,6 +4805,35 @@ function App() {
     setEditLabel("");
   }
 
+  function deleteEditingPiece() {
+    if (!editingPiece || gameMode !== "editor") return;
+    const currentPiece = (piecesRef.current || pieces).find(piece => piece.id === editingPiece.id);
+    if (!currentPiece || currentPiece.team === "BALL" || isBenchReservePiece(currentPiece) || !canAssignPiece(currentPiece)) return;
+
+    const attachedCard = findCardForPiece(currentPiece);
+    const confirmation = attachedCard
+      ? `Ștergi acest puc? Cardul „${attachedCard.name || attachedCard.id}” va fi detașat și păstrat în Cards. Ștergerea nu poate fi anulată în Editor Mode.`
+      : "Ștergi acest puc? Ștergerea nu poate fi anulată în Editor Mode.";
+    if (!window.confirm(confirmation)) return;
+
+    const nextPieces = (piecesRef.current || pieces).filter(piece => piece.id !== currentPiece.id);
+    const nextMovement = { ...movementStateRef.current };
+    delete nextMovement[currentPiece.id];
+
+    piecesRef.current = nextPieces;
+    movementStateRef.current = nextMovement;
+    setPieces(nextPieces);
+    setMovementStateByPieceId(nextMovement);
+    if (selectedId === currentPiece.id) setSelectedId(null);
+    setHoveredCell(null);
+    setEditingPiece(null);
+    setEditLabel("");
+
+    if (user && sessionCode && sessionHydratedRef.current) {
+      void saveSessionBoardAndAssignments(nextPieces);
+    }
+  }
+
   function togglePieceInactive(pieceId) {
     const currentPiece = (piecesRef.current || pieces).find(piece => piece.id === pieceId);
     if (!currentPiece || !currentPiece.cardId || !canControlPieceStatus(currentPiece)) return;
@@ -5260,6 +5290,27 @@ function App() {
     } catch (error) {
       console.error("Card assignment sync failed", error);
       setSessionStatus("Online error");
+    }
+  }
+
+  async function saveSessionBoardAndAssignments(nextPieces) {
+    if (!user || !sessionCode || sessionEndingRef.current || !sessionHydratedRef.current) return;
+    try {
+      await updateDoc(sessionRef(sessionCode.toUpperCase()), {
+        board: encodeForFirestore(buildLiveBoardState({ pieces: nextPieces })),
+        cardAssignments: buildSessionCardAssignments(nextPieces),
+        cardAssignmentsUpdatedBy: clientIdRef.current,
+        cardAssignmentsUpdatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        expiresAt: nextSessionExpiryDate(),
+        updatedBy: clientIdRef.current,
+      });
+      sessionLastSaveAtRef.current = Date.now();
+      setSessionStatus("Online saved");
+    } catch (error) {
+      console.error("Puck deletion sync failed", error);
+      setSessionStatus("Online error");
+      scheduleSessionLiveSave();
     }
   }
 
@@ -9559,6 +9610,9 @@ function App() {
               }}
             />
             <button className="save-label" onClick={saveEdit}><Edit3 size={16} /> Salvează text</button>
+            {gameMode === "editor" && !isBenchReservePiece(editingPiece) && (
+              <button className="delete-piece-btn" onClick={deleteEditingPiece}>Șterge pucul</button>
+            )}
           </div>
         </div>
       )}

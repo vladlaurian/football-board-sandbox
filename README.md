@@ -1,5 +1,42 @@
 # Football Board Sandbox
 
+## v17.4 — Formation reset repair and safe puck deletion
+
+### What changed
+
+- Formation saves now exclude the seven structural bench reserve pucks.
+- Saved formations are limited to eleven valid player positions.
+- Previously saved formations that accidentally contain the reserve row are repaired when loaded by keeping the original first eleven positions.
+- Formation application and Reset Position defensively normalize formation data before creating pucks.
+- The puck edit dialog now offers `Șterge pucul` in Editor Mode.
+- Puck deletion requires confirmation and automatically detaches any assigned card while keeping the card in the Cards library.
+- Match Ball and the seven structural `SUB` reserve slots cannot be deleted.
+- Multiplayer deletion writes the board and card-assignment map together.
+- Added focused regression tests for formation repair and protected reserve identification.
+
+### Why it changed
+
+Saving a formation previously included every team puck: eleven formation players plus seven bench reserves. The reserve coordinates were converted into field coordinates during formation serialization. Reset Position then created those eighteen saved entries and added the seven structural reserves again, producing a second reserve row on the pitch.
+
+Puck deletion also needs to preserve the separate card library. Cards are stored independently and pucks contain only a `cardId` reference, so deletion now removes the reference and the puck without deleting the card data.
+
+### Problems resolved
+
+- Reset Position no longer adds a duplicate row of reserves after saving a formation.
+- The customized positions in an affected formation remain intact because its original first eleven entries are preserved.
+- Corrupted 18-player formation data from local storage, cloud state, or imported backups is normalized before use.
+- Unwanted non-structural pucks can be removed safely from the current Editor board.
+- Deleting a puck cannot silently delete its attached card.
+- Multiplayer cannot retain a stale card assignment for a deleted puck.
+
+### Impact
+
+- Reset Position consistently rebuilds the selected formation plus exactly seven structural reserves per team.
+- Deleting a current-board puck does not rewrite the selected saved formation; Reset Position can recreate it until that formation is saved again.
+- Puck deletion is unavailable in Match Mode, so Match History, Undo/Redo, Tracker, and phase state are unaffected.
+- No Firebase schema or security-rule changes are required.
+- Editor = Inspector = Export remains intact; cards detached by puck deletion remain available in the same card library and rendering paths.
+
 ## v17.3 — Tracker available from session start
 
 ### What changed
