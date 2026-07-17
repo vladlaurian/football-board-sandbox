@@ -11,6 +11,8 @@
 .history-item{width:100%;display:flex;justify-content:space-between;gap:8px;text-align:left;padding:7px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:#1e1e1e;color:white;margin-bottom:5px}
 .history-item span{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .history-item small{font-size:10px;opacity:.55;white-space:nowrap}
+.history-item.future{opacity:.42;border-style:dashed}
+.history-item.applied{border-color:rgba(110,190,255,.28)}
 @media(max-width:900px){.history-panel{display:none}}
 
 .controlbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 9px;background:#141414;border-bottom:1px solid rgba(255,255,255,.12);z-index:9}

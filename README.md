@@ -1,5 +1,58 @@
 # Football Board Sandbox
 
+## v17.0 — Unified Match Timeline
+
+### What changed
+
+- Replaced the separate visual History, local Undo/Redo snapshots, and tracker MOVE rollback with one Match Mode timeline.
+- Entering Match Mode starts a new recording boundary from the exact current board, movement, tracker, phase, game mode, and dice state.
+- History is now a visual projection of the same entries used by Undo and Redo.
+- Undo and Redo operate on complete game state instead of restoring only player positions and movement usage.
+- MOVE activation and every movement made under that MOVE share one group, so one Undo restores the entire action, including a carried ball.
+- GROUP MOVE and FREE MODE movements use the same grouped timeline behavior.
+- PASS, SHOT, CROSS, DRIBBLE, TACKLING, 3/2, END TURN, turn changes, possession changes, tracker resets, dice results, board-setting changes, piece status, labels, and card assignments can be represented by the same timeline.
+- Clicking a History entry moves the shared cursor through the same timeline instead of applying an unrelated partial snapshot.
+- A new action after Undo replaces the abandoned Redo branch cleanly.
+- In multiplayer, timeline entries are stored separately from the session document and the current board, tracker, phase, movement, dice, card assignments, cursor, and revision are committed together.
+- Multiplayer Undo, Redo, History navigation, and History clearing are host-authoritative.
+- Removed the legacy MOVE rollback payload based on `startX`, `startY`, and `startMovementState`.
+- Added focused modules for game-state snapshots, the timeline engine, future Match Recording files, and multiplayer timeline hydration.
+- Added automated tests for Undo, Redo, grouped actions, branch replacement, cursor navigation, replay forks, recording payloads, multiplayer hydration, and stable dice identities.
+
+### Why it changed
+
+The previous implementation had three independent histories:
+
+- a local position/movement Undo stack;
+- a different visual History snapshot list;
+- a Firebase tracker action log with a special MOVE-only rollback.
+
+Those systems could disagree about player positions, movement usage, consumed actions, phases, Group Move, Free Mode, and dice. They were especially unsafe in multiplayer because a local snapshot could be written back over newer shared state.
+
+### Problems resolved
+
+- Undo no longer leaves MOVE consumed while restoring only the player position.
+- Restoring History no longer combines an old board with the current tracker and phase.
+- Removing a MOVE through the timeline also restores a carried ball.
+- GROUP MOVE rollback no longer depends on a separate one-off mechanism.
+- An older team action cannot be removed while later global timeline actions remain applied.
+- Dice History stores the actual completed result rather than a stale React state value.
+- Loading a situation can retain the matching board settings in its timeline state.
+- Match Mode multiplayer changes use revision checks and serialized writes instead of independent action/board writes.
+
+### Impact
+
+- The Tracker and History now describe the same ordered match state.
+- The phase system and movement state travel together through Undo/Redo.
+- Reconnecting multiplayer clients can hydrate the active timeline and cursor.
+- Future gameplay systems can add one timeline transition instead of implementing separate History, Undo, Redo, and Firebase rollback paths.
+- The data model is prepared for a future export/import replay feature with checkpoints and `Fork From Here`; v17.0 does not yet expose replay export controls in the UI.
+- Card rendering remains on the existing shared Editor = Inspector = Export path; no alternate card renderer was introduced.
+
+### Firebase note
+
+Multiplayer v17.0 uses the `sessions/{code}/timelineEntries` subcollection. Deployed Firestore rules must allow the same session participants who can update the session to read and write these timeline documents.
+
 ## v16.6 — Reliable player and ball hitboxes
 
 - Player interaction now uses an explicit hitbox covering the full occupied grid cell.

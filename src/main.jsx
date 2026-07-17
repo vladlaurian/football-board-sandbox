@@ -7,6 +7,22 @@ import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, runTransaction
 import { getFirestore } from "firebase/firestore";
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import { RotateCcw, Plus, Minus, Undo2, Redo2, Edit3, X, Dices } from "lucide-react";
+import { createGameState } from "./game/gameState.mjs";
+import {
+  closeTimeline,
+  commitTimelineEntry,
+  createTimeline,
+  moveTimelineCursor,
+  normalizeTimeline,
+  redoTimelineGroup,
+  timelineStateAt,
+  undoTimelineGroup,
+} from "./timeline/timelineEngine.mjs";
+import {
+  createSharedTimelineMeta,
+  hydrateSessionTimeline,
+  timelineDiceRollId,
+} from "./multiplayer/sessionTimeline.mjs";
 import "./styles.css";
 
 const firebaseConfig = {
@@ -26,7 +42,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v16.6";
+const APP_VERSION = "v17.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -82,35 +98,33 @@ function normalizeTrackerActionLog(raw) {
       id: String(item?.id || `${team}-${index}`),
       type: ["MOVE", "GROUP_MOVE", "PASS", "SHOT", "CROSS", "DRIBBLE", "TACKLING"].includes(item?.type) ? item.type : "PASS",
       pieceId: item?.pieceId ? String(item.pieceId) : "",
-      startX: Number.isFinite(Number(item?.startX)) ? Number(item.startX) : null,
-      startY: Number.isFinite(Number(item?.startY)) ? Number(item.startY) : null,
-      startMovementState: item?.startMovementState && typeof item.startMovementState === "object"
-        ? normalizeMovementState({ snapshot: item.startMovementState }).snapshot || null
-        : null,
     }));
   }
   return out;
 }
 function normalizeMatchActionState(raw) {
   const byPieceId = {};
+  const legacyFreeEntry = raw?.byPieceId && typeof raw.byPieceId === "object"
+    ? Object.entries(raw.byPieceId).find(([, value]) => Boolean(value?.freeMoveAuthorized))
+    : null;
   if (raw?.byPieceId && typeof raw.byPieceId === "object") {
     for (const [id, value] of Object.entries(raw.byPieceId)) {
       if (!value || typeof value !== "object") continue;
       const next = {
         moveUsed: Boolean(value.moveUsed),
         moveAuthorized: Boolean(value.moveAuthorized),
-        freeMoveAuthorized: Boolean(value.freeMoveAuthorized),
+        moveGroupId: value.moveGroupId ? String(value.moveGroupId) : null,
       };
-      if (next.moveUsed || next.moveAuthorized || next.freeMoveAuthorized) byPieceId[id] = next;
+      if (next.moveUsed || next.moveAuthorized || next.moveGroupId) byPieceId[id] = next;
     }
   }
-  const legacyFreeEntry = Object.entries(byPieceId).find(([, value]) => value?.freeMoveAuthorized);
   const hasExplicitFreeMode = Boolean(raw?.freeMode && typeof raw.freeMode === "object");
   return {
     byPieceId,
     groupMove: {
       active: Boolean(raw?.groupMove?.active),
       team: raw?.groupMove?.team === "blue" || raw?.groupMove?.team === "red" ? raw.groupMove.team : null,
+      timelineGroupId: raw?.groupMove?.timelineGroupId ? String(raw.groupMove.timelineGroupId) : null,
     },
     freeMode: {
       active: hasExplicitFreeMode ? Boolean(raw.freeMode.active) : Boolean(legacyFreeEntry),
@@ -119,6 +133,9 @@ function normalizeMatchActionState(raw) {
         : (legacyFreeEntry?.[0] || null),
       team: hasExplicitFreeMode && (raw.freeMode.team === "blue" || raw.freeMode.team === "red")
         ? raw.freeMode.team
+        : null,
+      timelineGroupId: hasExplicitFreeMode && raw.freeMode.timelineGroupId
+        ? String(raw.freeMode.timelineGroupId)
         : null,
     },
   };
@@ -163,8 +180,17 @@ function sessionCardsCollectionRef(code) {
   return collection(db, "sessions", String(code || "").toUpperCase(), "cards");
 }
 
+function sessionTimelineEntriesCollectionRef(code) {
+  return collection(db, "sessions", String(code || "").toUpperCase(), "timelineEntries");
+}
+
 function sessionCardRef(code, cardId) {
   return doc(db, "sessions", String(code || "").toUpperCase(), "cards", String(cardId));
+}
+
+function sessionTimelineEntryRef(code, recordingId, sequence) {
+  const safeRecordingId = String(recordingId || "match").replace(/[^a-zA-Z0-9_-]/g, "_");
+  return doc(sessionTimelineEntriesCollectionRef(code), `${safeRecordingId}_${String(sequence).padStart(6, "0")}`);
 }
 
 const SESSION_INACTIVITY_MS = 24 * 60 * 60 * 1000;
@@ -2145,8 +2171,6 @@ function App() {
   const [editingPiece, setEditingPiece] = useState(null);
   const [editLabel, setEditLabel] = useState("");
   const [zoom, setZoom] = useState(0.8);
-  const [history, setHistory] = useState([]);
-  const [redoHistory, setRedoHistory] = useState([]);
   const [dieType, setDieType] = useState(20);
   const [blueDieResult, setBlueDieResult] = useState(null);
   const [redDieResult, setRedDieResult] = useState(null);
@@ -2167,7 +2191,6 @@ function App() {
   const [measureEnd, setMeasureEnd] = useState(null);
   const [sharedRulerOwnerUid, setSharedRulerOwnerUid] = useState("");
   const [sharedRulerOwnerTeam, setSharedRulerOwnerTeam] = useState("");
-  const [actionLog, setActionLog] = useState([]);
   const [historyPosition, setHistoryPosition] = useState({ x: window.innerWidth - 300, y: 118 });
   const [historySize, setHistorySize] = useState({ w: 280, h: 360 });
   const [historyDragging, setHistoryDragging] = useState(null);
@@ -2220,6 +2243,10 @@ function App() {
   const [gameMode, setGameMode] = useState("editor");
   const [movementStateByPieceId, setMovementStateByPieceId] = useState({});
   const movementStateRef = useRef({});
+  const [gameTimeline, setGameTimeline] = useState(null);
+  const gameTimelineRef = useRef(null);
+  const pendingTimelineBeforeRef = useRef(null);
+  const timelineSyncQueueRef = useRef(Promise.resolve());
   const [illegalMoveNotice, setIllegalMoveNotice] = useState(null);
   const [pendingTurnChange, setPendingTurnChange] = useState(null);
   const [pendingThreeTwoMove, setPendingThreeTwoMove] = useState(null);
@@ -2273,6 +2300,8 @@ function App() {
   const [sessionLibraryById, setSessionLibraryById] = useState({});
   const sessionLibraryByIdRef = useRef({});
   const sessionAssignmentsRef = useRef({});
+  const sharedTimelineMetaRef = useRef(null);
+  const sessionTimelineEntriesRef = useRef([]);
 
   const SESSION_LIVE_SAVE_INTERVAL_MS = 250;
   const CLOUD_AUTOSAVE_INTERVAL_MS = 3 * 60 * 1000;
@@ -2281,6 +2310,7 @@ function App() {
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { cardStateRef.current = cardState; }, [cardState]);
   useEffect(() => { movementStateRef.current = movementStateByPieceId; }, [movementStateByPieceId]);
+  useEffect(() => { gameTimelineRef.current = gameTimeline; }, [gameTimeline]);
   useEffect(() => { sessionCardsByIdRef.current = sessionCardsById; }, [sessionCardsById]);
   useEffect(() => { sessionLibraryByIdRef.current = sessionLibraryById; }, [sessionLibraryById]);
 
@@ -2730,6 +2760,104 @@ function App() {
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
   }
 
+  function buildSharedTimelineMeta(timeline) {
+    return createSharedTimelineMeta(timeline, clientIdRef.current, captureTimelineGameState());
+  }
+
+  function buildTimelineTrackerSnapshot(state) {
+    const tracker = normalizeTrackerSnapshot(state.tracker);
+    return {
+      ...tracker,
+      gameMode: normalizeGameMode(state.gameMode),
+      movementStateByPieceId: normalizeMovementState(state.movementStateByPieceId),
+      updatedBy: user?.uid || "",
+    };
+  }
+
+  function enqueueTimelineSync(previousTimeline, nextTimeline, state, entry = null, options = {}) {
+    timelineSyncQueueRef.current = timelineSyncQueueRef.current
+      .then(() => syncTimelineStateToSession(previousTimeline, nextTimeline, state, entry, options))
+      .catch(error => {
+        console.error("Timeline sync queue failed", error);
+      });
+    return timelineSyncQueueRef.current;
+  }
+
+  async function syncTimelineStateToSession(previousTimeline, nextTimeline, state, entry = null, { baseline = false } = {}) {
+    if (!sessionCode || sessionEndingRef.current || isApplyingSessionRef.current) return;
+    const code = sessionCode.toUpperCase();
+    const previous = previousTimeline ? normalizeTimeline(previousTimeline, state) : null;
+    const next = normalizeTimeline(nextTimeline, state);
+    const nextState = createGameState(state);
+    const sessionDocumentRef = sessionRef(code);
+    try {
+      await runTransaction(db, async transaction => {
+        const snap = await transaction.get(sessionDocumentRef);
+        if (!snap.exists()) throw new Error("Session missing");
+        const remoteMeta = snap.data().sharedTimeline || null;
+        if (!baseline && remoteMeta && previous && remoteMeta.recordingId === previous.recordingId) {
+          const remoteRevision = Math.max(0, Number(remoteMeta.revision) || 0);
+          if (remoteRevision !== previous.revision) {
+            const conflict = new Error("Timeline changed on another client");
+            conflict.code = "timeline-conflict";
+            throw conflict;
+          }
+        }
+        if (!baseline && remoteMeta && remoteMeta.recordingId !== next.recordingId) {
+          const conflict = new Error("A different match recording is active");
+          conflict.code = "timeline-conflict";
+          throw conflict;
+        }
+
+        const board = buildLiveBoardState({
+          settings: nextState.settings,
+          pieces: nextState.pieces,
+          dieType: nextState.dice.dieType,
+          dieResult: { blue: nextState.dice.blueResult, red: nextState.dice.redResult },
+        });
+        const sharedTracker = buildTimelineTrackerSnapshot(nextState);
+        const sharedTimeline = buildSharedTimelineMeta(next);
+        const blueRollId = timelineDiceRollId(next, "blue");
+        const redRollId = timelineDiceRollId(next, "red");
+        transaction.set(sessionDocumentRef, {
+          board: encodeForFirestore(board),
+          sharedTracker: encodeForFirestore(sharedTracker),
+          sharedTimeline: encodeForFirestore(sharedTimeline),
+          sharedDice: {
+            blue: { value: nextState.dice.blueResult, dieType: nextState.dice.blueLastDieType, rollId: blueRollId },
+            red: { value: nextState.dice.redResult, dieType: nextState.dice.redLastDieType, rollId: redRollId },
+          },
+          cardAssignments: buildSessionCardAssignments(nextState.pieces),
+          cardAssignmentsUpdatedBy: clientIdRef.current,
+          updatedAt: serverTimestamp(),
+          expiresAt: nextSessionExpiryDate(),
+          updatedBy: clientIdRef.current,
+        }, { merge: true });
+        if (entry) {
+          transaction.set(sessionTimelineEntryRef(code, next.recordingId, entry.sequence), {
+            recordingId: next.recordingId,
+            sequence: entry.sequence,
+            entry: encodeForFirestore(entry),
+            updatedAt: serverTimestamp(),
+          }, { merge: false });
+        }
+      });
+      sessionLastSaveAtRef.current = Date.now();
+      setSessionStatus("Online saved");
+    } catch (error) {
+      console.error("Timeline sync failed", error);
+      setSessionStatus(error?.code === "timeline-conflict" ? "Timeline conflict — refreshing" : "Timeline sync error");
+    }
+  }
+
+  function hydrateSharedTimelineIfReady() {
+    const meta = sharedTimelineMetaRef.current;
+    const hydrated = hydrateSessionTimeline(meta, sessionTimelineEntriesRef.current, captureTimelineGameState());
+    if (!hydrated) return;
+    replaceGameTimeline(hydrated);
+    if (meta.updatedBy !== clientIdRef.current) applyTimelineGameState(timelineStateAt(hydrated, hydrated.cursor));
+  }
+
   async function saveSessionState(overrides = {}) {
     if (!user || !sessionCode || sessionEndingRef.current) return;
     if (!sessionHydratedRef.current) return;
@@ -2750,7 +2878,7 @@ function App() {
   }
 
   function scheduleSessionLiveSave() {
-    if (!user || !sessionCode || sessionEndingRef.current || isApplyingSessionRef.current || !sessionHydratedRef.current) return;
+    if (!user || !sessionCode || gameMode === "match" || sessionEndingRef.current || isApplyingSessionRef.current || !sessionHydratedRef.current) return;
     sessionSavePendingRef.current = true;
     setSessionStatus("Online saving...");
 
@@ -2801,6 +2929,13 @@ function App() {
     for (let start = 0; start < cardDocs.length; start += 450) {
       const batch = writeBatch(db);
       for (const cardDoc of cardDocs.slice(start, start + 450)) batch.delete(cardDoc.ref);
+      await batch.commit();
+    }
+    const timelineSnapshot = await getDocs(sessionTimelineEntriesCollectionRef(normalizedCode));
+    const timelineDocs = timelineSnapshot.docs;
+    for (let start = 0; start < timelineDocs.length; start += 450) {
+      const batch = writeBatch(db);
+      for (const timelineDoc of timelineDocs.slice(start, start + 450)) batch.delete(timelineDoc.ref);
       await batch.commit();
     }
     await deleteDoc(sessionRef(normalizedCode));
@@ -3042,6 +3177,10 @@ function App() {
     setSessionLibraryById({});
     sessionLibraryByIdRef.current = {};
     sessionAssignmentsRef.current = {};
+    sharedTimelineMetaRef.current = null;
+    sessionTimelineEntriesRef.current = [];
+    gameTimelineRef.current = null;
+    setGameTimeline(null);
     setMyTeam("spectator");
     setSessionOwnerUid("");
     setTeamOwners({ blue: "", red: "" });
@@ -3204,6 +3343,9 @@ function App() {
       }
 
       const data = snapshot.data();
+      const incomingTimelineMeta = data.sharedTimeline ? decodeFromFirestore(data.sharedTimeline) : null;
+      sharedTimelineMetaRef.current = incomingTimelineMeta;
+      if (incomingTimelineMeta) hydrateSharedTimelineIfReady();
       if (data.status === "ending" || data.status === "ended") {
         sessionEndingRef.current = true;
         leaveSession(user?.uid === data.endedBy ? "Session ended" : "Session ended by host");
@@ -3380,6 +3522,28 @@ function App() {
   }, [user, sessionCode]);
 
   useEffect(() => {
+    if (!user || !sessionCode) return;
+    const code = sessionCode.toUpperCase();
+    const unsub = onSnapshot(sessionTimelineEntriesCollectionRef(code), (snapshot) => {
+      if (sessionEndingRef.current) return;
+      sessionTimelineEntriesRef.current = snapshot.docs.map(entryDoc => {
+        const raw = entryDoc.data();
+        return {
+          recordingId: String(raw?.recordingId || ""),
+          sequence: Math.max(0, Number(raw?.sequence) || 0),
+          entry: decodeFromFirestore(raw?.entry || {}),
+        };
+      });
+      hydrateSharedTimelineIfReady();
+    }, (error) => {
+      console.error("Session timeline listener failed", error);
+      setSessionStatus("Timeline error");
+    });
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, sessionCode]);
+
+  useEffect(() => {
     if (!user?.uid || !sessionCode) return;
     const ref = sessionRef(sessionCode.toUpperCase());
     const beat = () => {
@@ -3417,6 +3581,7 @@ function App() {
   }, [
     user,
     sessionCode,
+    gameMode,
     settings,
     pieces,
     dieType,
@@ -3486,12 +3651,84 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, cloudReady]);
 
-  function makeHistorySnapshot(nextPieces = piecesRef.current || pieces, nextMovement = movementStateRef.current) {
-    return JSON.stringify({ pieces: nextPieces, movementStateByPieceId: normalizeMovementState(nextMovement) });
+  function captureTimelineGameState(overrides = {}) {
+    return createGameState({
+      settings: overrides.settings ?? settingsRef.current,
+      pieces: overrides.pieces ?? piecesRef.current,
+      movementStateByPieceId: normalizeMovementState(overrides.movementStateByPieceId ?? movementStateRef.current),
+      gameMode: normalizeGameMode(overrides.gameMode ?? gameMode),
+      tracker: {
+        enabled: overrides.trackerEnabled ?? (sessionCode ? trackerSharedEnabled : trackerVisible),
+        gameStarted: overrides.trackerGameStarted ?? trackerGameStarted,
+        startingTeam: overrides.trackerStartingTeam ?? trackerStartingTeam,
+        currentTurn: overrides.trackerCurrentTurn ?? trackerCurrentTurn,
+        usedActions: overrides.trackerUsedActions ?? trackerUsedActions,
+        actionLog: overrides.trackerActionLog ?? trackerActionLog,
+        matchActionState: overrides.matchActionState ?? matchActionState,
+        turnPhase: overrides.turnPhase ?? turnPhase,
+        settings: overrides.trackerSettings ?? trackerSettings,
+      },
+      dice: {
+        dieType: overrides.dieType ?? dieType,
+        blueResult: overrides.blueDieResult ?? blueDieResult,
+        redResult: overrides.redDieResult ?? redDieResult,
+        blueLastDieType: overrides.blueLastDieType ?? blueLastDieType,
+        redLastDieType: overrides.redLastDieType ?? redLastDieType,
+      },
+    });
   }
+
+  function replaceGameTimeline(nextTimeline) {
+    const normalized = normalizeTimeline(nextTimeline, captureTimelineGameState());
+    gameTimelineRef.current = normalized;
+    setGameTimeline(normalized);
+    return normalized;
+  }
+
+  function startGameTimeline(initialState = captureTimelineGameState(), metadata = {}) {
+    pendingTimelineBeforeRef.current = null;
+    const { syncSession = false, ...timelineMetadata } = metadata;
+    const next = replaceGameTimeline(createTimeline(initialState, timelineMetadata));
+    if (syncSession) void enqueueTimelineSync(null, next, initialState, null, { baseline: true });
+    return next;
+  }
+
+  function recordTimelineTransition({
+    type = "GAME_STATE_CHANGED",
+    label = "Game state changed",
+    before,
+    after,
+    team = null,
+    groupId = null,
+    id = null,
+    allowNoop = false,
+  }) {
+    const safeBefore = before || captureTimelineGameState();
+    const safeAfter = after || captureTimelineGameState();
+    if (safeAfter.gameMode !== "match") return gameTimelineRef.current;
+    const current = gameTimelineRef.current || createTimeline(safeBefore);
+    const next = commitTimelineEntry(current, {
+      ...(id ? { id } : {}),
+      type,
+      label,
+      actorId: user?.uid || clientIdRef.current,
+      team,
+      groupId,
+      before: safeBefore,
+      after: safeAfter,
+    }, { allowNoop });
+    if (next === current || (next.entries.length === current.entries.length && next.cursor === current.cursor && next.revision === current.revision)) return current;
+    const replaced = replaceGameTimeline(next);
+    const committedEntry = replaced.entries[replaced.cursor - 1] || null;
+    void enqueueTimelineSync(current, replaced, safeAfter, committedEntry);
+    return replaced;
+  }
+
   function pushHistory(nextPieces = piecesRef.current || pieces, nextMovement = movementStateRef.current) {
-    setHistory(h => [...h.slice(-60), makeHistorySnapshot(nextPieces, nextMovement)]);
-    setRedoHistory([]);
+    pendingTimelineBeforeRef.current = captureTimelineGameState({
+      pieces: nextPieces,
+      movementStateByPieceId: nextMovement,
+    });
   }
 
   function updateSetting(key, value) {
@@ -3512,12 +3749,22 @@ function App() {
       next.goalWidth = forceOddDirectional(cleanValue, settings.goalWidth, settings.goalWidth);
     }
 
-    setSettings(next);
-    setPieces(prev => ensureBenchReserveCount(prev.map(p => ({
+    const beforeTimeline = captureTimelineGameState();
+    const nextPieces = ensureBenchReserveCount((piecesRef.current || pieces).map(p => ({
       ...p,
       y: clamp(p.y, 0, next.rows - 1),
       x: clampBoardXForY(p.x, clamp(p.y, 0, next.rows - 1), next),
-    })), next));
+    })), next);
+    settingsRef.current = next;
+    piecesRef.current = nextPieces;
+    setSettings(next);
+    setPieces(nextPieces);
+    recordTimelineTransition({
+      type: "BOARD_SETTING_CHANGED",
+      label: `Board setting ${key}: ${cleanValue}`,
+      before: beforeTimeline,
+      after: captureTimelineGameState({ settings: next, pieces: nextPieces }),
+    });
   }
 
 
@@ -3639,7 +3886,15 @@ function App() {
       setRedDieResult(null);
     }
     if (situation.snapshot.cardState) setCardState(snapshotCardState);
-    logSnapshot(`Load situație: ${situation.name}`, snapshotPieces);
+    logSnapshot(`Load situație: ${situation.name}`, snapshotPieces, {
+      type: "SITUATION_LOADED",
+      stateOverrides: {
+        settings: snapshotSettings,
+        dieType: situation.snapshot.dieType ?? 20,
+        blueDieResult: situation.snapshot.dieResult && typeof situation.snapshot.dieResult === "object" ? (situation.snapshot.dieResult.blue ?? null) : (situation.snapshot.dieResult ?? null),
+        redDieResult: situation.snapshot.dieResult && typeof situation.snapshot.dieResult === "object" ? (situation.snapshot.dieResult.red ?? null) : null,
+      },
+    });
   }
 
   function saveActiveGameSituation() {
@@ -3701,7 +3956,7 @@ function App() {
     const cleared = currentPieces.map(piece => ({ ...piece, cardId: null }));
     piecesRef.current = cleared;
     setPieces(cleared);
-    if (user && sessionCode && sessionHydratedRef.current) {
+    if (gameMode !== "match" && user && sessionCode && sessionHydratedRef.current) {
       void saveSessionCardAssignments(cleared);
     }
     logSnapshot("Reset cards", cleared);
@@ -3840,40 +4095,81 @@ function App() {
     setZoom(saved.zoom ?? 1);
   }
 
-  function logSnapshot(label, nextPieces = pieces) {
-    setActionLog(prev => [
-      ...prev.slice(-79),
-      {
-        id: `${Date.now()}-${Math.random()}`,
-        label,
-        pieces: JSON.stringify(nextPieces),
-        settings: JSON.stringify(settings),
-        zoom,
-        dieType,
-        dieResult: { blue: blueDieResult, red: redDieResult },
-        createdAt: new Date().toLocaleTimeString(),
-      }
-    ]);
+  function logSnapshot(label, nextPieces = piecesRef.current || pieces, options = {}) {
+    const before = pendingTimelineBeforeRef.current || captureTimelineGameState();
+    pendingTimelineBeforeRef.current = null;
+    const after = captureTimelineGameState({
+      pieces: nextPieces,
+      ...(options.stateOverrides || {}),
+    });
+    return recordTimelineTransition({
+      type: options.type || "GAME_STATE_CHANGED",
+      label,
+      before,
+      after,
+      team: options.team || null,
+      groupId: options.groupId || null,
+      id: options.id || null,
+      allowNoop: Boolean(options.allowNoop),
+    });
   }
 
-  function restoreSnapshot(entry) {
-    const restoredSettings = normalizeSettingsForApp(JSON.parse(entry.settings));
-    setPieces(ensureBenchReserveCount(JSON.parse(entry.pieces), restoredSettings));
-    setSettings(restoredSettings);
-    setZoom(entry.zoom ?? 1);
-    setDieType(entry.dieType ?? 20);
-    if (entry.dieResult && typeof entry.dieResult === "object") {
-      setBlueDieResult(entry.dieResult.blue ?? null);
-      setRedDieResult(entry.dieResult.red ?? null);
-    } else {
-      setBlueDieResult(entry.dieResult ?? null);
-      setRedDieResult(null);
-    }
+  function applyTimelineGameState(rawState) {
+    if (!rawState) return;
+    const state = createGameState(rawState);
+    const nextSettings = normalizeSettingsForApp(state.settings || settingsRef.current);
+    const assignmentCardState = sessionCode && Object.keys(sessionLibraryByIdRef.current || {}).length
+      ? buildCardStateFromSessionLibrary(sessionLibraryByIdRef.current)
+      : cardStateRef.current;
+    const nextPieces = ensureBenchReserveCount(
+      sanitizePiecesCardIds(state.pieces, assignmentCardState, nextSettings, {}, sessionCardsByIdRef.current),
+      nextSettings
+    );
+    const nextMovement = normalizeMovementState(state.movementStateByPieceId);
+    const nextTracker = normalizeTrackerSnapshot(state.tracker);
+
+    settingsRef.current = nextSettings;
+    piecesRef.current = nextPieces;
+    movementStateRef.current = nextMovement;
+    setSettings(nextSettings);
+    setPieces(nextPieces);
+    setMovementStateByPieceId(nextMovement);
+    setGameMode(normalizeGameMode(state.gameMode));
+    setTrackerSettings(nextTracker.settings);
+    setTrackerSettingsDraft(nextTracker.settings);
+    setTrackerGameStarted(nextTracker.gameStarted);
+    setTrackerStartingTeam(nextTracker.startingTeam);
+    setTrackerCurrentTurn(nextTracker.currentTurn);
+    setTrackerUsedActions(nextTracker.usedActions);
+    setTrackerActionLog(nextTracker.actionLog);
+    setMatchActionState(nextTracker.matchActionState);
+    setTurnPhase(nextTracker.turnPhase);
+    if (!sessionCode) setTrackerVisible(Boolean(state.tracker?.enabled));
+    setDieType(state.dice.dieType);
+    setBlueDieResult(state.dice.blueResult);
+    setRedDieResult(state.dice.redResult);
+    setBlueLastDieType(state.dice.blueLastDieType);
+    setRedLastDieType(state.dice.redLastDieType);
+    setSelectedId(null);
+    setHoveredCell(null);
+  }
+
+  function restoreTimelineCursor(cursor) {
+    if (gameMode !== "match") return;
+    if (sessionCode && !isSessionHost) return;
+    const current = gameTimelineRef.current;
+    if (!current) return;
+    const moved = moveTimelineCursor(current, cursor);
+    replaceGameTimeline(moved.timeline);
+    applyTimelineGameState(moved.state);
+    void enqueueTimelineSync(current, moved.timeline, moved.state);
   }
 
   function clearHistory() {
-    if (!window.confirm("Șterg history-ul?")) return;
-    setActionLog([]);
+    if (gameMode !== "match") return;
+    if (sessionCode && !isSessionHost) return;
+    if (!window.confirm("Șterg history-ul curent și păstrez starea actuală ca punct de pornire?")) return;
+    startGameTimeline(captureTimelineGameState(), { syncSession: Boolean(sessionCode) });
   }
 
   function showDiceNotice(team, result, currentDieType) {
@@ -3941,6 +4237,7 @@ function App() {
   async function rollTeamDie(team) {
     if (!canRollTeamDie(team)) return;
     if (!(await reserveDiceRoll())) return;
+    const beforeTimeline = captureTimelineGameState();
     if (diceNoticeTimerRef.current) window.clearTimeout(diceNoticeTimerRef.current);
     setDiceNotice(null);
     const setRolling = team === "blue" ? setBlueDieRolling : setRedDieRolling;
@@ -3959,17 +4256,32 @@ function App() {
       window.clearInterval(animation);
       const result = Math.floor(Math.random() * dieType) + 1;
       const rollId = `${Date.now()}_${clientIdRef.current}_${team}`;
-      pendingDiceRollRef.current[team] = sessionCode ? { rollId, result } : null;
-      diceSeenRollIdsRef.current[team] = rollId;
+      pendingDiceRollRef.current[team] = sessionCode && gameMode !== "match" ? { rollId, result } : null;
+      if (gameMode !== "match") diceSeenRollIdsRef.current[team] = rollId;
       setResult(result);
       setAnimationValue(null);
       diceRollingRef.current[team] = false;
       setRolling(false);
       showDiceNotice(team, result, dieType);
-      logSnapshot(`${team === "blue" ? "Blue" : "Red"} D${dieType}: ${result}`);
+      const nextTimeline = recordTimelineTransition({
+        type: "DICE_ROLLED",
+        label: `${team === "blue" ? "Blue" : "Red"} D${dieType}: ${result}`,
+        team,
+        before: beforeTimeline,
+        after: captureTimelineGameState({
+          blueDieResult: team === "blue" ? result : blueDieResult,
+          redDieResult: team === "red" ? result : redDieResult,
+          blueLastDieType: team === "blue" ? dieType : blueLastDieType,
+          redLastDieType: team === "red" ? dieType : redLastDieType,
+        }),
+      });
+      if (sessionCode && gameMode === "match" && nextTimeline) {
+        const diceEntry = nextTimeline.entries[nextTimeline.cursor - 1];
+        diceSeenRollIdsRef.current[team] = `timeline_${nextTimeline.recordingId}_${diceEntry?.id || `baseline_${team}`}`;
+      }
       if (team === "blue") setBlueLastDieType(dieType);
       else setRedLastDieType(dieType);
-      if (sessionCode) {
+      if (sessionCode && gameMode !== "match") {
         try {
           const ref = sessionRef(sessionCode.toUpperCase());
           await updateDoc(ref, {
@@ -3992,31 +4304,28 @@ function App() {
     }, 800);
   }
 
-  function applyPieceSnapshot(snapshot) {
-    const parsed = JSON.parse(snapshot);
-    const rawPieces = Array.isArray(parsed) ? parsed : parsed.pieces;
-    const nextPieces = ensureBenchReserveCount(normalizePiecesForBoard(rawPieces, settingsRef.current), settingsRef.current);
-    const nextMovement = normalizeMovementState(Array.isArray(parsed) ? {} : parsed.movementStateByPieceId);
-    piecesRef.current = nextPieces; movementStateRef.current = nextMovement;
-    setPieces(nextPieces); setMovementStateByPieceId(nextMovement);
-  }
-
   function undo() {
-    if (!history.length) return;
-    const previous = history[history.length - 1];
-    setRedoHistory(r => [...r.slice(-60), makeHistorySnapshot(piecesRef.current || pieces, movementStateRef.current)]);
-    applyPieceSnapshot(previous);
-    setHistory(h => h.slice(0, -1));
-    setSelectedId(null);
+    if (gameMode !== "match") return;
+    if (sessionCode && !isSessionHost) return;
+    const current = gameTimelineRef.current;
+    if (!current) return;
+    const result = undoTimelineGroup(current);
+    if (!result.state) return;
+    replaceGameTimeline(result.timeline);
+    applyTimelineGameState(result.state);
+    void enqueueTimelineSync(current, result.timeline, result.state);
   }
 
   function redo() {
-    if (!redoHistory.length) return;
-    const next = redoHistory[redoHistory.length - 1];
-    setHistory(h => [...h.slice(-60), makeHistorySnapshot(piecesRef.current || pieces, movementStateRef.current)]);
-    applyPieceSnapshot(next);
-    setRedoHistory(r => r.slice(0, -1));
-    setSelectedId(null);
+    if (gameMode !== "match") return;
+    if (sessionCode && !isSessionHost) return;
+    const current = gameTimelineRef.current;
+    if (!current) return;
+    const result = redoTimelineGroup(current);
+    if (!result.state) return;
+    replaceGameTimeline(result.timeline);
+    applyTimelineGameState(result.state);
+    void enqueueTimelineSync(current, result.timeline, result.state);
   }
 
   function gridPointFromClient(clientX, clientY, { clampToBoard = true } = {}) {
@@ -4137,10 +4446,13 @@ function App() {
   async function toggleGameMode() {
     if (sessionCode && !isSessionHost) return;
     const next = gameMode === "editor" ? "match" : "editor";
+    const nextState = captureTimelineGameState({ gameMode: next });
     setGameMode(next);
-    if (sessionCode) {
-      try { await updateDoc(sessionRef(sessionCode), { "sharedTracker.gameMode": next, updatedAt: serverTimestamp() }); }
-      catch (error) { console.error("Game mode sync failed", error); setSessionStatus("Mode sync error"); }
+    if (next === "match") startGameTimeline(nextState, { syncSession: Boolean(sessionCode) });
+    else if (gameTimelineRef.current) {
+      const currentTimeline = gameTimelineRef.current;
+      const closedTimeline = replaceGameTimeline(closeTimeline(currentTimeline));
+      void enqueueTimelineSync(currentTimeline, closedTimeline, nextState);
     }
   }
 
@@ -4149,6 +4461,13 @@ function App() {
     const authorization = authorizationOverride || movementAuthorization(piece);
     const isFreePlacement = authorization.mode === "free";
     const isGroupPlacement = authorization.mode === "group";
+    const timelineGroupId = useThreeTwo || piece.team === "BALL" || gameMode === "editor"
+      ? null
+      : isFreePlacement
+        ? (matchActionState.freeMode?.timelineGroupId || null)
+        : isGroupPlacement
+          ? (matchActionState.groupMove?.timelineGroupId || null)
+          : (matchActionState.byPieceId?.[piece.id]?.moveGroupId || null);
     const currentPieces = piecesRef.current || pieces;
     const carriesBall = piece.team !== "BALL" && currentPieces.some(item =>
       item.team === "BALL" && Number(item.x) === Number(piece.x) && Number(item.y) === Number(piece.y)
@@ -4199,8 +4518,13 @@ function App() {
     }
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
-    if (sessionCode) syncSessionMove(nextPieces, nextMovement);
-    logSnapshot(`${piece.team === "A" ? "Blue" : piece.team === "B" ? "Red" : "Ball"} ${piece.label} → ${toCoord(x, y)}${useThreeTwo ? " (3/2)" : ""}`, nextPieces);
+    if (sessionCode && gameMode !== "match") syncSessionMove(nextPieces, nextMovement);
+    logSnapshot(`${piece.team === "A" ? "Blue" : piece.team === "B" ? "Red" : "Ball"} ${piece.label} → ${toCoord(x, y)}${useThreeTwo ? " (3/2)" : ""}`, nextPieces, {
+      type: useThreeTwo ? "THREE_TWO_MOVE" : isFreePlacement ? "FREE_MOVE" : isGroupPlacement ? "GROUP_MOVE_PIECE" : piece.team === "BALL" ? "BALL_MOVED" : "PIECE_MOVED",
+      team: piece.team === "A" ? "blue" : piece.team === "B" ? "red" : null,
+      groupId: timelineGroupId,
+      stateOverrides: { movementStateByPieceId: nextMovement },
+    });
     // Keep the moved player selected so the next action (pass, dribble, shot, etc.)
     // can be chosen immediately. Match Ball keeps the previous deselect behavior.
     if (piece.team !== "BALL") setSelectedId(piece.id);
@@ -4419,7 +4743,17 @@ function App() {
   function saveEdit() {
     if (!editingPiece) return;
     const clean = editLabel.trim().slice(0, 5) || "?";
-    setPieces(prev => ensureBenchReserveCount(prev.map(p => p.id === editingPiece.id ? { ...p, label: clean } : p), settings));
+    const beforeTimeline = captureTimelineGameState();
+    const nextPieces = ensureBenchReserveCount((piecesRef.current || pieces).map(p => p.id === editingPiece.id ? { ...p, label: clean } : p), settingsRef.current);
+    piecesRef.current = nextPieces;
+    setPieces(nextPieces);
+    recordTimelineTransition({
+      type: "PIECE_LABEL_CHANGED",
+      label: `${pieceTeamKey(editingPiece) === "blue" ? "Blue" : "Red"} piece label: ${clean}`,
+      team: pieceTeamKey(editingPiece),
+      before: beforeTimeline,
+      after: captureTimelineGameState({ pieces: nextPieces }),
+    });
     setEditingPiece(null);
     setEditLabel("");
   }
@@ -4427,6 +4761,7 @@ function App() {
   function togglePieceInactive(pieceId) {
     const currentPiece = (piecesRef.current || pieces).find(piece => piece.id === pieceId);
     if (!currentPiece || !currentPiece.cardId || !canControlPieceStatus(currentPiece)) return;
+    pushHistory();
     const nextInactive = !currentPiece.inactive;
     const nextPieces = ensureBenchReserveCount((piecesRef.current || pieces).map(piece =>
       piece.id === pieceId ? { ...piece, inactive: nextInactive } : piece
@@ -4840,6 +5175,7 @@ function App() {
 
   function deleteCard(cardId) {
     if (!window.confirm("Ștergi cardul? Va fi scos și din echipe/pucuri.")) return;
+    const beforeTimeline = captureTimelineGameState();
     const nextCardState = {
       ...cardStateRef.current,
       cards: (cardStateRef.current.cards || []).filter(c => c.id !== cardId),
@@ -4856,6 +5192,12 @@ function App() {
     );
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
+    recordTimelineTransition({
+      type: "CARD_DELETED",
+      label: "Card deleted and detached",
+      before: beforeTimeline,
+      after: captureTimelineGameState({ pieces: nextPieces }),
+    });
     if (editingCardId === cardId) setEditingCardId(null);
   }
 
@@ -4895,6 +5237,7 @@ function App() {
       if (!shouldReassign) return;
     }
 
+    const beforeTimeline = captureTimelineGameState();
     const assignmentCardState = sessionCode && Object.keys(sessionLibraryByIdRef.current || {}).length
       ? buildCardStateFromSessionLibrary(sessionLibraryByIdRef.current)
       : cardStateRef.current;
@@ -4910,7 +5253,14 @@ function App() {
     );
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
-    if (user && sessionCode && sessionHydratedRef.current) {
+    recordTimelineTransition({
+      type: "CARD_ASSIGNED",
+      label: `Card assigned: ${cardId}`,
+      team: pieceTeamKey(targetPiece),
+      before: beforeTimeline,
+      after: captureTimelineGameState({ pieces: nextPieces }),
+    });
+    if (gameMode !== "match" && user && sessionCode && sessionHydratedRef.current) {
       void saveSessionCardAssignments(nextPieces);
     }
     setAssignTarget(null);
@@ -4919,6 +5269,7 @@ function App() {
   function removePieceCard(pieceId) {
     const targetPiece = (piecesRef.current || pieces).find(piece => piece.id === pieceId);
     if (!canAssignPiece(targetPiece)) return;
+    const beforeTimeline = captureTimelineGameState();
     const assignmentCardState = sessionCode && Object.keys(sessionLibraryByIdRef.current || {}).length
       ? buildCardStateFromSessionLibrary(sessionLibraryByIdRef.current)
       : cardStateRef.current;
@@ -4931,7 +5282,14 @@ function App() {
     );
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
-    if (user && sessionCode && sessionHydratedRef.current) {
+    recordTimelineTransition({
+      type: "CARD_DETACHED",
+      label: `Card detached: ${getPieceDisplayLabel(targetPiece)}`,
+      team: pieceTeamKey(targetPiece),
+      before: beforeTimeline,
+      after: captureTimelineGameState({ pieces: nextPieces }),
+    });
+    if (gameMode !== "match" && user && sessionCode && sessionHydratedRef.current) {
       void saveSessionCardAssignments(nextPieces);
     }
   }
@@ -7679,15 +8037,6 @@ function App() {
   }
   async function applyActionStateUpdate(nextLog, nextState, nextUsed) {
     setTrackerActionLog(nextLog); setMatchActionState(nextState); setTrackerUsedActions(nextUsed);
-    if (!sessionCode) return;
-    try {
-      await updateDoc(sessionRef(sessionCode), {
-        "sharedTracker.actionLog": nextLog,
-        "sharedTracker.matchActionState": nextState,
-        "sharedTracker.usedActions": nextUsed,
-        updatedAt: serverTimestamp(),
-      });
-    } catch (error) { console.error("Action sync failed", error); setSessionStatus("Action sync error"); }
   }
   async function consumeInspectorAction(type, piece) {
     if (type === "FREE") {
@@ -7697,19 +8046,29 @@ function App() {
     const currentPieceState = matchActionState.byPieceId[piece.id] || {};
     if (type !== "FREE" && hasValidGroupMoveAuthorization(team)) return;
     if (type === "FREE") {
+      const beforeTimeline = captureTimelineGameState();
       const freeModeActive = Boolean(matchActionState.freeMode?.active);
       const isSameFreePiece = freeModeActive && matchActionState.freeMode?.pieceId === piece.id;
-      const clearedByPieceId = Object.fromEntries(Object.entries(matchActionState.byPieceId || {}).map(([id, value]) => [id, { ...value, freeMoveAuthorized: false }]));
+      const timelineGroupId = isSameFreePiece
+        ? (matchActionState.freeMode?.timelineGroupId || `free_${piece.id}_${trackerCurrentTurn}`)
+        : `free_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const nextState = normalizeMatchActionState({
         ...matchActionState,
-        byPieceId: clearedByPieceId,
+        byPieceId: matchActionState.byPieceId,
         freeMode: isSameFreePiece
-          ? { active: false, pieceId: null, team: null }
-          : { active: true, pieceId: piece.id, team },
+          ? { active: false, pieceId: null, team: null, timelineGroupId }
+          : { active: true, pieceId: piece.id, team, timelineGroupId },
       });
       setMatchActionState(nextState);
       setSelectedId(piece.id);
-      if (sessionCode) updateDoc(sessionRef(sessionCode), { "sharedTracker.matchActionState": nextState, updatedAt: serverTimestamp() }).catch(console.error);
+      recordTimelineTransition({
+        type: isSameFreePiece ? "FREE_MODE_ENDED" : "FREE_MODE_STARTED",
+        label: `${team === "blue" ? "Blue" : "Red"} Free Mode ${isSameFreePiece ? "OFF" : "ON"}: ${getPieceDisplayLabel(piece)}`,
+        team,
+        groupId: timelineGroupId,
+        before: beforeTimeline,
+        after: captureTimelineGameState({ matchActionState: nextState }),
+      });
       return;
     }
     if (!isTeamPhaseActive(team)) {
@@ -7720,21 +8079,28 @@ function App() {
     if (status.exhausted) { setIllegalMoveNotice({ reason: "actions-complete-end-turn" }); return; }
     if (type === "MOVE" && currentPieceState.moveUsed) return;
     if (type === "GROUP_MOVE" && status.remaining !== 1) return;
-    const currentMovementSnapshot = movementStateRef.current[piece.id] || null;
     const entry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       type,
       pieceId: piece.id,
-      startX: type === "MOVE" ? Number(piece.x) : null,
-      startY: type === "MOVE" ? Number(piece.y) : null,
-      startMovementState: type === "MOVE" && currentMovementSnapshot ? { ...currentMovementSnapshot } : null,
     };
     const nextLog = { ...trackerActionLog, [team]: [...trackerActionLog[team], entry] };
     const nextUsed = { ...trackerUsedActions, [team]: nextLog[team].length };
     let nextState = matchActionState;
-    if (type === "MOVE") nextState = normalizeMatchActionState({ ...matchActionState, byPieceId: { ...matchActionState.byPieceId, [piece.id]: { ...currentPieceState, moveUsed: true, moveAuthorized: true } } });
-    if (type === "GROUP_MOVE") nextState = normalizeMatchActionState({ ...matchActionState, groupMove: { active: true, team } });
+    if (type === "MOVE") nextState = normalizeMatchActionState({ ...matchActionState, byPieceId: { ...matchActionState.byPieceId, [piece.id]: { ...currentPieceState, moveUsed: true, moveAuthorized: true, moveGroupId: entry.id } } });
+    if (type === "GROUP_MOVE") nextState = normalizeMatchActionState({ ...matchActionState, groupMove: { active: true, team, timelineGroupId: entry.id } });
+    const beforeTimeline = captureTimelineGameState();
     await applyActionStateUpdate(nextLog, nextState, nextUsed);
+    recordTimelineTransition({
+      id: entry.id,
+      type: `${type}_ACTIVATED`,
+      label: `${team === "blue" ? "Blue" : "Red"} ${type.replace("GROUP_MOVE", "GROUP MOVE")}: ${getPieceDisplayLabel(piece)}`,
+      team,
+      groupId: entry.id,
+      before: beforeTimeline,
+      after: captureTimelineGameState({ trackerActionLog: nextLog, trackerUsedActions: nextUsed, matchActionState: nextState }),
+      allowNoop: true,
+    });
     if (type === "MOVE" || type === "GROUP_MOVE") setSelectedId(piece.id);
   }
   async function removeLastTrackerAction(team) {
@@ -7742,53 +8108,25 @@ function App() {
     if (sessionCode && myTeam !== team && !isSessionHost) return;
     if (!window.confirm("Remove the latest action from this tracker?")) return;
     const removed = trackerActionLog[team][trackerActionLog[team].length - 1];
-    const nextLog = { ...trackerActionLog, [team]: trackerActionLog[team].slice(0, -1) };
-    const nextUsed = { ...trackerUsedActions, [team]: nextLog[team].length };
-    let nextState = matchActionState;
-    let restoredPieces = null;
-    let restoredMovement = null;
-    if (removed.type === "MOVE" && removed.pieceId) {
-      const byPieceId = { ...matchActionState.byPieceId }; delete byPieceId[removed.pieceId];
-      nextState = normalizeMatchActionState({ ...matchActionState, byPieceId });
-      if (Number.isFinite(removed.startX) && Number.isFinite(removed.startY)) {
-        restoredPieces = (piecesRef.current || pieces).map(piece => piece.id === removed.pieceId
-          ? { ...piece, x: removed.startX, y: removed.startY }
-          : piece);
-        restoredMovement = { ...movementStateRef.current };
-        if (removed.startMovementState) restoredMovement[removed.pieceId] = { ...removed.startMovementState };
-        else delete restoredMovement[removed.pieceId];
-        piecesRef.current = restoredPieces;
-        movementStateRef.current = restoredMovement;
-        setPieces(restoredPieces);
-        setMovementStateByPieceId(restoredMovement);
-        setSelectedId(null);
-        setHoveredCell(null);
-      }
-    }
-    if (removed.type === "GROUP_MOVE") nextState = normalizeMatchActionState({ ...matchActionState, groupMove: { active: false, team: null } });
-    const removedTeamPhase = team === trackerStartingTeam ? "attack" : "defense";
-    const shouldReopenPhase =
-      (removedTeamPhase === "attack" && turnPhase !== "attack") ||
-      (removedTeamPhase === "defense" && turnPhase === "complete");
-    const reopenedPhase = shouldReopenPhase ? removedTeamPhase : turnPhase;
-
-    await applyActionStateUpdate(nextLog, nextState, nextUsed);
-    if (shouldReopenPhase) {
-      setTurnPhase(reopenedPhase);
-      setPendingEndTurn(null);
-      if (sessionCode) {
-        try {
-          await updateDoc(sessionRef(sessionCode), {
-            "sharedTracker.turnPhase": reopenedPhase,
-            updatedAt: serverTimestamp(),
-          });
-        } catch (error) {
-          console.error("Turn phase reopen sync failed", error);
-          setSessionStatus("Turn phase sync error");
+    const timeline = gameTimelineRef.current;
+    if (timeline) {
+      const appliedEntries = timeline.entries.slice(0, timeline.cursor);
+      const matchingIndexes = appliedEntries
+        .map((entry, index) => entry.groupId === removed.id ? index : -1)
+        .filter(index => index >= 0);
+      if (matchingIndexes.length) {
+        const firstIndex = matchingIndexes[0];
+        const lastIndex = matchingIndexes[matchingIndexes.length - 1];
+        const contiguous = matchingIndexes.every((index, position) => index === firstIndex + position);
+        if (!contiguous || lastIndex !== appliedEntries.length - 1) {
+          window.alert("This action is not the latest action in the shared timeline. Undo the later actions first.");
+          return;
         }
+        restoreTimelineCursor(firstIndex);
+        return;
       }
     }
-    if (restoredPieces && sessionCode) await syncSessionMove(restoredPieces, restoredMovement || movementStateRef.current);
+    window.alert("This action predates the active unified timeline and cannot be removed safely. Start a new Match Mode recording first.");
   }
   function hasValidGroupMoveAuthorization(team) {
     if (!matchActionState.groupMove.active || matchActionState.groupMove.team !== team) return false;
@@ -7832,14 +8170,10 @@ function App() {
       if (refreshedEvaluation.reason !== "same") setIllegalMoveNotice(refreshedEvaluation);
       return;
     }
-    const currentMovementSnapshot = movementStateRef.current[piece.id] || null;
     const entry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       type: "MOVE",
       pieceId: piece.id,
-      startX: Number(piece.x),
-      startY: Number(piece.y),
-      startMovementState: currentMovementSnapshot ? { ...currentMovementSnapshot } : null,
     };
     const nextLog = { ...trackerActionLog, [team]: [...trackerActionLog[team], entry] };
     const nextUsed = { ...trackerUsedActions, [team]: nextLog[team].length };
@@ -7847,10 +8181,21 @@ function App() {
       ...matchActionState,
       byPieceId: {
         ...matchActionState.byPieceId,
-        [piece.id]: { ...currentPieceState, moveUsed: true, moveAuthorized: true },
+        [piece.id]: { ...currentPieceState, moveUsed: true, moveAuthorized: true, moveGroupId: entry.id },
       },
     });
+    const beforeTimeline = captureTimelineGameState();
     await applyActionStateUpdate(nextLog, nextState, nextUsed);
+    recordTimelineTransition({
+      id: entry.id,
+      type: "MOVE_ACTIVATED",
+      label: `${team === "blue" ? "Blue" : "Red"} MOVE: ${getPieceDisplayLabel(piece)}`,
+      team,
+      groupId: entry.id,
+      before: beforeTimeline,
+      after: captureTimelineGameState({ trackerActionLog: nextLog, trackerUsedActions: nextUsed, matchActionState: nextState }),
+      allowNoop: true,
+    });
     commitPieceMove(piece, pending.x, pending.y, refreshedEvaluation, { authorizationOverride: { allowed: true, mode: "normal" } });
   }
 
@@ -7865,36 +8210,58 @@ function App() {
   }
   async function confirmEndTurn() {
     if (!pendingEndTurn) return;
+    const endingTeam = pendingEndTurn.team;
+    const beforeTimeline = captureTimelineGameState();
     const nextPhase = turnPhase === "attack" ? "defense" : "complete";
     setPendingEndTurn(null);
     setTurnPhase(nextPhase);
     setSelectedId(null);
     setHoveredCell(null);
-    if (sessionCode) {
-      try { await updateDoc(sessionRef(sessionCode), { "sharedTracker.turnPhase": nextPhase, updatedAt: serverTimestamp() }); }
-      catch (error) { console.error("End turn sync failed", error); setSessionStatus("Turn phase sync error"); }
-    }
+    recordTimelineTransition({
+      type: "PHASE_ENDED",
+      label: `${endingTeam === "blue" ? "Blue" : "Red"} END TURN → ${nextPhase.toUpperCase()}`,
+      team: endingTeam,
+      before: beforeTimeline,
+      after: captureTimelineGameState({ turnPhase: nextPhase }),
+    });
   }
 
   function startTrackedGame(team) {
     if (trackerReadOnly) return;
+    const beforeTimeline = captureTimelineGameState();
     const usedActions = { red: 0, blue: 0 };
+    const emptyLog = { red: [], blue: [] };
+    const emptyMatchState = normalizeMatchActionState({});
     setTrackerStartingTeam(team);
     setTrackerCurrentTurn(1);
-    setTrackerUsedActions(usedActions); setTrackerActionLog({ red: [], blue: [] }); setMatchActionState(normalizeMatchActionState({}));
+    setTrackerUsedActions(usedActions); setTrackerActionLog(emptyLog); setMatchActionState(emptyMatchState);
     setTrackerGameStarted(true);
     setTurnPhase("attack");
     setMovementStateByPieceId({}); movementStateRef.current = {};
     setTrackerStartChoiceOpen(false);
-    syncSharedTracker({ gameStarted: true, startingTeam: team, currentTurn: 1, usedActions, actionLog: { red: [], blue: [] }, matchActionState: normalizeMatchActionState({}), turnPhase: "attack", movementStateByPieceId: {} });
+    recordTimelineTransition({
+      type: "MATCH_STARTED",
+      label: `Match started: ${team === "blue" ? "Blue" : "Red"} attacks`,
+      team,
+      before: beforeTimeline,
+      after: captureTimelineGameState({ trackerGameStarted: true, trackerStartingTeam: team, trackerCurrentTurn: 1, trackerUsedActions: usedActions, trackerActionLog: emptyLog, matchActionState: emptyMatchState, turnPhase: "attack", movementStateByPieceId: {} }),
+    });
   }
   function applyTrackerTurn(turn) {
+    const beforeTimeline = captureTimelineGameState();
     const usedActions = { red: 0, blue: 0 };
+    const emptyLog = { red: [], blue: [] };
+    const emptyMatchState = normalizeMatchActionState({});
     setTrackerCurrentTurn(turn);
     setTurnPhase("attack");
-    setTrackerUsedActions(usedActions); setTrackerActionLog({ red: [], blue: [] }); setMatchActionState(normalizeMatchActionState({}));
+    setTrackerUsedActions(usedActions); setTrackerActionLog(emptyLog); setMatchActionState(emptyMatchState);
     setMovementStateByPieceId({}); movementStateRef.current = {};
-    syncSharedTracker({ currentTurn: turn, usedActions, actionLog: { red: [], blue: [] }, matchActionState: normalizeMatchActionState({}), turnPhase: "attack", movementStateByPieceId: {} });
+    recordTimelineTransition({
+      type: "TURN_CHANGED",
+      label: `Turn ${turn}`,
+      before: beforeTimeline,
+      after: captureTimelineGameState({ trackerCurrentTurn: turn, trackerUsedActions: usedActions, trackerActionLog: emptyLog, matchActionState: emptyMatchState, turnPhase: "attack", movementStateByPieceId: {} }),
+    });
   }
   function selectTrackerTurn(turn) {
     if (trackerReadOnly || !trackerGameStarted || turn === trackerCurrentTurn) return;
@@ -7908,20 +8275,37 @@ function App() {
   }
   function resetTrackerActions() {
     if (trackerReadOnly) return;
+    const beforeTimeline = captureTimelineGameState();
     const usedActions = { red: 0, blue: 0 };
-    setTrackerUsedActions(usedActions); setTrackerActionLog({ red: [], blue: [] }); setMatchActionState(normalizeMatchActionState({}));
+    const emptyLog = { red: [], blue: [] };
+    const emptyMatchState = normalizeMatchActionState({});
+    setTrackerUsedActions(usedActions); setTrackerActionLog(emptyLog); setMatchActionState(emptyMatchState);
     setMovementStateByPieceId({}); movementStateRef.current = {};
-    syncSharedTracker({ usedActions, actionLog: { red: [], blue: [] }, matchActionState: normalizeMatchActionState({}), movementStateByPieceId: {} });
+    recordTimelineTransition({
+      type: "TRACKER_RESET",
+      label: "Tracker actions reset",
+      before: beforeTimeline,
+      after: captureTimelineGameState({ trackerUsedActions: usedActions, trackerActionLog: emptyLog, matchActionState: emptyMatchState, movementStateByPieceId: {} }),
+    });
   }
   function changeTrackerPossession() {
     if (trackerReadOnly || !trackerGameStarted) return;
+    const beforeTimeline = captureTimelineGameState();
     const nextAttackingTeam = trackerStartingTeam === "red" ? "blue" : "red";
     const usedActions = { red: 0, blue: 0 };
+    const emptyLog = { red: [], blue: [] };
+    const emptyMatchState = normalizeMatchActionState({});
     setTrackerStartingTeam(nextAttackingTeam);
     setTurnPhase("attack");
-    setTrackerUsedActions(usedActions); setTrackerActionLog({ red: [], blue: [] }); setMatchActionState(normalizeMatchActionState({}));
+    setTrackerUsedActions(usedActions); setTrackerActionLog(emptyLog); setMatchActionState(emptyMatchState);
     setMovementStateByPieceId({}); movementStateRef.current = {};
-    syncSharedTracker({ startingTeam: nextAttackingTeam, usedActions, actionLog: { red: [], blue: [] }, matchActionState: normalizeMatchActionState({}), turnPhase: "attack", movementStateByPieceId: {} });
+    recordTimelineTransition({
+      type: "POSSESSION_CHANGED",
+      label: `Possession changed: ${nextAttackingTeam === "blue" ? "Blue" : "Red"} attacks`,
+      team: nextAttackingTeam,
+      before: beforeTimeline,
+      after: captureTimelineGameState({ trackerStartingTeam: nextAttackingTeam, trackerUsedActions: usedActions, trackerActionLog: emptyLog, matchActionState: emptyMatchState, turnPhase: "attack", movementStateByPieceId: {} }),
+    });
   }
   function trackerRoleFor(team) {
     if (!trackerGameStarted || trackerCurrentTurn < 1) return "waiting";
@@ -8210,8 +8594,8 @@ function App() {
 
         <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.2, 3))}><Minus size={16} /></button>
         <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
-        <button onClick={undo} disabled={!history.length}><Undo2 size={16} /> Undo</button>
-        <button onClick={redo} disabled={!redoHistory.length}><Redo2 size={16} /> Redo</button>
+        <button onClick={undo} disabled={gameMode !== "match" || !gameTimeline || gameTimeline.cursor <= 0 || (!!sessionCode && !isSessionHost)}><Undo2 size={16} /> Undo</button>
+        <button onClick={redo} disabled={gameMode !== "match" || !gameTimeline || gameTimeline.cursor >= gameTimeline.entries.length || (!!sessionCode && !isSessionHost)}><Redo2 size={16} /> Redo</button>
         <button onClick={resetPiecePositions}><RotateCcw size={16} /> Reset Position</button>
         <button onClick={resetPieceCards}><RotateCcw size={16} /> Reset Cards</button>
         <button className={touchMode ? "toggle-on" : ""} onClick={() => setTouchMode(v => !v)}>
@@ -8783,18 +9167,18 @@ function App() {
         onPointerCancel={onHistoryPointerUp}
       >
         <div className="history-title" onPointerDown={onHistoryPointerDown}>
-          <strong>History</strong>
+          <strong>History {gameTimeline ? `${gameTimeline.cursor}/${gameTimeline.entries.length}` : "0/0"}</strong>
           <div className="history-actions">
-            <button onPointerDown={(e) => e.stopPropagation()} onClick={clearHistory}>Clear</button>
+            <button onPointerDown={(e) => e.stopPropagation()} onClick={clearHistory} disabled={gameMode !== "match" || (!!sessionCode && !isSessionHost)}>Clear</button>
             <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setHistoryVisible(false)}>_</button>
           </div>
         </div>
         <div className="history-list">
-          {actionLog.length === 0 && <div className="history-empty">Nu există pași încă.</div>}
-          {actionLog.map((entry, index) => (
-            <button key={entry.id} className="history-item" onClick={() => restoreSnapshot(entry)}>
+          {(!gameTimeline || gameTimeline.entries.length === 0) && <div className="history-empty">Nu există pași încă.</div>}
+          {(gameTimeline?.entries || []).map((entry, index) => (
+            <button key={entry.id} className={`history-item ${index < gameTimeline.cursor ? "applied" : "future"}`} onClick={() => restoreTimelineCursor(index + 1)} disabled={gameMode !== "match" || (!!sessionCode && !isSessionHost)}>
               <span>{index + 1}. {entry.label}</span>
-              <small>{entry.createdAt}</small>
+              <small>{new Date(entry.createdAt).toLocaleTimeString()}</small>
             </button>
           ))}
         </div>
@@ -9028,13 +9412,19 @@ function App() {
             <label>Turns<input type="number" min="1" max="100" value={trackerSettingsDraft.turns} onChange={e => setTrackerSettingsDraft(v => ({ ...v, turns: clamp(Number(e.target.value) || 1, 1, 100) }))} /></label>
             <button className="save-label" onClick={() => {
               if (trackerReadOnly) return;
+              const beforeTimeline = captureTimelineGameState();
               const nextTurn = Math.min(trackerCurrentTurn, trackerSettingsDraft.turns);
               const usedActions = { red: 0, blue: 0 };
               setTrackerSettings(trackerSettingsDraft);
               setTrackerCurrentTurn(nextTurn);
               setTrackerUsedActions(usedActions);
               setTrackerSettingsOpen(false);
-              syncSharedTracker({ settings: trackerSettingsDraft, currentTurn: nextTurn, usedActions });
+              recordTimelineTransition({
+                type: "TRACKER_SETTINGS_CHANGED",
+                label: "Tracker settings changed",
+                before: beforeTimeline,
+                after: captureTimelineGameState({ trackerSettings: trackerSettingsDraft, trackerCurrentTurn: nextTurn, trackerUsedActions: usedActions }),
+              });
             }}>Save</button>
           </div>
         </div>
