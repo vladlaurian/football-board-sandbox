@@ -8620,7 +8620,7 @@ function App() {
                       aria-pressed={Boolean(matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id)}
                       onClick={() => consumeInspectorAction("FREE", inspectedPiece)}
                     >
-                      FREE MODE
+                      {matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id ? "FREE MODE: ON" : "FREE MODE"}
                     </button>
                   </div>
                 </div>

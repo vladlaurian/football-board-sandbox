@@ -1,3 +1,12 @@
+# Football Board Sandbox
+
+## v16.2 — Clear Free Mode active state
+
+- The FREE MODE button now changes its label to `FREE MODE: ON` while active.
+- Added a strong high-contrast border and glow so the active state remains unmistakable even when every other action button is already locked.
+- The active FREE MODE button keeps full opacity and cannot be confused with disabled controls.
+- No gameplay behavior was changed.
+
 # Football Board Sandbox v16.1
 
 Source build of the football board sandbox.
