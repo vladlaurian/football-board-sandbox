@@ -1,8 +1,17 @@
-# Football Board Sandbox v15.6
+# Football Board Sandbox v15.7
 
 Source build of the football board sandbox.
 
 
+
+## v15.7 — Reopen ended phases and restore tablet tap movement
+
+- Removing the latest tracker action now reopens that team's phase when `END TURN` had already advanced the turn flow.
+- Removing a MOVE after `END TURN` again restores the player position and movement state recorded when MOVE was activated.
+- Reopening the attack phase from defense or complete, and reopening the defense phase from complete, is synchronized through the shared tracker state.
+- Restored one-finger tablet movement: after selecting a piece, tapping an empty destination cell now executes the same movement flow used on desktop.
+- Preserved two-finger board pan/zoom, piece taps, ruler touch behavior, FREE, GROUP MOVE, 3/2, and direct MOVE confirmation.
+- Updated the in-app Sandbox version and package version to v15.7.
 
 ## v15.6 — Inspector compaction, completed-action messaging, and selection consistency
 

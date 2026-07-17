@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v15.6";
+const APP_VERSION = "v15.7";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -7694,7 +7694,28 @@ function App() {
       }
     }
     if (removed.type === "GROUP_MOVE") nextState = normalizeMatchActionState({ ...matchActionState, groupMove: { active: false, team: null } });
+    const removedTeamPhase = team === trackerStartingTeam ? "attack" : "defense";
+    const shouldReopenPhase =
+      (removedTeamPhase === "attack" && turnPhase !== "attack") ||
+      (removedTeamPhase === "defense" && turnPhase === "complete");
+    const reopenedPhase = shouldReopenPhase ? removedTeamPhase : turnPhase;
+
     await applyActionStateUpdate(nextLog, nextState, nextUsed);
+    if (shouldReopenPhase) {
+      setTurnPhase(reopenedPhase);
+      setPendingEndTurn(null);
+      if (sessionCode) {
+        try {
+          await updateDoc(sessionRef(sessionCode), {
+            "sharedTracker.turnPhase": reopenedPhase,
+            updatedAt: serverTimestamp(),
+          });
+        } catch (error) {
+          console.error("Turn phase reopen sync failed", error);
+          setSessionStatus("Turn phase sync error");
+        }
+      }
+    }
     if (restoredPieces && sessionCode) await syncSessionMove(restoredPieces, restoredMovement || movementStateRef.current);
   }
   function hasValidGroupMoveAuthorization(team) {
@@ -8000,8 +8021,13 @@ function App() {
   function onBoardTouchEnd(e) {
     const gesture = touchGestureRef.current;
     if (gesture?.mode === "one-finger" && e.touches.length === 0) {
-      if (measureMode && !gesture.moved && gesture.point) {
-        applyRulerPoint(gesture.point);
+      if (!gesture.moved && Date.now() >= multiTouchUntilRef.current) {
+        if (measureMode && gesture.point) {
+          applyRulerPoint(gesture.point);
+        } else if (selectedId) {
+          const point = gridPointFromClient(gesture.startX, gesture.startY);
+          if (point) moveSelectedPieceTo(point.x, point.y);
+        }
       }
       touchGestureRef.current = null;
       return;
