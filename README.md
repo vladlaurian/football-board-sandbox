@@ -1,5 +1,36 @@
 # Football Board Sandbox
 
+## v17.2 — Local Tracker visibility and reliable History dragging
+
+### What changed
+
+- Tracker window visibility is now local to each multiplayer participant.
+- Activating the Tracker for the first time still enables its shared session state and opens it for connected participants.
+- Once enabled for the session, closing or reopening the host window no longer changes the guest window.
+- Guest Tracker controls remain view-only; this update changes only window visibility, not gameplay permissions.
+- History dragging and resizing now capture the active pointer and track its pointer ID.
+- History releases drag and resize state on pointer up, pointer cancellation, or lost pointer capture.
+
+### Why it changed
+
+The shared Tracker `enabled` flag previously represented both session availability and the host's local window visibility. Closing the host window therefore wrote `enabled: false` to Firebase and closed the guest window as well. History also depended on receiving pointer release inside its own panel, so a fast drag outside the panel could leave it attached to the mouse.
+
+### Problems resolved
+
+- A host can close and reopen Tracker without changing what the guest sees.
+- A guest can close and reopen its view-only Tracker without affecting the host.
+- Shared Tracker gameplay state continues to synchronize while either local window is closed.
+- Fast History dragging no longer remains attached after the mouse button is released outside the panel.
+- History resizing uses the same reliable pointer lifecycle.
+
+### Impact
+
+- Multiplayer presentation state is independent per browser while Tracker gameplay data remains shared.
+- Guest Tracker permissions are unchanged and remain view-only.
+- No Firebase schema or security-rule changes are required.
+- Timeline, phase state, Undo/Redo, and Tracker action synchronization are unchanged.
+- Editor = Inspector = Export remains unchanged; card data and rendering paths were not modified.
+
 ## v17.1 — Timeline multiplayer synchronization stability
 
 ### What changed

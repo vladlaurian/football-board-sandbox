@@ -44,7 +44,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v17.1";
+const APP_VERSION = "v17.2";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2195,8 +2195,6 @@ function App() {
   const [sharedRulerOwnerTeam, setSharedRulerOwnerTeam] = useState("");
   const [historyPosition, setHistoryPosition] = useState({ x: window.innerWidth - 300, y: 118 });
   const [historySize, setHistorySize] = useState({ w: 280, h: 360 });
-  const [historyDragging, setHistoryDragging] = useState(null);
-  const [historyResizing, setHistoryResizing] = useState(null);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [dicePanelVisible, setDicePanelVisible] = useState(false);
   const [dicePanelPosition, setDicePanelPosition] = useState({ x: 420, y: 180 });
@@ -2273,6 +2271,8 @@ function App() {
   const measureInteractionRef = useRef(null);
   const beforeLockViewRef = useRef(null);
   const clientIdRef = useRef(`client_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
+  const historyDragRef = useRef(null);
+  const historyResizeRef = useRef(null);
   const dicePanelDragRef = useRef(null);
   const dicePanelResizeRef = useRef(null);
   const trackerDragRef = useRef(null);
@@ -7877,18 +7877,21 @@ function App() {
 
   function onHistoryPointerDown(e) {
     e.preventDefault();
-    setHistoryDragging({
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    historyDragRef.current = {
+      pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
       originX: historyPosition.x,
       originY: historyPosition.y,
-    });
+    };
   }
 
   function onHistoryPointerMove(e) {
-    if (!historyDragging) return;
-    const nextX = historyDragging.originX + (e.clientX - historyDragging.startX);
-    const nextY = historyDragging.originY + (e.clientY - historyDragging.startY);
+    const drag = historyDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const nextX = drag.originX + (e.clientX - drag.startX);
+    const nextY = drag.originY + (e.clientY - drag.startY);
     setHistoryPosition({
       x: clamp(nextX, 0, window.innerWidth - 80),
       y: clamp(nextY, 0, window.innerHeight - 50),
@@ -7898,19 +7901,22 @@ function App() {
   function onHistoryResizeDown(e) {
     e.preventDefault();
     e.stopPropagation();
-    setHistoryResizing({
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    historyResizeRef.current = {
+      pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
       originW: historySize.w,
       originH: historySize.h,
-    });
+    };
   }
 
   function onHistoryResizeMove(e) {
-    if (!historyResizing) return;
+    const resize = historyResizeRef.current;
+    if (!resize || resize.pointerId !== e.pointerId) return;
     setHistorySize({
-      w: clamp(historyResizing.originW + (e.clientX - historyResizing.startX), 220, 700),
-      h: clamp(historyResizing.originH + (e.clientY - historyResizing.startY), 160, 700),
+      w: clamp(resize.originW + (e.clientX - resize.startX), 220, 700),
+      h: clamp(resize.originH + (e.clientY - resize.startY), 160, 700),
     });
   }
 
@@ -8055,11 +8061,17 @@ function App() {
       }
       return;
     }
-    setTrackerSharedEnabled(nextEnabled);
-    trackerSharedEnabledRef.current = nextEnabled;
+
+    // In multiplayer, shared enabled state means that the Tracker is
+    // available to the session. Window visibility remains local to each
+    // participant, so closing the host panel must not close the guest panel.
+    if (nextEnabled && !trackerSharedEnabled) {
+      setTrackerSharedEnabled(true);
+      trackerSharedEnabledRef.current = true;
+      syncSharedTracker({ enabled: true });
+    }
     setTrackerVisible(nextEnabled);
     if (nextEnabled) setTrackerMinimized(false);
-    syncSharedTracker({ enabled: nextEnabled });
   }
 
   function getTeamActionStatus(team, usedOverride = trackerUsedActions) {
@@ -8595,9 +8607,9 @@ function App() {
     }
   }
 
-  function onHistoryPointerUp() {
-    setHistoryDragging(null);
-    setHistoryResizing(null);
+  function onHistoryPointerUp(e) {
+    if (!e || historyDragRef.current?.pointerId === e.pointerId) historyDragRef.current = null;
+    if (!e || historyResizeRef.current?.pointerId === e.pointerId) historyResizeRef.current = null;
   }
 
   function onDicePanelPointerUp() {
@@ -9267,7 +9279,7 @@ function App() {
         onPointerUp={onHistoryPointerUp}
         onPointerCancel={onHistoryPointerUp}
       >
-        <div className="history-title" onPointerDown={onHistoryPointerDown}>
+        <div className="history-title" onPointerDown={onHistoryPointerDown} onLostPointerCapture={onHistoryPointerUp}>
           <strong>History {gameTimeline ? `${gameTimeline.cursor}/${gameTimeline.entries.length}` : "0/0"}</strong>
           <div className="history-actions">
             <button onPointerDown={(e) => e.stopPropagation()} onClick={clearHistory} disabled={gameMode !== "match" || (!!sessionCode && !isSessionHost)}>Clear</button>
@@ -9283,7 +9295,7 @@ function App() {
             </button>
           ))}
         </div>
-        <div className="history-resize" onPointerDown={onHistoryResizeDown} />
+        <div className="history-resize" onPointerDown={onHistoryResizeDown} onLostPointerCapture={onHistoryPointerUp} />
       </div>
       )}
 
