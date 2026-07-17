@@ -1,5 +1,44 @@
 # Football Board Sandbox
 
+## v17.1 — Timeline multiplayer synchronization stability
+
+### What changed
+
+- Match Mode now treats the revisioned timeline as the single applied gameplay source instead of independently reapplying `sharedTracker` snapshots over it.
+- Stale Firebase echoes are rejected by recording ID and revision while a newer local transition is pending.
+- Editor → Match and Match → Editor remain optimistic and are represented by a complete synchronized state transition.
+- Closing Match Mode records the return to Editor Mode in the timeline before closing the recording.
+- Tracker panel visibility is presentation state and is no longer captured, restored, or rewritten by Undo/Redo.
+- Firebase timeline writes preserve the current shared Tracker visibility rather than restoring an old value from History.
+- Dice values preserve `null`; an unset die can no longer become the synthetic result `0`.
+- Baseline timeline state no longer creates a dice roll ID or a false dice notification.
+- Remote dice notices are emitted only for a real, finite `DICE_ROLLED` result.
+- Inspector actions derive their next Tracker log from the current timeline cursor, preventing older Firebase echoes from replacing PASS, SHOT, CROSS, MOVE, and later actions.
+- Undo and Redo are explicitly granular: selecting MOVE and performing the movement remain two separate visible decisions.
+- Added regression tests for nullable dice values, stable dice IDs, stale revision rejection, and pending mode-transition protection.
+
+### Why it changed
+
+v17.0 still applied two multiplayer state streams during Match Mode: the new timeline and the legacy `sharedTracker/sharedDice` projection. Firebase could return an older snapshot after a local action, temporarily reverse the game mode, close the Tracker panel, or replace the Tracker action log while History remained correct.
+
+### Problems resolved
+
+- Entering Match Mode no longer displays `RED rolled 0 (D20)` when no die was rolled.
+- Real dice rolls can produce fresh notifications instead of being masked by a baseline event.
+- Editor/Match switching is no longer visibly reversed while waiting for Firebase.
+- PASS → SHOT → CROSS → MOVE accumulates instead of overwriting the previous Tracker action.
+- Tracker dots retain their action types instead of falling back to `•` because of a missing log entry.
+- History, Tracker, host, and guest hydrate from the same applied timeline state.
+- Undo/Redo no longer closes the Tracker window.
+
+### Impact
+
+- Multiplayer gameplay state has one authoritative application path during an active Match recording.
+- The legacy shared Tracker projection remains available for Editor Mode and compatibility, without competing with the active timeline.
+- Timeline export/replay remains deterministic because UI panel visibility is no longer embedded in gameplay snapshots.
+- No Firebase schema or rule changes are required beyond the v17.0 `timelineEntries` permission.
+- Editor = Inspector = Export remains unchanged; card rendering and export paths were not modified.
+
 ## v17.0 — Unified Match Timeline
 
 ### What changed
@@ -8,8 +47,8 @@
 - Entering Match Mode starts a new recording boundary from the exact current board, movement, tracker, phase, game mode, and dice state.
 - History is now a visual projection of the same entries used by Undo and Redo.
 - Undo and Redo operate on complete game state instead of restoring only player positions and movement usage.
-- MOVE activation and every movement made under that MOVE share one group, so one Undo restores the entire action, including a carried ball.
-- GROUP MOVE and FREE MODE movements use the same grouped timeline behavior.
+- MOVE activation and the resulting movement are stored as consecutive timeline decisions, allowing granular Undo and Redo.
+- GROUP MOVE and FREE MODE movements use the same timeline state model.
 - PASS, SHOT, CROSS, DRIBBLE, TACKLING, 3/2, END TURN, turn changes, possession changes, tracker resets, dice results, board-setting changes, piece status, labels, and card assignments can be represented by the same timeline.
 - Clicking a History entry moves the shared cursor through the same timeline instead of applying an unrelated partial snapshot.
 - A new action after Undo replaces the abandoned Redo branch cleanly.
@@ -17,7 +56,7 @@
 - Multiplayer Undo, Redo, History navigation, and History clearing are host-authoritative.
 - Removed the legacy MOVE rollback payload based on `startX`, `startY`, and `startMovementState`.
 - Added focused modules for game-state snapshots, the timeline engine, future Match Recording files, and multiplayer timeline hydration.
-- Added automated tests for Undo, Redo, grouped actions, branch replacement, cursor navigation, replay forks, recording payloads, multiplayer hydration, and stable dice identities.
+- Added automated tests for Undo, Redo, action sequencing, branch replacement, cursor navigation, replay forks, recording payloads, multiplayer hydration, and stable dice identities.
 
 ### Why it changed
 
@@ -31,10 +70,10 @@ Those systems could disagree about player positions, movement usage, consumed ac
 
 ### Problems resolved
 
-- Undo no longer leaves MOVE consumed while restoring only the player position.
+- Consecutive Undo steps can restore the player position and then return the consumed MOVE action.
 - Restoring History no longer combines an old board with the current tracker and phase.
 - Removing a MOVE through the timeline also restores a carried ball.
-- GROUP MOVE rollback no longer depends on a separate one-off mechanism.
+- GROUP MOVE rollback no longer depends on the legacy tracker-only rollback payload.
 - An older team action cannot be removed while later global timeline actions remain applied.
 - Dice History stores the actual completed result rather than a stale React state value.
 - Loading a situation can retain the matching board settings in its timeline state.

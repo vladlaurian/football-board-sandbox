@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { commitTimelineEntry, createTimeline } from "../timeline/timelineEngine.mjs";
-import { createSharedTimelineMeta, hydrateSessionTimeline, timelineDiceRollId } from "./sessionTimeline.mjs";
+import {
+  createSharedTimelineMeta,
+  hydrateSessionTimeline,
+  nullableFiniteNumber,
+  shouldApplyIncomingTimeline,
+  timelineDiceRollId,
+} from "./sessionTimeline.mjs";
 
 const initial = { gameMode: "match", pieces: [], movementStateByPieceId: {} };
 
@@ -37,5 +43,23 @@ test("dice roll ids stay stable until the applied dice entry changes", () => {
     after: { ...initial, dice: { blueResult: 17 } },
   });
   assert.equal(timelineDiceRollId(timeline, "blue"), "timeline_dice-match_dice-blue-1");
-  assert.equal(timelineDiceRollId(timeline, "red"), "timeline_dice-match_baseline_red");
+  assert.equal(timelineDiceRollId(timeline, "red"), "");
+});
+
+test("null dice values never become a synthetic zero roll", () => {
+  assert.equal(nullableFiniteNumber(null), null);
+  assert.equal(nullableFiniteNumber(undefined), null);
+  assert.equal(nullableFiniteNumber(""), null);
+  assert.equal(nullableFiniteNumber("17"), 17);
+});
+
+test("timeline reconciliation rejects stale echoes and protects pending mode changes", () => {
+  const local = { ...createTimeline(initial, { recordingId: "local" }), revision: 3 };
+  const stale = { ...local, revision: 2 };
+  const newer = { ...local, revision: 4 };
+  const different = createTimeline(initial, { recordingId: "remote" });
+  assert.equal(shouldApplyIncomingTimeline(local, stale, 0), false);
+  assert.equal(shouldApplyIncomingTimeline(local, newer, 0), true);
+  assert.equal(shouldApplyIncomingTimeline(local, different, 1), false);
+  assert.equal(shouldApplyIncomingTimeline(local, different, 0), true);
 });

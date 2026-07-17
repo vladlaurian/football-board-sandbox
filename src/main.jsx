@@ -14,13 +14,15 @@ import {
   createTimeline,
   moveTimelineCursor,
   normalizeTimeline,
-  redoTimelineGroup,
+  redoTimeline,
   timelineStateAt,
-  undoTimelineGroup,
+  undoTimeline,
 } from "./timeline/timelineEngine.mjs";
 import {
   createSharedTimelineMeta,
   hydrateSessionTimeline,
+  nullableFiniteNumber,
+  shouldApplyIncomingTimeline,
   timelineDiceRollId,
 } from "./multiplayer/sessionTimeline.mjs";
 import "./styles.css";
@@ -42,7 +44,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v17.0";
+const APP_VERSION = "v17.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2247,6 +2249,7 @@ function App() {
   const gameTimelineRef = useRef(null);
   const pendingTimelineBeforeRef = useRef(null);
   const timelineSyncQueueRef = useRef(Promise.resolve());
+  const pendingTimelineSyncCountRef = useRef(0);
   const [illegalMoveNotice, setIllegalMoveNotice] = useState(null);
   const [pendingTurnChange, setPendingTurnChange] = useState(null);
   const [pendingThreeTwoMove, setPendingThreeTwoMove] = useState(null);
@@ -2768,6 +2771,8 @@ function App() {
     const tracker = normalizeTrackerSnapshot(state.tracker);
     return {
       ...tracker,
+      // Panel visibility is session UI state, not timeline gameplay state.
+      enabled: trackerSharedEnabledRef.current,
       gameMode: normalizeGameMode(state.gameMode),
       movementStateByPieceId: normalizeMovementState(state.movementStateByPieceId),
       updatedBy: user?.uid || "",
@@ -2775,10 +2780,14 @@ function App() {
   }
 
   function enqueueTimelineSync(previousTimeline, nextTimeline, state, entry = null, options = {}) {
+    pendingTimelineSyncCountRef.current += 1;
     timelineSyncQueueRef.current = timelineSyncQueueRef.current
       .then(() => syncTimelineStateToSession(previousTimeline, nextTimeline, state, entry, options))
       .catch(error => {
         console.error("Timeline sync queue failed", error);
+      })
+      .finally(() => {
+        pendingTimelineSyncCountRef.current = Math.max(0, pendingTimelineSyncCountRef.current - 1);
       });
     return timelineSyncQueueRef.current;
   }
@@ -2854,8 +2863,9 @@ function App() {
     const meta = sharedTimelineMetaRef.current;
     const hydrated = hydrateSessionTimeline(meta, sessionTimelineEntriesRef.current, captureTimelineGameState());
     if (!hydrated) return;
+    if (!shouldApplyIncomingTimeline(gameTimelineRef.current, hydrated, pendingTimelineSyncCountRef.current)) return;
     replaceGameTimeline(hydrated);
-    if (meta.updatedBy !== clientIdRef.current) applyTimelineGameState(timelineStateAt(hydrated, hydrated.cursor));
+    applyTimelineGameState(timelineStateAt(hydrated, hydrated.cursor));
   }
 
   async function saveSessionState(overrides = {}) {
@@ -3363,8 +3373,8 @@ function App() {
       const redSharedDie = sharedDice.red || {};
       const blueIncomingRollId = String(blueSharedDie.rollId || "");
       const redIncomingRollId = String(redSharedDie.rollId || "");
-      const blueIncomingValue = Number.isFinite(Number(blueSharedDie.value)) ? Number(blueSharedDie.value) : null;
-      const redIncomingValue = Number.isFinite(Number(redSharedDie.value)) ? Number(redSharedDie.value) : null;
+      const blueIncomingValue = nullableFiniteNumber(blueSharedDie.value);
+      const redIncomingValue = nullableFiniteNumber(redSharedDie.value);
 
       if (!diceRollingRef.current.blue && !pendingDiceRollRef.current.blue) setBlueDieResult(blueIncomingValue);
       if (!diceRollingRef.current.red && !pendingDiceRollRef.current.red) setRedDieResult(redIncomingValue);
@@ -3384,11 +3394,11 @@ function App() {
         diceSeenRollIdsRef.current = { blue: blueIncomingRollId, red: redIncomingRollId };
         diceSnapshotInitializedRef.current = true;
       } else {
-        if (blueIncomingRollId && blueIncomingRollId !== diceSeenRollIdsRef.current.blue) {
+        if (blueIncomingRollId && blueIncomingValue !== null && blueIncomingRollId !== diceSeenRollIdsRef.current.blue) {
           diceSeenRollIdsRef.current.blue = blueIncomingRollId;
           showDiceNotice("blue", blueIncomingValue, Math.max(2, Number(blueSharedDie.dieType) || 20));
         }
-        if (redIncomingRollId && redIncomingRollId !== diceSeenRollIdsRef.current.red) {
+        if (redIncomingRollId && redIncomingValue !== null && redIncomingRollId !== diceSeenRollIdsRef.current.red) {
           diceSeenRollIdsRef.current.red = redIncomingRollId;
           showDiceNotice("red", redIncomingValue, Math.max(2, Number(redSharedDie.dieType) || 20));
         }
@@ -3422,14 +3432,17 @@ function App() {
       trackerSharedEnabledRef.current = sharedTrackerEnabled;
       setTrackerSharedEnabled(sharedTrackerEnabled);
 
-      // Game rules are session-wide and must apply even when the tracker window is disabled.
-      const sharedGameMode = normalizeGameMode(sharedTracker.gameMode);
-      const sharedMovementState = normalizeMovementState(sharedTracker.movementStateByPieceId);
-      setGameMode(sharedGameMode);
-      movementStateRef.current = sharedMovementState;
-      setMovementStateByPieceId(sharedMovementState);
-
-      if (sharedTrackerEnabled) {
+      // An active timeline (or an optimistic mode transition still being
+      // written) owns gameplay. Once a recording is closed, editor updates can
+      // use the legacy projection again.
+      const timelineControlsGameplay = Boolean(incomingTimelineMeta && !incomingTimelineMeta.endedAt)
+        || pendingTimelineSyncCountRef.current > 0;
+      if (!timelineControlsGameplay) {
+        const sharedGameMode = normalizeGameMode(sharedTracker.gameMode);
+        const sharedMovementState = normalizeMovementState(sharedTracker.movementStateByPieceId);
+        setGameMode(sharedGameMode);
+        movementStateRef.current = sharedMovementState;
+        setMovementStateByPieceId(sharedMovementState);
         const normalizedTracker = normalizeTrackerSnapshot(sharedTracker);
         setTrackerSettings(normalizedTracker.settings);
         setTrackerSettingsDraft(normalizedTracker.settings);
@@ -3440,11 +3453,11 @@ function App() {
         setTrackerActionLog(normalizedTracker.actionLog);
         setMatchActionState(normalizedTracker.matchActionState);
         setTurnPhase(normalizedTracker.turnPhase);
-        if (!wasSharedTrackerEnabled) {
-          setTrackerVisible(true);
-          setTrackerMinimized(false);
-        }
-      } else {
+      }
+      if (sharedTrackerEnabled && !wasSharedTrackerEnabled) {
+        setTrackerVisible(true);
+        setTrackerMinimized(false);
+      } else if (!sharedTrackerEnabled) {
         setTrackerVisible(false);
       }
       const currentUid = user?.uid || "";
@@ -3658,7 +3671,6 @@ function App() {
       movementStateByPieceId: normalizeMovementState(overrides.movementStateByPieceId ?? movementStateRef.current),
       gameMode: normalizeGameMode(overrides.gameMode ?? gameMode),
       tracker: {
-        enabled: overrides.trackerEnabled ?? (sessionCode ? trackerSharedEnabled : trackerVisible),
         gameStarted: overrides.trackerGameStarted ?? trackerGameStarted,
         startingTeam: overrides.trackerStartingTeam ?? trackerStartingTeam,
         currentTurn: overrides.trackerCurrentTurn ?? trackerCurrentTurn,
@@ -3674,6 +3686,33 @@ function App() {
         redResult: overrides.redDieResult ?? redDieResult,
         blueLastDieType: overrides.blueLastDieType ?? blueLastDieType,
         redLastDieType: overrides.redLastDieType ?? redLastDieType,
+      },
+    });
+  }
+
+  function mergeTimelineGameState(baseState, overrides = {}) {
+    const base = createGameState(baseState || {});
+    return createGameState({
+      settings: overrides.settings ?? base.settings,
+      pieces: overrides.pieces ?? base.pieces,
+      movementStateByPieceId: overrides.movementStateByPieceId ?? base.movementStateByPieceId,
+      gameMode: overrides.gameMode ?? base.gameMode,
+      tracker: {
+        gameStarted: overrides.trackerGameStarted ?? base.tracker.gameStarted,
+        startingTeam: overrides.trackerStartingTeam ?? base.tracker.startingTeam,
+        currentTurn: overrides.trackerCurrentTurn ?? base.tracker.currentTurn,
+        usedActions: overrides.trackerUsedActions ?? base.tracker.usedActions,
+        actionLog: overrides.trackerActionLog ?? base.tracker.actionLog,
+        matchActionState: overrides.matchActionState ?? base.tracker.matchActionState,
+        turnPhase: overrides.turnPhase ?? base.tracker.turnPhase,
+        settings: overrides.trackerSettings ?? base.tracker.settings,
+      },
+      dice: {
+        dieType: overrides.dieType ?? base.dice.dieType,
+        blueResult: overrides.blueDieResult ?? base.dice.blueResult,
+        redResult: overrides.redDieResult ?? base.dice.redResult,
+        blueLastDieType: overrides.blueLastDieType ?? base.dice.blueLastDieType,
+        redLastDieType: overrides.redLastDieType ?? base.dice.redLastDieType,
       },
     });
   }
@@ -3725,10 +3764,14 @@ function App() {
   }
 
   function pushHistory(nextPieces = piecesRef.current || pieces, nextMovement = movementStateRef.current) {
-    pendingTimelineBeforeRef.current = captureTimelineGameState({
-      pieces: nextPieces,
-      movementStateByPieceId: nextMovement,
-    });
+    const currentTimelineState = currentTimelineGameStateSnapshot();
+    pendingTimelineBeforeRef.current = currentTimelineState
+      ? createGameState({
+          ...currentTimelineState,
+          pieces: nextPieces,
+          movementStateByPieceId: nextMovement,
+        })
+      : captureTimelineGameState({ pieces: nextPieces, movementStateByPieceId: nextMovement });
   }
 
   function updateSetting(key, value) {
@@ -4098,7 +4141,7 @@ function App() {
   function logSnapshot(label, nextPieces = piecesRef.current || pieces, options = {}) {
     const before = pendingTimelineBeforeRef.current || captureTimelineGameState();
     pendingTimelineBeforeRef.current = null;
-    const after = captureTimelineGameState({
+    const after = mergeTimelineGameState(before, {
       pieces: nextPieces,
       ...(options.stateOverrides || {}),
     });
@@ -4144,7 +4187,6 @@ function App() {
     setTrackerActionLog(nextTracker.actionLog);
     setMatchActionState(nextTracker.matchActionState);
     setTurnPhase(nextTracker.turnPhase);
-    if (!sessionCode) setTrackerVisible(Boolean(state.tracker?.enabled));
     setDieType(state.dice.dieType);
     setBlueDieResult(state.dice.blueResult);
     setRedDieResult(state.dice.redResult);
@@ -4309,7 +4351,7 @@ function App() {
     if (sessionCode && !isSessionHost) return;
     const current = gameTimelineRef.current;
     if (!current) return;
-    const result = undoTimelineGroup(current);
+    const result = undoTimeline(current);
     if (!result.state) return;
     replaceGameTimeline(result.timeline);
     applyTimelineGameState(result.state);
@@ -4321,7 +4363,7 @@ function App() {
     if (sessionCode && !isSessionHost) return;
     const current = gameTimelineRef.current;
     if (!current) return;
-    const result = redoTimelineGroup(current);
+    const result = redoTimeline(current);
     if (!result.state) return;
     replaceGameTimeline(result.timeline);
     applyTimelineGameState(result.state);
@@ -4451,8 +4493,17 @@ function App() {
     if (next === "match") startGameTimeline(nextState, { syncSession: Boolean(sessionCode) });
     else if (gameTimelineRef.current) {
       const currentTimeline = gameTimelineRef.current;
-      const closedTimeline = replaceGameTimeline(closeTimeline(currentTimeline));
-      void enqueueTimelineSync(currentTimeline, closedTimeline, nextState);
+      const before = timelineStateAt(currentTimeline, currentTimeline.cursor);
+      const withExit = commitTimelineEntry(currentTimeline, {
+        type: "MATCH_MODE_ENDED",
+        label: "Editor Mode",
+        actorId: user?.uid || clientIdRef.current,
+        before,
+        after: nextState,
+      });
+      const closedTimeline = replaceGameTimeline(closeTimeline(withExit));
+      const exitEntry = closedTimeline.entries[closedTimeline.cursor - 1] || null;
+      void enqueueTimelineSync(currentTimeline, closedTimeline, nextState, exitEntry);
     }
   }
 
@@ -8016,6 +8067,26 @@ function App() {
     const used = clamp(Number(usedOverride?.[team]) || 0, 0, limit);
     return { limit, used, remaining: Math.max(0, limit - used), exhausted: used >= limit };
   }
+  function currentTimelineTrackerSnapshot() {
+    const timelineState = currentTimelineGameStateSnapshot();
+    if (timelineState) return normalizeTrackerSnapshot(timelineState.tracker);
+    return normalizeTrackerSnapshot({
+      gameStarted: trackerGameStarted,
+      startingTeam: trackerStartingTeam,
+      currentTurn: trackerCurrentTurn,
+      usedActions: trackerUsedActions,
+      actionLog: trackerActionLog,
+      matchActionState,
+      turnPhase,
+      settings: trackerSettings,
+    });
+  }
+  function currentTimelineGameStateSnapshot() {
+    const timeline = gameTimelineRef.current;
+    return gameMode === "match" && timeline
+      ? timelineStateAt(timeline, timeline.cursor)
+      : null;
+  }
   function activeTeamForPhase(phase = turnPhase) {
     if (phase === "attack") return trackerStartingTeam;
     if (phase === "defense") return trackerStartingTeam === "red" ? "blue" : "red";
@@ -8043,31 +8114,39 @@ function App() {
       if (!canUseFreeModeForPiece(piece)) return;
     } else if (!canUseActionForPiece(piece)) return;
     const team = pieceTeamKey(piece);
-    const currentPieceState = matchActionState.byPieceId[piece.id] || {};
+    const currentTracker = currentTimelineTrackerSnapshot();
+    const currentLog = currentTracker.actionLog;
+    const currentUsed = currentTracker.usedActions;
+    const currentActionState = currentTracker.matchActionState;
+    const currentPieceState = currentActionState.byPieceId[piece.id] || {};
     if (type !== "FREE" && hasValidGroupMoveAuthorization(team)) return;
     if (type === "FREE") {
-      const beforeTimeline = captureTimelineGameState();
-      const freeModeActive = Boolean(matchActionState.freeMode?.active);
-      const isSameFreePiece = freeModeActive && matchActionState.freeMode?.pieceId === piece.id;
+      const beforeTimeline = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const freeModeActive = Boolean(currentActionState.freeMode?.active);
+      const isSameFreePiece = freeModeActive && currentActionState.freeMode?.pieceId === piece.id;
       const timelineGroupId = isSameFreePiece
-        ? (matchActionState.freeMode?.timelineGroupId || `free_${piece.id}_${trackerCurrentTurn}`)
+        ? (currentActionState.freeMode?.timelineGroupId || `free_${piece.id}_${trackerCurrentTurn}`)
         : `free_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const nextState = normalizeMatchActionState({
-        ...matchActionState,
-        byPieceId: matchActionState.byPieceId,
+        ...currentActionState,
+        byPieceId: currentActionState.byPieceId,
         freeMode: isSameFreePiece
           ? { active: false, pieceId: null, team: null, timelineGroupId }
           : { active: true, pieceId: piece.id, team, timelineGroupId },
       });
       setMatchActionState(nextState);
       setSelectedId(piece.id);
+      const afterTimeline = createGameState({
+        ...beforeTimeline,
+        tracker: { ...beforeTimeline.tracker, matchActionState: nextState },
+      });
       recordTimelineTransition({
         type: isSameFreePiece ? "FREE_MODE_ENDED" : "FREE_MODE_STARTED",
         label: `${team === "blue" ? "Blue" : "Red"} Free Mode ${isSameFreePiece ? "OFF" : "ON"}: ${getPieceDisplayLabel(piece)}`,
         team,
         groupId: timelineGroupId,
         before: beforeTimeline,
-        after: captureTimelineGameState({ matchActionState: nextState }),
+        after: afterTimeline,
       });
       return;
     }
@@ -8075,7 +8154,7 @@ function App() {
       setIllegalMoveNotice({ reason: phaseBlockReason() });
       return;
     }
-    const status = getTeamActionStatus(team);
+    const status = getTeamActionStatus(team, currentUsed);
     if (status.exhausted) { setIllegalMoveNotice({ reason: "actions-complete-end-turn" }); return; }
     if (type === "MOVE" && currentPieceState.moveUsed) return;
     if (type === "GROUP_MOVE" && status.remaining !== 1) return;
@@ -8084,13 +8163,22 @@ function App() {
       type,
       pieceId: piece.id,
     };
-    const nextLog = { ...trackerActionLog, [team]: [...trackerActionLog[team], entry] };
-    const nextUsed = { ...trackerUsedActions, [team]: nextLog[team].length };
-    let nextState = matchActionState;
-    if (type === "MOVE") nextState = normalizeMatchActionState({ ...matchActionState, byPieceId: { ...matchActionState.byPieceId, [piece.id]: { ...currentPieceState, moveUsed: true, moveAuthorized: true, moveGroupId: entry.id } } });
-    if (type === "GROUP_MOVE") nextState = normalizeMatchActionState({ ...matchActionState, groupMove: { active: true, team, timelineGroupId: entry.id } });
-    const beforeTimeline = captureTimelineGameState();
+    const nextLog = { ...currentLog, [team]: [...currentLog[team], entry] };
+    const nextUsed = { ...currentUsed, [team]: nextLog[team].length };
+    let nextState = currentActionState;
+    if (type === "MOVE") nextState = normalizeMatchActionState({ ...currentActionState, byPieceId: { ...currentActionState.byPieceId, [piece.id]: { ...currentPieceState, moveUsed: true, moveAuthorized: true, moveGroupId: entry.id } } });
+    if (type === "GROUP_MOVE") nextState = normalizeMatchActionState({ ...currentActionState, groupMove: { active: true, team, timelineGroupId: entry.id } });
+    const beforeTimeline = currentTimelineGameStateSnapshot() || captureTimelineGameState();
     await applyActionStateUpdate(nextLog, nextState, nextUsed);
+    const afterTimeline = createGameState({
+      ...beforeTimeline,
+      tracker: {
+        ...beforeTimeline.tracker,
+        actionLog: nextLog,
+        usedActions: nextUsed,
+        matchActionState: nextState,
+      },
+    });
     recordTimelineTransition({
       id: entry.id,
       type: `${type}_ACTIVATED`,
@@ -8098,7 +8186,7 @@ function App() {
       team,
       groupId: entry.id,
       before: beforeTimeline,
-      after: captureTimelineGameState({ trackerActionLog: nextLog, trackerUsedActions: nextUsed, matchActionState: nextState }),
+      after: afterTimeline,
       allowNoop: true,
     });
     if (type === "MOVE" || type === "GROUP_MOVE") setSelectedId(piece.id);
@@ -8158,8 +8246,12 @@ function App() {
     const piece = (piecesRef.current || pieces).find(item => item.id === pending.pieceId);
     if (!piece || !canMovePiece(piece) || !canUseActionForPiece(piece)) return;
     const team = pieceTeamKey(piece);
-    const status = getTeamActionStatus(team);
-    const currentPieceState = matchActionState.byPieceId[piece.id] || {};
+    const currentTracker = currentTimelineTrackerSnapshot();
+    const currentLog = currentTracker.actionLog;
+    const currentUsed = currentTracker.usedActions;
+    const currentActionState = currentTracker.matchActionState;
+    const status = getTeamActionStatus(team, currentUsed);
+    const currentPieceState = currentActionState.byPieceId[piece.id] || {};
     if (!isTeamPhaseActive(team)) { setIllegalMoveNotice({ reason: phaseBlockReason() }); return; }
     if (status.exhausted || currentPieceState.moveUsed) {
       setIllegalMoveNotice({ reason: status.exhausted ? "team-exhausted" : "move-not-authorized" });
@@ -8175,17 +8267,26 @@ function App() {
       type: "MOVE",
       pieceId: piece.id,
     };
-    const nextLog = { ...trackerActionLog, [team]: [...trackerActionLog[team], entry] };
-    const nextUsed = { ...trackerUsedActions, [team]: nextLog[team].length };
+    const nextLog = { ...currentLog, [team]: [...currentLog[team], entry] };
+    const nextUsed = { ...currentUsed, [team]: nextLog[team].length };
     const nextState = normalizeMatchActionState({
-      ...matchActionState,
+      ...currentActionState,
       byPieceId: {
-        ...matchActionState.byPieceId,
+        ...currentActionState.byPieceId,
         [piece.id]: { ...currentPieceState, moveUsed: true, moveAuthorized: true, moveGroupId: entry.id },
       },
     });
-    const beforeTimeline = captureTimelineGameState();
+    const beforeTimeline = currentTimelineGameStateSnapshot() || captureTimelineGameState();
     await applyActionStateUpdate(nextLog, nextState, nextUsed);
+    const afterTimeline = createGameState({
+      ...beforeTimeline,
+      tracker: {
+        ...beforeTimeline.tracker,
+        actionLog: nextLog,
+        usedActions: nextUsed,
+        matchActionState: nextState,
+      },
+    });
     recordTimelineTransition({
       id: entry.id,
       type: "MOVE_ACTIVATED",
@@ -8193,7 +8294,7 @@ function App() {
       team,
       groupId: entry.id,
       before: beforeTimeline,
-      after: captureTimelineGameState({ trackerActionLog: nextLog, trackerUsedActions: nextUsed, matchActionState: nextState }),
+      after: afterTimeline,
       allowNoop: true,
     });
     commitPieceMove(piece, pending.x, pending.y, refreshedEvaluation, { authorizationOverride: { allowed: true, mode: "normal" } });

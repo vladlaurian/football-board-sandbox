@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createGameState } from "../game/gameState.mjs";
 import {
   commitTimelineEntry,
   createTimeline,
@@ -7,6 +8,7 @@ import {
   moveTimelineCursor,
   redoTimeline,
   redoTimelineGroup,
+  timelineStateAt,
   undoTimeline,
   undoTimelineGroup,
 } from "./timelineEngine.mjs";
@@ -80,4 +82,45 @@ test("cursor navigation and fork preserve the original recording", () => {
   assert.equal(branch.forkedAtEntryId, "one");
   assert.equal(branch.initialState.pieces[0].x, 2);
   assert.equal(timeline.entries.length, 2);
+});
+
+test("timeline game state excludes Tracker panel visibility", () => {
+  const snapshot = createGameState({
+    gameMode: "match",
+    tracker: { enabled: true, gameStarted: true },
+  });
+  assert.equal(snapshot.tracker.gameStarted, true);
+  assert.equal(Object.hasOwn(snapshot.tracker, "enabled"), false);
+});
+
+test("sequential card actions accumulate in the state at the timeline cursor", () => {
+  let timeline = createTimeline({
+    ...state(1),
+    tracker: { actionLog: { blue: [], red: [] }, usedActions: { blue: 0, red: 0 } },
+  });
+  const types = ["PASS", "SHOT", "CROSS", "MOVE"];
+  for (const [index, type] of types.entries()) {
+    const before = timelineStateAt(timeline, timeline.cursor);
+    const actionLog = {
+      blue: [...before.tracker.actionLog.blue, { id: `action-${index}`, type, pieceId: "A-1" }],
+      red: [],
+    };
+    const after = createGameState({
+      ...before,
+      tracker: {
+        ...before.tracker,
+        actionLog,
+        usedActions: { blue: actionLog.blue.length, red: 0 },
+      },
+    });
+    timeline = commitTimelineEntry(timeline, {
+      id: `action-${index}`,
+      type: `${type}_ACTIVATED`,
+      before,
+      after,
+    });
+  }
+  const finalState = timelineStateAt(timeline, timeline.cursor);
+  assert.deepEqual(finalState.tracker.actionLog.blue.map(item => item.type), types);
+  assert.equal(finalState.tracker.usedActions.blue, 4);
 });

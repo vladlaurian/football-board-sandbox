@@ -35,10 +35,26 @@ export function lastAppliedDiceEntryId(timeline, team) {
     const entry = applied[index];
     if (entry.type === "DICE_ROLLED" && entry.team === team) return entry.id;
   }
-  return `baseline_${team}`;
+  return null;
 }
 
 export function timelineDiceRollId(timeline, team) {
   const normalized = normalizeTimeline(timeline, {});
-  return `timeline_${normalized.recordingId}_${lastAppliedDiceEntryId(normalized, team)}`;
+  const entryId = lastAppliedDiceEntryId(normalized, team);
+  return entryId ? `timeline_${normalized.recordingId}_${entryId}` : "";
+}
+
+export function nullableFiniteNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+export function shouldApplyIncomingTimeline(localTimeline, incomingTimeline, pendingSyncCount = 0) {
+  if (!incomingTimeline) return false;
+  if (!localTimeline) return true;
+  const local = normalizeTimeline(localTimeline, {});
+  const incoming = normalizeTimeline(incomingTimeline, {});
+  if (local.recordingId !== incoming.recordingId) return pendingSyncCount <= 0;
+  return incoming.revision > local.revision;
 }

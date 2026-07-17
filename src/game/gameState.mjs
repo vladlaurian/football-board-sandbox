@@ -17,7 +17,6 @@ export function createGameState(raw = {}) {
     movementStateByPieceId: raw.movementStateByPieceId || {},
     gameMode: raw.gameMode === "match" ? "match" : "editor",
     tracker: {
-      enabled: Boolean(tracker.enabled),
       gameStarted: Boolean(tracker.gameStarted),
       startingTeam: tracker.startingTeam === "blue" ? "blue" : "red",
       currentTurn: Math.max(0, Number(tracker.currentTurn) || 0),
