@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v15.7";
+const APP_VERSION = "v15.8";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4177,11 +4177,12 @@ function App() {
 
     const phaseTeam = piece.team === "BALL" ? null : pieceTeamKey(piece);
     const pieceActionState = piece.team === "BALL" ? {} : (matchActionState.byPieceId[piece.id] || {});
+    const groupMoveAuthorized = piece.team !== "BALL" && hasValidGroupMoveAuthorization(phaseTeam);
     if (gameMode === "match" && piece.team !== "BALL" && !pieceActionState.freeMoveAuthorized && !isTeamPhaseActive(phaseTeam)) {
       setIllegalMoveNotice({ reason: phaseBlockReason() });
       return false;
     }
-    if (gameMode === "match" && piece.team !== "BALL" && !pieceActionState.freeMoveAuthorized && isTeamPhaseActive(phaseTeam) && getTeamActionStatus(phaseTeam).exhausted) {
+    if (gameMode === "match" && piece.team !== "BALL" && !pieceActionState.freeMoveAuthorized && !groupMoveAuthorized && isTeamPhaseActive(phaseTeam) && getTeamActionStatus(phaseTeam).exhausted) {
       setIllegalMoveNotice({ reason: "actions-complete-end-turn" });
       return false;
     }
@@ -7634,6 +7635,7 @@ function App() {
     if (!canUseActionForPiece(piece)) return;
     const team = pieceTeamKey(piece);
     const currentPieceState = matchActionState.byPieceId[piece.id] || {};
+    if (hasValidGroupMoveAuthorization(team)) return;
     if (type === "FREE") {
       const nextState = normalizeMatchActionState({ ...matchActionState, byPieceId: { ...matchActionState.byPieceId, [piece.id]: { ...currentPieceState, freeMoveAuthorized: true } } });
       setMatchActionState(nextState); setSelectedId(piece.id);
@@ -8546,7 +8548,7 @@ function App() {
                     <button
                       type="button"
                       className={`inspector-flip-request-btn team-action-btn ${pieceTeamKey(inspectedPiece)}`}
-                      disabled={!canUseActionForPiece(inspectedPiece)}
+                      disabled={!canUseActionForPiece(inspectedPiece) || !isTeamPhaseActive(pieceTeamKey(inspectedPiece))}
                       onClick={() => requestEndTurn(inspectedPiece)}
                     >
                       END TURN
@@ -8554,7 +8556,7 @@ function App() {
                     <button
                       type="button"
                       className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)}`}
-                      disabled={!canUseActionForPiece(inspectedPiece)}
+                      disabled={!canUseActionForPiece(inspectedPiece) || hasValidGroupMoveAuthorization(pieceTeamKey(inspectedPiece))}
                       onClick={() => consumeInspectorAction("FREE", inspectedPiece)}
                     >
                       FREE
@@ -8567,7 +8569,9 @@ function App() {
                     const status = getTeamActionStatus(team);
                     const pieceState = matchActionState.byPieceId[inspectedPiece.id] || {};
                     const trackerComplete = status.exhausted;
+                    const groupMoveActive = hasValidGroupMoveAuthorization(team);
                     const disabled = !canUseActionForPiece(inspectedPiece)
+                      || groupMoveActive
                       || (type === "MOVE" && pieceState.moveUsed)
                       || (type === "GROUP_MOVE" && status.remaining !== 1 && !trackerComplete);
                     return <button className={`team-action-btn ${team} ${type === "GROUP_MOVE" ? "group-move-btn" : ""} ${trackerComplete ? "action-locked" : ""}`} key={type} type="button" disabled={disabled} aria-disabled={trackerComplete || disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{type.replace("GROUP_MOVE", "GROUP MOVE")}</button>;
