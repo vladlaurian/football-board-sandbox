@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v16.1";
+const APP_VERSION = "v16.3";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4193,7 +4193,9 @@ function App() {
     setPieces(nextPieces);
     if (sessionCode) syncSessionMove(nextPieces, nextMovement);
     logSnapshot(`${piece.team === "A" ? "Blue" : piece.team === "B" ? "Red" : "Ball"} ${piece.label} → ${toCoord(x, y)}${useThreeTwo ? " (3/2)" : ""}`, nextPieces);
-    if (matchActionState.freeMode?.active) setSelectedId(piece.id);
+    // Keep the moved player selected so the next action (pass, dribble, shot, etc.)
+    // can be chosen immediately. Match Ball keeps the previous deselect behavior.
+    if (piece.team !== "BALL") setSelectedId(piece.id);
     else setSelectedId(null);
     setHoveredCell(null);
     return true;

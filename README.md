@@ -1,5 +1,12 @@
 # Football Board Sandbox
 
+## v16.3 — Keep moved player selected
+
+- After a player completes a movement, that player remains selected.
+- This applies to normal MOVE, GROUP MOVE, and Free Mode movement because they share the same movement commit path.
+- Match Ball keeps its existing deselection behavior.
+- No other gameplay behavior was changed.
+
 ## v16.2 — Clear Free Mode active state
 
 - The FREE MODE button now changes its label to `FREE MODE: ON` while active.
