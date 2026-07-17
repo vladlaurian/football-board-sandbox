@@ -1,8 +1,26 @@
-# Football Board Sandbox v15.7
+# Football Board Sandbox v15.9
 
 Source build of the football board sandbox.
 
 
+
+
+## v15.9 — Legal Group Move and persistent Free Mode
+
+- GROUP MOVE now uses the normal movement engine: Speed, axis locking, diagonal cost, 3/2 state, and movement-ended restrictions remain active.
+- FREE was renamed FREE MODE and now toggles a persistent free-placement mode for the selected player.
+- While FREE MODE is active, all action buttons and END TURN are locked, the active player remains selected after each placement, and other players cannot be selected.
+- The Match Ball can still be selected while FREE MODE is active; the locked player can be reselected, and the mode ends only by pressing FREE MODE again.
+- Added the `Exit FREE MODE first.` feedback message.
+- Updated the in-app Sandbox version and package version to v15.9.
+
+## v15.8 — Group Move continuation and End Turn locking
+
+- END TURN now becomes disabled as soon as that team has ended its phase.
+- GROUP MOVE now remains a valid movement authorization after consuming the final tracker action.
+- While GROUP MOVE is active, all other action buttons (including FREE) are locked; END TURN remains available.
+- Multiplayer tracker ownership remains unchanged: the host continues to control tracker editing.
+- Updated the in-app Sandbox version and package version to v15.8.
 
 ## v15.7 — Reopen ended phases and restore tablet tap movement
 
