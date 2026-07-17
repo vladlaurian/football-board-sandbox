@@ -1,5 +1,37 @@
 # Football Board Sandbox
 
+## v17.3 — Tracker available from session start
+
+### What changed
+
+- Tracker is available to both multiplayer participants as soon as the session is active.
+- Guest no longer has to wait for the host to open Tracker first.
+- Host and guest continue to open, close, and minimize their Tracker windows independently.
+- New sessions initialize the shared Tracker gameplay state as available.
+- Existing session snapshots with the legacy `enabled: false` value no longer disable either participant's local Tracker button.
+- Flip requests, flip approvals, and local card-side toggles remain outside the Match timeline.
+
+### Why it changed
+
+After v17.2 separated local Tracker window visibility from shared gameplay state, the old host-activation gate was no longer meaningful. It still disabled the guest button until the host opened Tracker once, even though opening the panel is now a local presentation choice.
+
+Flip permissions were reviewed but intentionally left outside History. A reveal communicates irreversible information: Undo can hide the card again but cannot make a participant forget it. Including session-user permissions in gameplay snapshots would add complexity without producing truthful Undo/Redo behavior.
+
+### Problems resolved
+
+- Guest can open Tracker immediately after joining a session.
+- Host does not need to activate Tracker on behalf of the guest.
+- Opening or closing Tracker on either browser does not affect the other browser.
+- Older active session documents cannot keep the guest Tracker button disabled.
+
+### Impact
+
+- Guest Tracker remains strictly view-only.
+- Shared Tracker gameplay state, Timeline, History, Undo/Redo, phases, and action synchronization are unchanged.
+- No Firebase schema or security-rule changes are required.
+- Match replay data remains free of user-specific flip request and permission records.
+- Editor = Inspector = Export remains unchanged; card rendering and export paths were not modified.
+
 ## v17.2 — Local Tracker visibility and reliable History dragging
 
 ### What changed

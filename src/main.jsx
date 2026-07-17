@@ -44,7 +44,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v17.2";
+const APP_VERSION = "v17.3";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -3007,7 +3007,7 @@ function App() {
           end: null,
         },
         sharedTracker: {
-          enabled: false,
+          enabled: true,
           gameStarted: false,
           startingTeam: "red",
           currentTurn: 0,
@@ -3427,10 +3427,11 @@ function App() {
       }
 
       const sharedTracker = data.sharedTracker || {};
-      const sharedTrackerEnabled = !!sharedTracker.enabled;
-      const wasSharedTrackerEnabled = trackerSharedEnabledRef.current;
-      trackerSharedEnabledRef.current = sharedTrackerEnabled;
-      setTrackerSharedEnabled(sharedTrackerEnabled);
+      // Tracker gameplay state belongs to every active multiplayer session.
+      // The legacy enabled field is retained for snapshot compatibility, but
+      // panel visibility is local and never gated by the host opening it.
+      trackerSharedEnabledRef.current = true;
+      setTrackerSharedEnabled(true);
 
       // An active timeline (or an optimistic mode transition still being
       // written) owns gameplay. Once a recording is closed, editor updates can
@@ -3453,12 +3454,6 @@ function App() {
         setTrackerActionLog(normalizedTracker.actionLog);
         setMatchActionState(normalizedTracker.matchActionState);
         setTurnPhase(normalizedTracker.turnPhase);
-      }
-      if (sharedTrackerEnabled && !wasSharedTrackerEnabled) {
-        setTrackerVisible(true);
-        setTrackerMinimized(false);
-      } else if (!sharedTrackerEnabled) {
-        setTrackerVisible(false);
       }
       const currentUid = user?.uid || "";
       const resolvedTeam = data.teamOwners?.blue === currentUid
@@ -8049,27 +8044,6 @@ function App() {
   }
 
   function setTrackerEnabledForSession(nextEnabled) {
-    if (!sessionCode) {
-      setTrackerVisible(nextEnabled);
-      if (nextEnabled) setTrackerMinimized(false);
-      return;
-    }
-    if (!isSessionHost) {
-      if (trackerSharedEnabled) {
-        setTrackerVisible(nextEnabled);
-        if (nextEnabled) setTrackerMinimized(false);
-      }
-      return;
-    }
-
-    // In multiplayer, shared enabled state means that the Tracker is
-    // available to the session. Window visibility remains local to each
-    // participant, so closing the host panel must not close the guest panel.
-    if (nextEnabled && !trackerSharedEnabled) {
-      setTrackerSharedEnabled(true);
-      trackerSharedEnabledRef.current = true;
-      syncSharedTracker({ enabled: true });
-    }
     setTrackerVisible(nextEnabled);
     if (nextEnabled) setTrackerMinimized(false);
   }
@@ -8802,8 +8776,6 @@ function App() {
         </button>
         <button
           className={trackerVisible ? "toggle-on" : ""}
-          disabled={!!sessionCode && !isSessionHost && !trackerSharedEnabled}
-          title={!!sessionCode && !isSessionHost && !trackerSharedEnabled ? "The host has not activated the tracker" : ""}
           onClick={() => setTrackerEnabledForSession(!trackerVisible)}
         >
           Tracker
