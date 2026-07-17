@@ -3,10 +3,27 @@ import assert from "node:assert/strict";
 import { commitTimelineEntry, createTimeline, forkTimeline } from "./timelineEngine.mjs";
 import {
   createMatchRecording,
+  matchRecordingNeedsExport,
   readMatchRecording,
   referencedCardIdsForTimeline,
   selectRecordingCards,
 } from "./matchRecording.mjs";
+
+test("match export freshness follows the exact timeline revision", () => {
+  const initial = { gameMode: "match", pieces: [] };
+  let timeline = createTimeline(initial, { recordingId: "revision-test" });
+  assert.equal(matchRecordingNeedsExport(null, undefined), false);
+  assert.equal(matchRecordingNeedsExport(timeline, undefined), true);
+  assert.equal(matchRecordingNeedsExport(timeline, timeline.revision), false);
+
+  timeline = commitTimelineEntry(timeline, {
+    type: "ACTION",
+    before: initial,
+    after: { ...initial, tracker: { gameStarted: true } },
+  });
+  assert.equal(matchRecordingNeedsExport(timeline, 0), true);
+  assert.equal(matchRecordingNeedsExport(timeline, timeline.revision), false);
+});
 
 test("a match recording keeps the initial state, actions and exact card snapshot", () => {
   const initial = { gameMode: "match", pieces: [{ id: "A-1", cardId: "card-1", x: 1, y: 1 }] };

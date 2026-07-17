@@ -6,6 +6,12 @@ export const MATCH_RECORDING_SCHEMA_VERSION = 1;
 export const MATCH_RECORDING_MAX_ENTRIES = 20000;
 export const MATCH_RECORDING_MAX_CARDS = 2000;
 
+export function matchRecordingNeedsExport(timeline, exportedRevision) {
+  if (!timeline || typeof timeline !== "object") return false;
+  const currentRevision = Math.max(0, Number(timeline.revision) || 0);
+  return Number(exportedRevision) !== currentRevision;
+}
+
 function cardIdsFromState(state) {
   return (Array.isArray(state?.pieces) ? state.pieces : [])
     .map(piece => String(piece?.cardId || "").trim())

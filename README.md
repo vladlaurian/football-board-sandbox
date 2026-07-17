@@ -1,5 +1,42 @@
 # Football Board Sandbox
 
+## v17.6 — Match exit guard and Replay History auto-scroll
+
+### What changed
+
+- Switching from Match Mode to Editor Mode now checks whether the exact current timeline revision has been exported.
+- An unsaved match opens an `Unsaved Match` dialog with two explicit choices: `Save & Switch` and `Switch Without Saving`.
+- `Save & Switch` exports the Match Recording immediately with the standard automatic filename, without opening the name prompt, and switches mode only after export succeeds.
+- A failed export keeps both the match and the warning dialog open so the user can retry or choose the existing discard behavior deliberately.
+- A timeline revision that was already saved switches directly to Editor Mode, preserving the previous behavior.
+- Replay History now follows the active cursor automatically after Undo, Redo, and direct History jumps.
+- Only the scrollable list inside the Replay panel moves; the panel position and page remain unchanged.
+- The currently displayed replay step receives a distinct visual highlight.
+- Added a focused regression test for exact timeline-revision export freshness.
+
+### Why it changed
+
+Leaving Match Mode closes the active timeline. Without a guard, an accidental click could discard an unexported match before the user had saved its recording. Export state must be tied to the exact timeline revision because actions, Undo, Redo, and cursor jumps can change the state after a previous save.
+
+Long replays also moved the cursor outside the visible portion of History. Automatic nearest-item scrolling keeps navigation readable without moving the floating History window itself.
+
+### Problems resolved
+
+- An unsaved match can no longer be left for Editor Mode without an explicit save-or-discard decision.
+- Automatic saving does not require a second filename dialog during the mode switch.
+- Export failure cannot silently continue into Editor Mode.
+- Saving and then changing the timeline is correctly recognized as a new unsaved revision.
+- Undo, Redo, and direct replay navigation no longer require manual History scrolling to find the active step.
+
+### Impact
+
+- The Match Timeline remains the single source of truth for History, Undo, Redo, and Match Recording export.
+- `Switch Without Saving` intentionally retains the previous Match-to-Editor behavior.
+- The administrative `Editor Mode` closing transition is still handled as before and does not add a second required export after a successful `Save & Switch`.
+- Replay remains local and read-only. No Firebase schema, security-rule, multiplayer protocol, Tracker, phase-system, or Situation changes are required.
+- `Situație` remains independent: the warning, export, replay scrolling, and Editor switch do not create, overwrite, or select a Situation.
+- Editor = Inspector = Export remains intact; no card data or rendering path was changed.
+
 ## v17.5 — Match Recording export, import, and read-only replay
 
 ### What changed

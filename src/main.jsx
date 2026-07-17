@@ -25,6 +25,7 @@ import {
 } from "./timeline/timelineEngine.mjs";
 import {
   createMatchRecording,
+  matchRecordingNeedsExport,
   readMatchRecording,
   referencedCardIdsForTimeline,
   selectRecordingCards,
@@ -55,7 +56,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v17.5";
+const APP_VERSION = "v17.6";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2250,6 +2251,7 @@ function App() {
   const movementStateRef = useRef({});
   const [gameTimeline, setGameTimeline] = useState(null);
   const gameTimelineRef = useRef(null);
+  const [pendingEditorModeExit, setPendingEditorModeExit] = useState(false);
   const [replayRecording, setReplayRecording] = useState(null);
   const isReplayView = Boolean(replayRecording);
   const replayModeRef = useRef(false);
@@ -2284,6 +2286,7 @@ function App() {
   const clientIdRef = useRef(`client_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
   const historyDragRef = useRef(null);
   const historyResizeRef = useRef(null);
+  const historyListRef = useRef(null);
   const dicePanelDragRef = useRef(null);
   const dicePanelResizeRef = useRef(null);
   const trackerDragRef = useRef(null);
@@ -2327,6 +2330,26 @@ function App() {
   useEffect(() => { gameTimelineRef.current = gameTimeline; }, [gameTimeline]);
   useEffect(() => { sessionCardsByIdRef.current = sessionCardsById; }, [sessionCardsById]);
   useEffect(() => { sessionLibraryByIdRef.current = sessionLibraryById; }, [sessionLibraryById]);
+
+  useEffect(() => {
+    if (!isReplayView || !historyVisible || !gameTimeline) return undefined;
+    const frameId = window.requestAnimationFrame(() => {
+      const list = historyListRef.current;
+      const target = list?.querySelector(`[data-history-cursor="${gameTimeline.cursor}"]`);
+      if (!list || !target) return;
+      const listRect = list.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const padding = 6;
+      let delta = 0;
+      if (targetRect.top < listRect.top + padding) {
+        delta = targetRect.top - listRect.top - padding;
+      } else if (targetRect.bottom > listRect.bottom - padding) {
+        delta = targetRect.bottom - listRect.bottom + padding;
+      }
+      if (delta) list.scrollTo({ top: list.scrollTop + delta, behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [isReplayView, historyVisible, gameTimeline?.cursor]);
 
   const [sessionCode, setSessionCode] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -4137,22 +4160,25 @@ function App() {
     return [...byId.values()];
   }
 
-  function saveMatchRecording() {
-    if (isReplayView) return;
+  function exportMatchRecording({ promptForName = true } = {}) {
+    if (isReplayView) return false;
     if (sessionCode && !isSessionHost) {
       window.alert("Doar hostul poate salva înregistrarea meciului multiplayer.");
-      return;
+      return false;
     }
     const timeline = gameTimelineRef.current;
     if (!timeline) {
       window.alert("Nu există încă un Match Timeline. Intră în Match Mode pentru a începe o înregistrare.");
-      return;
+      return false;
     }
 
     const defaultName = `Match ${new Date(timeline.startedAt || Date.now()).toLocaleString("ro-RO")}`;
-    const requestedName = window.prompt("Numele înregistrării:", defaultName);
-    if (requestedName === null) return;
-    const name = requestedName.trim() || defaultName;
+    let name = defaultName;
+    if (promptForName) {
+      const requestedName = window.prompt("Numele înregistrării:", defaultName);
+      if (requestedName === null) return false;
+      name = requestedName.trim() || defaultName;
+    }
 
     try {
       const availableCards = availableCardsForTimelineExport(timeline);
@@ -4178,10 +4204,16 @@ function App() {
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       exportedRecordingRevisionRef.current.set(timeline.recordingId, timeline.revision);
       window.alert(`Meci salvat: ${timeline.entries.length} pași și ${cardSnapshot.length} carduri folosite.`);
+      return true;
     } catch (error) {
       console.error(error);
       window.alert(`Meciul nu a putut fi salvat: ${error.message || error}`);
+      return false;
     }
+  }
+
+  function saveMatchRecording() {
+    return exportMatchRecording({ promptForName: true });
   }
 
   function closeReplayTransientUi() {
@@ -4200,6 +4232,7 @@ function App() {
     setPendingTurnChange(null);
     setPendingAutoMove(null);
     setPendingThreeTwoMove(null);
+    setPendingEditorModeExit(false);
     setIllegalMoveNotice(null);
     setJoinSetup(null);
     setLockUI(false);
@@ -4215,7 +4248,7 @@ function App() {
       return;
     }
     if (sessionCode) {
-      window.alert("Ieși din sesiunea multiplayer înainte de a importa un meci. Replay-ul v17.5 este local și nu scrie în Firebase.");
+      window.alert("Ieși din sesiunea multiplayer înainte de a importa un meci. Replay-ul este local și nu scrie în Firebase.");
       return;
     }
     if (blueDieRolling || redDieRolling || pendingEndTurn || pendingTurnChange || pendingAutoMove || pendingThreeTwoMove) {
@@ -4733,17 +4766,7 @@ function App() {
       scheduleSessionLiveSave();
     }
   }
-  async function toggleGameMode() {
-    if (replayModeRef.current) return;
-    if (sessionCode && !isSessionHost) return;
-    const next = gameMode === "editor" ? "match" : "editor";
-    const existingTimeline = gameTimelineRef.current;
-    if (
-      next === "match" &&
-      existingTimeline?.entries?.length > 0 &&
-      exportedRecordingRevisionRef.current.get(existingTimeline.recordingId) !== existingTimeline.revision &&
-      !window.confirm("Match Timeline-ul anterior nu a fost salvat. Dacă începi un meci nou, acesta va fi înlocuit. Continui?")
-    ) return;
+  function completeGameModeChange(next) {
     const nextState = captureTimelineGameState({ gameMode: next });
     setGameMode(next);
     if (next === "match") startGameTimeline(nextState, { syncSession: Boolean(sessionCode) });
@@ -4767,6 +4790,34 @@ function App() {
       const exitEntry = closedTimeline.entries[closedTimeline.cursor - 1] || null;
       void enqueueTimelineSync(currentTimeline, closedTimeline, nextState, exitEntry);
     }
+  }
+
+  function toggleGameMode() {
+    if (replayModeRef.current) return;
+    if (sessionCode && !isSessionHost) return;
+    const next = gameMode === "editor" ? "match" : "editor";
+    const existingTimeline = gameTimelineRef.current;
+    const exportedRevision = existingTimeline
+      ? exportedRecordingRevisionRef.current.get(existingTimeline.recordingId)
+      : undefined;
+    if (
+      next === "match" &&
+      existingTimeline?.entries?.length > 0 &&
+      matchRecordingNeedsExport(existingTimeline, exportedRevision) &&
+      !window.confirm("Match Timeline-ul anterior nu a fost salvat. Dacă începi un meci nou, acesta va fi înlocuit. Continui?")
+    ) return;
+    if (next === "editor" && matchRecordingNeedsExport(existingTimeline, exportedRevision)) {
+      setPendingEditorModeExit(true);
+      return;
+    }
+    completeGameModeChange(next);
+  }
+
+  function confirmEditorModeExit(saveFirst) {
+    if (!pendingEditorModeExit) return;
+    if (saveFirst && !exportMatchRecording({ promptForName: false })) return;
+    setPendingEditorModeExit(false);
+    completeGameModeChange("editor");
   }
 
   function commitPieceMove(piece, x, y, evaluation, { useThreeTwo = false, authorizationOverride = null } = {}) {
@@ -9611,16 +9662,26 @@ function App() {
             <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setHistoryVisible(false)}>_</button>
           </div>
         </div>
-        <div className="history-list">
+        <div className="history-list" ref={historyListRef}>
           {(!gameTimeline || gameTimeline.entries.length === 0) && <div className="history-empty">Nu există pași încă.</div>}
           {isReplayView && gameTimeline && (
-            <button className={`history-item replay-start ${gameTimeline.cursor === 0 ? "applied" : "future"}`} onClick={() => restoreTimelineCursor(0)}>
+            <button
+              className={`history-item replay-start ${gameTimeline.cursor === 0 ? "applied current" : "future"}`}
+              data-history-cursor="0"
+              onClick={() => restoreTimelineCursor(0)}
+            >
               <span>0. Start</span>
               <small>{new Date(gameTimeline.startedAt).toLocaleTimeString()}</small>
             </button>
           )}
           {(gameTimeline?.entries || []).map((entry, index) => (
-            <button key={entry.id} className={`history-item ${index < gameTimeline.cursor ? "applied" : "future"}`} onClick={() => restoreTimelineCursor(index + 1)} disabled={!isReplayView && (gameMode !== "match" || (!!sessionCode && !isSessionHost))}>
+            <button
+              key={entry.id}
+              className={`history-item ${index < gameTimeline.cursor ? "applied" : "future"} ${index + 1 === gameTimeline.cursor ? "current" : ""}`}
+              data-history-cursor={index + 1}
+              onClick={() => restoreTimelineCursor(index + 1)}
+              disabled={!isReplayView && (gameMode !== "match" || (!!sessionCode && !isSessionHost))}
+            >
               <span>{index + 1}. {entry.label}</span>
               <small>{new Date(entry.createdAt).toLocaleTimeString()}</small>
             </button>
@@ -9748,6 +9809,21 @@ function App() {
       )}
 
       {AssignCardModal()}
+
+      {pendingEditorModeExit && (
+        <div className="modal-backdrop match-exit-backdrop">
+          <div className="modal match-exit-modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="modal-title"><strong>Unsaved Match</strong></div>
+            <div className="turn-confirm-message">
+              This match has unsaved changes. Would you like to save it before switching to Editor Mode?
+            </div>
+            <div className="modal-actions match-exit-actions">
+              <button className="save-switch" onClick={() => confirmEditorModeExit(true)}>Save &amp; Switch</button>
+              <button onClick={() => confirmEditorModeExit(false)}>Switch Without Saving</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {joinSetup && (
         <div className="modal-backdrop" onPointerDown={() => setJoinSetup(null)}>
