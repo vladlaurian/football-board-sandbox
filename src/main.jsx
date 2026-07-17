@@ -24,6 +24,12 @@ import {
   undoTimeline,
 } from "./timeline/timelineEngine.mjs";
 import {
+  createMatchRecording,
+  readMatchRecording,
+  referencedCardIdsForTimeline,
+  selectRecordingCards,
+} from "./timeline/matchRecording.mjs";
+import {
   createSharedTimelineMeta,
   hydrateSessionTimeline,
   nullableFiniteNumber,
@@ -49,7 +55,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v17.4";
+const APP_VERSION = "v17.5";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2244,6 +2250,12 @@ function App() {
   const movementStateRef = useRef({});
   const [gameTimeline, setGameTimeline] = useState(null);
   const gameTimelineRef = useRef(null);
+  const [replayRecording, setReplayRecording] = useState(null);
+  const isReplayView = Boolean(replayRecording);
+  const replayModeRef = useRef(false);
+  const replayWorkspaceRef = useRef(null);
+  const matchCardSnapshotRef = useRef({ recordingId: "", cards: [] });
+  const exportedRecordingRevisionRef = useRef(new Map());
   const pendingTimelineBeforeRef = useRef(null);
   const timelineSyncQueueRef = useRef(Promise.resolve());
   const pendingTimelineSyncCountRef = useRef(0);
@@ -2337,7 +2349,7 @@ function App() {
   const sharedRulerReadOnly = !!sessionCode && measureMode && !isSharedRulerOwner;
   const canUseSharedRuler = !sessionCode || myTeam === "blue" || myTeam === "red";
   const isSessionHost = !!sessionCode && !!user?.uid && user.uid === sessionOwnerUid;
-  const trackerReadOnly = !!sessionCode && !isSessionHost;
+  const trackerReadOnly = isReplayView || (!!sessionCode && !isSessionHost);
 
   const pitchStyle = useMemo(() => ({
     "--cols": settings.cols,
@@ -2363,6 +2375,7 @@ function App() {
   }, [boardApi]);
 
   useEffect(() => {
+    if (replayModeRef.current) return;
     try {
       localStorage.setItem("football-board-player-cards-v1", JSON.stringify(buildCardLibraryState(cardState)));
     } catch (error) {
@@ -2372,6 +2385,7 @@ function App() {
 
 
   useEffect(() => {
+    if (replayModeRef.current) return;
     if (!user?.uid) return;
     const cardsWithInlineGraphics = (cardState.cards || []).flatMap(card => {
       const graphics = card.graphics || {};
@@ -2603,12 +2617,14 @@ function App() {
   }
 
   function canControlPieceStatus(piece) {
+    if (replayModeRef.current) return false;
     if (!piece || piece.team === "BALL") return false;
     if (!sessionCode) return true;
     return myTeam !== "spectator" && pieceTeamKey(piece) === myTeam;
   }
 
   function canMovePiece(piece) {
+    if (replayModeRef.current) return false;
     if (!piece) return false;
     if (piece.inactive) return false;
     if (!sessionCode) return true;
@@ -3251,7 +3267,7 @@ function App() {
 
 
   async function saveCloudState(overrides = {}, label = "Cloud saved") {
-    if (!user) return;
+    if (!user || replayModeRef.current) return;
     try {
       setCloudStatus("Saving cards...");
       const effectiveCardState = overrides.cardState ? normalizeCardState(overrides.cardState) : cardStateRef.current;
@@ -3606,7 +3622,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!user || !cloudReady || isApplyingCloudRef.current) return;
+    if (!user || !cloudReady || isApplyingCloudRef.current || replayModeRef.current) return;
     autosaveDirtyRef.current = true;
     setCloudStatus("Unsaved changes");
   }, [
@@ -3645,7 +3661,7 @@ function App() {
     }
 
     autosaveIntervalRef.current = window.setInterval(() => {
-      if (!autosaveDirtyRef.current || isApplyingCloudRef.current) return;
+      if (!autosaveDirtyRef.current || isApplyingCloudRef.current || replayModeRef.current) return;
       autosaveDirtyRef.current = false;
       saveCloudState({}, "Autosaved");
     }, CLOUD_AUTOSAVE_INTERVAL_MS);
@@ -3718,10 +3734,30 @@ function App() {
     return normalized;
   }
 
+  function captureAvailableMatchCards() {
+    const byId = new Map();
+    (cardStateRef.current?.cards || []).forEach(card => {
+      if (card?.id) byId.set(String(card.id), clonePlain(card));
+    });
+    if (sessionCode) {
+      Object.values(normalizeSessionCardsById(sessionLibraryByIdRef.current)).forEach(card => {
+        if (card?.id) byId.set(String(card.id), clonePlain(card));
+      });
+      Object.values(normalizeSessionCardsById(sessionCardsByIdRef.current)).forEach(card => {
+        if (card?.id && !byId.has(String(card.id))) byId.set(String(card.id), clonePlain(card));
+      });
+    }
+    return [...byId.values()];
+  }
+
   function startGameTimeline(initialState = captureTimelineGameState(), metadata = {}) {
     pendingTimelineBeforeRef.current = null;
     const { syncSession = false, ...timelineMetadata } = metadata;
     const next = replaceGameTimeline(createTimeline(initialState, timelineMetadata));
+    matchCardSnapshotRef.current = {
+      recordingId: next.recordingId,
+      cards: captureAvailableMatchCards(),
+    };
     if (syncSession) void enqueueTimelineSync(null, next, initialState, null, { baseline: true });
     return next;
   }
@@ -3736,6 +3772,7 @@ function App() {
     id = null,
     allowNoop = false,
   }) {
+    if (replayModeRef.current) return gameTimelineRef.current;
     const safeBefore = before || captureTimelineGameState();
     const safeAfter = after || captureTimelineGameState();
     if (safeAfter.gameMode !== "match") return gameTimelineRef.current;
@@ -4077,6 +4114,220 @@ function App() {
     }
   }
 
+  function matchRecordingFilename(name) {
+    const safeName = String(name || "match")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9_-]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 80) || "match";
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    return `Football_Board_match_${safeName}_${stamp}.json`;
+  }
+
+  function availableCardsForTimelineExport(timeline) {
+    const currentCards = captureAvailableMatchCards();
+    const stableSnapshot = matchCardSnapshotRef.current.recordingId === timeline.recordingId
+      ? matchCardSnapshotRef.current.cards
+      : [];
+    const byId = new Map(currentCards.filter(card => card?.id).map(card => [String(card.id), clonePlain(card)]));
+    stableSnapshot.forEach(card => {
+      if (card?.id) byId.set(String(card.id), clonePlain(card));
+    });
+    return [...byId.values()];
+  }
+
+  function saveMatchRecording() {
+    if (isReplayView) return;
+    if (sessionCode && !isSessionHost) {
+      window.alert("Doar hostul poate salva înregistrarea meciului multiplayer.");
+      return;
+    }
+    const timeline = gameTimelineRef.current;
+    if (!timeline) {
+      window.alert("Nu există încă un Match Timeline. Intră în Match Mode pentru a începe o înregistrare.");
+      return;
+    }
+
+    const defaultName = `Match ${new Date(timeline.startedAt || Date.now()).toLocaleString("ro-RO")}`;
+    const requestedName = window.prompt("Numele înregistrării:", defaultName);
+    if (requestedName === null) return;
+    const name = requestedName.trim() || defaultName;
+
+    try {
+      const availableCards = availableCardsForTimelineExport(timeline);
+      const cardSnapshot = selectRecordingCards(timeline, availableCards);
+      const referencedCardIds = referencedCardIdsForTimeline(timeline);
+      const exportedCardIds = new Set(cardSnapshot.map(card => String(card.id)));
+      const missingCardIds = referencedCardIds.filter(cardId => !exportedCardIds.has(cardId));
+      if (missingCardIds.length) {
+        throw new Error(`Lipsesc ${missingCardIds.length} carduri folosite în timeline: ${missingCardIds.join(", ")}`);
+      }
+
+      const recording = createMatchRecording(timeline, {
+        appVersion: APP_VERSION,
+        name,
+        cardSnapshot,
+      });
+      const blob = new Blob([JSON.stringify(recording, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = matchRecordingFilename(name);
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      exportedRecordingRevisionRef.current.set(timeline.recordingId, timeline.revision);
+      window.alert(`Meci salvat: ${timeline.entries.length} pași și ${cardSnapshot.length} carduri folosite.`);
+    } catch (error) {
+      console.error(error);
+      window.alert(`Meciul nu a putut fi salvat: ${error.message || error}`);
+    }
+  }
+
+  function closeReplayTransientUi() {
+    setCardsPanelOpen(false);
+    setEditingCardId(null);
+    setAssignTarget(null);
+    setEditingPiece(null);
+    setEditLabel("");
+    setSelectedId(null);
+    setHoveredCell(null);
+    setInspectedPieceId(null);
+    setInspectorVisible(false);
+    setTrackerSettingsOpen(false);
+    setTrackerStartChoiceOpen(false);
+    setPendingEndTurn(null);
+    setPendingTurnChange(null);
+    setPendingAutoMove(null);
+    setPendingThreeTwoMove(null);
+    setIllegalMoveNotice(null);
+    setJoinSetup(null);
+    setLockUI(false);
+    setMeasureMode(false);
+    setMeasureStart(null);
+    setMeasureEnd(null);
+  }
+
+  async function importMatchRecording(file) {
+    if (!file) return;
+    if (Number(file.size) > 100 * 1024 * 1024) {
+      window.alert("Fișierul depășește limita de siguranță de 100 MB pentru Match Recording.");
+      return;
+    }
+    if (sessionCode) {
+      window.alert("Ieși din sesiunea multiplayer înainte de a importa un meci. Replay-ul v17.5 este local și nu scrie în Firebase.");
+      return;
+    }
+    if (blueDieRolling || redDieRolling || pendingEndTurn || pendingTurnChange || pendingAutoMove || pendingThreeTwoMove) {
+      window.alert("Finalizează acțiunea sau aruncarea de zar aflată în curs înainte de import.");
+      return;
+    }
+
+    try {
+      const recording = readMatchRecording(JSON.parse(await file.text()));
+      if (recording.appVersion && recording.appVersion !== APP_VERSION) {
+        const confirmed = window.confirm(
+          `Înregistrarea a fost creată cu ${recording.appVersion}, iar aplicația curentă este ${APP_VERSION}. ` +
+          "Poți continua în modul de vizionare read-only. Continui?"
+        );
+        if (!confirmed) return;
+      }
+
+      const referencedCardIds = referencedCardIdsForTimeline(recording.timeline);
+      const availableCardIds = new Set(recording.cardSnapshot.map(card => String(card?.id || "")));
+      const missingCardIds = referencedCardIds.filter(cardId => !availableCardIds.has(cardId));
+      if (missingCardIds.length) {
+        throw new Error(`Fișier incomplet: lipsesc ${missingCardIds.length} carduri folosite în meci.`);
+      }
+
+      if (!isReplayView) {
+        replayWorkspaceRef.current = {
+          gameState: captureTimelineGameState(),
+          timeline: gameTimelineRef.current ? clonePlain(gameTimelineRef.current) : null,
+          cardState: clonePlain(cardStateRef.current),
+          matchCardSnapshot: clonePlain(matchCardSnapshotRef.current),
+          zoom,
+          panOffset: clonePlain(panOffset),
+          historyVisible,
+          trackerVisible,
+          trackerMinimized,
+          dicePanelVisible,
+          inspectorVisible,
+          inspectorMinimized,
+          cardsPanelOpen,
+          editingCardId,
+          selectedId,
+          inspectedPieceId,
+          lockUI,
+          measureMode,
+          measureType,
+          measureStart: clonePlain(measureStart),
+          measureEnd: clonePlain(measureEnd),
+          autosaveDirty: autosaveDirtyRef.current,
+        };
+      }
+
+      replayModeRef.current = true;
+      setReplayRecording(recording);
+      closeReplayTransientUi();
+
+      const replayCardState = normalizeCardState({ cards: recording.cardSnapshot });
+      cardStateRef.current = replayCardState;
+      setCardState(replayCardState);
+
+      const replayTimeline = normalizeTimeline({ ...recording.timeline, cursor: 0 }, recording.timeline.initialState);
+      gameTimelineRef.current = replayTimeline;
+      setGameTimeline(replayTimeline);
+      applyTimelineGameState(replayTimeline.initialState);
+      setHistoryVisible(true);
+      setTrackerVisible(true);
+      setTrackerMinimized(false);
+      setDicePanelVisible(false);
+    } catch (error) {
+      console.error(error);
+      window.alert(`Meciul nu a putut fi importat: ${error.message || error}`);
+    }
+  }
+
+  function exitReplayView() {
+    const workspace = replayWorkspaceRef.current;
+    if (!workspace) return;
+
+    isApplyingCloudRef.current = true;
+    replayModeRef.current = false;
+    setReplayRecording(null);
+
+    const restoredCardState = normalizeCardState(workspace.cardState);
+    cardStateRef.current = restoredCardState;
+    setCardState(restoredCardState);
+    applyTimelineGameState(workspace.gameState);
+
+    const restoredTimeline = workspace.timeline ? normalizeTimeline(workspace.timeline, workspace.gameState) : null;
+    gameTimelineRef.current = restoredTimeline;
+    setGameTimeline(restoredTimeline);
+    matchCardSnapshotRef.current = workspace.matchCardSnapshot || { recordingId: "", cards: [] };
+    setZoom(workspace.zoom);
+    setPanOffset(workspace.panOffset);
+    setHistoryVisible(workspace.historyVisible);
+    setTrackerVisible(workspace.trackerVisible);
+    setTrackerMinimized(workspace.trackerMinimized);
+    setDicePanelVisible(workspace.dicePanelVisible);
+    setInspectorVisible(workspace.inspectorVisible);
+    setInspectorMinimized(workspace.inspectorMinimized);
+    setCardsPanelOpen(workspace.cardsPanelOpen);
+    setEditingCardId(workspace.editingCardId);
+    setSelectedId(workspace.selectedId);
+    setInspectedPieceId(workspace.inspectedPieceId);
+    setLockUI(workspace.lockUI);
+    setMeasureMode(workspace.measureMode);
+    setMeasureType(workspace.measureType);
+    setMeasureStart(workspace.measureStart);
+    setMeasureEnd(workspace.measureEnd);
+    autosaveDirtyRef.current = Boolean(workspace.autosaveDirty);
+    replayWorkspaceRef.current = null;
+    window.setTimeout(() => { isApplyingCloudRef.current = false; }, 300);
+  }
+
   function saveBoard() {
     localStorage.setItem("football-board-sandbox-v35", JSON.stringify({ settings, pieces: sanitizePiecesCardIds(pieces, cardState, settings), zoom, cardState: buildCardLibraryState(cardState) }));
     alert("Salvat în browser.");
@@ -4193,14 +4444,14 @@ function App() {
   }
 
   function restoreTimelineCursor(cursor) {
-    if (gameMode !== "match") return;
-    if (sessionCode && !isSessionHost) return;
+    if (!replayModeRef.current && gameMode !== "match") return;
+    if (!replayModeRef.current && sessionCode && !isSessionHost) return;
     const current = gameTimelineRef.current;
     if (!current) return;
     const moved = moveTimelineCursor(current, cursor);
     replaceGameTimeline(moved.timeline);
     applyTimelineGameState(moved.state);
-    void enqueueTimelineSync(current, moved.timeline, moved.state);
+    if (!replayModeRef.current) void enqueueTimelineSync(current, moved.timeline, moved.state);
   }
 
   function clearHistory() {
@@ -4235,6 +4486,7 @@ function App() {
   }
 
   function canRollTeamDie(team) {
+    if (replayModeRef.current) return false;
     if (Date.now() < diceCooldownUntilRef.current) return false;
     if (diceRollingRef.current.blue || diceRollingRef.current.red) return false;
     if (!sessionCode) return true;
@@ -4343,27 +4595,27 @@ function App() {
   }
 
   function undo() {
-    if (gameMode !== "match") return;
-    if (sessionCode && !isSessionHost) return;
+    if (!replayModeRef.current && gameMode !== "match") return;
+    if (!replayModeRef.current && sessionCode && !isSessionHost) return;
     const current = gameTimelineRef.current;
     if (!current) return;
     const result = undoTimeline(current);
     if (!result.state) return;
     replaceGameTimeline(result.timeline);
     applyTimelineGameState(result.state);
-    void enqueueTimelineSync(current, result.timeline, result.state);
+    if (!replayModeRef.current) void enqueueTimelineSync(current, result.timeline, result.state);
   }
 
   function redo() {
-    if (gameMode !== "match") return;
-    if (sessionCode && !isSessionHost) return;
+    if (!replayModeRef.current && gameMode !== "match") return;
+    if (!replayModeRef.current && sessionCode && !isSessionHost) return;
     const current = gameTimelineRef.current;
     if (!current) return;
     const result = redoTimeline(current);
     if (!result.state) return;
     replaceGameTimeline(result.timeline);
     applyTimelineGameState(result.state);
-    void enqueueTimelineSync(current, result.timeline, result.state);
+    if (!replayModeRef.current) void enqueueTimelineSync(current, result.timeline, result.state);
   }
 
   function gridPointFromClient(clientX, clientY, { clampToBoard = true } = {}) {
@@ -4482,13 +4734,24 @@ function App() {
     }
   }
   async function toggleGameMode() {
+    if (replayModeRef.current) return;
     if (sessionCode && !isSessionHost) return;
     const next = gameMode === "editor" ? "match" : "editor";
+    const existingTimeline = gameTimelineRef.current;
+    if (
+      next === "match" &&
+      existingTimeline?.entries?.length > 0 &&
+      exportedRecordingRevisionRef.current.get(existingTimeline.recordingId) !== existingTimeline.revision &&
+      !window.confirm("Match Timeline-ul anterior nu a fost salvat. Dacă începi un meci nou, acesta va fi înlocuit. Continui?")
+    ) return;
     const nextState = captureTimelineGameState({ gameMode: next });
     setGameMode(next);
     if (next === "match") startGameTimeline(nextState, { syncSession: Boolean(sessionCode) });
     else if (gameTimelineRef.current) {
       const currentTimeline = gameTimelineRef.current;
+      const wasExportedAtCurrentRevision =
+        currentTimeline.cursor === currentTimeline.entries.length &&
+        exportedRecordingRevisionRef.current.get(currentTimeline.recordingId) === currentTimeline.revision;
       const before = timelineStateAt(currentTimeline, currentTimeline.cursor);
       const withExit = commitTimelineEntry(currentTimeline, {
         type: "MATCH_MODE_ENDED",
@@ -4498,6 +4761,9 @@ function App() {
         after: nextState,
       });
       const closedTimeline = replaceGameTimeline(closeTimeline(withExit));
+      if (wasExportedAtCurrentRevision) {
+        exportedRecordingRevisionRef.current.set(closedTimeline.recordingId, closedTimeline.revision);
+      }
       const exitEntry = closedTimeline.entries[closedTimeline.cursor - 1] || null;
       void enqueueTimelineSync(currentTimeline, closedTimeline, nextState, exitEntry);
     }
@@ -8014,6 +8280,7 @@ function App() {
   }
 
   useEffect(() => {
+    if (replayModeRef.current) return;
     localStorage.setItem("football-board-tracker-settings-v1", JSON.stringify(trackerSettings));
   }, [trackerSettings]);
   useEffect(() => {
@@ -8136,12 +8403,13 @@ function App() {
     return turnPhase === "complete" ? "all-actions-complete" : "wait-active-team";
   }
   function canUseActionForPiece(piece) {
+    if (replayModeRef.current) return false;
     if (!piece || piece.team === "BALL" || piece.inactive || gameMode !== "match" || !trackerGameStarted) return false;
     if (!sessionCode) return true;
     return myTeam !== "spectator" && pieceTeamKey(piece) === myTeam;
   }
   function canUseFreeModeForPiece(piece) {
-    return Boolean(piece && piece.team !== "BALL" && !piece.inactive && gameMode === "match" && trackerGameStarted && (!sessionCode || myTeam !== "spectator"));
+    return Boolean(!replayModeRef.current && piece && piece.team !== "BALL" && !piece.inactive && gameMode === "match" && trackerGameStarted && (!sessionCode || myTeam !== "spectator"));
   }
   async function applyActionStateUpdate(nextLog, nextState, nextUsed) {
     setTrackerActionLog(nextLog); setMatchActionState(nextState); setTrackerUsedActions(nextUsed);
@@ -8645,9 +8913,26 @@ function App() {
   }
 
   return (
-    <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""}`}>
+    <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""} ${isReplayView ? "replay-mode" : ""}`}>
       <div className="topbar">
         <strong>Sandbox <span>{APP_VERSION}</span></strong>
+        {isReplayView ? (
+          <>
+            <span className="replay-pill">REPLAY VIEW</span>
+            <span className="replay-name" title={replayRecording?.name || ""}>{replayRecording?.name || "Imported match"}</span>
+            <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.2, 3))}><Minus size={16} /></button>
+            <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
+            <button onClick={undo} disabled={!gameTimeline || gameTimeline.cursor <= 0}><Undo2 size={16} /> Undo</button>
+            <button onClick={redo} disabled={!gameTimeline || gameTimeline.cursor >= gameTimeline.entries.length}><Redo2 size={16} /> Redo</button>
+            <button className={historyVisible ? "toggle-on" : ""} onClick={() => setHistoryVisible(v => !v)}>History</button>
+            <button className={trackerVisible ? "toggle-on" : ""} onClick={() => setTrackerEnabledForSession(!trackerVisible)}>Tracker</button>
+            <button className={dicePanelVisible ? "toggle-on" : ""} onClick={() => setDicePanelVisible(v => !v)}>Dice</button>
+            <button className={inspectorVisible ? "toggle-on" : ""} onClick={() => { setInspectorVisible(v => !v); if (!inspectorVisible) setInspectorMinimized(false); }}>Insp</button>
+            <label className="import-btn">Import Match<input type="file" accept="application/json" onChange={e => { importMatchRecording(e.target.files?.[0]); e.target.value = ""; }} /></label>
+            <button className="exit-replay-btn" onClick={exitReplayView}>Exit Replay</button>
+          </>
+        ) : (
+        <>
         <div className="authbox">
           {!authReady ? (
             <span>Auth...</span>
@@ -8755,7 +9040,21 @@ function App() {
         <button className={`game-mode-btn ${gameMode}`} disabled={!!sessionCode && !isSessionHost} title={!!sessionCode && !isSessionHost ? "Only the host can change game mode." : ""} onClick={toggleGameMode}>
           {gameMode === "editor" ? "Editor Mode" : "Match Mode"}
         </button>
+        <button
+          onClick={saveMatchRecording}
+          disabled={!gameTimeline || (!!sessionCode && !isSessionHost)}
+          title={sessionCode && !isSessionHost ? "Doar hostul poate salva meciul multiplayer." : !gameTimeline ? "Intră în Match Mode pentru a începe înregistrarea." : "Salvează Match Timeline-ul curent."}
+        >
+          Save Match
+        </button>
+        <label className={`import-btn ${sessionCode ? "disabled" : ""}`} title={sessionCode ? "Ieși din sesiunea multiplayer înainte de import." : "Importă un Match Recording pentru vizionare."}>
+          Import Match
+          <input type="file" accept="application/json" disabled={Boolean(sessionCode)} onChange={e => { importMatchRecording(e.target.files?.[0]); e.target.value = ""; }} />
+        </label>
+        </>
+        )}
       </div>
+      {!isReplayView && (
       <div className="controlbar">
         <div className="formation-control blue">
           <span>Blue</span>
@@ -8832,6 +9131,7 @@ function App() {
           Tracker
         </button>
       </div>
+      )}
 
       {cardsPanelOpen && !lockUI && CardsPanel()}
 
@@ -9227,7 +9527,9 @@ function App() {
       </div>
 
       <div className="status">
-        Zoom {Math.round(zoom * 100)}% · {settings.cols} x {settings.rows} · Dublu click pe jucător ca să schimbi textul
+        {isReplayView
+          ? `Replay read-only · pas ${gameTimeline?.cursor || 0}/${gameTimeline?.entries?.length || 0} · Zoom ${Math.round(zoom * 100)}%`
+          : `Zoom ${Math.round(zoom * 100)}% · ${settings.cols} x ${settings.rows} · Dublu click pe jucător ca să schimbi textul`}
       </div>
 
 
@@ -9303,16 +9605,22 @@ function App() {
         onPointerCancel={onHistoryPointerUp}
       >
         <div className="history-title" onPointerDown={onHistoryPointerDown} onLostPointerCapture={onHistoryPointerUp}>
-          <strong>History {gameTimeline ? `${gameTimeline.cursor}/${gameTimeline.entries.length}` : "0/0"}</strong>
+          <strong>{isReplayView ? "Replay" : "History"} {gameTimeline ? `${gameTimeline.cursor}/${gameTimeline.entries.length}` : "0/0"}</strong>
           <div className="history-actions">
-            <button onPointerDown={(e) => e.stopPropagation()} onClick={clearHistory} disabled={gameMode !== "match" || (!!sessionCode && !isSessionHost)}>Clear</button>
+            <button onPointerDown={(e) => e.stopPropagation()} onClick={clearHistory} disabled={isReplayView || gameMode !== "match" || (!!sessionCode && !isSessionHost)}>Clear</button>
             <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setHistoryVisible(false)}>_</button>
           </div>
         </div>
         <div className="history-list">
           {(!gameTimeline || gameTimeline.entries.length === 0) && <div className="history-empty">Nu există pași încă.</div>}
+          {isReplayView && gameTimeline && (
+            <button className={`history-item replay-start ${gameTimeline.cursor === 0 ? "applied" : "future"}`} onClick={() => restoreTimelineCursor(0)}>
+              <span>0. Start</span>
+              <small>{new Date(gameTimeline.startedAt).toLocaleTimeString()}</small>
+            </button>
+          )}
           {(gameTimeline?.entries || []).map((entry, index) => (
-            <button key={entry.id} className={`history-item ${index < gameTimeline.cursor ? "applied" : "future"}`} onClick={() => restoreTimelineCursor(index + 1)} disabled={gameMode !== "match" || (!!sessionCode && !isSessionHost)}>
+            <button key={entry.id} className={`history-item ${index < gameTimeline.cursor ? "applied" : "future"}`} onClick={() => restoreTimelineCursor(index + 1)} disabled={!isReplayView && (gameMode !== "match" || (!!sessionCode && !isSessionHost))}>
               <span>{index + 1}. {entry.label}</span>
               <small>{new Date(entry.createdAt).toLocaleTimeString()}</small>
             </button>
@@ -9342,7 +9650,7 @@ function App() {
           <div className="dice-panel-body">
             <div className="dice-toolbar">
               <Dices size={18} />
-              <select value={dieType} onChange={e => setDieType(Number(e.target.value))}>
+              <select value={dieType} disabled={isReplayView} onChange={e => setDieType(Number(e.target.value))}>
                 <option value={20}>D20</option><option value={12}>D12</option><option value={10}>D10</option><option value={8}>D8</option><option value={6}>D6</option><option value={4}>D4</option>
               </select>
             </div>
@@ -9422,7 +9730,7 @@ function App() {
                       key={turn}
                       className={turn === trackerCurrentTurn ? "active" : turn < trackerCurrentTurn ? "completed" : ""}
                       onClick={() => selectTrackerTurn(turn)}
-                      disabled={!trackerGameStarted || turn > trackerCurrentTurn + 1} aria-disabled={trackerReadOnly || !trackerGameStarted || turn > trackerCurrentTurn + 1}
+                      disabled={trackerReadOnly || !trackerGameStarted || turn > trackerCurrentTurn + 1} aria-disabled={trackerReadOnly || !trackerGameStarted || turn > trackerCurrentTurn + 1}
                     >{turn}</button>
                   ))}
                 </div>

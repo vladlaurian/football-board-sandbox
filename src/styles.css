@@ -100,6 +100,58 @@
   }
 }
 
+/* v17.5 — isolated read-only Match Recording replay */
+.topbar .import-btn {
+  cursor: pointer;
+  font-size: 13px;
+  min-height: 34px;
+}
+
+.topbar .import-btn.disabled {
+  opacity: .42;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.replay-mode .topbar {
+  border-bottom-color: rgba(116, 205, 255, .45);
+  box-shadow: inset 0 -1px 0 rgba(116, 205, 255, .14);
+}
+
+.replay-pill {
+  padding: 6px 9px;
+  border: 1px solid rgba(116, 205, 255, .6);
+  border-radius: 999px;
+  background: rgba(38, 125, 176, .22);
+  color: #bdeaff;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.replay-name {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #d9f3ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.topbar .exit-replay-btn {
+  border-color: rgba(255, 185, 85, .65);
+  background: rgba(151, 91, 18, .28);
+}
+
+.history-item.replay-start {
+  border-color: rgba(116, 205, 255, .45);
+}
+
+.replay-mode .board-wrap {
+  box-shadow: inset 0 0 0 2px rgba(116, 205, 255, .12);
+}
+
 @media (orientation: landscape) and (max-height: 900px) {
   .topbar {
     max-height: 96px;

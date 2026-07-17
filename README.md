@@ -1,5 +1,56 @@
 # Football Board Sandbox
 
+## v17.5 — Match Recording export, import, and read-only replay
+
+### What changed
+
+- Added `Save Match` and `Import Match` immediately after the Editor Mode / Match Mode button.
+- `Save Match` exports the current unified Match Timeline as a versioned JSON Match Recording.
+- Match Recording files contain the initial game state, every timeline transition, the active cursor, Tracker and phase state, dice state, board state, and the exact card definitions referenced by the match.
+- The available card library is snapshotted when Match Mode starts. Export includes only cards actually referenced anywhere in that timeline, while preserving their stable start-of-match definitions.
+- `Import Match` opens a dedicated `REPLAY VIEW` at step `0. Start`.
+- Replay navigation uses the existing unified timeline: Undo moves one step backward, Redo moves one step forward, and History jumps directly to a selected step.
+- Replay View provides local zoom, History, Tracker, Dice, and Inspector controls. Tracker and gameplay controls remain read-only.
+- `Exit Replay` restores the board, card library, timeline, zoom/pan, Tracker visibility, History visibility, Inspector state, and other preserved workspace presentation state from before import.
+- Imported recording files are validated by recording type, schema version, timeline structure, card snapshot structure, entry/card limits, and referenced-card completeness.
+- Import warns when the recording was produced by a different application version.
+- A new Match Mode warns before replacing a previous timeline revision that has not been exported.
+- Added focused tests for referenced-card collection, used-card filtering, JSON recording round trips, replay origin support, and invalid recording rejection.
+
+### Why it changed
+
+History, Undo, and Redo already use one snapshot-based Match Timeline. Match Recording now serializes that same source of truth instead of creating a second replay log. Snapshot playback preserves the recorded board and gameplay state even if action implementation changes later.
+
+Replay is intentionally isolated from normal application persistence. Loading an old match directly into the live workspace would risk marking cloud state dirty, overwriting the local card library, writing timeline navigation to Firebase, or changing the active Situation. The dedicated read-only context avoids those side effects and restores the previous workspace when closed.
+
+### Problems resolved
+
+- A Match Mode timeline can now be kept after leaving the page or starting another match.
+- Saved matches can be reviewed step by step without manually reconstructing the board.
+- Tracker actions, phase changes, dice results, card assignments, and piece movement remain aligned because replay renders the same snapshots used by History and Undo/Redo.
+- Cards used by a recording remain available to Inspector even if the permanent card library changes later.
+- Import cannot silently create an empty replay from an invalid file.
+- Replay navigation cannot autosave imported state or publish it to a multiplayer session.
+
+### Impact
+
+- Normal Editor Mode, Match Mode, History, Undo, Redo, Tracker, phases, dice, and multiplayer synchronization keep their existing behavior.
+- Multiplayer Match Recording export is host-only. Import is disabled until the user leaves the multiplayer session; v17.5 replay is local only and requires no Firebase schema or security-rule changes.
+- `Situație` remains a separate fixed-setup system. Import, navigation, and Exit Replay do not create, select, rename, overwrite, or cloud-save a Situation.
+- Match recordings are downloaded by the browser and are not automatically stored in Cloud Save or Firebase.
+- Replay is read-only in v17.5. Interactive `Reia de aici` branching remains intentionally deferred until the core gameplay state is more stable.
+- There is no timed autoplay in v17.5; playback is controlled through History and Undo/Redo.
+- Editor = Inspector = Export remains intact: replay Inspector uses the same card objects and `CardPreview` renderer captured by Match Recording export.
+
+### Replay controls
+
+1. Enter Match Mode and play normally.
+2. Press `Save Match`, choose a name, and keep the downloaded JSON file.
+3. Outside multiplayer, press `Import Match` and select that JSON file.
+4. Replay opens at `0. Start`. Press Redo to advance one step, Undo to go back one step, or click any item in the Replay/History window to jump directly to it.
+5. Use Tracker, Dice, or Inspector to inspect the state at the selected step.
+6. Press `Exit Replay` to restore the sandbox that was open before the import.
+
 ## v17.4 — Formation reset repair and safe puck deletion
 
 ### What changed
