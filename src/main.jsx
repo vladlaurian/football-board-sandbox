@@ -26,7 +26,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v16.3";
+const APP_VERSION = "v16.4";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4149,7 +4149,15 @@ function App() {
     const authorization = authorizationOverride || movementAuthorization(piece);
     const isFreePlacement = authorization.mode === "free";
     const isGroupPlacement = authorization.mode === "group";
-    const nextPieces = ensureBenchReserveCount((piecesRef.current || pieces).map(item => item.id === piece.id ? { ...item, x, y } : item), settingsRef.current);
+    const currentPieces = piecesRef.current || pieces;
+    const carriesBall = piece.team !== "BALL" && currentPieces.some(item =>
+      item.team === "BALL" && Number(item.x) === Number(piece.x) && Number(item.y) === Number(piece.y)
+    );
+    const nextPieces = ensureBenchReserveCount(currentPieces.map(item => {
+      if (item.id === piece.id) return { ...item, x, y };
+      if (carriesBall && item.team === "BALL") return { ...item, x, y };
+      return item;
+    }), settingsRef.current);
     let nextMovement = movementStateRef.current;
     if (gameMode === "match" && piece.team !== "BALL" && !isFreePlacement) {
       const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false, movementEnded: false };

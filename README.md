@@ -1,5 +1,10 @@
 # Football Board Sandbox
 
+## v16.4 — Ball follows player
+
+- When the Match Ball shares a cell with a player, moving that player also moves the ball.
+- Selecting and moving the Match Ball removes it from the player and leaves all other behavior unchanged.
+
 ## v16.3 — Keep moved player selected
 
 - After a player completes a movement, that player remains selected.
