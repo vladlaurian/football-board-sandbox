@@ -30,6 +30,7 @@ import {
   referencedCardIdsForTimeline,
   selectRecordingCards,
 } from "./timeline/matchRecording.mjs";
+import { createAiAnalysisExport } from "./timeline/aiAnalysisExport.mjs";
 import {
   createSharedTimelineMeta,
   hydrateSessionTimeline,
@@ -56,7 +57,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v17.6";
+const APP_VERSION = "v17.7";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4148,6 +4149,17 @@ function App() {
     return `Football_Board_match_${safeName}_${stamp}.json`;
   }
 
+  function aiAnalysisFilename(name) {
+    const safeName = String(name || "match")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9_-]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 80) || "match";
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    return `Football_Board_AI_Analysis_${safeName}_${stamp}.json`;
+  }
+
   function availableCardsForTimelineExport(timeline) {
     const currentCards = captureAvailableMatchCards();
     const stableSnapshot = matchCardSnapshotRef.current.recordingId === timeline.recordingId
@@ -4214,6 +4226,51 @@ function App() {
 
   function saveMatchRecording() {
     return exportMatchRecording({ promptForName: true });
+  }
+
+  function exportAiAnalysis() {
+    if (isReplayView) return false;
+    if (sessionCode && !isSessionHost) {
+      window.alert("Doar hostul poate exporta analiza AI a meciului multiplayer.");
+      return false;
+    }
+    const timeline = gameTimelineRef.current;
+    if (!timeline) {
+      window.alert("Nu există încă un Match Timeline. Intră în Match Mode pentru a începe înregistrarea.");
+      return false;
+    }
+
+    const defaultName = `Match ${new Date(timeline.startedAt || Date.now()).toLocaleString("ro-RO")}`;
+    const requestedName = window.prompt("Numele exportului pentru analiza AI:", defaultName);
+    if (requestedName === null) return false;
+    const name = requestedName.trim() || defaultName;
+
+    try {
+      const availableCards = availableCardsForTimelineExport(timeline);
+      const cardSnapshot = selectRecordingCards(timeline, availableCards);
+      const referencedCardIds = referencedCardIdsForTimeline(timeline);
+      const exportedCardIds = new Set(cardSnapshot.map(card => String(card.id)));
+      const missingCardIds = referencedCardIds.filter(cardId => !exportedCardIds.has(cardId));
+      if (missingCardIds.length) {
+        throw new Error(`Lipsesc ${missingCardIds.length} carduri folosite în timeline: ${missingCardIds.join(", ")}`);
+      }
+
+      const recording = createMatchRecording(timeline, { APP_VERSION, name, cardSnapshot });
+      const analysis = createAiAnalysisExport(recording, { appVersion: APP_VERSION });
+      const blob = new Blob([JSON.stringify(analysis, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = aiAnalysisFilename(name);
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      window.alert(`Export AI salvat: ${analysis.semanticTimeline.length} evenimente semantice. Regulile sunt marcate explicit ca manuale/neautomatizate.`);
+      return true;
+    } catch (error) {
+      console.error(error);
+      window.alert(`Exportul AI nu a putut fi salvat: ${error.message || error}`);
+      return false;
+    }
   }
 
   function closeReplayTransientUi() {
@@ -9097,6 +9154,13 @@ function App() {
           title={sessionCode && !isSessionHost ? "Doar hostul poate salva meciul multiplayer." : !gameTimeline ? "Intră în Match Mode pentru a începe înregistrarea." : "Salvează Match Timeline-ul curent."}
         >
           Save Match
+        </button>
+        <button
+          onClick={exportAiAnalysis}
+          disabled={!gameTimeline || (!!sessionCode && !isSessionHost)}
+          title={sessionCode && !isSessionHost ? "Doar hostul poate exporta analiza AI a meciului multiplayer." : !gameTimeline ? "Intră în Match Mode pentru a începe înregistrarea." : "Exportă un rezumat compact pentru analiza AI. Nu schimbă Full Replay-ul."}
+        >
+          Export AI Analysis
         </button>
         <label className={`import-btn ${sessionCode ? "disabled" : ""}`} title={sessionCode ? "Ieși din sesiunea multiplayer înainte de import." : "Importă un Match Recording pentru vizionare."}>
           Import Match

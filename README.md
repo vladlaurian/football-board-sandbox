@@ -1,5 +1,45 @@
 # Football Board Sandbox
 
+## v17.7 — AI Analysis Export foundation
+
+### What changed
+
+- Added `Export AI Analysis` immediately after `Save Match` and before `Import Match`.
+- The new export creates a compact JSON file for an external AI analysis workflow; it does not replace or alter `Save Match` / Full Replay.
+- Each exported match explicitly identifies Blue as attacking right and Red as attacking left.
+- The AI export includes a gameplay-only card snapshot: player identity, position, passive attributes, bonuses, preferred foot, special ability, and defensive area. It intentionally omits card images, URLs, visual layout, colors, and other presentation data.
+- Timeline entries are converted into semantic events linked by the existing timeline `groupId` where one exists. A `MOVE` activation and its physical movement therefore share the same `actionId` while remaining separate History / Undo steps in the app.
+- The export includes compact initial/final gameplay states, pitch geometry, tracker action economy, phase and turn, possession when it can be identified from the ball position, movement origin/destination, and the tracker actions added by an event.
+- Unlinked physical moves are explicitly exported as `MANUAL_MOVE`; the export never guesses a dribble, a legal outcome, an opponent, a probability, or a football result that the current sandbox has not automated.
+- The ruleset is explicitly marked `MANUAL_UNAUTOMATED`. It records the tracker limits and die type, while declaring that formulas, probabilities, and outcomes are not yet automated.
+- Added focused tests for direction mapping, compact card data, action linkage, action economy, normal movement, and `MANUAL_MOVE` classification.
+
+### Why it changed
+
+Full Replay is optimized for faithful playback: it stores snapshots before and after every timeline step. An AI analysis needs a smaller and clearer account of what the game knows: who acted, what changed, which action steps belong together, and which facts are still manual rather than rule-resolved.
+
+This version establishes that semantic foundation without pretending that the current sandbox already has a complete rules engine. It gives external analysis useful tactical context now and leaves a clean, versioned place for future configurable rules such as Dribble, Tackle, Pass, Shot, and Offside.
+
+### Problems resolved
+
+- AI analysis no longer has to infer the Blue/Red team mapping or attack direction from board coordinates.
+- A card's gameplay values can be shared with an AI without exporting artwork or editor-only data.
+- A selected `MOVE` action and the actual movement can be recognized as one linked action without changing the two-step History flow.
+- A free/unexplained physical move is not falsely represented as a named football mechanic.
+- Old and future gameplay rules are not conflated: this export states plainly that its current rules are manual and unautomated.
+
+### Impact
+
+- Full Replay, Match Timeline, History, Undo, Redo, Match Mode, Editor Mode, Tracker, Dice, phases, Firebase, multiplayer synchronization, and `Situație` retain their existing behavior.
+- Multiplayer export remains host-only, matching `Save Match`. The AI file is downloaded locally and never written to Firebase.
+- `Export AI Analysis` does not mark a Full Replay as saved for the Match-to-Editor exit guard; `Save Match` remains the required replay-preserving export.
+- Existing Match Recording files remain valid for replay. They can be used to create an AI export when loaded into the current application timeline; no old file format is changed.
+- Editor = Inspector = Export remains intact: the same match card snapshot used for replay is reduced to gameplay fields for the AI export, without touching the editor or Inspector data path.
+
+### Current limitation, by design
+
+The v17.7 export records facts the sandbox already knows. It does not yet calculate duel probabilities, identify dribble opponents, resolve offside, infer goals, or enforce gameplay rules. Those features require a later, configurable ruleset and will be added action by action, beginning with a single tested pilot mechanic rather than a hard-coded global rewrite.
+
 ## v17.6 — Match exit guard and Replay History auto-scroll
 
 ### What changed
