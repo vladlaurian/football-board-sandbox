@@ -46,6 +46,17 @@ export function nextTrackerPhase(phase) {
   return phase === "attack" ? "defense" : "complete";
 }
 
+export function trackerTurnChangeDecision({ readOnly = false, gameStarted = false, currentTurn = 0, targetTurn = 0, turnPhase = "attack" } = {}) {
+  const current = Math.max(0, Number(currentTurn) || 0);
+  const target = Math.max(0, Number(targetTurn) || 0);
+  if (readOnly || !gameStarted || target < 1 || target === current) return { allowed: false, reason: "unavailable" };
+  if (target > current + 1) return { allowed: false, reason: "skip-not-allowed" };
+  if (target > current && turnPhase !== "complete") {
+    return { allowed: false, reason: "both-teams-must-end" };
+  }
+  return { allowed: true, direction: target > current ? "advance" : "reverse" };
+}
+
 export function createEmptyTrackerTurnState() {
   return {
     usedActions: { red: 0, blue: 0 },

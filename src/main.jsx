@@ -47,9 +47,11 @@ import {
 } from "./timeline/matchRecording.mjs";
 import { createAiAnalysisExport } from "./timeline/aiAnalysisExport.mjs";
 import {
+  canAccessPrimaryToolbar,
   createSharedTimelineMeta,
   hydrateSessionTimeline,
   nullableFiniteNumber,
+  normalizeSessionStatusLabel,
   shouldApplySessionBoardProjection,
   timelineReconciliationMode,
   timelineDiceRollId,
@@ -75,6 +77,7 @@ import {
   trackerActionStatusForTeam,
   trackerPhaseBlockReason,
   trackerRoleForTeam,
+  trackerTurnChangeDecision,
 } from "./tracker/actionRules.mjs";
 import { HistoryPanel } from "./match/HistoryPanel.jsx";
 import "./styles.css";
@@ -96,7 +99,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v18.6";
+const APP_VERSION = "v18.7";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -1993,6 +1996,7 @@ function App() {
   const pendingTimelineSyncCountRef = useRef(0);
   const [illegalMoveNotice, setIllegalMoveNotice] = useState(null);
   const [pendingTurnChange, setPendingTurnChange] = useState(null);
+  const [turnAdvanceNotice, setTurnAdvanceNotice] = useState(false);
   const [pendingThreeTwoMove, setPendingThreeTwoMove] = useState(null);
   const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
   const [lockUI, setLockUI] = useState(false);
@@ -2102,6 +2106,11 @@ function App() {
   const sharedRulerReadOnly = !!sessionCode && measureMode && !isSharedRulerOwner;
   const canUseSharedRuler = !sessionCode || myTeam === "blue" || myTeam === "red";
   const isSessionHost = !!sessionCode && !!user?.uid && user.uid === sessionOwnerUid;
+  const isSessionGuest = Boolean(sessionCode && !isSessionHost);
+  const canAccessPrimaryToolbarControls = canAccessPrimaryToolbar({
+    sessionActive: Boolean(sessionCode),
+    isSessionHost,
+  });
   const trackerReadOnly = isReplayView || (!!sessionCode && !isSessionHost);
 
   const pitchStyle = useMemo(() => ({
@@ -2953,6 +2962,7 @@ function App() {
   }
 
   function leaveSession(finalStatus = "Offline") {
+    const safeFinalStatus = normalizeSessionStatusLabel(finalStatus);
     sessionHydratedRef.current = false;
     sessionSavePendingRef.current = false;
     if (sessionSaveTimerRef.current) {
@@ -2986,7 +2996,7 @@ function App() {
     setMeasureEnd(null);
     setRulerPanelDragging(null);
     setRulerPanelResizing(null);
-    setSessionStatus(finalStatus);
+    setSessionStatus(safeFinalStatus);
   }
 
   async function waitForSessionWritesToFinish(timeoutMs = 2500) {
@@ -4040,6 +4050,7 @@ function App() {
     setTrackerStartChoiceOpen(false);
     setPendingEndTurn(null);
     setPendingTurnChange(null);
+    setTurnAdvanceNotice(false);
     setPendingAutoMove(null);
     setPendingThreeTwoMove(null);
     setPendingEditorModeExit(false);
@@ -8449,9 +8460,18 @@ function App() {
     });
   }
   function selectTrackerTurn(turn) {
-    if (trackerReadOnly || !trackerGameStarted || turn === trackerCurrentTurn) return;
-    if (turn > trackerCurrentTurn + 1) return;
-    setPendingTurnChange({ turn, direction: turn > trackerCurrentTurn ? "advance" : "reverse" });
+    const decision = trackerTurnChangeDecision({
+      readOnly: trackerReadOnly,
+      gameStarted: trackerGameStarted,
+      currentTurn: trackerCurrentTurn,
+      targetTurn: turn,
+      turnPhase,
+    });
+    if (!decision.allowed) {
+      if (decision.reason === "both-teams-must-end") setTurnAdvanceNotice(true);
+      return;
+    }
+    setPendingTurnChange({ turn, direction: decision.direction });
   }
   function confirmTrackerTurnChange() {
     if (!pendingTurnChange) return;
@@ -8733,9 +8753,13 @@ function App() {
               <>
                 <span className="user-email">{user.email}</span>
                 <span className={`cloud-pill ${cloudError ? "cloud-error" : ""}`}>{cloudStatus}</span>
-                <button onClick={() => saveCloudState({}, "Cloud saved")}>Cloud Save</button>
-                <button onClick={exportFullBackup}>Export Cards & Board</button>
-                <label className="import-btn">Import Cards & Board<input type="file" accept="application/json" onChange={e => { restoreFullBackup(e.target.files?.[0]); e.target.value = ""; }} /></label>
+                {!isSessionGuest && (
+                  <>
+                    <button onClick={() => saveCloudState({}, "Cloud saved")}>Cloud Save</button>
+                    <button onClick={exportFullBackup}>Export Cards & Board</button>
+                    <label className="import-btn">Import Cards & Board<input type="file" accept="application/json" onChange={e => { restoreFullBackup(e.target.files?.[0]); e.target.value = ""; }} /></label>
+                  </>
+                )}
                 <button onClick={logout}>Logout</button>
               </>
             )
@@ -8762,7 +8786,7 @@ function App() {
                 </span>
               )}
               {user?.uid !== sessionOwnerUid && cardVisibilityMode && <span className="session-mode-label">{cardVisibilityMode === "open" ? "Open Cards" : "Private Cards"}</span>}
-              <button onClick={leaveSession}>Leave</button>
+              <button onClick={() => leaveSession()}>Leave</button>
               {user?.uid === sessionOwnerUid && <button onClick={endSession}>End Session</button>}
             </>
           ) : (
@@ -8781,6 +8805,8 @@ function App() {
           )}
         </div>
 
+        {canAccessPrimaryToolbarControls && (
+        <>
         <SettingNumber label="Teren L" name="cols" min={12} max={100} />
         <SettingNumber label="Teren l impar" name="rows" min={8} max={70} step={2} />
         <SettingNumber label="Pătrățel" name="cellSize" min={16} max={70} />
@@ -8844,6 +8870,8 @@ function App() {
           Import Match
           <input type="file" accept="application/json" disabled={Boolean(sessionCode)} onChange={e => { importMatchRecording(e.target.files?.[0]); e.target.value = ""; }} />
         </label>
+        </>
+        )}
         </>
         )}
       </div>
@@ -9433,6 +9461,18 @@ function App() {
             <div className="modal-actions turn-confirm-actions">
               <button onClick={confirmTrackerTurnChange}>Yes</button>
               <button onClick={() => setPendingTurnChange(null)}>No</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {turnAdvanceNotice && (
+        <div className="modal-backdrop turn-confirm-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setTurnAdvanceNotice(false); }}>
+          <div className="modal turn-confirm-modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="modal-title"><strong>Turn not completed</strong></div>
+            <div className="turn-confirm-message">Both teams must end their phase before advancing to the next turn.</div>
+            <div className="modal-actions turn-confirm-actions">
+              <button onClick={() => setTurnAdvanceNotice(false)}>OK</button>
             </div>
           </div>
         </div>

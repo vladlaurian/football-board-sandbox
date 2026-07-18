@@ -1,5 +1,44 @@
 # Football Board Sandbox
 
+## v18.7 — Completed-turn guard and guest toolbar safety
+
+### What changed
+
+- Added a mandatory completed-phase guard before advancing to the next numbered turn.
+- Advancing is allowed only after the attacking team ends its phase and the defending team ends its phase; otherwise the Sandbox displays: “Both teams must end their phase before advancing to the next turn.”
+- Kept reverse navigation to an earlier turn available under the existing rules.
+- Hid primary host/editor toolbar controls from a connected guest. The guest retains the Sandbox version, authentication area, multiplayer session controls, and the complete second toolbar with its existing permissions.
+- Hid cloud backup buttons from a connected non-host while keeping authentication/logout visible.
+- Fixed the multiplayer Leave button so a React click event can no longer become the visible session-status value and crash the guest screen.
+- Added pure tests for turn advancement, primary-toolbar access, and safe session-status normalization.
+
+### Why it changed
+
+A numbered turn could previously be advanced while one or both team phases were still active, bypassing the explicit END TURN flow introduced by the Tracker. In multiplayer, guest users also saw host/editor controls they were not supposed to use. Separately, the Leave button passed its click event directly into the session cleanup function; React later attempted to render that event object and displayed a black screen.
+
+### Problems resolved
+
+- A new numbered turn cannot begin until both teams have explicitly ended their phases.
+- Multiplayer guests no longer see field-geometry, reset, mode, Tracker-settings, Match-save, AI-export, or primary toolbar controls reserved for the host.
+- Leaving a multiplayer session returns the guest to the normal application instead of crashing the React render.
+- The Leave cleanup also defensively rejects any future non-text status value.
+
+### Impact
+
+- The second toolbar remains unchanged, including formations, Scenario, History, Ruler, Dice, Cards, Inspector, defensive-area display, and the guest's view-only Tracker behavior.
+- Host controls, Editor Mode, Match rules, action economy, Timeline, History, Undo, Redo, replay, Firebase synchronization, and card visibility keep their existing behavior.
+- The previously planned visual `TrackerPanel` extraction moves to v18.8; the shared card-rendering audit moves to v18.9.
+- Editor = Inspector = Export remains intact; card rendering and exports were not modified.
+
+### Verification focus
+
+1. During the attack phase, click the next numbered turn and confirm the English warning appears.
+2. End the attacking phase, try again during defense, and confirm the same warning still appears.
+3. End the defending phase, advance, and confirm the next turn opens and resets action economy normally.
+4. Join as guest and confirm the first toolbar shows only version, authentication, and multiplayer controls while the second toolbar remains available.
+5. Leave from the guest browser and confirm the application remains visible and usable.
+6. Rejoin and verify board, Tracker, History, selection stability, and guest-only movement permissions remain synchronized.
+
 ## v18.6 — Tracker action rules extraction
 
 ### What changed

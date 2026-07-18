@@ -2,9 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { commitTimelineEntry, createTimeline } from "../timeline/timelineEngine.mjs";
 import {
+  canAccessPrimaryToolbar,
   createSharedTimelineMeta,
   hydrateSessionTimeline,
   nullableFiniteNumber,
+  normalizeSessionStatusLabel,
   shouldApplySessionBoardProjection,
   shouldApplyIncomingTimeline,
   shouldRestoreTimelineState,
@@ -82,4 +84,12 @@ test("an active Match Timeline rejects delayed board projections", () => {
   assert.equal(shouldApplySessionBoardProjection({ isOwnUpdate: false, timelineActive: true }), false);
   assert.equal(shouldApplySessionBoardProjection({ isOwnUpdate: true, timelineActive: false }), false);
   assert.equal(shouldApplySessionBoardProjection({ isOwnUpdate: false, timelineActive: false }), true);
+});
+
+test("only the host retains primary toolbar controls during a session", () => {
+  assert.equal(canAccessPrimaryToolbar({ sessionActive: false, isSessionHost: false }), true);
+  assert.equal(canAccessPrimaryToolbar({ sessionActive: true, isSessionHost: true }), true);
+  assert.equal(canAccessPrimaryToolbar({ sessionActive: true, isSessionHost: false }), false);
+  assert.equal(normalizeSessionStatusLabel({ type: "click" }), "Offline");
+  assert.equal(normalizeSessionStatusLabel("Session ended"), "Session ended");
 });

@@ -81,3 +81,11 @@ export function timelineReconciliationMode(localTimeline, incomingTimeline, pend
 export function shouldApplySessionBoardProjection({ isOwnUpdate = false, timelineActive = false } = {}) {
   return !isOwnUpdate && !timelineActive;
 }
+
+export function canAccessPrimaryToolbar({ sessionActive = false, isSessionHost = false } = {}) {
+  return !sessionActive || isSessionHost;
+}
+
+export function normalizeSessionStatusLabel(value, fallback = "Offline") {
+  return typeof value === "string" && value.trim() ? value : fallback;
+}

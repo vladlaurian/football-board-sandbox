@@ -12,6 +12,7 @@ import {
   trackerActionStatusForTeam,
   trackerPhaseBlockReason,
   trackerRoleForTeam,
+  trackerTurnChangeDecision,
 } from "./actionRules.mjs";
 
 function tracker(overrides = {}) {
@@ -128,4 +129,25 @@ test("free mode and permission rules are pure and reset state is fresh", () => {
   const second = createEmptyTrackerTurnState();
   first.actionLog.blue.push({ id: "x" });
   assert.equal(second.actionLog.blue.length, 0);
+});
+
+test("the next numbered turn requires both team phases to be ended", () => {
+  assert.deepEqual(trackerTurnChangeDecision({
+    gameStarted: true,
+    currentTurn: 3,
+    targetTurn: 4,
+    turnPhase: "defense",
+  }), { allowed: false, reason: "both-teams-must-end" });
+  assert.deepEqual(trackerTurnChangeDecision({
+    gameStarted: true,
+    currentTurn: 3,
+    targetTurn: 4,
+    turnPhase: "complete",
+  }), { allowed: true, direction: "advance" });
+  assert.deepEqual(trackerTurnChangeDecision({
+    gameStarted: true,
+    currentTurn: 3,
+    targetTurn: 2,
+    turnPhase: "attack",
+  }), { allowed: true, direction: "reverse" });
 });
