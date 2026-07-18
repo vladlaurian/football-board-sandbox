@@ -13,7 +13,22 @@ import {
   normalizeFormationPlayers,
   normalizeFormationSlots,
 } from "./board/formationUtils.mjs";
+import {
+  buildBoardApi,
+  clampBoardXForY,
+  clampBoardY,
+  fromCoord,
+  goalTopForSettings,
+  invisiblePaddingForSettings,
+  normalizeGridPosition,
+  normalizePiecesForBoard,
+  rowLetter,
+  toCoord,
+  withBoardPosition,
+} from "./board/boardGeometry.mjs";
+import { getMovementGeometry, normalizeMovementState } from "./board/movementState.mjs";
 import { createDefaultScenarioSlots, normalizeScenarioSlots } from "./board/scenarioUtils.mjs";
+import { clamp } from "./game/numberUtils.mjs";
 import {
   closeTimeline,
   commitTimelineEntry,
@@ -39,6 +54,11 @@ import {
   shouldApplyIncomingTimeline,
   timelineDiceRollId,
 } from "./multiplayer/sessionTimeline.mjs";
+import {
+  normalizeMatchActionState,
+  normalizeTrackerSnapshot,
+  TRACKER_ACTION_ABBR,
+} from "./tracker/trackerState.mjs";
 import "./styles.css";
 
 const firebaseConfig = {
@@ -58,7 +78,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v17.9";
+const APP_VERSION = "v18.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -79,99 +99,6 @@ const BASE_LAYOUT_STYLE_KEYS = {
 };
 
 function normalizeGameMode(value) { return value === "match" ? "match" : "editor"; }
-function diagonalCostForDistance(distance) {
-  const safeDistance = Math.max(0, Math.floor(Number(distance) || 0));
-  return safeDistance + Math.floor(safeDistance / 2);
-}
-function inferMovementDistance(axis, spent) {
-  const safeSpent = Math.max(0, Math.floor(Number(spent) || 0));
-  if (!axis?.startsWith("diagonal")) return safeSpent;
-  let distance = 0;
-  while (diagonalCostForDistance(distance + 1) <= safeSpent) distance += 1;
-  return distance;
-}
-function normalizeMovementState(raw) {
-  if (!raw || typeof raw !== "object") return {};
-  const out = {};
-  for (const [id, value] of Object.entries(raw)) {
-    const axis = ["horizontal", "vertical", "diagonal-nw-se", "diagonal-ne-sw"].includes(value?.axis) ? value.axis : null;
-    const spent = Math.max(0, Number(value?.spent) || 0);
-    const suppliedDistance = Number(value?.distance);
-    const distance = Number.isFinite(suppliedDistance) && suppliedDistance >= 0
-      ? Math.floor(suppliedDistance)
-      : inferMovementDistance(axis, spent);
-    const threeTwoUsed = Boolean(value?.threeTwoUsed);
-    const movementEnded = Boolean(value?.movementEnded);
-    if (axis || spent || distance || threeTwoUsed || movementEnded) out[id] = { axis, spent, distance, threeTwoUsed, movementEnded };
-  }
-  return out;
-}
-function normalizeTrackerActionLog(raw) {
-  const out = { red: [], blue: [] };
-  for (const team of ["red", "blue"]) {
-    const list = Array.isArray(raw?.[team]) ? raw[team] : [];
-    out[team] = list.map((item, index) => ({
-      id: String(item?.id || `${team}-${index}`),
-      type: ["MOVE", "GROUP_MOVE", "PASS", "SHOT", "CROSS", "DRIBBLE", "TACKLING"].includes(item?.type) ? item.type : "PASS",
-      pieceId: item?.pieceId ? String(item.pieceId) : "",
-    }));
-  }
-  return out;
-}
-function normalizeMatchActionState(raw) {
-  const byPieceId = {};
-  const legacyFreeEntry = raw?.byPieceId && typeof raw.byPieceId === "object"
-    ? Object.entries(raw.byPieceId).find(([, value]) => Boolean(value?.freeMoveAuthorized))
-    : null;
-  if (raw?.byPieceId && typeof raw.byPieceId === "object") {
-    for (const [id, value] of Object.entries(raw.byPieceId)) {
-      if (!value || typeof value !== "object") continue;
-      const next = {
-        moveUsed: Boolean(value.moveUsed),
-        moveAuthorized: Boolean(value.moveAuthorized),
-        moveGroupId: value.moveGroupId ? String(value.moveGroupId) : null,
-      };
-      if (next.moveUsed || next.moveAuthorized || next.moveGroupId) byPieceId[id] = next;
-    }
-  }
-  const hasExplicitFreeMode = Boolean(raw?.freeMode && typeof raw.freeMode === "object");
-  return {
-    byPieceId,
-    groupMove: {
-      active: Boolean(raw?.groupMove?.active),
-      team: raw?.groupMove?.team === "blue" || raw?.groupMove?.team === "red" ? raw.groupMove.team : null,
-      timelineGroupId: raw?.groupMove?.timelineGroupId ? String(raw.groupMove.timelineGroupId) : null,
-    },
-    freeMode: {
-      active: hasExplicitFreeMode ? Boolean(raw.freeMode.active) : Boolean(legacyFreeEntry),
-      pieceId: hasExplicitFreeMode
-        ? (raw.freeMode.pieceId ? String(raw.freeMode.pieceId) : null)
-        : (legacyFreeEntry?.[0] || null),
-      team: hasExplicitFreeMode && (raw.freeMode.team === "blue" || raw.freeMode.team === "red")
-        ? raw.freeMode.team
-        : null,
-      timelineGroupId: hasExplicitFreeMode && raw.freeMode.timelineGroupId
-        ? String(raw.freeMode.timelineGroupId)
-        : null,
-    },
-  };
-}
-const TRACKER_ACTION_ABBR = { MOVE: "MV", GROUP_MOVE: "GM", PASS: "PS", SHOT: "SH", CROSS: "CR", DRIBBLE: "DR", TACKLING: "TK" };
-
-function getMovementGeometry(from, to) {
-  const dx = Number(to.x) - Number(from.x);
-  const dy = Number(to.y) - Number(from.y);
-  const ax = Math.abs(dx); const ay = Math.abs(dy);
-  if (!dx && !dy) return { kind: "same", axis: null, distance: 0, cost: 0 };
-  if (!dy) return { kind: "straight", axis: "horizontal", distance: ax, cost: ax };
-  if (!dx) return { kind: "straight", axis: "vertical", distance: ay, cost: ay };
-  if (ax === ay) {
-    const axis = Math.sign(dx) === Math.sign(dy) ? "diagonal-nw-se" : "diagonal-ne-sw";
-    return { kind: "diagonal", axis, distance: ax, cost: ax + Math.floor(ax / 2) };
-  }
-  return { kind: "mixed", axis: null, distance: null, cost: null };
-}
-
 function clonePlain(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
 }
@@ -1762,38 +1689,6 @@ function areaHasCell(area, dx, dy) {
   return (area || []).some(cell => Number(cell.dx) === dx && Number(cell.dy) === dy);
 }
 
-function clamp(v, min, max) {
-  return Math.max(min, Math.min(max, v));
-}
-
-function normalizeTrackerSnapshot(raw = {}) {
-  const rawSettings = raw.settings || {};
-  const settings = {
-    attackActions: clamp(Number(rawSettings.attackActions) || 5, 1, 30),
-    defenseActions: clamp(Number(rawSettings.defenseActions) || 4, 1, 30),
-    turns: clamp(Number(rawSettings.turns) || 20, 1, 100),
-  };
-  const startingTeam = raw.startingTeam === "blue" ? "blue" : "red";
-  const attackTeam = startingTeam;
-  const redLimit = attackTeam === "red" ? settings.attackActions : settings.defenseActions;
-  const blueLimit = attackTeam === "blue" ? settings.attackActions : settings.defenseActions;
-
-  return {
-    enabled: !!raw.enabled,
-    gameStarted: !!raw.gameStarted,
-    startingTeam,
-    currentTurn: clamp(Number(raw.currentTurn) || 0, 0, settings.turns),
-    actionLog: normalizeTrackerActionLog(raw.actionLog),
-    matchActionState: normalizeMatchActionState(raw.matchActionState),
-    turnPhase: ["attack", "defense", "complete"].includes(raw.turnPhase) ? raw.turnPhase : "attack",
-    usedActions: {
-      red: clamp(Number(raw.usedActions?.red ?? raw.actionLog?.red?.length) || 0, 0, redLimit),
-      blue: clamp(Number(raw.usedActions?.blue ?? raw.actionLog?.blue?.length) || 0, 0, blueLimit),
-    },
-    settings,
-  };
-}
-
 function forceOddDirectional(value, previousValue, fallback = 1) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
@@ -1804,101 +1699,6 @@ function forceOddDirectional(value, previousValue, fallback = 1) {
   // Dacă apasă săgeata în sus, mergem la imparul superior.
   if (Number(previousValue) > rounded) return rounded - 1;
   return rounded + 1;
-}
-
-function rowLetter(index) {
-  let n = index + 1;
-  let label = "";
-  while (n > 0) {
-    const rem = (n - 1) % 26;
-    label = String.fromCharCode(65 + rem) + label;
-    n = Math.floor((n - 1) / 26);
-  }
-  return label;
-}
-
-function toCoord(x, y) {
-  return `${rowLetter(y)}${x + 1}`;
-}
-
-function fromCoord(coord) {
-  const match = String(coord).trim().toUpperCase().match(/^([A-Z]+)(\d+)$/);
-  if (!match) return { x: 0, y: 0 };
-  const letters = match[1];
-  const number = Number(match[2]);
-  let y = 0;
-  for (let i = 0; i < letters.length; i++) {
-    y = y * 26 + (letters.charCodeAt(i) - 64);
-  }
-  return { x: number - 1, y: y - 1 };
-}
-
-function goalTopForSettings(settingsLike = DEFAULT_SETTINGS) {
-  return Math.floor(((settingsLike.rows ?? DEFAULT_SETTINGS.rows) - (settingsLike.goalWidth ?? DEFAULT_SETTINGS.goalWidth)) / 2);
-}
-
-function isInsideGoalMouthY(y, settingsLike = DEFAULT_SETTINGS) {
-  const top = goalTopForSettings(settingsLike);
-  const bottom = top + (settingsLike.goalWidth ?? DEFAULT_SETTINGS.goalWidth) - 1;
-  return y >= top && y <= bottom;
-}
-
-function invisiblePaddingForSettings(settingsLike = DEFAULT_SETTINGS) {
-  return Number(settingsLike.invisiblePadding ?? DEFAULT_SETTINGS.invisiblePadding ?? 2);
-}
-
-function clampBoardXForY(x, y, settingsLike = DEFAULT_SETTINGS) {
-  const cols = settingsLike.cols ?? DEFAULT_SETTINGS.cols;
-  const pad = invisiblePaddingForSettings(settingsLike);
-  return clamp(x, -pad, cols + pad - 1);
-}
-
-function clampBoardY(y, settingsLike = DEFAULT_SETTINGS) {
-  const rows = settingsLike.rows ?? DEFAULT_SETTINGS.rows;
-  const pad = invisiblePaddingForSettings(settingsLike);
-  return clamp(y, -pad, rows + pad - 1);
-}
-
-function normalizeGridPosition(x, y, settingsLike = DEFAULT_SETTINGS) {
-  const safeY = clampBoardY(Math.round(Number(y) || 0), settingsLike);
-  const safeX = clampBoardXForY(Math.round(Number(x) || 0), safeY, settingsLike);
-  const fieldX = clamp(safeX, 0, (settingsLike.cols ?? DEFAULT_SETTINGS.cols) - 1);
-  const fieldY = clamp(safeY, 0, (settingsLike.rows ?? DEFAULT_SETTINGS.rows) - 1);
-  return {
-    x: safeX,
-    y: safeY,
-    coord: toCoord(fieldX, fieldY),
-    square: {
-      id: toCoord(fieldX, fieldY),
-      coord: toCoord(fieldX, fieldY),
-      x: safeX,
-      y: safeY,
-      lengthIndex: safeX + 1,
-      widthLetter: rowLetter(fieldY),
-    },
-  };
-}
-
-function withBoardPosition(piece, settingsLike = DEFAULT_SETTINGS) {
-  // v13: toate piesele sunt normalizate permanent pe grilă.
-  const grid = normalizeGridPosition(Number(piece.x) || 0, Number(piece.y) || 0, settingsLike);
-  const rawX = grid.x;
-  const rawY = grid.y;
-  return {
-    ...piece,
-    x: rawX,
-    y: rawY,
-    coord: grid.coord,
-    position: {
-      coord: grid.coord,
-      x: grid.x,
-      y: grid.y,
-    },
-  };
-}
-
-function normalizePiecesForBoard(pieces, settingsLike = DEFAULT_SETTINGS) {
-  return (pieces || []).map(piece => withBoardPosition(piece, settingsLike));
 }
 
 function ensureBenchReserveCount(pieces, settingsLike = DEFAULT_SETTINGS, reserveCount = 7) {
@@ -1927,92 +1727,6 @@ function ensureBenchReserveCount(pieces, settingsLike = DEFAULT_SETTINGS, reserv
   });
 
   return normalizePiecesForBoard([...normalized, ...additions], localSettings);
-}
-
-function createSquareObject(x, y, pieces = [], settingsLike = DEFAULT_SETTINGS) {
-  const grid = normalizeGridPosition(x, y, settingsLike);
-  const occupants = normalizePiecesForBoard(pieces, settingsLike).filter(piece => piece.coord === grid.coord);
-  return {
-    id: grid.coord,
-    coord: grid.coord,
-    x: grid.x,
-    y: grid.y,
-    lengthIndex: grid.x + 1,
-    widthLetter: rowLetter(grid.y),
-    occupied: occupants.length > 0,
-    pieces: occupants,
-    piece: occupants[0] || null,
-  };
-}
-
-function buildBoardApi(settingsLike, piecesLike) {
-  const boardPieces = normalizePiecesForBoard(piecesLike, settingsLike);
-  return {
-    cols: settingsLike.cols,
-    rows: settingsLike.rows,
-    toCoord: (x, y) => toCoord(x, y),
-    fromCoord,
-    normalizePosition: (x, y) => normalizeGridPosition(x, y, settingsLike),
-    getPieces: () => boardPieces,
-    getPiece: (pieceId) => boardPieces.find(piece => piece.id === pieceId) || null,
-    getPiecesByTeam: (team) => boardPieces.filter(piece => piece.team === team),
-    getPieceAt: (coord) => {
-      const { x, y } = fromCoord(coord);
-      const normalized = normalizeGridPosition(x, y, settingsLike).coord;
-      return boardPieces.find(piece => piece.coord === normalized) || null;
-    },
-    getPiecesAt: (coord) => {
-      const { x, y } = fromCoord(coord);
-      const normalized = normalizeGridPosition(x, y, settingsLike).coord;
-      return boardPieces.filter(piece => piece.coord === normalized);
-    },
-    isEmpty: (coord) => {
-      const { x, y } = fromCoord(coord);
-      const normalized = normalizeGridPosition(x, y, settingsLike).coord;
-      return !boardPieces.some(piece => piece.coord === normalized);
-    },
-    getSquare: (coord) => {
-      const { x, y } = fromCoord(coord);
-      return createSquareObject(x, y, boardPieces, settingsLike);
-    },
-    getAllSquares: () => {
-      const squares = [];
-      for (let y = 0; y < settingsLike.rows; y++) {
-        for (let x = 0; x < settingsLike.cols; x++) {
-          squares.push(createSquareObject(x, y, boardPieces, settingsLike));
-        }
-      }
-      return squares;
-    },
-    movePiece: (pieceId, coord) => {
-      const { x, y } = fromCoord(coord);
-      const grid = normalizeGridPosition(x, y, settingsLike);
-      return boardPieces.map(piece => piece.id === pieceId ? withBoardPosition({ ...piece, x: grid.x, y: grid.y }, settingsLike) : piece);
-    },
-    distance: (fromCoordValue, toCoordValue) => {
-      const a = fromCoord(fromCoordValue);
-      const b = fromCoord(toCoordValue);
-      const dx = Math.abs(a.x - b.x);
-      const dy = Math.abs(a.y - b.y);
-      return {
-        dx,
-        dy,
-        orthogonal: dx + dy,
-        diagonal: Math.max(dx, dy),
-        straight: Math.sqrt(dx * dx + dy * dy),
-      };
-    },
-    adjacentSquares: (coord, includeDiagonals = false) => {
-      const { x, y } = fromCoord(coord);
-      const deltas = includeDiagonals
-        ? [[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]]
-        : [[0,-1],[1,0],[0,1],[-1,0]];
-      return deltas
-        .map(([dx, dy]) => ({ x: x + dx, y: y + dy }))
-        .filter(pos => pos.x >= 0 && pos.y >= 0 && pos.x < settingsLike.cols && pos.y < settingsLike.rows)
-        .map(pos => createSquareObject(pos.x, pos.y, boardPieces, settingsLike));
-    },
-  };
 }
 
 const FORMATION_SLOTS = [

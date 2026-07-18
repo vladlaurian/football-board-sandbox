@@ -1,52 +1,18 @@
 import { cloneGameState } from "../game/gameState.mjs";
+import { rowLetter } from "../board/boardGeometry.mjs";
+import { createGameplayCardMap } from "../cards/gameplayCard.mjs";
 import { normalizeTimeline, timelineStateAt } from "./timelineEngine.mjs";
 
 export const AI_ANALYSIS_EXPORT_TYPE = "football-board-ai-analysis";
 export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 2;
-
-function rowLetter(index) {
-  let value = Math.max(0, Number(index) || 0) + 1;
-  let label = "";
-  while (value > 0) {
-    const remainder = (value - 1) % 26;
-    label = `${String.fromCharCode(65 + remainder)}${label}`;
-    value = Math.floor((value - 1) / 26);
-  }
-  return label;
-}
 
 export function analysisCoord(piece) {
   if (!piece || !Number.isFinite(Number(piece.x)) || !Number.isFinite(Number(piece.y))) return null;
   return `${rowLetter(piece.y)}${Number(piece.x) + 1}`;
 }
 
-function namedValues(values) {
-  return (Array.isArray(values) ? values : [])
-    .map(value => ({
-      name: String(value?.name || "").trim(),
-      value: Number.isFinite(Number(value?.value)) ? Number(value.value) : 0,
-    }))
-    .filter(value => value.name);
-}
-
-function compactGameplayCard(card) {
-  return {
-    id: String(card?.id || ""),
-    name: String(card?.name || "").trim() || "Unnamed player",
-    position: String(card?.position || "").trim() || null,
-    passiveAttributes: namedValues(card?.passiveAttributes),
-    bonuses: namedValues(card?.bonuses),
-    preferredFoot: String(card?.preferredFoot || "").trim() || null,
-    specialAbility: String(card?.specialAbility || "").trim() || null,
-    defensiveArea: (Array.isArray(card?.defensiveArea) ? card.defensiveArea : [])
-      .map(cell => ({ dx: Number(cell?.dx) || 0, dy: Number(cell?.dy) || 0 })),
-  };
-}
-
 function cardMap(cards) {
-  return new Map((Array.isArray(cards) ? cards : [])
-    .filter(card => card?.id)
-    .map(card => [String(card.id), compactGameplayCard(card)]));
+  return createGameplayCardMap(cards);
 }
 
 function referencedCardIdsForActiveTimeline(timeline) {

@@ -1,5 +1,46 @@
 # Football Board Sandbox
 
+## v18.0 — Structural foundation before gameplay automation
+
+### What changed
+
+- Moved pure board geometry out of `src/main.jsx` into `src/board/boardGeometry.mjs`: grid coordinates, board bounds, invisible bench padding, square lookup, piece-position normalization, and the read-only Board API.
+- Moved movement-state normalization and movement geometry into `src/board/movementState.mjs`.
+- Moved Tracker state normalization, action-log validation, legacy Free Mode migration, and Tracker action labels into `src/tracker/trackerState.mjs`.
+- Added a small shared numeric utility module at `src/game/numberUtils.mjs`.
+- Moved the gameplay-only card projection used by AI Analysis Export into `src/cards/gameplayCard.mjs`.
+- AI Analysis Export now uses the same shared coordinate conversion and card gameplay projection as the application, instead of carrying local duplicate versions.
+- Expanded the automated test command so it covers the new `cards/` and `tracker/` modules as well as the existing board, timeline, and multiplayer suites.
+- Added focused regression tests for board coordinates and normalization, movement cost/state, tracker normalization and legacy Free Mode migration, and gameplay-card projection.
+
+### Why it changed
+
+`src/main.jsx` had accumulated board math, Tracker data repair, movement accounting, AI-card serialization, Firebase behavior, React UI, replay, and multiplayer in the same file. Before adding configurable mechanics such as Dribble, Shot, Tackle, or Offside, those deterministic rules need clear, testable homes outside the React component.
+
+This build deliberately changes structure only. It does not introduce a new football rule, automated resolution, action behavior, UI component, or Firebase format.
+
+### Problems resolved
+
+- Coordinate and piece-normalization logic no longer has separate copies in the Sandbox and AI export paths.
+- Tracker state repair and action validation are now testable without opening the application.
+- The compact gameplay-card data used for AI analysis has one dedicated source, separate from visual card rendering.
+- Future rules can reuse tested board, movement, tracker, and card-data modules instead of adding more behavior to the main application file.
+
+### Impact
+
+- Board appearance, piece movement, reserve placement, Tracker behavior, History, Undo, Redo, Match Timeline, replay, Scenario Save/Load, card rendering, Editor, Inspector, exports, Firebase state, Firestore rules, and multiplayer protocol are intentionally unchanged.
+- Editor = Inspector = Export remains intact: this build does not alter `CardVisualCanvas`, card UI, Inspector rendering, or card-image export.
+- Existing Match Recording and AI Analysis files remain unchanged. The AI export now reaches its existing gameplay fields through shared pure modules only.
+- `main.jsx` remains the application shell for now. Extracting visual React components is intentionally deferred to the next structural step, after this foundation has been verified in the live Sandbox.
+
+### Verification focus
+
+1. Open an existing board and confirm formations, the bench reserve columns, goal size, and player/card attachments are unchanged.
+2. In Match Mode, perform one normal `MOVE`, one `GROUP MOVE`, one `FREE MODE` movement, and one Tracker action such as `PASS`. Confirm History/Undo/Redo and Tracker remain as before.
+3. Join a guest session and repeat a normal move plus Undo/Redo from the host. Confirm both screens remain aligned.
+4. Save a Match, export AI Analysis, then import the Match locally. Confirm the replay opens, card names remain visible in Inspector, and the AI JSON still contains positions, card gameplay data, and semantic timeline events.
+5. Open Editor, Inspector, and one card export as a sanity check: their card visuals must be unchanged.
+
 ## v17.9 — Scenario Save/Load flow and action deselection
 
 ### What changed
