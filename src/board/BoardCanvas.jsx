@@ -81,6 +81,8 @@ export function BoardCanvas({
   defensiveAreaOverlays,
   passPreview,
   passTargeting,
+  passActive,
+  passTargetDistance,
   onSelectPassRoute,
   pieces,
   getPieceDisplayLabel,
@@ -102,7 +104,7 @@ export function BoardCanvas({
 
   return (
     <div
-      className={`board-wrap ${selectedId ? "piece-selected" : ""} ${passTargeting ? "pass-targeting" : ""}`}
+      className={`board-wrap ${selectedId ? "piece-selected" : ""} ${passActive ? "pass-active" : ""}`}
       ref={boardWrapRef}
       onPointerDown={startBoardPan}
       onPointerMove={moveBoardPan}
@@ -140,8 +142,11 @@ export function BoardCanvas({
             {selectedMovementAxis && <div className="selected-axis-badge" style={{ left: `calc((${selectedPiece.x} + .82) * var(--cell))`, top: `calc((${selectedPiece.y} + .08) * var(--cell))` }}>{movementAxisSymbol(selectedMovementAxis)}</div>}
           </>}
 
-          {!passTargeting && movementPreview && hoveredCell && <div className={`destination-cell-highlight ${!movementPreview.legal ? "illegal" : "legal"}`} style={{ left: `calc(${hoveredCell.x} * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell))` }} />}
-          {!passTargeting && movementPreview && hoveredCell && <div className={`movement-cost-badge ${movementPreview.legal ? "" : "illegal"}`} style={{ left: `calc((${hoveredCell.x} + .5) * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell) - 4px)` }}>{movementPreview.label}</div>}
+          {!passActive && movementPreview && hoveredCell && <div className={`destination-cell-highlight ${!movementPreview.legal ? "illegal" : "legal"}`} style={{ left: `calc(${hoveredCell.x} * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell))` }} />}
+          {!passActive && movementPreview && hoveredCell && <div className={`movement-cost-badge ${movementPreview.legal ? "" : "illegal"}`} style={{ left: `calc((${hoveredCell.x} + .5) * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell) - 4px)` }}>{movementPreview.label}</div>}
+          {passTargeting && passTargetDistance && <div className="pass-target-distance" style={{ left: `calc((${passTargetDistance.x} + .5) * var(--cell))`, top: `calc((${passTargetDistance.y} + .5) * var(--cell))` }}>
+            <span className="pass-target-crosshair" /><strong>{passTargetDistance.label}</strong>
+          </div>}
 
           {coordinateCells.map(cell => <div key={`${cell.x}-${cell.y}`} className="coord-label" style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }}>{rowLetter(cell.y)}{cell.x + 1}</div>)}
 
@@ -176,19 +181,25 @@ export function BoardCanvas({
           {passPreview?.blockedCells?.map(cell => <div key={`pass-blocked-${cell.id}`} className="pass-preview-cell blocked" style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
           {passPreview?.visibleCells?.map(cell => <div key={`pass-visible-${cell.id}`} className="pass-preview-cell visible" style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
           {passPreview?.lines?.length > 0 && <svg className="pass-preview-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
-            {passPreview.lines.map(line => <g key={line.id} className={`pass-preview-line ${line.selected ? "selected" : ""}`}>
+            {passPreview.lines.map(line => <g key={line.id} className={`pass-preview-line ${line.risk ? "risk" : "clear"} ${line.selected ? "selected" : ""}`}>
               <line x1={line.origin.x} y1={line.origin.y} x2={line.endpoint.x} y2={line.endpoint.y} />
               <circle cx={line.origin.x} cy={line.origin.y} r=".13" />
               <circle cx={line.endpoint.x} cy={line.endpoint.y} r=".13" />
             </g>)}
           </svg>}
+          {passPreview?.target && <div className="piece-hitbox ball-hitbox pass-target-ball" style={{ left: `calc(${passPreview.target.x} * var(--cell) + var(--cell) * .25)`, top: `calc(${passPreview.target.y} * var(--cell) + var(--cell) * .25)` }} aria-hidden="true">
+            <div className="piece ball pass-target-ghost"><span className="piece-label" /></div>
+          </div>}
           {passPreview?.routes?.map(route => <button
             key={`pass-route-${route.id}`}
             type="button"
-            className={`pass-route-badge ${route.risk ? "risk" : "clear"}`}
+            className={`pass-route-badge ${route.cornerId || "center"} ${route.risk ? "risk" : "clear"}`}
             style={{ left: `calc(${route.origin.x} * var(--cell))`, top: `calc(${route.origin.y} * var(--cell))` }}
-            onPointerDown={event => event.stopPropagation()}
-            onClick={() => onSelectPassRoute?.(route.cornerId)}
+            onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }}
+            onPointerUp={event => { event.preventDefault(); event.stopPropagation(); }}
+            onTouchStart={event => event.stopPropagation()}
+            onTouchEnd={event => event.stopPropagation()}
+            onClick={event => { event.preventDefault(); event.stopPropagation(); onSelectPassRoute?.(route.cornerId); }}
             title={`${route.foot} ${route.modifier} · ${route.isLong ? "Long Pass" : "Short Pass"}`}
           >
             <span>{route.foot} {route.modifier}</span><small>{route.isLong ? "LONG" : "SHORT"}</small>

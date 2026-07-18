@@ -114,7 +114,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.2";
+const APP_VERSION = "v19.3";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5060,6 +5060,9 @@ function App() {
       choosePassTarget(piece.x, piece.y);
       return;
     }
+    // Once the destination is chosen, the board is intentionally locked to
+    // route badges (or panning). A puck click must not restart normal movement.
+    if (actionResolutionRef.current?.kind === "pass") return;
 
     if (e.pointerType === "touch") {
       const now = Date.now();
@@ -5507,9 +5510,16 @@ function App() {
     return {
       plans,
       selectedPlan: chosen,
+      target: pending.target,
       visibleCells,
       blockedCells,
-      lines: plans.map(plan => ({ id: plan.origin.cornerId || "center", origin: plan.origin, endpoint: plan.endpoint, selected: plan.origin.cornerId === pending.cornerId || (plans.length === 1 && !pending.cornerId) })),
+      lines: plans.map(plan => ({
+        id: plan.origin.cornerId || "center",
+        origin: plan.origin,
+        endpoint: plan.endpoint,
+        risk: Boolean(plan.defensiveAreaCrossings?.length),
+        selected: plan.origin.cornerId === pending.cornerId || (plans.length === 1 && !pending.cornerId),
+      })),
       routes: pending.status === "route-selection" ? plans.map(plan => ({
         id: plan.origin.cornerId || "center",
         cornerId: plan.origin.cornerId,
@@ -5521,6 +5531,21 @@ function App() {
       })) : [],
     };
   }, [actionResolution, pieces, cardById, settings, activeRuleSet]);
+
+  const passActive = actionResolution?.kind === "pass" && ["targeting", "route-selection", "awaiting-interception-roll", "resolving"].includes(actionResolution.status);
+  const passTargetDistance = useMemo(() => {
+    const pending = actionResolution;
+    if (pending?.kind !== "pass" || pending.status !== "targeting" || !hoveredCell) return null;
+    if (hoveredCell.x < 0 || hoveredCell.y < 0 || hoveredCell.x >= settings.cols || hoveredCell.y >= settings.rows) return null;
+    const passer = pieces.find(piece => piece.id === pending.passerId);
+    if (!passer) return null;
+    const distance = Math.hypot((hoveredCell.x + .5) - (passer.x + .5), (hoveredCell.y + .5) - (passer.y + .5));
+    return {
+      x: hoveredCell.x,
+      y: hoveredCell.y,
+      label: `${distance.toFixed(2)} sq`,
+    };
+  }, [actionResolution, hoveredCell, pieces, settings.cols, settings.rows]);
 
   const defAreaButtonLabel = defAreaMode === 0 ? "D.A OFF" : defAreaMode === 1 ? "D.A.1" : "D.A.2";
   useEffect(() => {
@@ -8040,7 +8065,10 @@ function App() {
   }
 
   function moveBoardPan(e) {
-    if (selectedId && e.pointerType !== "touch") {
+    const pass = actionResolutionRef.current;
+    if (pass?.kind === "pass" && pass.status !== "targeting") {
+      setHoveredCell(null);
+    } else if (selectedId && e.pointerType !== "touch") {
       setHoveredCell(gridPointFromClient(e.clientX, e.clientY, { clampToBoard: false }));
     }
 
@@ -8067,6 +8095,10 @@ function App() {
     if (measureMode || wasPanning) return;
     if (e.pointerType === "touch" && Date.now() < multiTouchUntilRef.current) return;
     if (e.target?.closest?.(".piece")) return;
+
+    // Route badges are the only allowed board click after a pass target is set.
+    // This prevents the underlying square from being treated as a player move.
+    if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "route-selection") return;
 
     const point = gridPointFromClient(e.clientX, e.clientY);
     if (!point) return;
@@ -8660,6 +8692,16 @@ function App() {
     // PASS is intentionally not consumed until a destination and a physical
     // route are confirmed. Cancelling the preview leaves Tracker untouched.
     if (type === "PASS") {
+      if (gameMode === "match") {
+        if (!isTeamPhaseActive(team)) {
+          setIllegalMoveNotice({ reason: phaseBlockReason() });
+          return;
+        }
+        if (getTeamActionStatus(team).exhausted) {
+          setIllegalMoveNotice({ reason: "actions-complete-end-turn" });
+          return;
+        }
+      }
       beginPassTargeting(piece);
       return;
     }
@@ -9128,6 +9170,10 @@ function App() {
         } else if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting") {
           const point = gridPointFromClient(gesture.startX, gesture.startY);
           if (point) choosePassTarget(point.x, point.y);
+        } else if (actionResolutionRef.current?.kind === "pass") {
+          // After target selection, touch input is reserved for a route badge
+          // or for two-finger panning; it cannot become a board movement.
+          return;
         } else if (selectedId) {
           const point = gridPointFromClient(gesture.startX, gesture.startY);
           if (point) moveSelectedPieceTo(point.x, point.y);
@@ -9440,6 +9486,8 @@ function App() {
         defensiveAreaOverlays={defensiveAreaOverlays}
         passPreview={passPreview}
         passTargeting={actionResolution?.kind === "pass" && actionResolution.status === "targeting"}
+        passActive={passActive}
+        passTargetDistance={passTargetDistance}
         onSelectPassRoute={confirmPassRoute}
         pieces={pieces}
         getPieceDisplayLabel={getPieceDisplayLabel}

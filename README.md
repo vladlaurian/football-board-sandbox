@@ -1,5 +1,42 @@
 # Football Board Sandbox
 
+## v19.3 — Pass interaction, targeting, and ball visual polish
+
+### What changed
+
+- Kept the pass flow entirely on the pitch, but separated the four Corner → Center route controls so they no longer overlap each other.
+- Made pass lines substantially thicker: green when the route enters no defensive area and red when it enters at least one defensive area.
+- Added a translucent football ghost at the selected destination square.
+- Replaced the old text-dot ball drawing with a compact football pattern without changing its piece dimensions or the v16.6 mouse/touch hitbox.
+- Fixed route-control input priority. Once a target is chosen, board clicks cannot become normal piece movement; players can only choose a route or pan the board.
+- Kept the crosshair active throughout the unresolved pass sequence. During target selection it displays live geometric distance from the selected passer to the target square; after the route choices appear, movement-distance UI is suppressed.
+- Added an early Tracker-phase check before PASS target selection, so an inactive team cannot reach the route UI and receive a late illegal-move error.
+
+### Why it changed
+
+The pass route must be readable and directly controllable on the board. The previous controls were visually cramped and a route click could leak into the normal board-movement handler. A pass also needs a clear visual state from targeting until resolution, rather than sharing the ordinary movement cursor and cost indicators.
+
+### Problems resolved
+
+- Four pass origin controls no longer compete for the same point on the board.
+- A route click no longer triggers the underlying cell's movement validation.
+- The player can distinguish a safe-looking defensive-area path from a path that enters defensive coverage before committing PASS.
+- Targeting now communicates pass distance without showing the selected player's movement range.
+
+### Impact
+
+- PASS geometry, interception eligibility, manual D20 rolls, Timeline, multiplayer synchronization, replay, and AI export are unchanged.
+- The ball's wrapper and hitbox are unchanged; this build changes only its visual drawing.
+- Editor = Inspector = Export remains intact. No card data or card-rendering path was changed.
+
+### Verification focus
+
+1. Start a valid PASS. Confirm a crosshair appears with a live `sq` distance label as the cursor moves over the pitch, with no movement-range/cost indicator.
+2. Select a target. Confirm the target contains a translucent football ghost, the four route controls are separated, and the cursor stays a crosshair.
+3. Confirm pass lines are thick green when they enter no defensive area and thick red when they do. Confirm clicking a route does not show an `Illegal move` dialog or move the passer.
+4. During route selection, click elsewhere on the board: it must do nothing; drag the board: panning must still work.
+5. Complete both a direct pass and an interception-roll pass. Confirm the crosshair ends only when the pass resolution finishes, and the existing persistent result dialog still appears after a manual roll.
+
 ## v19.2 — Pass route board controls and persistent roll results
 
 ### What changed
