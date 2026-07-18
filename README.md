@@ -1,5 +1,37 @@
 # Football Board Sandbox
 
+## v18.4 — Multiplayer Match Timeline authority
+
+### What changed
+
+- Made the active shared Match Timeline authoritative for board positions and gameplay state in multiplayer Match Mode.
+- Prevented the separate Firebase `board` projection from overwriting the board while a Match Timeline is active.
+- Added a same-revision Timeline acknowledgement path: it reapplies the canonical Timeline state if a client view was temporarily overwritten by an out-of-order Firebase snapshot.
+- Added regression tests for delayed board projections and same-revision Timeline restoration.
+
+### Why it changed
+
+A rare Firebase ordering race could affect the player who made a move: the Timeline and Tracker committed correctly, and the host saw the right position, but a delayed older board snapshot could redraw the guest's player at its previous square. The next host update happened to repair that view.
+
+### Problems resolved
+
+- A guest's completed Match Mode move no longer has a second, older board state allowed to teleport its puck back locally.
+- Match gameplay now has one authority path: the Timeline. The Firebase board data remains a persisted projection and continues to serve Editor Mode.
+- A same-revision acknowledgement can repair a local render after an out-of-order event rather than ignoring it solely because the revision number matches.
+
+### Impact
+
+- Multiplayer Match Mode is more resilient to rare delayed or reordered Firebase snapshots.
+- Editor Mode keeps its direct live-board synchronization behavior.
+- History, Undo, Redo, replay, Tracker, dice, card visibility, Scenario flow, and Firebase persistence formats remain unchanged.
+- Editor = Inspector = Export remains intact; card rendering and exported card data were not modified.
+
+### Verification focus
+
+1. In a two-player Match Mode session, let the guest move one of its own players and wait five seconds without any host action. Both browsers must show the same final square.
+2. Repeat this after a `MOVE` activation and once with a ball-carrying player, then confirm History and Tracker match on both browsers.
+3. In Editor Mode multiplayer, move a player from either team as before and confirm direct board synchronization still works.
+
 ## v18.3 — Extracted component runtime repair
 
 ### What changed

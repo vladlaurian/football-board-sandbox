@@ -50,7 +50,9 @@ import {
   createSharedTimelineMeta,
   hydrateSessionTimeline,
   nullableFiniteNumber,
+  shouldApplySessionBoardProjection,
   shouldApplyIncomingTimeline,
+  shouldRestoreTimelineState,
   timelineDiceRollId,
 } from "./multiplayer/sessionTimeline.mjs";
 import {
@@ -78,7 +80,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v18.3";
+const APP_VERSION = "v18.4";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2618,8 +2620,11 @@ function App() {
     const meta = sharedTimelineMetaRef.current;
     const hydrated = hydrateSessionTimeline(meta, sessionTimelineEntriesRef.current, captureTimelineGameState());
     if (!hydrated) return;
-    if (!shouldApplyIncomingTimeline(gameTimelineRef.current, hydrated, pendingTimelineSyncCountRef.current)) return;
-    replaceGameTimeline(hydrated);
+    const localTimeline = gameTimelineRef.current;
+    if (!shouldRestoreTimelineState(localTimeline, hydrated, pendingTimelineSyncCountRef.current)) return;
+    if (shouldApplyIncomingTimeline(localTimeline, hydrated, pendingTimelineSyncCountRef.current)) {
+      replaceGameTimeline(hydrated);
+    }
     applyTimelineGameState(timelineStateAt(hydrated, hydrated.cursor));
   }
 
@@ -3191,7 +3196,9 @@ function App() {
       // An active timeline (or an optimistic mode transition still being
       // written) owns gameplay. Once a recording is closed, editor updates can
       // use the legacy projection again.
+      const localTimelineActive = Boolean(gameTimelineRef.current && !gameTimelineRef.current.endedAt);
       const timelineControlsGameplay = Boolean(incomingTimelineMeta && !incomingTimelineMeta.endedAt)
+        || localTimelineActive
         || pendingTimelineSyncCountRef.current > 0;
       if (!timelineControlsGameplay) {
         const sharedGameMode = normalizeGameMode(sharedTracker.gameMode);
@@ -3230,7 +3237,10 @@ function App() {
         : null;
       if (sharedAssignments) sessionAssignmentsRef.current = sharedAssignments;
 
-      if (data.board && !isOwnBoardUpdate) {
+      if (data.board && shouldApplySessionBoardProjection({
+        isOwnUpdate: isOwnBoardUpdate,
+        timelineActive: timelineControlsGameplay,
+      })) {
         isApplyingSessionRef.current = true;
         applyLiveBoardState(decodeFromFirestore(data.board), sharedAssignments);
         sessionHydratedRef.current = true;

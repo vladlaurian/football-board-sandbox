@@ -58,3 +58,20 @@ export function shouldApplyIncomingTimeline(localTimeline, incomingTimeline, pen
   if (local.recordingId !== incoming.recordingId) return pendingSyncCount <= 0;
   return incoming.revision > local.revision;
 }
+
+// A matching revision is an acknowledgement of the same canonical timeline.
+// It must be allowed to restore the rendered game state after an out-of-order
+// board projection arrived while this client was committing its own action.
+export function shouldRestoreTimelineState(localTimeline, incomingTimeline, pendingSyncCount = 0) {
+  if (shouldApplyIncomingTimeline(localTimeline, incomingTimeline, pendingSyncCount)) return true;
+  if (!localTimeline || !incomingTimeline) return false;
+  const local = normalizeTimeline(localTimeline, {});
+  const incoming = normalizeTimeline(incomingTimeline, {});
+  return local.recordingId === incoming.recordingId && incoming.revision === local.revision;
+}
+
+// In Match Mode, the Timeline is authoritative. The session board document is
+// a projection for persistence and Editor Mode, not a second state authority.
+export function shouldApplySessionBoardProjection({ isOwnUpdate = false, timelineActive = false } = {}) {
+  return !isOwnUpdate && !timelineActive;
+}

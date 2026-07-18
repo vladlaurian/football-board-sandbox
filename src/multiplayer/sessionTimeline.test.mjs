@@ -5,7 +5,9 @@ import {
   createSharedTimelineMeta,
   hydrateSessionTimeline,
   nullableFiniteNumber,
+  shouldApplySessionBoardProjection,
   shouldApplyIncomingTimeline,
+  shouldRestoreTimelineState,
   timelineDiceRollId,
 } from "./sessionTimeline.mjs";
 
@@ -62,4 +64,18 @@ test("timeline reconciliation rejects stale echoes and protects pending mode cha
   assert.equal(shouldApplyIncomingTimeline(local, newer, 0), true);
   assert.equal(shouldApplyIncomingTimeline(local, different, 1), false);
   assert.equal(shouldApplyIncomingTimeline(local, different, 0), true);
+});
+
+test("a matching timeline revision can restore a locally rolled-back board view", () => {
+  const local = { ...createTimeline(initial, { recordingId: "shared" }), revision: 4 };
+  const sameRevision = { ...local, revision: 4 };
+  const stale = { ...local, revision: 3 };
+  assert.equal(shouldRestoreTimelineState(local, sameRevision, 1), true);
+  assert.equal(shouldRestoreTimelineState(local, stale, 0), false);
+});
+
+test("an active Match Timeline rejects delayed board projections", () => {
+  assert.equal(shouldApplySessionBoardProjection({ isOwnUpdate: false, timelineActive: true }), false);
+  assert.equal(shouldApplySessionBoardProjection({ isOwnUpdate: true, timelineActive: false }), false);
+  assert.equal(shouldApplySessionBoardProjection({ isOwnUpdate: false, timelineActive: false }), true);
 });
