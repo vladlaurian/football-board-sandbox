@@ -23,7 +23,7 @@ const settings = {
   cornerArcRadius: 1,
 };
 
-test("extracted Board and History JSX components render through Vite", async (t) => {
+test("extracted Board, History, and Tracker JSX components render through Vite", async (t) => {
   const server = await createServer({
     server: { middlewareMode: true },
     optimizeDeps: { noDiscovery: true },
@@ -33,6 +33,7 @@ test("extracted Board and History JSX components render through Vite", async (t)
 
   const { BoardCanvas } = await server.ssrLoadModule("/src/board/BoardCanvas.jsx");
   const { HistoryPanel } = await server.ssrLoadModule("/src/match/HistoryPanel.jsx");
+  const { TrackerPanel } = await server.ssrLoadModule("/src/tracker/TrackerPanel.jsx");
 
   const boardMarkup = renderToStaticMarkup(
     React.createElement(BoardCanvas, {
@@ -100,4 +101,37 @@ test("extracted Board and History JSX components render through Vite", async (t)
     }),
   );
   assert.match(historyMarkup, /history-panel/);
+
+  const trackerMarkup = renderToStaticMarkup(
+    React.createElement(TrackerPanel, {
+      visible: true,
+      lockUI: false,
+      minimized: false,
+      readOnly: false,
+      position: { x: 0, y: 0 },
+      size: { w: 390, h: 390 },
+      onPointerMove: noop,
+      onPointerUp: noop,
+      onTitlePointerDown: noop,
+      onMinimize: noop,
+      onClose: noop,
+      gameStarted: true,
+      onStartOrRestart: noop,
+      onChangePossession: noop,
+      onReset: noop,
+      trackerSettings: { attackActions: 5, defenseActions: 4, turns: 20 },
+      trackerRoleFor: team => team === "blue" ? "attack" : "defense",
+      trackerActionCountFor: team => team === "blue" ? 5 : 4,
+      usedActions: { blue: 1, red: 0 },
+      gameMode: "match",
+      actionLog: { blue: [{ type: "MOVE" }], red: [] },
+      onToggleAction: noop,
+      onRemoveLastAction: noop,
+      currentTurn: 1,
+      onSelectTurn: noop,
+      onResizeDown: noop,
+    }),
+  );
+  assert.match(trackerMarkup, /tracker-panel/);
+  assert.match(trackerMarkup, /MV/);
 });

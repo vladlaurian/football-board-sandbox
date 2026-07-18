@@ -59,7 +59,6 @@ import {
 import {
   normalizeMatchActionState,
   normalizeTrackerSnapshot,
-  TRACKER_ACTION_ABBR,
 } from "./tracker/trackerState.mjs";
 import {
   activateTrackerAction,
@@ -80,6 +79,7 @@ import {
   trackerTurnChangeDecision,
 } from "./tracker/actionRules.mjs";
 import { HistoryPanel } from "./match/HistoryPanel.jsx";
+import { TrackerPanel } from "./tracker/TrackerPanel.jsx";
 import "./styles.css";
 
 const firebaseConfig = {
@@ -99,7 +99,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v18.8";
+const APP_VERSION = "v18.9";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -1937,10 +1937,10 @@ function App() {
   const [historyVisible, setHistoryVisible] = useState(false);
   const [dicePanelVisible, setDicePanelVisible] = useState(false);
   const [dicePanelPosition, setDicePanelPosition] = useState({ x: 420, y: 180 });
-  // Dice window layout is intentionally local to each browser.  The larger
+  // Dice window layout is intentionally local to each browser.  The compact
   // default keeps both results and Roll buttons visible on first open; any
   // later resize remains in memory for this running session only.
-  const [dicePanelSize, setDicePanelSize] = useState({ w: 420, h: 300 });
+  const [dicePanelSize, setDicePanelSize] = useState({ w: 360, h: 240 });
   const [dicePanelDragging, setDicePanelDragging] = useState(null);
   const [dicePanelResizing, setDicePanelResizing] = useState(null);
   const [rulerPanelPosition, setRulerPanelPosition] = useState({ x: 20, y: 150 });
@@ -9293,75 +9293,34 @@ function App() {
         </div>
       )}
 
-      {trackerVisible && !lockUI && (
-        <div
-          className={`tracker-panel ${trackerMinimized ? "minimized" : ""} ${trackerReadOnly ? "read-only" : ""}`}
-          style={{ left: trackerPosition.x, top: trackerPosition.y, width: trackerSize.w, height: trackerMinimized ? 34 : trackerSize.h }}
-          onPointerMove={(e) => { onTrackerPointerMove(e); onTrackerResizeMove(e); }}
-          onPointerUp={onTrackerPointerUp}
-          onPointerCancel={onTrackerPointerUp}
-        >
-          <div className="tracker-panel-title" onPointerDown={onTrackerPointerDown}>
-            <strong>TRACKER{trackerReadOnly ? " — VIEW ONLY" : ""}</strong>
-            <div className="tracker-panel-actions">
-              <button onPointerDown={e => e.stopPropagation()} onClick={() => setTrackerMinimized(v => !v)}>{trackerMinimized ? "□" : "—"}</button>
-              <button onPointerDown={e => e.stopPropagation()} onClick={() => setTrackerEnabledForSession(false)}>×</button>
-            </div>
-          </div>
-          {!trackerMinimized && (
-            <div className="tracker-panel-body">
-              <div className="tracker-main-actions">
-                <button className="tracker-primary-button" onClick={() => setTrackerStartChoiceOpen(true)} disabled={trackerReadOnly}>{trackerGameStarted ? "Restart Game" : "Start Game"}</button>
-                <button className="tracker-primary-button" onClick={changeTrackerPossession} disabled={trackerReadOnly || !trackerGameStarted}>Change Possession</button>
-                <button onClick={resetTrackerActions} disabled={trackerReadOnly || !trackerGameStarted}>Reset Trackers</button>
-              </div>
-              <div className="tracker-team-grid">
-                {["blue", "red"].map(team => {
-                  const role = trackerRoleFor(team);
-                  const count = role === "waiting" ? (team === "red" ? trackerSettings.attackActions : trackerSettings.defenseActions) : trackerActionCountFor(team);
-                  const used = trackerUsedActions[team];
-                  return (
-                    <section key={team} className={`tracker-team ${team}`}>
-                      <div className="tracker-team-title"><strong>{team.toUpperCase()}</strong><span>{role === "attack" ? "ATTACK" : role === "defense" ? "DEFENSE" : "WAITING"}</span></div>
-                      <div className="tracker-action-dots">
-                        {Array.from({ length: count }, (_, index) => {
-                          const editorMode = gameMode === "editor";
-                          const isUsed = index < used;
-                          const canEditDot = !trackerReadOnly && trackerGameStarted && (editorMode || index === used - 1);
-                          return (
-                            <button
-                              key={index}
-                              aria-label={`${team} action ${index + 1}`}
-                              className={isUsed ? "used" : ""}
-                              onClick={() => editorMode ? toggleTrackerAction(team, index) : (index === used - 1 && removeLastTrackerAction(team))}
-                              disabled={!canEditDot}
-                              aria-disabled={!canEditDot}
-                            >{isUsed && !editorMode ? (TRACKER_ACTION_ABBR[trackerActionLog[team]?.[index]?.type] || "•") : ""}</button>
-                          );
-                        })}
-                      </div>
-                    </section>
-                  );
-                })}
-              </div>
-              <div className="tracker-turns-block">
-                <strong>TURN</strong>
-                <div className="tracker-turns">
-                  {Array.from({ length: trackerSettings.turns }, (_, index) => index + 1).map(turn => (
-                    <button
-                      key={turn}
-                      className={turn === trackerCurrentTurn ? "active" : turn < trackerCurrentTurn ? "completed" : ""}
-                      onClick={() => selectTrackerTurn(turn)}
-                      disabled={trackerReadOnly || !trackerGameStarted || turn > trackerCurrentTurn + 1} aria-disabled={trackerReadOnly || !trackerGameStarted || turn > trackerCurrentTurn + 1}
-                    >{turn}</button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-          {!trackerMinimized && <div className="tracker-resize" onPointerDown={onTrackerResizeDown} />}
-        </div>
-      )}
+      <TrackerPanel
+        visible={trackerVisible}
+        lockUI={lockUI}
+        minimized={trackerMinimized}
+        readOnly={trackerReadOnly}
+        position={trackerPosition}
+        size={trackerSize}
+        onPointerMove={e => { onTrackerPointerMove(e); onTrackerResizeMove(e); }}
+        onPointerUp={onTrackerPointerUp}
+        onTitlePointerDown={onTrackerPointerDown}
+        onMinimize={() => setTrackerMinimized(v => !v)}
+        onClose={() => setTrackerEnabledForSession(false)}
+        gameStarted={trackerGameStarted}
+        onStartOrRestart={() => setTrackerStartChoiceOpen(true)}
+        onChangePossession={changeTrackerPossession}
+        onReset={resetTrackerActions}
+        trackerSettings={trackerSettings}
+        trackerRoleFor={trackerRoleFor}
+        trackerActionCountFor={trackerActionCountFor}
+        usedActions={trackerUsedActions}
+        gameMode={gameMode}
+        actionLog={trackerActionLog}
+        onToggleAction={toggleTrackerAction}
+        onRemoveLastAction={removeLastTrackerAction}
+        currentTurn={trackerCurrentTurn}
+        onSelectTurn={selectTrackerTurn}
+        onResizeDown={onTrackerResizeDown}
+      />
 
       {diceNotice && (
         <div className={`dice-notice ${diceNotice.team} ${diceNotice.result === 1 ? "critical-one" : diceNotice.result === diceNotice.dieType ? "critical-max" : ""}`}>

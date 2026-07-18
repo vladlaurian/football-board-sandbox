@@ -1,5 +1,39 @@
 # Football Board Sandbox
 
+## v18.9 — TrackerPanel extraction and compact Dice default
+
+### What changed
+
+- Extracted the Tracker's visual JSX into `src/tracker/TrackerPanel.jsx`.
+- Kept Tracker state, rule decisions, Timeline recording, Firebase synchronization, permission checks, dragging, resizing, and modal decisions in `main.jsx`.
+- Added rendering coverage for the extracted Tracker component alongside the existing Board and History component checks.
+- Reduced the Dice window's local initial size to `360 × 240`, while preserving its existing per-browser, in-session manual resize behavior.
+- Updated the in-app Sandbox version and package version to v18.9.
+
+### Why it changed
+
+The Tracker was still embedded in the application shell despite being a self-contained visual panel. Separating only its rendering makes future gameplay work easier to isolate without changing authoritative state behavior. The previous Dice default was larger than necessary after live use.
+
+### Problems resolved
+
+- Tracker visual markup no longer makes `main.jsx` larger or harder to audit.
+- Dice opens compactly while keeping its Roll controls visible.
+
+### Impact
+
+- Tracker functionality is intentionally unchanged: host editing, guest view-only mode, action dots, action removal, turns, phases, possession, start/restart, minimize, close, drag, resize, Timeline, and Firebase all use the same existing callbacks and state.
+- Dice dimensions remain local UI state. A manual resize lasts for the current browser session only, is not saved to Firebase, and is not shared with the guest.
+- Scenario visibility, History, Undo, Redo, replay, card rendering, Editor, Inspector, Export, and gameplay rules are unchanged.
+- Editor = Inspector = Export remains intact.
+
+### Verification focus
+
+1. Open Dice and confirm its default is visibly smaller than v18.8 but still shows both Roll buttons and both result areas.
+2. Resize Dice, close and reopen it during the same session, then refresh the app to confirm the existing local behavior is unchanged.
+3. Open Tracker as host: start/restart, Change Possession, Reset Trackers, action dots, turn navigation, drag, resize, minimize, and close must behave as before.
+4. Join as guest and confirm Tracker stays view-only, while opening/closing it remains local to that browser.
+5. In Match Mode, perform an action, Undo it, then Redo it; confirm Tracker, History, board, and guest stay aligned.
+
 ## v18.8 — Guest Scenario visibility and Dice window default
 
 ### What changed
