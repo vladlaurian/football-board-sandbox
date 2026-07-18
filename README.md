@@ -1,5 +1,41 @@
 # Football Board Sandbox
 
+## v18.2 — Board and History/Replay UI extraction
+
+### What changed
+
+- Moved the pitch, field markings, goals, pieces, movement preview, ruler overlay, coordinates, hitboxes, and board pointer/touch wiring from `src/main.jsx` into `src/board/BoardCanvas.jsx`.
+- Moved the floating History / Replay window from `src/main.jsx` into `src/match/HistoryPanel.jsx`.
+- Board geometry displayed by the UI now stays with the Board component, while the existing pure board-coordinate and movement modules remain its shared data foundation.
+- Removed the old duplicate Board rendering helpers from `main.jsx` after extraction.
+
+### Why it changed
+
+The application shell should coordinate state and gameplay decisions, not also contain the full pitch renderer and Replay window markup. These two UI areas have clear boundaries: they receive already-calculated state and invoke the existing callbacks, but do not own rules, Firebase writes, multiplayer decisions, or Match Timeline mutations.
+
+This is the second controlled refactor step after v18.0. Tracker UI and shared card rendering are deliberately not moved yet.
+
+### Problems resolved
+
+- Board presentation is no longer interleaved with Inspector, Tracker, dialogs, Firebase behavior, and card-editor code in the application shell.
+- History / Replay presentation is separated from timeline state manipulation, making later Replay controls easier to evolve without creating a second timeline.
+- The old in-place Board JSX and its local pitch-render helpers were removed rather than kept as a parallel legacy renderer.
+
+### Impact
+
+- Board appearance, grid coordinates, goals, reserve padding, pieces, hitboxes, pan, zoom, ruler, touch controls, movement preview, and defensive-area overlay are intended to be unchanged.
+- History remains the visual view of the existing unified Match Timeline. Undo, Redo, direct cursor jumps, replay auto-scroll, multiplayer authority, and recording/replay formats are unchanged.
+- Tracker, phases, action economy, Firebase persistence, multiplayer state, Scenario Save/Load, card data, and card rendering are unchanged.
+- Editor = Inspector = Export remains intact: no card component, visual card data, or export renderer was modified.
+
+### Verification focus
+
+1. In Editor Mode, pan/zoom the board, select a player, move it, and double-click it. Confirm hitboxes, selection, and the edit dialog still work.
+2. Turn Coordinates and Ruler on, drag a ruler measurement, then turn both off. Confirm the board remains responsive.
+3. In Match Mode, select a carded player, hover both straight and diagonal destinations, perform a `MOVE`, then Undo and Redo.
+4. Open History, drag and resize its window, use Clear in a normal Match, then save/import a replay and use `0. Start`, Undo, Redo, and a direct History item jump.
+5. In multiplayer, host moves a player and navigates Undo/Redo; guest should see the same board and History state without gaining editing authority.
+
 ## v18.1 — Match Mode movement calculation repair
 
 ### What changed

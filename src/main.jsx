@@ -22,12 +22,11 @@ import {
   invisiblePaddingForSettings,
   normalizeGridPosition,
   normalizePiecesForBoard,
-  rowLetter,
   toCoord,
-  withBoardPosition,
 } from "./board/boardGeometry.mjs";
 import { diagonalCostForDistance, getMovementGeometry, normalizeMovementState } from "./board/movementState.mjs";
 import { createDefaultScenarioSlots, normalizeScenarioSlots } from "./board/scenarioUtils.mjs";
+import { BoardCanvas } from "./board/BoardCanvas.jsx";
 import { clamp } from "./game/numberUtils.mjs";
 import {
   closeTimeline,
@@ -59,6 +58,7 @@ import {
   normalizeTrackerSnapshot,
   TRACKER_ACTION_ABBR,
 } from "./tracker/trackerState.mjs";
+import { HistoryPanel } from "./match/HistoryPanel.jsx";
 import "./styles.css";
 
 const firebaseConfig = {
@@ -78,7 +78,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v18.1";
+const APP_VERSION = "v18.2";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -7573,93 +7573,6 @@ function App() {
     );
   }
 
-  const line = (style, extraClass = "") => <div className={`pitch-line ${extraClass}`} style={style} />;
-
-  const boxTop = Math.floor((settings.rows - settings.boxWidth) / 2);
-  const smallTop = Math.floor((settings.rows - settings.smallWidth) / 2);
-  const goalTop = Math.floor((settings.rows - settings.goalWidth) / 2);
-  const centerX = settings.cols / 2;
-  const centerY = settings.rows / 2;
-  const centerDotX = Math.floor(settings.cols / 2);
-  const centerDotY = Math.floor(settings.rows / 2);
-
-  const leftPenaltyX = settings.penaltyDistance;
-  const rightPenaltyX = settings.cols - settings.penaltyDistance;
-  const penaltyY = settings.penaltyY;
-
-  function arcMask(side) {
-    const r = settings.arcRadius;
-    const cx = side === "left" ? leftPenaltyX : rightPenaltyX;
-    const cy = penaltyY + 0.5;
-    const boxEdgeX = side === "left" ? settings.boxDepth : settings.cols - settings.boxDepth;
-
-    const left = cx - r;
-    const top = cy - r;
-    const diameter = r * 2;
-
-    if (side === "left") {
-      // Show only the part outside the left penalty box, i.e. to the right of the penalty-box vertical line.
-      const maskLeft = boxEdgeX;
-      const maskWidth = Math.max(0, left + diameter - boxEdgeX);
-      return {
-        mask: {
-          left: `calc(${maskLeft} * var(--cell))`,
-          top: `calc(${top} * var(--cell))`,
-          width: `calc(${maskWidth} * var(--cell))`,
-          height: `calc(${diameter} * var(--cell))`,
-        },
-        circle: {
-          left: `calc(${left - maskLeft} * var(--cell))`,
-          top: `0px`,
-          width: `calc(${diameter} * var(--cell))`,
-          height: `calc(${diameter} * var(--cell))`,
-        }
-      };
-    }
-
-    // Show only the part outside the right penalty box, i.e. to the left of the penalty-box vertical line.
-    const maskLeft = left;
-    const maskWidth = Math.max(0, boxEdgeX - left);
-    return {
-      mask: {
-        left: `calc(${maskLeft} * var(--cell))`,
-        top: `calc(${top} * var(--cell))`,
-        width: `calc(${maskWidth} * var(--cell))`,
-        height: `calc(${diameter} * var(--cell))`,
-      },
-      circle: {
-        left: `0px`,
-        top: `0px`,
-        width: `calc(${diameter} * var(--cell))`,
-        height: `calc(${diameter} * var(--cell))`,
-      }
-    };
-  }
-
-
-  function goalGrid(side) {
-    const mouthX = side === "left" ? settings.goalDepth : 0;
-    const backPostX = side === "left" ? 0 : settings.goalDepth;
-    const internalVerticalLines = Array.from({ length: Math.max(0, settings.goalDepth - 1) }, (_, i) => i + 1);
-    const internalHorizontalLines = Array.from({ length: Math.max(0, settings.goalWidth - 1) }, (_, i) => i + 1);
-
-    return (
-      <svg className="goal-grid" viewBox={`0 0 ${settings.goalDepth} ${settings.goalWidth}`} preserveAspectRatio="none" aria-hidden="true">
-        {internalVerticalLines.map(i => (
-          <line className="goal-grid-line" key={`v-${i}`} x1={i} y1={0} x2={i} y2={settings.goalWidth} />
-        ))}
-        {internalHorizontalLines.map(i => (
-          <line className="goal-grid-line" key={`h-${i}`} x1={0} y1={i} x2={settings.goalDepth} y2={i} />
-        ))}
-        <line className="goal-frame-line" x1={backPostX} y1={0} x2={backPostX} y2={settings.goalWidth} />
-        <line className="goal-frame-line" x1={backPostX} y1={0} x2={mouthX} y2={0} />
-        <line className="goal-frame-line" x1={backPostX} y1={settings.goalWidth} x2={mouthX} y2={settings.goalWidth} />
-      </svg>
-    );
-  }
-
-  const leftArc = arcMask("left");
-  const rightArc = arcMask("right");
 
   function movementAxisSymbol(axis) {
     if (axis === "horizontal") return "↔";
@@ -8980,231 +8893,42 @@ function App() {
       {cardsPanelOpen && !lockUI && CardsPanel()}
 
       <div className="board-and-inspector">
-      <div
-        className={`board-wrap ${selectedId ? "piece-selected" : ""}`}
-        ref={boardWrapRef}
-        onPointerDown={startBoardPan}
-        onPointerMove={moveBoardPan}
-        onPointerUp={endBoardPan}
-        onPointerCancel={endBoardPan}
-        onPointerLeave={() => setHoveredCell(null)}
-        onWheel={onBoardWheel}
-        onTouchStart={onBoardTouchStart}
-        onTouchMove={onBoardTouchMove}
-        onTouchEnd={onBoardTouchEnd}
-        onTouchCancel={onBoardTouchEnd}
-      >
-        <div className="pitch-shell" style={pitchShellStyle}>
-          <div
-            className="pitch"
-            ref={pitchRef}
-            style={pitchStyle}
-            onPointerDown={onPitchPointerDown}
-            onPointerMove={onPitchPointerMove}
-            onPointerUp={onPitchPointerUp}
-            onPointerCancel={onPitchPointerCancel}
-          >
-            <div className="extended-hit-area" style={{
-              left: `calc(${-invisiblePaddingForSettings(settings)} * var(--cell))`,
-              top: `calc(${-invisiblePaddingForSettings(settings)} * var(--cell))`,
-              width: `calc((${settings.cols} + ${invisiblePaddingForSettings(settings) * 2}) * var(--cell))`,
-              height: `calc((${settings.rows} + ${invisiblePaddingForSettings(settings) * 2}) * var(--cell))`,
-            }} />
-            <div className="half-line" />
-            <div className="center-circle" style={{
-              width: `calc(${settings.centerCircleRadius * 2} * var(--cell))`,
-              height: `calc(${settings.centerCircleRadius * 2} * var(--cell))`,
-              left: `calc((${centerX} - ${settings.centerCircleRadius}) * var(--cell))`,
-              top: `calc((${centerY} - ${settings.centerCircleRadius}) * var(--cell))`,
-            }} />
-            <div className="center-dot" style={{
-              left: `calc(${centerX} * var(--cell) - var(--cell) * .08 + 1px)`,
-              top: `calc((${centerDotY} + .5) * var(--cell) - var(--cell) * .08)`
-            }} />
-
-            {selectedPiece && (
-              <>
-                <div className="selected-cell" style={{
-                  left: `calc(${Math.floor(selectedPiece.x)} * var(--cell))`,
-                  top: `calc(${Math.floor(selectedPiece.y)} * var(--cell))`,
-                }} />
-                {selectedMovementAxis && (
-                  <div className="selected-axis-badge" style={{
-                    left: `calc((${selectedPiece.x} + .82) * var(--cell))`,
-                    top: `calc((${selectedPiece.y} + .08) * var(--cell))`,
-                  }}>
-                    {movementAxisSymbol(selectedMovementAxis)}
-                  </div>
-                )}
-              </>
-            )}
-
-            {movementPreview && hoveredCell && (
-              <div className={`destination-cell-highlight ${!movementPreview.legal ? "illegal" : "legal"}`} style={{
-                left: `calc(${hoveredCell.x} * var(--cell))`,
-                top: `calc(${hoveredCell.y} * var(--cell))`,
-              }} />
-            )}
-            {movementPreview && hoveredCell && (
-              <div
-                className={`movement-cost-badge ${movementPreview.legal ? "" : "illegal"}`}
-                style={{
-                  left: `calc((${hoveredCell.x} + .5) * var(--cell))`,
-                  top: `calc(${hoveredCell.y} * var(--cell) - 4px)`,
-                }}
-              >
-                {movementPreview.label}
-              </div>
-            )}
-
-            {coordinateCells.map(c => (
-              <div key={`${c.x}-${c.y}`} className="coord-label" style={{
-                left: `calc(${c.x} * var(--cell))`,
-                top: `calc(${c.y} * var(--cell))`,
-              }}>
-                {rowLetter(c.y)}{c.x + 1}
-              </div>
-            ))}
-
-            {measureMode && measureStart && (
-              <div className={`measure-point start ${(measureType === "corner" || measureType === "cornerCenter") ? "corner" : "center"}`} style={{
-                left: `calc(${measureStart.x} * var(--cell) - var(--cell) * .13)`,
-                top: `calc(${measureStart.y} * var(--cell) - var(--cell) * .13)`,
-              }} />
-            )}
-            {measureMode && measureEnd && (
-              <div className={`measure-point end ${measureType === "corner" ? "corner" : "center"}`} style={{
-                left: `calc(${measureEnd.x} * var(--cell) - var(--cell) * .13)`,
-                top: `calc(${measureEnd.y} * var(--cell) - var(--cell) * .13)`,
-              }} />
-            )}
-            {measureMode && measureStart && measureEnd && (
-              <svg className={`measure-svg ${measureType === "corner" ? "corner" : measureType === "cornerCenter" ? "mixed" : "center"}`} viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
-                <line
-                  className="ruler-shadow-line"
-                  x1={measureStart.x}
-                  y1={measureStart.y}
-                  x2={measureEnd.x}
-                  y2={measureEnd.y}
-                />
-                <line
-                  className="ruler-main-line"
-                  x1={measureStart.x}
-                  y1={measureStart.y}
-                  x2={measureEnd.x}
-                  y2={measureEnd.y}
-                />
-                {rulerMarkers.map(mark => (
-                  <g key={mark.key} className={`ruler-marker ${mark.type}`}>
-                    <line x1={mark.x1} y1={mark.y1} x2={mark.x2} y2={mark.y2} />
-                    <text x={mark.labelX} y={mark.labelY}>{mark.label}</text>
-                  </g>
-                ))}
-              </svg>
-            )}
-
-
-            {line({ left: 0, top: `calc(${boxTop} * var(--cell))`, width: `calc(${settings.boxDepth} * var(--cell))`, height: `calc(${settings.boxWidth} * var(--cell))` }, "left-box")}
-            {line({ right: 0, top: `calc(${boxTop} * var(--cell))`, width: `calc(${settings.boxDepth} * var(--cell))`, height: `calc(${settings.boxWidth} * var(--cell))` }, "right-box")}
-            {line({ left: 0, top: `calc(${smallTop} * var(--cell))`, width: `calc(${settings.smallDepth} * var(--cell))`, height: `calc(${settings.smallWidth} * var(--cell))` }, "left-box")}
-            {line({ right: 0, top: `calc(${smallTop} * var(--cell))`, width: `calc(${settings.smallDepth} * var(--cell))`, height: `calc(${settings.smallWidth} * var(--cell))` }, "right-box")}
-
-            <div className="goal left-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }}>
-              {goalGrid("left")}
-            </div>
-            <div className="goal right-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }}>
-              {goalGrid("right")}
-            </div>
-
-            <div className="penalty-dot penalty-dot-line" style={{ left: `calc(${leftPenaltyX} * var(--cell) - var(--cell) * .08)`, top: `calc((${penaltyY} + .5) * var(--cell) - var(--cell) * .08)` }} />
-            <div className="penalty-dot penalty-dot-line" style={{ left: `calc(${rightPenaltyX} * var(--cell) - var(--cell) * .08)`, top: `calc((${penaltyY} + .5) * var(--cell) - var(--cell) * .08)` }} />
-
-            <div className="arc-mask" style={leftArc.mask}><div className="arc-circle" style={leftArc.circle} /></div>
-            <div className="arc-mask" style={rightArc.mask}><div className="arc-circle" style={rightArc.circle} /></div>
-
-            <div className="corner-mask corner-tl" style={{
-              width: `calc(${settings.cornerArcRadius} * var(--cell))`,
-              height: `calc(${settings.cornerArcRadius} * var(--cell))`,
-            }}>
-              <div className="corner-circle" style={{
-                left: `calc(-${settings.cornerArcRadius} * var(--cell))`,
-                top: `calc(-${settings.cornerArcRadius} * var(--cell))`,
-                width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-                height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-              }} />
-            </div>
-            <div className="corner-mask corner-tr" style={{
-              width: `calc(${settings.cornerArcRadius} * var(--cell))`,
-              height: `calc(${settings.cornerArcRadius} * var(--cell))`,
-            }}>
-              <div className="corner-circle" style={{
-                right: `calc(-${settings.cornerArcRadius} * var(--cell))`,
-                top: `calc(-${settings.cornerArcRadius} * var(--cell))`,
-                width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-                height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-              }} />
-            </div>
-            <div className="corner-mask corner-bl" style={{
-              width: `calc(${settings.cornerArcRadius} * var(--cell))`,
-              height: `calc(${settings.cornerArcRadius} * var(--cell))`,
-            }}>
-              <div className="corner-circle" style={{
-                left: `calc(-${settings.cornerArcRadius} * var(--cell))`,
-                bottom: `calc(-${settings.cornerArcRadius} * var(--cell))`,
-                width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-                height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-              }} />
-            </div>
-            <div className="corner-mask corner-br" style={{
-              width: `calc(${settings.cornerArcRadius} * var(--cell))`,
-              height: `calc(${settings.cornerArcRadius} * var(--cell))`,
-            }}>
-              <div className="corner-circle" style={{
-                right: `calc(-${settings.cornerArcRadius} * var(--cell))`,
-                bottom: `calc(-${settings.cornerArcRadius} * var(--cell))`,
-                width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-                height: `calc(${settings.cornerArcRadius * 2} * var(--cell))`,
-              }} />
-            </div>
-
-
-            {defensiveAreaOverlays.map(cell => (
-              <div
-                key={cell.id}
-                className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"}`}
-                style={{
-                  left: `calc(${cell.x} * var(--cell))`,
-                  top: `calc(${cell.y} * var(--cell))`,
-                }}
-              />
-            ))}
-
-            {pieces.map(p => {
-              const isBall = p.team === "BALL";
-              return (
-                <div
-                  key={p.id}
-                  data-coord={withBoardPosition(p, settings).coord}
-                  title={`${getPieceDisplayLabel(p)} ${withBoardPosition(p, settings).coord}${p.cardId ? " · Card attached" : ""}${p.inactive ? " · INACTIVE" : ""}`}
-                  className={`piece-hitbox ${isBall ? "ball-hitbox" : "player-hitbox"}`}
-                  style={{
-                    left: `calc(${p.x} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})`,
-                    top: `calc(${p.y} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})`,
-                  }}
-                  onPointerDown={(e) => onPiecePointerDown(p.id, e)}
-                  onDoubleClick={() => openEdit(p)}
-                >
-                  <div
-                    className={`piece ${p.team === "A" ? "team-a" : p.team === "B" ? "team-b" : "ball"} ${selectedId === p.id ? "selected" : ""} ${p.cardId ? "has-card" : ""} ${p.inactive ? "inactive" : ""}`}
-                  >
-                    <span className="piece-label">{isBall ? p.label : getPieceDisplayLabel(p)}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+      <BoardCanvas
+        boardWrapRef={boardWrapRef}
+        pitchRef={pitchRef}
+        selectedId={selectedId}
+        setHoveredCell={setHoveredCell}
+        startBoardPan={startBoardPan}
+        moveBoardPan={moveBoardPan}
+        endBoardPan={endBoardPan}
+        onBoardWheel={onBoardWheel}
+        onBoardTouchStart={onBoardTouchStart}
+        onBoardTouchMove={onBoardTouchMove}
+        onBoardTouchEnd={onBoardTouchEnd}
+        pitchShellStyle={pitchShellStyle}
+        pitchStyle={pitchStyle}
+        settings={settings}
+        onPitchPointerDown={onPitchPointerDown}
+        onPitchPointerMove={onPitchPointerMove}
+        onPitchPointerUp={onPitchPointerUp}
+        onPitchPointerCancel={onPitchPointerCancel}
+        selectedPiece={selectedPiece}
+        selectedMovementAxis={selectedMovementAxis}
+        movementAxisSymbol={movementAxisSymbol}
+        movementPreview={movementPreview}
+        hoveredCell={hoveredCell}
+        coordinateCells={coordinateCells}
+        measureMode={measureMode}
+        measureStart={measureStart}
+        measureEnd={measureEnd}
+        measureType={measureType}
+        rulerMarkers={rulerMarkers}
+        defensiveAreaOverlays={defensiveAreaOverlays}
+        pieces={pieces}
+        getPieceDisplayLabel={getPieceDisplayLabel}
+        onPiecePointerDown={onPiecePointerDown}
+        openEdit={openEdit}
+      />
 
       {inspectorVisible && !lockUI && (
       <aside
@@ -9437,52 +9161,26 @@ function App() {
         </div>
       )}
 
-      {historyVisible && !lockUI && (
-      <div
-        className="history-panel"
-        style={{ left: historyPosition.x, top: historyPosition.y, width: historySize.w, height: historySize.h }}
-        onPointerMove={(e) => {
-          onHistoryPointerMove(e);
-          onHistoryResizeMove(e);
-        }}
+      <HistoryPanel
+        visible={historyVisible}
+        lockUI={lockUI}
+        position={historyPosition}
+        size={historySize}
+        onHistoryPointerMove={onHistoryPointerMove}
+        onHistoryResizeMove={onHistoryResizeMove}
         onPointerUp={onHistoryPointerUp}
-        onPointerCancel={onHistoryPointerUp}
-      >
-        <div className="history-title" onPointerDown={onHistoryPointerDown} onLostPointerCapture={onHistoryPointerUp}>
-          <strong>{isReplayView ? "Replay" : "History"} {gameTimeline ? `${gameTimeline.cursor}/${gameTimeline.entries.length}` : "0/0"}</strong>
-          <div className="history-actions">
-            <button onPointerDown={(e) => e.stopPropagation()} onClick={clearHistory} disabled={isReplayView || gameMode !== "match" || (!!sessionCode && !isSessionHost)}>Clear</button>
-            <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setHistoryVisible(false)}>_</button>
-          </div>
-        </div>
-        <div className="history-list" ref={historyListRef}>
-          {(!gameTimeline || gameTimeline.entries.length === 0) && <div className="history-empty">Nu există pași încă.</div>}
-          {isReplayView && gameTimeline && (
-            <button
-              className={`history-item replay-start ${gameTimeline.cursor === 0 ? "applied current" : "future"}`}
-              data-history-cursor="0"
-              onClick={() => restoreTimelineCursor(0)}
-            >
-              <span>0. Start</span>
-              <small>{new Date(gameTimeline.startedAt).toLocaleTimeString()}</small>
-            </button>
-          )}
-          {(gameTimeline?.entries || []).map((entry, index) => (
-            <button
-              key={entry.id}
-              className={`history-item ${index < gameTimeline.cursor ? "applied" : "future"} ${index + 1 === gameTimeline.cursor ? "current" : ""}`}
-              data-history-cursor={index + 1}
-              onClick={() => restoreTimelineCursor(index + 1)}
-              disabled={!isReplayView && (gameMode !== "match" || (!!sessionCode && !isSessionHost))}
-            >
-              <span>{index + 1}. {entry.label}</span>
-              <small>{new Date(entry.createdAt).toLocaleTimeString()}</small>
-            </button>
-          ))}
-        </div>
-        <div className="history-resize" onPointerDown={onHistoryResizeDown} onLostPointerCapture={onHistoryPointerUp} />
-      </div>
-      )}
+        onTitlePointerDown={onHistoryPointerDown}
+        onHistoryResizeDown={onHistoryResizeDown}
+        onClose={() => setHistoryVisible(false)}
+        historyListRef={historyListRef}
+        isReplayView={isReplayView}
+        gameTimeline={gameTimeline}
+        clearHistory={clearHistory}
+        gameMode={gameMode}
+        sessionCode={sessionCode}
+        isSessionHost={isSessionHost}
+        restoreTimelineCursor={restoreTimelineCursor}
+      />
 
       {dicePanelVisible && !lockUI && (
         <div
