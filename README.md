@@ -1,5 +1,33 @@
 # Football Board Sandbox
 
+## v18.3 — Extracted component runtime repair
+
+### What changed
+
+- Added the explicit React runtime import required by the extracted `BoardCanvas` and `HistoryPanel` JSX components.
+- Added an automated Vite SSR rendering test that loads and renders both extracted components.
+
+### Why it changed
+
+The project uses the classic JSX transform for these standalone component files. The v18.2 production build bundled successfully, but did not execute the extracted components; at runtime they attempted to use `React` without a module import and the application showed a black screen.
+
+### Problems resolved
+
+- Opening the application no longer fails with `React is not defined` from the extracted Board component.
+- Opening History later in a session no longer risks the same failure from its extracted component.
+- The exact runtime path is now covered by an automated test, not only by the bundle build.
+
+### Impact
+
+- This is a wiring repair only: Board appearance, movement, Match Timeline, replay, multiplayer, Firebase behavior, Tracker, cards, and Scenario flow are unchanged.
+- Editor = Inspector = Export remains intact; no card model, renderer, or export behavior changed.
+
+### Verification focus
+
+1. Open the application directly and confirm the Board is immediately visible.
+2. Open and close History.
+3. Enter Match Mode, select a player with a card, hover a diagonal destination, perform a move, then Undo and Redo.
+
 ## v18.2 — Board and History/Replay UI extraction
 
 ### What changed
