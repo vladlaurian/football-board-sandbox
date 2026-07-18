@@ -19,6 +19,12 @@ export function createGameState(raw = {}) {
     movementStateByPieceId: raw.movementStateByPieceId || {},
     gameMode: raw.gameMode === "match" ? "match" : "editor",
     ruleSet: normalizeRuleSet(raw.ruleSet),
+    // This is deliberately timeline state, not a local modal. A pending
+    // automated action must render identically for host, guest, undo/redo and
+    // a loaded replay.
+    actionResolution: raw.actionResolution && typeof raw.actionResolution === "object"
+      ? raw.actionResolution
+      : null,
     tracker: {
       gameStarted: Boolean(tracker.gameStarted),
       startingTeam: tracker.startingTeam === "blue" ? "blue" : "red",

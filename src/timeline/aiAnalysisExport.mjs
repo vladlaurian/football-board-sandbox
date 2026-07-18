@@ -5,7 +5,7 @@ import { normalizeRuleSet } from "../rules/ruleSets.mjs";
 import { normalizeTimeline, timelineStateAt } from "./timelineEngine.mjs";
 
 export const AI_ANALYSIS_EXPORT_TYPE = "football-board-ai-analysis";
-export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 2;
+export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 3;
 
 export function analysisCoord(piece) {
   if (!piece || !Number.isFinite(Number(piece.x)) || !Number.isFinite(Number(piece.y))) return null;
@@ -94,6 +94,10 @@ function compactRuleSet(ruleSet) {
       pass: {
         status: normalized.actions.pass.status,
         rollMode: "manual",
+        pathMode: normalized.actions.pass.pathMode,
+        longPassThreshold: normalized.actions.pass.longPassThreshold,
+        modifierCap: normalized.actions.pass.modifierCap,
+        equalRollOutcome: normalized.actions.pass.equalRollOutcome,
       },
     },
   };
@@ -228,6 +232,12 @@ function semanticEvent(entry, sequence, cardsById) {
   const actor = actorForEntry(entry, before, after, movements, cardsById);
   const team = entry.team || actor?.pieceId && teamForPiece(piecesById(after).get(actor.pieceId) || piecesById(before).get(actor.pieceId)) || null;
   const eventState = entry.type === "MATCH_STARTED" ? after : before;
+  const passResolution = after?.actionResolution?.kind === "pass"
+    ? after.actionResolution
+    : before?.actionResolution?.kind === "pass"
+      ? before.actionResolution
+      : null;
+  const passPlan = passResolution?.plan || null;
   return {
     eventId: String(entry.id),
     sequence,
@@ -252,11 +262,30 @@ function semanticEvent(entry, sequence, cardsById) {
     actionEconomyAfter: actionEconomy(after, team, actor?.pieceId),
     possessionBefore: possessionForState(before),
     possessionAfter: possessionForState(after),
-    resolution: {
+    resolution: passPlan ? {
+      status: String(passResolution.status || "UNKNOWN").toUpperCase(),
+      rollMode: "MANUAL",
+      pass: {
+        pathMode: passPlan.pathMode,
+        origin: passPlan.origin,
+        requestedTarget: passPlan.requestedTarget,
+        target: passPlan.target,
+        distance: passPlan.distance,
+        classification: passPlan.isLong ? "LONG_PASS" : "NORMAL_PASS",
+        foot: passPlan.foot,
+        passerPass: passPlan.passerPass,
+        directHit: passPlan.directHit,
+        interceptorOrder: (passPlan.interceptors || []).map(item => ({
+          pieceId: item.defender?.id || null,
+          firstEntryT: item.firstEntryT,
+          orderModifier: item.orderModifier,
+        })),
+      },
+    } : {
       status: "NOT_AUTOMATED",
       reason: "This sandbox action was recorded without an automated gameplay rule or probability calculation.",
     },
-    explicitOutcome: "NOT_DECLARED",
+    explicitOutcome: entry.type === "PASS_COMPLETED" ? "PASS_COMPLETED" : entry.type === "PASS_INTERCEPTED" ? "INTERCEPTED" : entry.type === "PASS_NATURAL_20" ? "NATURAL_20_INTERCEPTION" : "NOT_DECLARED",
   };
 }
 

@@ -1,4 +1,4 @@
-export const RULE_SET_SCHEMA_VERSION = 1;
+export const RULE_SET_SCHEMA_VERSION = 2;
 export const DEFAULT_RULE_SET_ID = "default-rules";
 
 function cleanText(value, fallback = "") {
@@ -18,8 +18,13 @@ export function createDefaultRuleSet() {
     notes: "",
     actions: {
       pass: {
-        status: "not-configured",
+        status: "configured",
         rollMode: "manual",
+        pathMode: "corner-to-center",
+        longPassThreshold: 15,
+        modifierCap: 4,
+        resolutionDelayMs: 1500,
+        equalRollOutcome: "pass-succeeds",
       },
     },
   };
@@ -29,6 +34,8 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
   const source = raw && typeof raw === "object" ? raw : fallback;
   const fallbackSet = fallback && typeof fallback === "object" ? fallback : createDefaultRuleSet();
   const pass = source.actions?.pass && typeof source.actions.pass === "object" ? source.actions.pass : {};
+  const isLegacyRuleSet = Number(source.schemaVersion || 0) < RULE_SET_SCHEMA_VERSION;
+  const pathMode = pass.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center";
   return {
     id: cleanId(source.id, fallbackSet.id || DEFAULT_RULE_SET_ID),
     schemaVersion: RULE_SET_SCHEMA_VERSION,
@@ -36,10 +43,18 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
     notes: String(source.notes ?? "").slice(0, 4000),
     actions: {
       pass: {
-        status: pass.status === "configured" ? "configured" : "not-configured",
+        // v19.0 only contained a placeholder. Existing rule sets migrate to
+        // the complete manual-pass model in v19.1 instead of silently leaving
+        // the new feature disabled.
+        status: isLegacyRuleSet || pass.status === "configured" ? "configured" : "not-configured",
         // This is a product invariant: automation may request a roll, but it
         // must never resolve a die automatically on behalf of the player.
         rollMode: "manual",
+        pathMode,
+        longPassThreshold: Math.max(0.01, Number(pass.longPassThreshold) || 15),
+        modifierCap: Math.max(0, Math.min(20, Math.floor(Number(pass.modifierCap) || 4))),
+        resolutionDelayMs: Math.max(0, Math.min(5000, Math.floor(Number(pass.resolutionDelayMs) || 1500))),
+        equalRollOutcome: pass.equalRollOutcome === "interception" ? "interception" : "pass-succeeds",
       },
     },
   };

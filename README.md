@@ -1,5 +1,46 @@
 # Football Board Sandbox
 
+## v19.1 — Configurable Pass engine (manual interception rolls)
+
+### What changed
+
+- Added the first complete configurable action engine: `PASS` in Match Mode.
+- PASS now starts a target-selection flow. Selecting a target does not spend the card action; only confirming a physical route spends it.
+- Added selectable `Corner → Center` routes (all four origin corners) and configurable `Center → Center` geometry.
+- Added exact geometric pass distance, editable long-pass threshold (default: strictly greater than 15 squares), preferred/non-preferred foot evaluation, direct player contact, and automatic ball placement after a resolved pass.
+- Added defensive-area interception detection with exact cell-entry geometry: a line touching only an edge/corner does not count; an opposing puck blocks only the straight line to the relevant defensive-area square.
+- Added sequential manual D20 interception rolls. The app never rolls for a player; it requests the eligible defending team to roll, then applies the result after the configurable suspense delay.
+- Added normal/Natural 1/Natural 20 interception outcomes, modifier clamping, possession/turn transition, Timeline events, Undo/Redo/replay support, multiplayer timeline synchronization, and AI export data for pass geometry and results.
+- Expanded Rule Sets with editable pass path mode, long-pass threshold, modifier cap, and resolution delay. Existing v19.0 Rule Sets migrate safely to the configured manual-roll pass model.
+
+### Why it changed
+
+Passes are the first gameplay action that needs a reusable structure for geometry, reactions, manual rolls, consequences, replay, multiplayer, and analysis. This build creates that vertical slice without hard-coding future Dribble, Shot, Cross, or Tackle rules into the same flow.
+
+### Problems resolved
+
+- A pass can now be represented as one semantic sequence instead of unrelated Tracker clicks, board movement, and dice results.
+- Defensive-area coverage is evaluated per crossed square and can be visually inspected: visible interception squares and squares shadowed by an opposing player are distinct.
+- Long passes are explicitly classified for AI analysis while retaining the agreed normal-pass resolution rules until the separate long-pass rules are designed.
+
+### Impact
+
+- All dice remain manual. A player performs every interception roll from Dice; the app only calculates the outcome after that manual roll.
+- Match Timeline is the source of truth for an in-progress pass, so host, guest, Undo/Redo, replay, Save Match, and AI export retain the same pending/resolved sequence.
+- Editor Mode remains free/manual and does not consume PASS through this engine.
+- `Scenario` data, card rendering, card editor, Inspector, and Card & Board export remain unchanged. Editor = Inspector = Export remains intact.
+
+### Verification focus
+
+1. In Match Mode, start Tracker, select a card-attached player, press PASS, and click an empty square. Confirm no action dot is consumed until the route dialog is confirmed; cancel should consume nothing.
+2. With `Corner → Center`, confirm four route choices appear and show distance, foot, long/normal classification, and number of reactions. Switch to `Center → Center` in Rules before Match Mode and confirm only one route is used.
+3. Place an opponent in a defensive area crossed by the line. Confirm Dice requests that defender's team to manually roll D20; the other team must not be able to submit that interception roll in multiplayer.
+4. Check the boundary cases: a path that only touches a defensive square's edge/corner produces no reaction; a direct line from defender to the crossed defensive square blocked by an opponent produces no reaction.
+5. Confirm `roll + modifiers <= Pass` continues the pass, while a strictly greater total intercepts; Natural 1 always fails and makes the next reaction harder; Natural 20 gives the intercepting team its one bonus action.
+6. Confirm a direct pass through a player stops at that player, moves the ball there, and changes possession if that player is an opponent.
+7. In multiplayer, repeat one pass from each side. Confirm both boards, Tracker, History, and Dice status stay aligned. Undo/Redo a completed pass from host and confirm the guest follows it.
+8. Save Match, import the replay, step through History, and export AI Analysis. Confirm the export includes the Rule Set pass configuration, path, distance, classification, eligible interceptor order, and explicit outcome.
+
 ## v19.0 — Editable Rule Sets foundation
 
 ### What changed

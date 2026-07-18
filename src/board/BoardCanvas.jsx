@@ -79,6 +79,7 @@ export function BoardCanvas({
   measureType,
   rulerMarkers,
   defensiveAreaOverlays,
+  passPreview,
   pieces,
   getPieceDisplayLabel,
   onPiecePointerDown,
@@ -169,6 +170,16 @@ export function BoardCanvas({
           })}
 
           {defensiveAreaOverlays.map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
+
+          {passPreview?.blockedCells?.map(cell => <div key={`pass-blocked-${cell.id}`} className="pass-preview-cell blocked" style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
+          {passPreview?.visibleCells?.map(cell => <div key={`pass-visible-${cell.id}`} className="pass-preview-cell visible" style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
+          {passPreview?.lines?.length > 0 && <svg className="pass-preview-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
+            {passPreview.lines.map(line => <g key={line.id} className={`pass-preview-line ${line.selected ? "selected" : ""}`}>
+              <line x1={line.origin.x} y1={line.origin.y} x2={line.endpoint.x} y2={line.endpoint.y} />
+              <circle cx={line.origin.x} cy={line.origin.y} r=".13" />
+              <circle cx={line.endpoint.x} cy={line.endpoint.y} r=".13" />
+            </g>)}
+          </svg>}
 
           {pieces.map(piece => {
             const isBall = piece.team === "BALL";

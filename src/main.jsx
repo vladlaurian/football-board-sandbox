@@ -33,6 +33,13 @@ import {
   normalizeRuleSet,
   normalizeRuleSets,
 } from "./rules/ruleSets.mjs";
+import {
+  PASS_CORNERS,
+  buildPassPlan,
+  cardStat,
+  resolveInterceptionRoll,
+  teamKeyForPiece,
+} from "./rules/passEngine.mjs";
 import { BoardCanvas } from "./board/BoardCanvas.jsx";
 import { clamp } from "./game/numberUtils.mjs";
 import {
@@ -107,7 +114,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.0";
+const APP_VERSION = "v19.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2012,6 +2019,7 @@ function App() {
   const [turnPhase, setTurnPhase] = useState("attack");
   const [pendingEndTurn, setPendingEndTurn] = useState(null);
   const [pendingAutoMove, setPendingAutoMove] = useState(null);
+  const [actionResolution, setActionResolution] = useState(null);
   const [trackerSharedEnabled, setTrackerSharedEnabled] = useState(false);
   const [gameMode, setGameMode] = useState("editor");
   const [movementStateByPieceId, setMovementStateByPieceId] = useState({});
@@ -2081,6 +2089,7 @@ function App() {
   const settingsRef = useRef(settings);
   const cardStateRef = useRef(cardState);
   const activeRuleSetRef = useRef(activeRuleSet);
+  const actionResolutionRef = useRef(actionResolution);
   const [sessionCardsById, setSessionCardsById] = useState({});
   const sessionCardsByIdRef = useRef({});
   const [sessionLibraryById, setSessionLibraryById] = useState({});
@@ -2096,6 +2105,7 @@ function App() {
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { cardStateRef.current = cardState; }, [cardState]);
   useEffect(() => { activeRuleSetRef.current = activeRuleSet; }, [activeRuleSet]);
+  useEffect(() => { actionResolutionRef.current = actionResolution; }, [actionResolution]);
   useEffect(() => { movementStateRef.current = movementStateByPieceId; }, [movementStateByPieceId]);
   useEffect(() => { gameTimelineRef.current = gameTimeline; }, [gameTimeline]);
   useEffect(() => { sessionCardsByIdRef.current = sessionCardsById; }, [sessionCardsById]);
@@ -3525,6 +3535,7 @@ function App() {
       movementStateByPieceId: normalizeMovementState(overrides.movementStateByPieceId ?? movementStateRef.current),
       gameMode: normalizeGameMode(overrides.gameMode ?? gameMode),
       ruleSet: normalizeRuleSet(overrides.ruleSet ?? activeRuleSetRef.current),
+      actionResolution: overrides.actionResolution ?? actionResolutionRef.current,
       tracker: {
         gameStarted: overrides.trackerGameStarted ?? trackerGameStarted,
         startingTeam: overrides.trackerStartingTeam ?? trackerStartingTeam,
@@ -3553,6 +3564,7 @@ function App() {
       movementStateByPieceId: overrides.movementStateByPieceId ?? base.movementStateByPieceId,
       gameMode: overrides.gameMode ?? base.gameMode,
       ruleSet: overrides.ruleSet ?? base.ruleSet,
+      actionResolution: overrides.actionResolution ?? base.actionResolution,
       tracker: {
         gameStarted: overrides.trackerGameStarted ?? base.tracker.gameStarted,
         startingTeam: overrides.trackerStartingTeam ?? base.tracker.startingTeam,
@@ -4419,6 +4431,7 @@ function App() {
     setActiveRuleSet(nextActiveRuleSet);
     setRuleSetDraft(nextActiveRuleSet);
     setRuleSetSelectionId(nextActiveRuleSet.id);
+    setActionResolution(state.actionResolution || null);
     setTrackerSettings(nextTracker.settings);
     setTrackerSettingsDraft(nextTracker.settings);
     setTrackerGameStarted(nextTracker.gameStarted);
@@ -4494,6 +4507,11 @@ function App() {
     if (replayModeRef.current) return false;
     if (Date.now() < diceCooldownUntilRef.current) return false;
     if (diceRollingRef.current.blue || diceRollingRef.current.red) return false;
+    const pending = actionResolutionRef.current;
+    if (pending?.kind === "pass" && pending.status === "awaiting-interception-roll") {
+      const interceptor = pending.plan?.interceptors?.[pending.interceptorIndex];
+      if (teamKeyForPiece(interceptor?.defender) !== team) return false;
+    }
     if (!sessionCode) return true;
     return myTeam === team;
   }
@@ -4532,6 +4550,8 @@ function App() {
   async function rollTeamDie(team) {
     if (!canRollTeamDie(team)) return;
     if (!(await reserveDiceRoll())) return;
+    const forcedPassDie = actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "awaiting-interception-roll";
+    const rollingDieType = forcedPassDie ? 20 : dieType;
     const beforeTimeline = captureTimelineGameState();
     if (diceNoticeTimerRef.current) window.clearTimeout(diceNoticeTimerRef.current);
     setDiceNotice(null);
@@ -4540,16 +4560,16 @@ function App() {
     const setResult = team === "blue" ? setBlueDieResult : setRedDieResult;
     diceRollingRef.current[team] = true;
     setRolling(true);
-    setAnimationValue(Math.floor(Math.random() * dieType) + 1);
+    setAnimationValue(Math.floor(Math.random() * rollingDieType) + 1);
     let ticks = 0;
     const animation = window.setInterval(() => {
-      setAnimationValue(Math.floor(Math.random() * dieType) + 1);
+      setAnimationValue(Math.floor(Math.random() * rollingDieType) + 1);
       ticks += 1;
       if (ticks >= 10) window.clearInterval(animation);
     }, 80);
     window.setTimeout(async () => {
       window.clearInterval(animation);
-      const result = Math.floor(Math.random() * dieType) + 1;
+      const result = Math.floor(Math.random() * rollingDieType) + 1;
       const rollId = `${Date.now()}_${clientIdRef.current}_${team}`;
       pendingDiceRollRef.current[team] = sessionCode && gameMode !== "match" ? { rollId, result } : null;
       if (gameMode !== "match") diceSeenRollIdsRef.current[team] = rollId;
@@ -4557,32 +4577,33 @@ function App() {
       setAnimationValue(null);
       diceRollingRef.current[team] = false;
       setRolling(false);
-      showDiceNotice(team, result, dieType);
+      showDiceNotice(team, result, rollingDieType);
+      const wasPassRoll = registerPassRoll(team, result);
       const nextTimeline = recordTimelineTransition({
         type: "DICE_ROLLED",
-        label: `${team === "blue" ? "Blue" : "Red"} D${dieType}: ${result}`,
+        label: `${team === "blue" ? "Blue" : "Red"} D${rollingDieType}: ${result}${wasPassRoll ? " (interception)" : ""}`,
         team,
         before: beforeTimeline,
         after: captureTimelineGameState({
           blueDieResult: team === "blue" ? result : blueDieResult,
           redDieResult: team === "red" ? result : redDieResult,
-          blueLastDieType: team === "blue" ? dieType : blueLastDieType,
-          redLastDieType: team === "red" ? dieType : redLastDieType,
+          blueLastDieType: team === "blue" ? rollingDieType : blueLastDieType,
+          redLastDieType: team === "red" ? rollingDieType : redLastDieType,
         }),
       });
       if (sessionCode && gameMode === "match" && nextTimeline) {
         const diceEntry = nextTimeline.entries[nextTimeline.cursor - 1];
         diceSeenRollIdsRef.current[team] = `timeline_${nextTimeline.recordingId}_${diceEntry?.id || `baseline_${team}`}`;
       }
-      if (team === "blue") setBlueLastDieType(dieType);
-      else setRedLastDieType(dieType);
+      if (team === "blue") setBlueLastDieType(rollingDieType);
+      else setRedLastDieType(rollingDieType);
       if (sessionCode && gameMode !== "match") {
         try {
           const ref = sessionRef(sessionCode.toUpperCase());
           await updateDoc(ref, {
             [`sharedDice.${team}`]: {
               value: result,
-              dieType,
+              dieType: rollingDieType,
               rollId,
               rolledBy: user?.uid || "",
               rolledAt: serverTimestamp(),
@@ -5024,6 +5045,11 @@ function App() {
     const piece = (piecesRef.current || pieces).find(item => item.id === pieceId);
     if (!piece) return;
 
+    if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting") {
+      choosePassTarget(piece.x, piece.y);
+      return;
+    }
+
     if (e.pointerType === "touch") {
       const now = Date.now();
       const last = lastPieceTapRef.current;
@@ -5445,6 +5471,36 @@ function App() {
       }).filter(Boolean);
     });
   }, [defAreaMode, inspectedPiece, pieces, cardById, settings.cols, settings.rows]);
+
+  const passPreview = useMemo(() => {
+    const pending = actionResolution;
+    if (pending?.kind !== "pass" || !pending.passerId || !pending.target) return null;
+    const passer = pieces.find(piece => piece.id === pending.passerId);
+    if (!passer) return null;
+    const rules = activeRuleSet.actions?.pass || {};
+    const cornerIds = rules.pathMode === "center-to-center" ? [null] : PASS_CORNERS.map(corner => corner.id);
+    const plans = cornerIds.map(cornerId => buildPassPlan({
+      passer,
+      passerCard: cardById[passer.cardId],
+      pieces,
+      cardById,
+      settings,
+      target: pending.target,
+      cornerId,
+      rules: activeRuleSet,
+    }));
+    const chosen = plans.find(plan => plan.origin.cornerId === pending.cornerId) || plans[0];
+    const visibleCells = chosen?.interceptors.flatMap(item => item.visibleCells.map(cell => ({ ...cell, id: `${item.defender.id}-${cell.id}` }))) || [];
+    const visibleIds = new Set(visibleCells.map(cell => `${cell.x}-${cell.y}`));
+    const blockedCells = chosen?.interceptors.flatMap(item => item.cells.filter(cell => !visibleIds.has(`${cell.x}-${cell.y}`)).map(cell => ({ ...cell, id: `${item.defender.id}-${cell.id}` }))) || [];
+    return {
+      plans,
+      selectedPlan: chosen,
+      visibleCells,
+      blockedCells,
+      lines: plans.map(plan => ({ id: plan.origin.cornerId || "center", origin: plan.origin, endpoint: plan.endpoint, selected: plan.origin.cornerId === pending.cornerId || (plans.length === 1 && !pending.cornerId) })),
+    };
+  }, [actionResolution, pieces, cardById, settings, activeRuleSet]);
 
   const defAreaButtonLabel = defAreaMode === 0 ? "D.A OFF" : defAreaMode === 1 ? "D.A.1" : "D.A.2";
   useEffect(() => {
@@ -7990,10 +8046,15 @@ function App() {
 
     if (measureMode || wasPanning) return;
     if (e.pointerType === "touch" && Date.now() < multiTouchUntilRef.current) return;
-    if (!selectedId || e.target?.closest?.(".piece")) return;
+    if (e.target?.closest?.(".piece")) return;
 
     const point = gridPointFromClient(e.clientX, e.clientY);
-    if (point) moveSelectedPieceTo(point.x, point.y);
+    if (!point) return;
+    if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting") {
+      choosePassTarget(point.x, point.y);
+      return;
+    }
+    if (selectedId) moveSelectedPieceTo(point.x, point.y);
   }
 
   function onHistoryPointerDown(e) {
@@ -8240,11 +8301,258 @@ function App() {
   async function applyActionStateUpdate(nextLog, nextState, nextUsed) {
     setTrackerActionLog(nextLog); setMatchActionState(nextState); setTrackerUsedActions(nextUsed);
   }
+
+  function setLiveActionResolution(nextResolution) {
+    actionResolutionRef.current = nextResolution || null;
+    setActionResolution(nextResolution || null);
+  }
+
+  function beginPassTargeting(piece) {
+    const team = pieceTeamKey(piece);
+    const pending = {
+      id: `pass_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      kind: "pass",
+      status: "targeting",
+      passerId: piece.id,
+      team,
+      target: null,
+      cornerId: null,
+      naturalOnePenalty: 0,
+      interceptorIndex: 0,
+    };
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    setLiveActionResolution(pending);
+    setSelectedId(piece.id);
+    setHoveredCell(null);
+    recordTimelineTransition({
+      type: "PASS_TARGETING_STARTED",
+      label: `${team === "blue" ? "Blue" : "Red"} PASS: choose target for ${getPieceDisplayLabel(piece)}`,
+      team,
+      before,
+      after: mergeTimelineGameState(before, { actionResolution: pending }),
+      allowNoop: true,
+    });
+  }
+
+  function cancelPassTargeting() {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "pass") return;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    setLiveActionResolution(null);
+    setSelectedId(null);
+    setHoveredCell(null);
+    recordTimelineTransition({
+      type: "PASS_CANCELLED",
+      label: "Pass cancelled before route confirmation",
+      team: pending.team,
+      before,
+      after: mergeTimelineGameState(before, { actionResolution: null }),
+      allowNoop: true,
+    });
+  }
+
+  function choosePassTarget(x, y) {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "pass" || pending.status !== "targeting") return false;
+    const next = { ...pending, target: { x: Number(x), y: Number(y) }, status: "route-selection" };
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    setLiveActionResolution(next);
+    recordTimelineTransition({
+      type: "PASS_TARGET_SELECTED",
+      label: `Pass target selected: ${toCoord(x, y)}`,
+      team: pending.team,
+      before,
+      after: mergeTimelineGameState(before, { actionResolution: next }),
+      allowNoop: true,
+    });
+    if (activeRuleSet.actions?.pass?.pathMode === "center-to-center") {
+      confirmPassRoute(null);
+    }
+    return true;
+  }
+
+  function activatePassRoute(cornerId) {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "pass" || pending.status !== "route-selection" || !pending.target) return null;
+    const passer = (piecesRef.current || pieces).find(piece => piece.id === pending.passerId);
+    if (!passer) return null;
+    const currentTracker = currentTimelineTrackerSnapshot();
+    const activation = activateTrackerAction(currentTracker, {
+      type: "PASS",
+      pieceId: passer.id,
+      team: pending.team,
+      entryId: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    });
+    if (!activation.allowed) {
+      setIllegalMoveNotice({ reason: activation.reason || "move-not-authorized" });
+      return null;
+    }
+    const plan = buildPassPlan({
+      passer,
+      passerCard: cardById[passer.cardId],
+      pieces: piecesRef.current || pieces,
+      cardById,
+      settings: settingsRef.current,
+      target: pending.target,
+      cornerId,
+      rules: activeRuleSetRef.current,
+    });
+    const next = {
+      ...pending,
+      status: plan.directHit || !plan.interceptors.length ? "resolving" : "awaiting-interception-roll",
+      cornerId: plan.origin.cornerId,
+      plan,
+      entryId: activation.entry.id,
+      actionLog: activation.actionLog,
+      usedActions: activation.usedActions,
+      matchActionState: activation.matchActionState,
+    };
+    return { next, activation, plan };
+  }
+
+  function confirmPassRoute(cornerId) {
+    const pending = actionResolutionRef.current;
+    const activated = activatePassRoute(cornerId);
+    if (!pending || !activated) return;
+    const { next, activation, plan } = activated;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    setTrackerActionLog(activation.actionLog);
+    setTrackerUsedActions(activation.usedActions);
+    setMatchActionState(activation.matchActionState);
+    setLiveActionResolution(next);
+    setSelectedId(null);
+    setHoveredCell(null);
+    recordTimelineTransition({
+      id: activation.entry.id,
+      type: "PASS_CONFIRMED",
+      label: `${pending.team === "blue" ? "Blue" : "Red"} PASS: ${getPieceDisplayLabel((piecesRef.current || pieces).find(piece => piece.id === pending.passerId))} → ${toCoord(plan.target.x, plan.target.y)}${plan.isLong ? " (Long)" : ""}`,
+      team: pending.team,
+      groupId: activation.entry.id,
+      before,
+      after: mergeTimelineGameState(before, {
+        actionResolution: next,
+        trackerActionLog: activation.actionLog,
+        trackerUsedActions: activation.usedActions,
+        matchActionState: activation.matchActionState,
+      }),
+      allowNoop: true,
+    });
+    if (next.status === "resolving") schedulePassResolution(next.id);
+  }
+
+  function schedulePassResolution(id) {
+    const delay = Number(activeRuleSetRef.current.actions?.pass?.resolutionDelayMs) || 1500;
+    window.setTimeout(() => resolvePendingPass(id), delay);
+  }
+
+  function moveBallTo(x, y) {
+    return (piecesRef.current || pieces).map(piece => piece.team === "BALL" ? { ...piece, x: Number(x), y: Number(y) } : piece);
+  }
+
+  function finishPassWithPossession(pending, interceptor, naturalTwenty = false) {
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const nextPieces = moveBallTo(interceptor.x, interceptor.y);
+    if (naturalTwenty) {
+      const next = { ...pending, status: "bonus-action", bonusTeam: teamKeyForPiece(interceptor), interceptorId: interceptor.id };
+      piecesRef.current = nextPieces; setPieces(nextPieces); setLiveActionResolution(next);
+      recordTimelineTransition({ type: "PASS_NATURAL_20", label: `Natural 20 interception: ${getPieceDisplayLabel(interceptor)} earns one bonus action`, team: next.bonusTeam, groupId: pending.entryId, before, after: mergeTimelineGameState(before, { pieces: nextPieces, actionResolution: next }), allowNoop: true });
+      return;
+    }
+    const nextTeam = teamKeyForPiece(interceptor);
+    const emptyTurn = createEmptyTrackerTurnState();
+    const nextTurn = Math.min(trackerSettings.turns, Math.max(1, trackerCurrentTurn + 1));
+    piecesRef.current = nextPieces; setPieces(nextPieces);
+    setTrackerStartingTeam(nextTeam); setTrackerCurrentTurn(nextTurn); setTurnPhase("attack");
+    setTrackerUsedActions(emptyTurn.usedActions); setTrackerActionLog(emptyTurn.actionLog); setMatchActionState(emptyTurn.matchActionState);
+    setMovementStateByPieceId({}); movementStateRef.current = {};
+    setLiveActionResolution(null);
+    recordTimelineTransition({ type: "PASS_INTERCEPTED", label: `${nextTeam === "blue" ? "Blue" : "Red"} intercepts — Turn ${nextTurn}`, team: nextTeam, groupId: pending.entryId, before, after: mergeTimelineGameState(before, { pieces: nextPieces, actionResolution: null, trackerStartingTeam: nextTeam, trackerCurrentTurn: nextTurn, trackerUsedActions: emptyTurn.usedActions, trackerActionLog: emptyTurn.actionLog, matchActionState: emptyTurn.matchActionState, turnPhase: "attack", movementStateByPieceId: {} }), allowNoop: true });
+  }
+
+  function finishPassSuccess(pending) {
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const nextPieces = moveBallTo(pending.plan.target.x, pending.plan.target.y);
+    piecesRef.current = nextPieces; setPieces(nextPieces); setLiveActionResolution(null);
+    recordTimelineTransition({ type: "PASS_COMPLETED", label: `Pass completed to ${toCoord(pending.plan.target.x, pending.plan.target.y)}${pending.plan.isLong ? " (Long)" : ""}`, team: pending.team, groupId: pending.entryId, before, after: mergeTimelineGameState(before, { pieces: nextPieces, actionResolution: null }), allowNoop: true });
+  }
+
+  function resolvePendingPass(id) {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "pass" || pending.id !== id || pending.status !== "resolving") return;
+    const plan = pending.plan;
+    if (plan.directHit) {
+      const hitPiece = (piecesRef.current || pieces).find(piece => piece.id === plan.directHit.pieceId);
+      if (hitPiece && teamKeyForPiece(hitPiece) !== pending.team) finishPassWithPossession(pending, hitPiece);
+      else finishPassSuccess(pending);
+      return;
+    }
+    const interceptor = plan.interceptors?.[pending.interceptorIndex];
+    if (!interceptor) { finishPassSuccess(pending); return; }
+    const result = pending.lastRoll;
+    const defender = (piecesRef.current || pieces).find(piece => piece.id === interceptor.defender.id);
+    if (!defender || !result) { finishPassSuccess(pending); return; }
+    const roll = resolveInterceptionRoll({ natural: result.value, interception: cardStat(cardById[defender.cardId], "Interception"), orderModifier: interceptor.orderModifier, nonDominantPenalty: plan.foot?.dominant ? 0 : 1, previousNaturalOnePenalty: pending.naturalOnePenalty || 0, passerPass: plan.passerPass, modifierCap: activeRuleSetRef.current.actions?.pass?.modifierCap || 4 });
+    if (roll.outcome === "natural-20-interception") { finishPassWithPossession(pending, defender, true); return; }
+    if (roll.outcome === "interception") { finishPassWithPossession(pending, defender); return; }
+    const nextIndex = pending.interceptorIndex + 1;
+    if (nextIndex >= plan.interceptors.length) { finishPassSuccess(pending); return; }
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const next = { ...pending, status: "awaiting-interception-roll", interceptorIndex: nextIndex, naturalOnePenalty: (pending.naturalOnePenalty || 0) + (result.value === 1 ? -1 : 0), lastRoll: null };
+    setLiveActionResolution(next);
+    recordTimelineTransition({ type: "PASS_INTERCEPTION_MISSED", label: `${getPieceDisplayLabel(defender)} cannot intercept — next reaction required`, team: teamKeyForPiece(defender), groupId: pending.entryId, before, after: mergeTimelineGameState(before, { actionResolution: next }), allowNoop: true });
+  }
+
+  function registerPassRoll(team, value) {
+    const pending = actionResolutionRef.current;
+    const interceptor = pending?.plan?.interceptors?.[pending.interceptorIndex];
+    if (pending?.kind !== "pass" || pending.status !== "awaiting-interception-roll" || teamKeyForPiece(interceptor?.defender) !== team) return false;
+    const next = { ...pending, status: "resolving", lastRoll: { team, value: Number(value) } };
+    setLiveActionResolution(next);
+    schedulePassResolution(next.id);
+    return true;
+  }
+
+  function finishNaturalTwentyBonus(type, piece) {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "pass" || pending.status !== "bonus-action" || pending.bonusTeam !== pieceTeamKey(piece) || type === "GROUP_MOVE" || type === "FREE") return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const emptyTurn = createEmptyTrackerTurnState();
+    const nextTurn = Math.min(trackerSettings.turns, Math.max(1, trackerCurrentTurn + 1));
+    const team = pending.bonusTeam;
+    const bonusEntry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, type, pieceId: piece.id, bonus: true };
+    const nextLog = { ...trackerActionLog, [team]: [...(trackerActionLog[team] || []), bonusEntry] };
+    setTrackerStartingTeam(team); setTrackerCurrentTurn(nextTurn); setTurnPhase("attack");
+    setTrackerUsedActions(emptyTurn.usedActions); setTrackerActionLog(emptyTurn.actionLog); setMatchActionState(emptyTurn.matchActionState);
+    setMovementStateByPieceId({}); movementStateRef.current = {};
+    setLiveActionResolution(null); setSelectedId(null); setHoveredCell(null);
+    recordTimelineTransition({
+      id: bonusEntry.id,
+      type: "NATURAL_20_BONUS_ACTION",
+      label: `${team === "blue" ? "Blue" : "Red"} bonus ${type.replace("_", " ")} — Turn ${nextTurn}`,
+      team,
+      groupId: pending.entryId,
+      before,
+      after: mergeTimelineGameState(before, { actionResolution: null, trackerStartingTeam: team, trackerCurrentTurn: nextTurn, trackerUsedActions: emptyTurn.usedActions, trackerActionLog: emptyTurn.actionLog, matchActionState: emptyTurn.matchActionState, turnPhase: "attack", movementStateByPieceId: {} }),
+      allowNoop: true,
+    });
+    return true;
+  }
   async function consumeInspectorAction(type, piece) {
+    if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "bonus-action") {
+      finishNaturalTwentyBonus(type, piece);
+      return;
+    }
+    if (actionResolutionRef.current) return;
     if (type === "FREE") {
       if (!canUseFreeModeForPiece(piece)) return;
     } else if (!canUseActionForPiece(piece)) return;
     const team = pieceTeamKey(piece);
+    // PASS is intentionally not consumed until a destination and a physical
+    // route are confirmed. Cancelling the preview leaves Tracker untouched.
+    if (type === "PASS") {
+      beginPassTargeting(piece);
+      return;
+    }
     const currentTracker = currentTimelineTrackerSnapshot();
     const currentActionState = currentTracker.matchActionState;
     if (type === "FREE") {
@@ -8707,6 +9015,9 @@ function App() {
       if (!gesture.moved && Date.now() >= multiTouchUntilRef.current) {
         if (measureMode && gesture.point) {
           applyRulerPoint(gesture.point);
+        } else if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting") {
+          const point = gridPointFromClient(gesture.startX, gesture.startY);
+          if (point) choosePassTarget(point.x, point.y);
         } else if (selectedId) {
           const point = gridPointFromClient(gesture.startX, gesture.startY);
           if (point) moveSelectedPieceTo(point.x, point.y);
@@ -9017,6 +9328,7 @@ function App() {
         measureType={measureType}
         rulerMarkers={rulerMarkers}
         defensiveAreaOverlays={defensiveAreaOverlays}
+        passPreview={passPreview}
         pieces={pieces}
         getPieceDisplayLabel={getPieceDisplayLabel}
         onPiecePointerDown={onPiecePointerDown}
@@ -9129,9 +9441,11 @@ function App() {
                     const pieceState = matchActionState.byPieceId[inspectedPiece.id] || {};
                     const trackerComplete = status.exhausted;
                     const groupMoveActive = hasValidGroupMoveAuthorization(team);
-                    const disabled = !canUseActionForPiece(inspectedPiece)
+                    const bonusActionAvailable = actionResolution?.kind === "pass" && actionResolution.status === "bonus-action" && actionResolution.bonusTeam === team;
+                    const disabled = (!bonusActionAvailable && !canUseActionForPiece(inspectedPiece))
                       || matchActionState.freeMode?.active
                       || groupMoveActive
+                      || (bonusActionAvailable && type === "GROUP_MOVE")
                       || (type === "MOVE" && pieceState.moveUsed)
                       || (type === "GROUP_MOVE" && status.remaining !== 1 && !trackerComplete);
                     return <button className={`team-action-btn ${team} ${type === "GROUP_MOVE" ? "group-move-btn" : ""} ${trackerComplete ? "action-locked" : ""}`} key={type} type="button" disabled={disabled} aria-disabled={trackerComplete || disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{type.replace("GROUP_MOVE", "GROUP MOVE")}</button>;
@@ -9412,6 +9726,50 @@ function App() {
         </div>
       )}
 
+      {actionResolution?.kind === "pass" && actionResolution.status === "targeting" && (
+        <div className="pass-action-prompt">
+          <strong>Pass: choose target square</strong>
+          <span>Select any square or player. Nothing is spent until you confirm a route.</span>
+          <button onClick={cancelPassTargeting}>Cancel Pass</button>
+        </div>
+      )}
+
+      {actionResolution?.kind === "pass" && actionResolution.status === "route-selection" && passPreview?.plans?.length > 0 && (
+        <div className="modal-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) cancelPassTargeting(); }}>
+          <div className="modal pass-route-modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="modal-title"><strong>Choose pass route</strong><button className="icon-btn" onClick={cancelPassTargeting}>×</button></div>
+            <p>The pass ends at {toCoord(actionResolution.target.x, actionResolution.target.y)}. Select the physical line to use.</p>
+            <div className="pass-route-options">
+              {passPreview.plans.map(plan => <button key={plan.origin.cornerId || "center"} onClick={() => confirmPassRoute(plan.origin.cornerId)}>
+                <strong>{plan.origin.cornerId ? plan.origin.cornerId.replace(/\b\w/g, char => char.toUpperCase()) : "Center → Center"}</strong>
+                <span>{plan.distance.toFixed(2)} squares · {plan.foot.foot ? `${plan.foot.foot} foot${plan.foot.dominant ? " (preferred)" : " (non-preferred)"}` : "No foot modifier"}</span>
+                <small>{plan.isLong ? "Long pass" : "Normal pass"} · {plan.interceptors.length} interception {plan.interceptors.length === 1 ? "reaction" : "reactions"}</small>
+              </button>)}
+            </div>
+            <div className="modal-actions"><button onClick={cancelPassTargeting}>Cancel — do not spend PASS</button></div>
+          </div>
+        </div>
+      )}
+
+      {actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interception-roll" && (() => {
+        const interceptor = actionResolution.plan?.interceptors?.[actionResolution.interceptorIndex];
+        const defender = pieces.find(piece => piece.id === interceptor?.defender?.id);
+        const defenseTeam = teamKeyForPiece(defender);
+        return <div className="pass-action-prompt warning">
+          <strong>Interception roll required</strong>
+          <span>{getPieceDisplayLabel(defender)} ({defenseTeam === "blue" ? "Blue" : "Red"}) rolls D20. Open Dice and roll {defenseTeam?.toUpperCase()}.</span>
+          <span>Order +{interceptor?.orderModifier || 0}{actionResolution.plan?.foot?.dominant ? "" : " · non-preferred foot +1"}{actionResolution.naturalOnePenalty ? ` · previous natural 1: ${actionResolution.naturalOnePenalty}` : ""}</span>
+        </div>;
+      })()}
+
+      {actionResolution?.kind === "pass" && actionResolution.status === "resolving" && (
+        <div className="pass-action-prompt resolving"><strong>Resolving pass…</strong><span>The result will be applied after the suspense delay.</span></div>
+      )}
+
+      {actionResolution?.kind === "pass" && actionResolution.status === "bonus-action" && (
+        <div className="pass-action-prompt bonus"><strong>Natural 20 interception</strong><span>{actionResolution.bonusTeam === "blue" ? "Blue" : "Red"} has one bonus card action before the turn changes.</span></div>
+      )}
+
       {pendingThreeTwoMove && (
         <div className="modal-backdrop three-two-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setPendingThreeTwoMove(null); }}>
           <div className="modal three-two-modal" onPointerDown={e => e.stopPropagation()}>
@@ -9500,8 +9858,23 @@ function App() {
               <textarea disabled={ruleSetEditingLocked} value={ruleSetDraft.notes} maxLength="4000" placeholder="Optional design notes for this Rule Set" onChange={e => setRuleSetDraft(draft => ({ ...draft, notes: e.target.value }))} />
             </label>
             <section className="rule-action-card">
-              <div><strong>Pass</strong><span>Prepared for the first automation step</span></div>
-              <p>Resolution is not configured yet. The future action flow may request an interception roll, but every die roll remains manual.</p>
+              <div><strong>Pass</strong><span>Configured automation — manual dice only</span></div>
+              <p>Choose the geometry and limits used by the pass engine. These values are locked into each Match Timeline at Match Mode start.</p>
+              <label>Path geometry
+                <select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.pass?.pathMode || "corner-to-center"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, pathMode: e.target.value } } }))}>
+                  <option value="corner-to-center">Corner → Center</option>
+                  <option value="center-to-center">Center → Center</option>
+                </select>
+              </label>
+              <label>Long pass threshold (squares; strictly greater than)
+                <input disabled={ruleSetEditingLocked} type="number" min="0.01" step="0.01" value={ruleSetDraft.actions?.pass?.longPassThreshold ?? 15} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, longPassThreshold: Math.max(0.01, Number(e.target.value) || 15) } } }))} />
+              </label>
+              <label>Maximum stacked modifier
+                <input disabled={ruleSetEditingLocked} type="number" min="0" max="20" step="1" value={ruleSetDraft.actions?.pass?.modifierCap ?? 4} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, modifierCap: clamp(Math.floor(Number(e.target.value) || 0), 0, 20) } } }))} />
+              </label>
+              <label>Resolution delay (ms)
+                <input disabled={ruleSetEditingLocked} type="number" min="0" max="5000" step="100" value={ruleSetDraft.actions?.pass?.resolutionDelayMs ?? 1500} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, resolutionDelayMs: clamp(Math.floor(Number(e.target.value) || 0), 0, 5000) } } }))} />
+              </label>
               <span className="rule-manual-pill">Dice: manual roll only</span>
             </section>
             <div className="rules-actions">

@@ -1344,6 +1344,28 @@ select option {
   pointer-events:none;
   z-index:4;
 }
+
+.pass-preview-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 13; overflow: visible; }
+.pass-preview-line line { stroke: rgba(255, 219, 70, .48); stroke-width: .08; vector-effect: non-scaling-stroke; }
+.pass-preview-line circle { fill: #fff3a1; stroke: #eead00; stroke-width: .035; vector-effect: non-scaling-stroke; }
+.pass-preview-line.selected line { stroke: #ffd500; stroke-width: .14; filter: drop-shadow(0 0 3px rgba(255, 212, 0, .9)); }
+.pass-preview-cell { position: absolute; width: var(--cell); height: var(--cell); box-sizing: border-box; pointer-events: none; z-index: 12; }
+.pass-preview-cell.visible { background: rgba(255, 197, 47, .24); border: 2px solid rgba(255, 213, 69, .75); }
+.pass-preview-cell.blocked { background: repeating-linear-gradient(135deg, rgba(91, 99, 112, .12) 0 4px, rgba(91, 99, 112, .4) 4px 7px); border: 1px dashed rgba(200, 210, 220, .65); }
+.pass-action-prompt { position: fixed; z-index: 80; left: 50%; top: 138px; transform: translateX(-50%); min-width: 320px; max-width: min(560px, calc(100vw - 30px)); padding: 12px 16px; border: 1px solid #d9ad35; border-radius: 10px; background: rgba(20, 29, 44, .96); box-shadow: 0 10px 30px rgba(0,0,0,.35); color: #fff5ca; display: grid; gap: 5px; text-align: center; }
+.pass-action-prompt strong { color: #ffe16c; }
+.pass-action-prompt span { font-size: .9rem; color: #d9e1eb; }
+.pass-action-prompt button { justify-self: center; margin-top: 4px; }
+.pass-action-prompt.warning { border-color: #f0804b; }
+.pass-action-prompt.resolving { border-color: #8dbbf9; }
+.pass-action-prompt.bonus { border-color: #c881ff; }
+.pass-route-modal { width: min(600px, calc(100vw - 30px)); }
+.pass-route-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+.pass-route-options button { text-align: left; display: grid; gap: 4px; min-height: 96px; }
+.pass-route-options button strong { color: #ffe36d; }
+.pass-route-options button span { font-size: .87rem; }
+.pass-route-options button small { color: #a8b9cf; }
+@media (max-width: 600px) { .pass-route-options { grid-template-columns: 1fr; } .pass-action-prompt { top: 96px; } }
 .def-area-board-cell.blue {
   background:rgba(75,150,255,.34);
   border-color:rgba(165,205,255,.42);
