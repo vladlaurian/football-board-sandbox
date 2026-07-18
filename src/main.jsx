@@ -80,6 +80,7 @@ import {
 } from "./tracker/actionRules.mjs";
 import { HistoryPanel } from "./match/HistoryPanel.jsx";
 import { TrackerPanel } from "./tracker/TrackerPanel.jsx";
+import { CardPreview } from "./cards/CardPreview.jsx";
 import "./styles.css";
 
 const firebaseConfig = {
@@ -99,7 +100,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v18.10";
+const APP_VERSION = "v18.11";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -1940,7 +1941,7 @@ function App() {
   // Dice window layout is intentionally local to each browser.  The compact
   // default keeps both results and Roll buttons visible on first open; any
   // later resize remains in memory for this running session only.
-  const [dicePanelSize, setDicePanelSize] = useState({ w: 340, h: 250 });
+  const [dicePanelSize, setDicePanelSize] = useState({ w: 330, h: 250 });
   const [dicePanelDragging, setDicePanelDragging] = useState(null);
   const [dicePanelResizing, setDicePanelResizing] = useState(null);
   const [rulerPanelPosition, setRulerPanelPosition] = useState({ x: 20, y: 150 });
@@ -5681,7 +5682,7 @@ function App() {
       const pngSafeCard = makePngSafeCard(selectedCard, exportSide);
       root.render(
         <div className="card-render-shell card-png-export-shell">
-          <CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} />
+          <CardPreview card={pngSafeCard} team="neutral" side={exportSide} flippable={false} showLayoutZones={false} renderContext={cardPreviewRenderContext} />
         </div>
       );
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -5985,95 +5986,6 @@ function App() {
       ...prev,
       cards: prev.cards.map(card => card.id === cardId ? { ...card, [section]: updater(card[section] || []), updatedAt: new Date().toISOString() } : card),
     }));
-  }
-
-  function CardPreview({ card, compact = false, team = "neutral", side = "back", flippable = false, controlledSide = null, onSideChange = null, showLayoutZones = false }) {
-    const [currentSide, setCurrentSide] = useState(side);
-    useEffect(() => {
-      if (controlledSide == null) setCurrentSide(side);
-    }, [side, card?.id, controlledSide]);
-    if (!card) return <div className="card-preview empty">No card</div>;
-    const activeTheme = getCardTheme(card, cardState.theme);
-    const themeClass = activeTheme === CUSTOM_CARD_THEME ? "theme-custom" : `theme-${activeTheme.toLowerCase().replace(/\s+/g, "-")}`;
-    const shownSide = flippable ? (controlledSide || currentSide) : side;
-    const graphicUrl = shownSide === "front" ? card?.graphics?.frontDataUrl : card?.graphics?.backDataUrl;
-    const colors = cardTextColors(card);
-    const previewStyle = {
-      "--card-header-color": safeColor(colors.header),
-      "--card-header-front-color": safeColor(colors.headerFront),
-      "--card-header-back-color": safeColor(colors.headerBack),
-      "--card-position-front-color": safeColor(colors.positionFront),
-      "--card-position-back-color": safeColor(colors.positionBack),
-      "--card-front-color": safeColor(colors.frontFields),
-      "--card-attributes-front-color": safeColor(colors.attributesFront),
-      "--card-bonuses-front-color": safeColor(colors.bonusesFront),
-      "--card-attributes-color": safeColor(colors.attributes),
-      "--card-bonuses-color": safeColor(colors.bonuses),
-      "--card-attributes-title-color": safeColor(colors.attributesTitle),
-      "--card-bonuses-title-color": safeColor(colors.bonusesTitle),
-      "--card-area-color": safeColor(colors.defensiveArea),
-      "--card-area-rgb": colorToRgbTriplet(colors.defensiveArea),
-      "--card-area-title-color": safeColor(colors.defensiveAreaTitle),
-      "--card-area-active-color": safeColor(colors.defensiveAreaActive, "#50be78"),
-      "--card-area-active-rgb": colorToRgbTriplet(colors.defensiveAreaActive, "#50be78"),
-      "--card-special-color": safeColor(colors.specialAbility),
-      "--card-special-title-color": safeColor(colors.specialAbilityTitle),
-    };
-    return (
-      <div className={`card-preview ${shownSide === "front" ? "card-front" : "card-back"} ${themeClass} ${team}`} style={previewStyle}>
-        <div className="card-preview-art-layer" aria-hidden="true">
-          {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} crossOrigin="anonymous" alt="" /> : null}
-        </div>
-        <div className={`card-preview-content-layer ${showLayoutZones ? "layout-editing" : ""}`}>
-          <CardVisualCanvas card={card} side={shownSide} showZones={showLayoutZones} selectedLayout={selectedLayout} onSelectLayout={setSelectedLayout} />
-        </div>
-        {flippable && (
-          <button
-            type="button"
-            className="card-flip-btn card-preview-flip-btn"
-            title={shownSide === "front" ? "Show card back" : "Show card front"}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const nextSide = shownSide === "front" ? "back" : "front";
-              if (onSideChange) onSideChange(nextSide);
-              else setCurrentSide(nextSide);
-            }}
-          >
-            {shownSide === "front" ? "↻" : "↺"}
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  function cardTopNameFontSize(name = "") {
-    const len = String(name || "").trim().length;
-    // Auto-fit pentru header-ul comun front/back. Zona de nume este mai generoasă,
-    // iar fontul pornește mai mare pentru nume scurte și scade gradual pentru nume lungi.
-    if (len <= 6) return 17.2;
-    if (len <= 9) return 15.8;
-    if (len <= 12) return 14.2;
-    if (len <= 16) return 12.4;
-    if (len <= 20) return 10.6;
-    if (len <= 25) return 8.9;
-    if (len <= 31) return 7.5;
-    if (len <= 38) return 6.2;
-    if (len <= 48) return 5.1;
-    if (len <= 60) return 4.2;
-    return 3.5;
-  }
-
-  function CardIdentityStrip({ card }) {
-    const safeName = String(card?.name || "Player");
-    const safePosition = String(card?.position || "").toUpperCase();
-    return (
-      <div className="card-artwork card-top-strip" style={{ "--top-name-font-size": `${cardTopNameFontSize(safeName)}px` }}>
-        {card?.artwork?.customDataUrl ? <img src={card.artwork.customDataUrl} alt="" /> : null}
-        <strong className="card-top-name" title={safeName}>{safeName}</strong>
-        <span className="card-top-position">{safePosition}</span>
-      </div>
-    );
   }
 
   function AutoFitSpecialText({ children, style, className = "" }) {
@@ -6581,54 +6493,17 @@ function App() {
     );
   }
 
-  function CardBack({ card, compact = false }) {
-    const visibleAttributes = (card.passiveAttributes || []).filter(a => a.showOnCard !== false);
-    const visibleBonuses = (card.bonuses || []).filter(a => a.showOnCard !== false);
-    const visibleCount = visibleAttributes.length + visibleBonuses.length;
-    const density = visibleCount > 22 ? "dense-3" : visibleCount > 17 ? "dense-2" : visibleCount > 12 ? "dense-1" : "normal";
-    return (
-      <>
-        <CardIdentityStrip card={card} />
-        {!compact && (
-          <>
-            <div className={`card-stats-grid ${density}`}>
-              <div className="card-section"><b>Attributes</b><div className="card-section-list">{visibleAttributes.map(a => <small key={a.id}><span>{a.name}</span><em>{normalizeStatValue(a.value)}</em></small>)}</div></div>
-              <div className="card-section"><b>Bonuses</b><div className="card-section-list">{visibleBonuses.map(a => <small key={a.id}><span>{a.name}</span><em>{normalizeStatValue(a.value)}</em></small>)}</div></div>
-            </div>
-            <div className="card-bottom-third">
-              <div className="card-area-block">
-                <div className="area-mini-title">Defensive Area</div>
-                <div className="area-mini-row">
-                  {AreaMiniPreview({ area: card.defensiveArea })}
-                </div>
-              </div>
-              <div className={`card-special-block ${String(card.specialAbility || "").length > 280 ? "special-dense-4" : String(card.specialAbility || "").length > 200 ? "special-dense-3" : String(card.specialAbility || "").length > 130 ? "special-dense-2" : String(card.specialAbility || "").length > 70 ? "special-dense-1" : ""}`}>
-                <b>Special Ability</b>
-                <p>{String(card.specialAbility || "").trim() || "—"}</p>
-              </div>
-            </div>
-          </>
-        )}
-      </>
-    );
-  }
-
-  function CardFront({ card }) {
-    const fields = normalizeFrontFields(card.frontFields || card.frontSummary);
-    return (
-      <div className="card-front-inner">
-        <CardIdentityStrip card={card} />
-        <div className={`front-summary-fields ${fields.length > 4 ? "front-dense-3" : fields.length > 2 ? "front-dense-2" : "front-normal"}`}>
-          {fields.map(field => (
-            <div className="front-summary-row" key={field.id}>
-              <span>{field.label}</span>
-              <em>{computeFrontFieldValue(card, field)}</em>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const cardPreviewRenderContext = {
+    appTheme: cardState.theme,
+    customCardTheme: CUSTOM_CARD_THEME,
+    getCardTheme,
+    cardTextColors,
+    safeColor,
+    colorToRgbTriplet,
+    VisualCanvas: CardVisualCanvas,
+    selectedLayout,
+    onSelectLayout: setSelectedLayout,
+  };
 
   function AreaMiniPreview({ area = [] }) {
     return <div className="area-mini">{Array.from({ length: 121 }, (_, i) => { const dx = (i % 11) - 5; const dy = Math.floor(i / 11) - 5; const center = dx === 0 && dy === 0; return <span key={i} className={`${center ? "player" : ""} ${areaHasCell(area, dx, dy) ? "active" : ""}`}>{center ? "" : ""}</span>; })}</div>;
@@ -7480,8 +7355,8 @@ function App() {
     return (
       <div className="card-editor">
         <div className="card-editor-previews">
-          <div><div className="card-preview-label">Front</div><div className="card-render-shell"><CardPreview card={card} team="neutral" side="front" showLayoutZones={true} /></div></div>
-          <div><div className="card-preview-label">Back</div><div className="card-render-shell"><CardPreview card={card} team="neutral" side="back" showLayoutZones={true} /></div></div>
+          <div><div className="card-preview-label">Front</div><div className="card-render-shell"><CardPreview card={card} team="neutral" side="front" showLayoutZones={true} renderContext={cardPreviewRenderContext} /></div></div>
+          <div><div className="card-preview-label">Back</div><div className="card-render-shell"><CardPreview card={card} team="neutral" side="back" showLayoutZones={true} renderContext={cardPreviewRenderContext} /></div></div>
         </div>
         <div className="card-editor-controls">
         {CardLayoutEditor({ card })}
@@ -7609,7 +7484,7 @@ function App() {
                 {selectedPreviewCard ? (
                   <>
                     <div className="assign-preview-card-shell">
-                      <CardPreview card={selectedPreviewCard} team="neutral" side={assignPreviewSide} />
+                      <CardPreview card={selectedPreviewCard} team="neutral" side={assignPreviewSide} renderContext={cardPreviewRenderContext} />
                     </div>
                     <div className="assign-preview-actions">
                       <button type="button" onClick={() => setAssignPreviewSide(side => side === "front" ? "back" : "front")}>Flip</button>
@@ -9146,6 +9021,7 @@ function App() {
                           flippable
                           controlledSide={inspectorCardSide}
                           onSideChange={handleInspectorSideChange}
+                          renderContext={cardPreviewRenderContext}
                         />
                       </div>
                     </div>

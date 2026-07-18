@@ -23,7 +23,7 @@ const settings = {
   cornerArcRadius: 1,
 };
 
-test("extracted Board, History, and Tracker JSX components render through Vite", async (t) => {
+test("extracted Board, History, Tracker, and shared Card Preview JSX components render through Vite", async (t) => {
   const server = await createServer({
     server: { middlewareMode: true },
     optimizeDeps: { noDiscovery: true },
@@ -34,6 +34,7 @@ test("extracted Board, History, and Tracker JSX components render through Vite",
   const { BoardCanvas } = await server.ssrLoadModule("/src/board/BoardCanvas.jsx");
   const { HistoryPanel } = await server.ssrLoadModule("/src/match/HistoryPanel.jsx");
   const { TrackerPanel } = await server.ssrLoadModule("/src/tracker/TrackerPanel.jsx");
+  const { CardPreview } = await server.ssrLoadModule("/src/cards/CardPreview.jsx");
 
   const boardMarkup = renderToStaticMarkup(
     React.createElement(BoardCanvas, {
@@ -134,4 +135,26 @@ test("extracted Board, History, and Tracker JSX components render through Vite",
   );
   assert.match(trackerMarkup, /tracker-panel/);
   assert.match(trackerMarkup, /MV/);
+
+  const VisualCanvas = ({ card, side }) => React.createElement("div", { className: "test-card-canvas", "data-side": side }, card.name);
+  const cardPreviewMarkup = renderToStaticMarkup(
+    React.createElement(CardPreview, {
+      card: { id: "card-1", name: "Victor", position: "GK", theme: "Style 1", graphics: {} },
+      side: "front",
+      team: "blue",
+      renderContext: {
+        appTheme: "Style 1",
+        customCardTheme: "Custom",
+        getCardTheme: card => card.theme,
+        cardTextColors: () => ({}),
+        safeColor: value => value || "#ffffff",
+        colorToRgbTriplet: () => "255, 255, 255",
+        VisualCanvas,
+        selectedLayout: null,
+        onSelectLayout: noop,
+      },
+    }),
+  );
+  assert.match(cardPreviewMarkup, /card-preview card-front theme-style-1 blue/);
+  assert.match(cardPreviewMarkup, /test-card-canvas/);
 });

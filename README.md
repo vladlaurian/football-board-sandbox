@@ -1,5 +1,42 @@
 # Football Board Sandbox
 
+## v18.11 — Shared card preview audit and compact Dice default
+
+### What changed
+
+- Audited every active card presentation path: Card Editor front/back, Inspector, assignment preview, and PNG export.
+- Extracted their shared card shell into `src/cards/CardPreview.jsx`.
+- Kept the existing `CardVisualCanvas` as the single inner renderer for all four paths, including the interactive layout-editor overlay used only by the Editor.
+- Removed unused legacy `CardFront`, `CardBack`, and identity-strip renderers that were no longer called by any active path.
+- Added a Vite rendering test for the shared Card Preview component.
+- Reduced the local Dice default width from `340` to `330` pixels; height remains `250` pixels.
+- Updated the in-app Sandbox version and package version to v18.11.
+
+### Why it changed
+
+The application already had one active card renderer, but its shared shell still lived inside the very large application component. Moving that shell makes the common presentation path explicit and testable without splitting the interactive layout editor from its state callbacks prematurely. Removing unused legacy renderers avoids maintaining a second, stale card presentation system.
+
+### Problems resolved
+
+- Editor, Inspector, assignment preview, and PNG export now explicitly enter through the same extracted `CardPreview` component.
+- There is no longer unused alternate front/back card JSX alongside the active renderer.
+- Dice opens slightly narrower while retaining the cross-browser sizing correction from v18.10.
+
+### Impact
+
+- Card layout, themes, art, typography, front/back state, flip behavior, custom zones, defensive areas, PNG export, and the Editor's layout overlay use their existing data and renderer logic.
+- The Editor keeps the only layout-editing adapter; Inspector, assignment preview, and export remain read-only presentations of the same canvas.
+- Editor = Inspector = Export is strengthened: all active surfaces share one preview shell and one inner canvas.
+- Timeline, History, Undo, Redo, replay, Tracker, Firebase, multiplayer state, and gameplay rules are unchanged.
+
+### Verification focus
+
+1. Open one card in the Editor and compare front and back with the same card in Inspector: artwork, fields, colors, zones, and text must match.
+2. Assign that card to a puck, open assignment preview, and flip it in Inspector. Confirm no visual or flip-permission regression.
+3. Export Front PNG and Back PNG, then compare them with the Editor and Inspector renderings.
+4. Edit a layout zone in Editor and confirm only Editor exposes the layout handles; Inspector and export must remain non-editable but reflect the saved layout.
+5. Open Dice and confirm the new default remains usable in Chrome and Firefox.
+
 ## v18.10 — Editor turn freedom and cross-browser Dice sizing
 
 ### What changed
