@@ -2,7 +2,7 @@ import { cloneGameState } from "../game/gameState.mjs";
 import { normalizeTimeline, timelineStateAt } from "./timelineEngine.mjs";
 
 export const AI_ANALYSIS_EXPORT_TYPE = "football-board-ai-analysis";
-export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 1;
+export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 2;
 
 function rowLetter(index) {
   let value = Math.max(0, Number(index) || 0) + 1;
@@ -89,7 +89,7 @@ function compactPiece(piece, cardsById) {
 function compactTracker(tracker = {}) {
   return {
     gameStarted: Boolean(tracker?.gameStarted),
-    startingTeam: tracker?.startingTeam === "blue" ? "blue" : "red",
+    currentAttackingTeam: tracker?.startingTeam === "blue" ? "blue" : "red",
     currentTurn: Math.max(0, Number(tracker?.currentTurn) || 0),
     phase: String(tracker?.turnPhase || "attack"),
     actionLimits: {
@@ -244,6 +244,7 @@ function semanticEvent(entry, sequence, cardsById) {
   const trackerActions = addedTrackerActions(before, after);
   const actor = actorForEntry(entry, before, after, movements, cardsById);
   const team = entry.team || actor?.pieceId && teamForPiece(piecesById(after).get(actor.pieceId) || piecesById(before).get(actor.pieceId)) || null;
+  const eventState = entry.type === "MATCH_STARTED" ? after : before;
   return {
     eventId: String(entry.id),
     sequence,
@@ -252,13 +253,13 @@ function semanticEvent(entry, sequence, cardsById) {
     actionId: String(entry.groupId || entry.id),
     parentActionId: null,
     actionLink: entry.groupId ? "TIMELINE_GROUP" : "NONE",
-    turnId: `turn_${Math.max(0, Number(before?.tracker?.currentTurn) || 0)}`,
+    turnId: `turn_${Math.max(0, Number(eventState?.tracker?.currentTurn) || 0)}`,
     possessionId: null,
     eventSource: eventSource(entry),
     type: semanticType(entry, trackerActions, movements),
     label: entry.label,
     team,
-    phase: String(before?.tracker?.turnPhase || "attack"),
+    phase: String(eventState?.tracker?.turnPhase || "attack"),
     actor,
     opponent: null,
     trackerActions,
@@ -308,12 +309,20 @@ function linkSequentialMoveEvents(events) {
   return events;
 }
 
-function matchContext(state, appVersion) {
+function openingAttackingTeam(timeline) {
+  const matchStart = timeline.entries.find(entry => entry.type === "MATCH_STARTED");
+  if (matchStart?.team === "blue" || matchStart?.team === "red") return matchStart.team;
+  const sourceState = matchStart?.after || timeline.initialState;
+  return sourceState?.tracker?.startingTeam === "blue" ? "blue" : "red";
+}
+
+function matchContext(state, appVersion, openingTeam) {
   const settings = state?.settings || {};
   const columns = Math.max(0, Number(settings.cols) || 0);
   return {
     appVersion: String(appVersion || ""),
     mode: "MANUAL_SANDBOX",
+    openingAttackingTeam: openingTeam,
     teams: {
       blue: { pieceTeamId: "A", attacksToward: "right", opponentGoalColumn: columns },
       red: { pieceTeamId: "B", attacksToward: "left", opponentGoalColumn: 1 },
@@ -341,6 +350,7 @@ export function createAiAnalysisExport(recording, metadata = {}) {
   const finalState = timelineStateAt(timeline, timeline.cursor);
   const activeEntries = timeline.entries.slice(0, timeline.cursor);
   const events = linkSequentialMoveEvents(activeEntries.map((entry, index) => semanticEvent(entry, index + 1, cardsById)));
+  const context = matchContext(initialState, recording.appVersion || metadata.appVersion, openingAttackingTeam(timeline));
   return {
     exportType: AI_ANALYSIS_EXPORT_TYPE,
     schemaVersion: AI_ANALYSIS_EXPORT_SCHEMA_VERSION,
@@ -352,7 +362,7 @@ export function createAiAnalysisExport(recording, metadata = {}) {
       startedAt: timeline.startedAt,
       endedAt: timeline.endedAt,
     },
-    matchContext: matchContext(initialState, recording.appVersion || metadata.appVersion),
+    matchContext: context,
     rulesetSnapshot: {
       mode: "MANUAL_UNAUTOMATED",
       version: "manual-sandbox-v1",
@@ -360,7 +370,6 @@ export function createAiAnalysisExport(recording, metadata = {}) {
       tracker: compactTracker(initialState.tracker).actionLimits,
       dieType: Math.max(2, Number(initialState?.dice?.dieType) || 20),
     },
-    teams: matchContext(initialState, recording.appVersion || metadata.appVersion).teams,
     gameplayCardSnapshot: [...cardsById.values()].map(card => cloneGameState(card)),
     initialState: compactState(initialState, cardsById),
     semanticTimeline: events,

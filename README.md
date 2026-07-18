@@ -1,5 +1,43 @@
 # Football Board Sandbox
 
+## v17.8 — AI export semantic cleanup
+
+### What changed
+
+- Replaced the ambiguous exported tracker field `startingTeam` with `currentAttackingTeam`.
+- Added immutable `matchContext.openingAttackingTeam`, derived from the actual `MATCH_STARTED` event instead of the mutable current-possession field.
+- Removed the duplicated top-level `teams` object. Team identity and attack directions now have one canonical location: `matchContext.teams`.
+- `MATCH_STARTED` is now exported in `turn_1`, using its post-start state, instead of appearing incorrectly in `turn_0`.
+- Bumped the AI Analysis Export schema to version 2 because its external field names and canonical location changed.
+- Added regression coverage for Red opening the match, Blue taking possession later, the immutable opening team, the mutable current attacking team, and `MATCH_STARTED` turn labeling.
+
+### Why it changed
+
+The Tracker’s internal legacy field `startingTeam` is reused by the current gameplay UI as the team currently attacking after a possession change. Exporting that field under its literal name made it look like the team that started the match had changed, which is false and misleading for an AI analysis.
+
+The AI export must distinguish the opening attacking team from the team currently attacking at any point in the match. It must also have one canonical team mapping and a coherent first-turn boundary.
+
+### Problems resolved
+
+- An AI can no longer misread a possession change as a changed match starter.
+- The initial and final states clearly show the attacking team at those moments.
+- The opening attacking team remains stable for the entire match.
+- Team metadata no longer has two redundant sources that could diverge.
+- The match-start event is aligned with the first playable turn.
+
+### Impact
+
+- This changes only the compact AI Analysis Export schema; Full Replay, Match Timeline, Tracker behavior, multiplayer, Firebase, History, Undo, Redo, and `Situație` are unchanged.
+- Existing AI export files use schema version 1 and remain historical files. New exports use schema version 2; they are not imported by the Sandbox, so no migration or compatibility risk exists inside the application.
+- The internal Tracker field is intentionally left untouched in this small corrective build. Its broader internal rename belongs to the planned structural refactor, where it can be done consistently across UI, state, Firebase, and multiplayer rather than as a risky partial rename.
+
+### Verification focus
+
+1. Start a match with Red attacking.
+2. Use `Change Possession` so Blue attacks.
+3. Export AI Analysis.
+4. Confirm `matchContext.openingAttackingTeam` is `red`, while `finalState.tracker.currentAttackingTeam` is `blue`.
+
 ## v17.7 — AI Analysis Export foundation
 
 ### What changed

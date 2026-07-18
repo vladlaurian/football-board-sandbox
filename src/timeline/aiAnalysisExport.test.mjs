@@ -61,6 +61,10 @@ test("AI analysis export is compact, directional, and keeps one action ID across
   const exported = createAiAnalysisExport({ name: "Test", appVersion: "v17.7", cardSnapshot: cards, timeline });
   assert.equal(exported.matchContext.teams.blue.attacksToward, "right");
   assert.equal(exported.matchContext.teams.red.attacksToward, "left");
+  assert.equal(exported.matchContext.openingAttackingTeam, "blue");
+  assert.equal(exported.teams, undefined);
+  assert.equal(exported.initialState.tracker.currentAttackingTeam, "blue");
+  assert.equal(exported.initialState.tracker.startingTeam, undefined);
   assert.equal(exported.rulesetSnapshot.mode, "MANUAL_UNAUTOMATED");
   assert.equal(exported.gameplayCardSnapshot[0].graphics, undefined);
   assert.deepEqual(exported.gameplayCardSnapshot[0].bonuses, [{ name: "Dribbling", value: 2 }]);
@@ -71,6 +75,27 @@ test("AI analysis export is compact, directional, and keeps one action ID across
   assert.equal(exported.semanticTimeline[1].movementReason, "NORMAL_MOVE");
   assert.equal(exported.semanticTimeline[1].movements[0].origin, "I11");
   assert.equal(exported.semanticTimeline[1].movements[0].destination, "I15");
+});
+
+test("MATCH_STARTED belongs to turn 1 and opening attack never changes with a later possession change", () => {
+  const before = state({
+    tracker: { ...state().tracker, gameStarted: false, startingTeam: "red", currentTurn: 0 },
+  });
+  const started = state({
+    tracker: { ...before.tracker, gameStarted: true, startingTeam: "red", currentTurn: 1 },
+  });
+  const possessionChanged = state({
+    tracker: { ...started.tracker, startingTeam: "blue" },
+  });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, { id: "start", type: "MATCH_STARTED", label: "Match started: Red attacks", team: "red", before, after: started });
+  timeline = commitTimelineEntry(timeline, { id: "possession", type: "POSSESSION_CHANGED", label: "Possession changed: Blue attacks", team: "blue", before: started, after: possessionChanged });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  assert.equal(exported.matchContext.openingAttackingTeam, "red");
+  assert.equal(exported.semanticTimeline[0].turnId, "turn_1");
+  assert.equal(exported.semanticTimeline[0].phase, "attack");
+  assert.equal(exported.initialState.tracker.currentAttackingTeam, "red");
+  assert.equal(exported.finalState.tracker.currentAttackingTeam, "blue");
 });
 
 test("unlinked physical moves are explicitly exported as Manual Move", () => {
