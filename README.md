@@ -1,5 +1,44 @@
 # Football Board Sandbox
 
+## v19.0 — Editable Rule Sets foundation
+
+### What changed
+
+- Added a host-only `Rules` button immediately after `Import Match` in the primary toolbar.
+- Added an editable Rule Set library with an active set, name, optional notes, `New`, `Duplicate`, `Load`, and `Save Rule Set` flows.
+- Added the first structural action category: `Pass`. It is deliberately marked as not configured yet, so this build does not invent pass formulas or change gameplay.
+- Established a hard invariant for the future action engine: dice rolls are always manual. An automated action may lead a player to a roll, but it can never roll or resolve a die automatically.
+- Added Rule Set data to Cloud Save, full backup/restore, local browser storage, the live multiplayer board projection, Match Timeline states, match recordings, replay, and AI analysis export.
+- Locked Rule Set editing in Match Mode and Replay. The exact active Rule Set is snapshotted when a Match starts.
+- Added pure tests for Rule Set normalization, unique copies, manual-roll enforcement, recording snapshots, and AI export exposure.
+- Updated the in-app Sandbox version and package version to v19.0.
+
+### Why it changed
+
+Pass, interception, tackling, dribbling, shots, and crosses need one editable source for future parameters rather than separate hidden hard-coded systems. The first build establishes that source without prematurely deciding football rules or probabilities.
+
+### Problems resolved
+
+- Future automation now has a dedicated configuration boundary instead of adding more rule logic to the application shell.
+- A replay and its AI export can identify the Rule Set that governed the match, even if the user later edits the current workspace rules.
+- Multiplayer guests receive the active Rule Set used by the host, while only the host can edit it.
+
+### Impact
+
+- This build changes no current Move, Pass-card, Tracker, dice, board, card, Scenario, or action-economy behavior.
+- `Pass` is a visible placeholder only. Its actual distance, trajectory, interception areas, and manual-roll flow are intentionally deferred to the next implementation step after the gameplay design is agreed.
+- Existing recordings without Rule Set data remain loadable and use `Default Rules` as their safe compatibility value.
+- Editor = Inspector = Export remains intact; no card presentation or card data path changed.
+
+### Verification focus
+
+1. In Editor Mode as host, click `Rules` immediately after `Import Match`. Create a named Rule Set, add a note, save it, create a duplicate, select another set, and use `Load` to switch deliberately.
+2. Confirm the Pass card states that it is not configured and that dice are manual-only; there must be no automatic roll control.
+3. Enter Match Mode and reopen `Rules`: confirm the set is visible but all editing controls are locked. Return to Editor Mode and confirm editing is available again.
+4. Save a Match, import it as a replay, and confirm its Rules panel is locked. Export AI Analysis and confirm `rulesetSnapshot.ruleSet` contains the chosen id, name, notes, and Pass manual roll mode.
+5. In multiplayer, change and save the host Rule Set while in Editor Mode. Confirm the guest receives the active configuration through the shared state, but still cannot see the primary host toolbar or edit Rules.
+6. Use Cloud Save, reload, and optionally export/import Cards & Board. Confirm the Rule Set library and active set return with the workspace.
+
 ## v18.11 — Shared card preview audit and compact Dice default
 
 ### What changed

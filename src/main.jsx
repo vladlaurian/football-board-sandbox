@@ -26,6 +26,13 @@ import {
 } from "./board/boardGeometry.mjs";
 import { diagonalCostForDistance, getMovementGeometry, normalizeMovementState } from "./board/movementState.mjs";
 import { createDefaultScenarioSlots, normalizeScenarioSlots } from "./board/scenarioUtils.mjs";
+import {
+  createDefaultRuleSet,
+  createRuleSet,
+  findRuleSet,
+  normalizeRuleSet,
+  normalizeRuleSets,
+} from "./rules/ruleSets.mjs";
 import { BoardCanvas } from "./board/BoardCanvas.jsx";
 import { clamp } from "./game/numberUtils.mjs";
 import {
@@ -100,7 +107,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v18.11";
+const APP_VERSION = "v19.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -1805,6 +1812,24 @@ function loadStoredGameSituations() {
   }
 }
 
+function loadStoredRuleSets() {
+  try {
+    const raw = localStorage.getItem("football-board-rule-sets-v1");
+    return normalizeRuleSets(raw ? JSON.parse(raw) : []);
+  } catch {
+    return normalizeRuleSets([]);
+  }
+}
+
+function loadStoredActiveRuleSet(ruleSets) {
+  try {
+    const savedId = localStorage.getItem("football-board-active-rule-set-v1");
+    return normalizeRuleSet(findRuleSet(ruleSets, savedId));
+  } catch {
+    return normalizeRuleSet(findRuleSet(ruleSets));
+  }
+}
+
 function createInitialPieces(cols, rows, blueFormation = FORMATION_SLOTS[0], redFormation = FORMATION_SLOTS[1]) {
   const pieces = [];
   const midY = Math.floor(rows / 2);
@@ -1859,6 +1884,11 @@ function App() {
   const [gameSituations, setGameSituations] = useState(() => loadStoredGameSituations());
   const [activeSituationId, setActiveSituationId] = useState(1);
   const [activeSituationName, setActiveSituationName] = useState("Scenario 1");
+  const [ruleSets, setRuleSets] = useState(() => loadStoredRuleSets());
+  const [activeRuleSet, setActiveRuleSet] = useState(() => loadStoredActiveRuleSet(loadStoredRuleSets()));
+  const [ruleSetSelectionId, setRuleSetSelectionId] = useState(() => loadStoredActiveRuleSet(loadStoredRuleSets()).id);
+  const [ruleSetDraft, setRuleSetDraft] = useState(() => loadStoredActiveRuleSet(loadStoredRuleSets()));
+  const [rulesPanelOpen, setRulesPanelOpen] = useState(false);
   const [pieces, setPieces] = useState(() => normalizePiecesForBoard(createInitialPieces(DEFAULT_SETTINGS.cols, DEFAULT_SETTINGS.rows, FORMATION_SLOTS[0], FORMATION_SLOTS[1]), DEFAULT_SETTINGS));
   const [selectedId, setSelectedId] = useState(null);
   const [hoveredCell, setHoveredCell] = useState(null);
@@ -2050,6 +2080,7 @@ function App() {
   const piecesRef = useRef(pieces);
   const settingsRef = useRef(settings);
   const cardStateRef = useRef(cardState);
+  const activeRuleSetRef = useRef(activeRuleSet);
   const [sessionCardsById, setSessionCardsById] = useState({});
   const sessionCardsByIdRef = useRef({});
   const [sessionLibraryById, setSessionLibraryById] = useState({});
@@ -2064,6 +2095,7 @@ function App() {
   useEffect(() => { piecesRef.current = pieces; }, [pieces]);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { cardStateRef.current = cardState; }, [cardState]);
+  useEffect(() => { activeRuleSetRef.current = activeRuleSet; }, [activeRuleSet]);
   useEffect(() => { movementStateRef.current = movementStateByPieceId; }, [movementStateByPieceId]);
   useEffect(() => { gameTimelineRef.current = gameTimeline; }, [gameTimeline]);
   useEffect(() => { sessionCardsByIdRef.current = sessionCardsById; }, [sessionCardsById]);
@@ -2301,14 +2333,19 @@ function App() {
     const effectiveCardState = overrides.cardState ? normalizeCardState(overrides.cardState) : cardStateRef.current;
     const effectivePieces = overrides.pieces || piecesRef.current;
     const effectiveGameSituations = overrides.gameSituations || gameSituations;
+    const effectiveRuleSets = normalizeRuleSets(overrides.ruleSets || ruleSets);
+    const effectiveRuleSet = normalizeRuleSet(overrides.activeRuleSet || activeRuleSetRef.current);
     const effectiveTrackerState = buildPersistentTrackerSnapshot(overrides.trackerState || {});
-    const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, gameSituations: _overrideGameSituations, trackerState: _overrideTrackerState, ...restOverrides } = overrides;
+    const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, gameSituations: _overrideGameSituations, trackerState: _overrideTrackerState, ruleSets: _overrideRuleSets, activeRuleSet: _overrideActiveRuleSet, ...restOverrides } = overrides;
     return stripInlineImagesFromCloudState({
       version: "pitch-44-goal-5x2",
       formations,
       gameSituations: stripCardLibrariesFromSituations(effectiveGameSituations),
       activeSituationId,
       activeSituationName,
+      ruleSets: effectiveRuleSets,
+      activeRuleSetId: effectiveRuleSet.id,
+      activeRuleSet: effectiveRuleSet,
       blueFormationId,
       redFormationId,
       dieType,
@@ -2343,6 +2380,17 @@ function App() {
     if (typeof data.activeSituationId === "number") setActiveSituationId(nextScenarioId);
     const selectedScenario = nextScenarios.find(scenario => scenario.id === Number(nextScenarioId));
     if (selectedScenario) setActiveSituationName(selectedScenario.name);
+    if (data.ruleSets || data.activeRuleSet) {
+      const nextRuleSets = normalizeRuleSets(data.ruleSets || ruleSets);
+      const nextActiveRuleSet = normalizeRuleSet(data.activeRuleSet || findRuleSet(nextRuleSets, data.activeRuleSetId));
+      setRuleSets(nextRuleSets);
+      setActiveRuleSet(nextActiveRuleSet);
+      setRuleSetSelectionId(nextActiveRuleSet.id);
+      setRuleSetDraft(nextActiveRuleSet);
+      activeRuleSetRef.current = nextActiveRuleSet;
+      localStorage.setItem("football-board-rule-sets-v1", JSON.stringify(nextRuleSets));
+      localStorage.setItem("football-board-active-rule-set-v1", nextActiveRuleSet.id);
+    }
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
     if (data.pieces) {
@@ -2483,6 +2531,7 @@ function App() {
       settings: _overrideSettings,
       sessionLibraryById: _legacySessionLibraryById,
       sessionCardsById: _legacySessionCardsById,
+      activeRuleSet: _overrideActiveRuleSet,
       ...restOverrides
     } = overrides;
     const effectiveSessionLibraryById = normalizeSessionCardsById(sessionLibraryByIdRef.current);
@@ -2496,6 +2545,7 @@ function App() {
       showCoordinates,
       blueFormationId,
       redFormationId,
+      activeRuleSet: normalizeRuleSet(overrides.activeRuleSet || activeRuleSetRef.current),
       ...restOverrides,
       settings: effectiveSettings,
       pieces: sanitizePiecesCardIds(effectivePieces, sessionCardSourceState, effectiveSettings, {}, sessionCardsByIdRef.current),
@@ -2541,6 +2591,13 @@ function App() {
       }
     }
     if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
+    if (data.activeRuleSet) {
+      const nextActiveRuleSet = normalizeRuleSet(data.activeRuleSet);
+      activeRuleSetRef.current = nextActiveRuleSet;
+      setActiveRuleSet(nextActiveRuleSet);
+      setRuleSetDraft(nextActiveRuleSet);
+      setRuleSetSelectionId(nextActiveRuleSet.id);
+    }
     if (!sessionCode) {
       setGameMode(normalizeGameMode(data.gameMode));
       setMovementStateByPieceId(normalizeMovementState(data.movementStateByPieceId));
@@ -2607,6 +2664,7 @@ function App() {
         const board = buildLiveBoardState({
           settings: nextState.settings,
           pieces: nextState.pieces,
+          activeRuleSet: nextState.ruleSet,
           dieType: nextState.dice.dieType,
           dieResult: { blue: nextState.dice.blueResult, red: nextState.dice.redResult },
         });
@@ -3396,6 +3454,7 @@ function App() {
     showCoordinates,
     blueFormationId,
     redFormationId,
+    activeRuleSet,
   ]);
 
   useEffect(() => () => {
@@ -3414,6 +3473,8 @@ function App() {
     settings,
     formations,
     gameSituations,
+    ruleSets,
+    activeRuleSet,
     activeSituationId,
     activeSituationName,
     blueFormationId,
@@ -3463,6 +3524,7 @@ function App() {
       pieces: overrides.pieces ?? piecesRef.current,
       movementStateByPieceId: normalizeMovementState(overrides.movementStateByPieceId ?? movementStateRef.current),
       gameMode: normalizeGameMode(overrides.gameMode ?? gameMode),
+      ruleSet: normalizeRuleSet(overrides.ruleSet ?? activeRuleSetRef.current),
       tracker: {
         gameStarted: overrides.trackerGameStarted ?? trackerGameStarted,
         startingTeam: overrides.trackerStartingTeam ?? trackerStartingTeam,
@@ -3490,6 +3552,7 @@ function App() {
       pieces: overrides.pieces ?? base.pieces,
       movementStateByPieceId: overrides.movementStateByPieceId ?? base.movementStateByPieceId,
       gameMode: overrides.gameMode ?? base.gameMode,
+      ruleSet: overrides.ruleSet ?? base.ruleSet,
       tracker: {
         gameStarted: overrides.trackerGameStarted ?? base.tracker.gameStarted,
         startingTeam: overrides.trackerStartingTeam ?? base.tracker.startingTeam,
@@ -3779,6 +3842,68 @@ function App() {
     logSnapshot(`Save Scenario: ${cleanName}`);
   }
 
+  const ruleSetEditingLocked = gameMode === "match" || isReplayView || (Boolean(sessionCode) && !isSessionHost);
+
+  function commitRuleSetWorkspace(nextRuleSets, nextActiveRuleSet, label = "Rule Set saved") {
+    const normalizedRuleSets = normalizeRuleSets(nextRuleSets);
+    const normalizedActiveRuleSet = normalizeRuleSet(nextActiveRuleSet);
+    const activeExists = normalizedRuleSets.some(ruleSet => ruleSet.id === normalizedActiveRuleSet.id);
+    const savedRuleSets = activeExists
+      ? normalizedRuleSets
+      : [...normalizedRuleSets, normalizedActiveRuleSet];
+
+    activeRuleSetRef.current = normalizedActiveRuleSet;
+    setRuleSets(savedRuleSets);
+    setActiveRuleSet(normalizedActiveRuleSet);
+    setRuleSetDraft(normalizedActiveRuleSet);
+    setRuleSetSelectionId(normalizedActiveRuleSet.id);
+    localStorage.setItem("football-board-rule-sets-v1", JSON.stringify(savedRuleSets));
+    localStorage.setItem("football-board-active-rule-set-v1", normalizedActiveRuleSet.id);
+
+    if (sessionCode && isSessionHost && gameMode === "editor") {
+      void saveSessionState({ activeRuleSet: normalizedActiveRuleSet });
+    }
+    if (user && cloudReady) {
+      void saveCloudState({
+        ruleSets: savedRuleSets,
+        activeRuleSet: normalizedActiveRuleSet,
+      }, label);
+    }
+  }
+
+  function loadSelectedRuleSet() {
+    if (ruleSetEditingLocked) return;
+    const selected = findRuleSet(ruleSets, ruleSetSelectionId);
+    const draftChanged = JSON.stringify(normalizeRuleSet(ruleSetDraft)) !== JSON.stringify(normalizeRuleSet(activeRuleSet));
+    if ((selected.id !== activeRuleSet.id || draftChanged) && !window.confirm("Load this Rule Set? Unsaved changes to the current rules will be lost.")) return;
+    commitRuleSetWorkspace(ruleSets, selected, "Rule Set loaded");
+  }
+
+  function saveRuleSetDraft() {
+    if (ruleSetEditingLocked) return;
+    const saved = normalizeRuleSet({ ...ruleSetDraft, id: activeRuleSet.id }, activeRuleSet);
+    const nextRuleSets = ruleSets.some(ruleSet => ruleSet.id === saved.id)
+      ? ruleSets.map(ruleSet => ruleSet.id === saved.id ? saved : ruleSet)
+      : [...ruleSets, saved];
+    commitRuleSetWorkspace(nextRuleSets, saved, "Rule Set saved");
+  }
+
+  function createNewRuleSet() {
+    if (ruleSetEditingLocked) return;
+    const name = window.prompt("Name this Rule Set:", "New Rule Set");
+    if (name === null) return;
+    const created = createRuleSet(ruleSets, name, createDefaultRuleSet());
+    commitRuleSetWorkspace([...ruleSets, created], created, "Rule Set created");
+  }
+
+  function duplicateActiveRuleSet() {
+    if (ruleSetEditingLocked) return;
+    const name = window.prompt("Name the copied Rule Set:", `${activeRuleSet.name} copy`);
+    if (name === null) return;
+    const duplicated = createRuleSet(ruleSets, name, activeRuleSet);
+    commitRuleSetWorkspace([...ruleSets, duplicated], duplicated, "Rule Set duplicated");
+  }
+
   function resetPiecePositions() {
     pushHistory();
 
@@ -3973,6 +4098,7 @@ function App() {
         appVersion: APP_VERSION,
         name,
         cardSnapshot,
+        ruleSetSnapshot: timeline.initialState?.ruleSet,
       });
       const blob = new Blob([JSON.stringify(recording, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -4022,7 +4148,12 @@ function App() {
         throw new Error(`Lipsesc ${missingCardIds.length} carduri folosite în timeline: ${missingCardIds.join(", ")}`);
       }
 
-      const recording = createMatchRecording(timeline, { APP_VERSION, name, cardSnapshot });
+      const recording = createMatchRecording(timeline, {
+        appVersion: APP_VERSION,
+        name,
+        cardSnapshot,
+        ruleSetSnapshot: timeline.initialState?.ruleSet,
+      });
       const analysis = createAiAnalysisExport(recording, { appVersion: APP_VERSION });
       const blob = new Blob([JSON.stringify(analysis, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -4283,6 +4414,11 @@ function App() {
     setPieces(nextPieces);
     setMovementStateByPieceId(nextMovement);
     setGameMode(normalizeGameMode(state.gameMode));
+    const nextActiveRuleSet = normalizeRuleSet(state.ruleSet);
+    activeRuleSetRef.current = nextActiveRuleSet;
+    setActiveRuleSet(nextActiveRuleSet);
+    setRuleSetDraft(nextActiveRuleSet);
+    setRuleSetSelectionId(nextActiveRuleSet.id);
     setTrackerSettings(nextTracker.settings);
     setTrackerSettingsDraft(nextTracker.settings);
     setTrackerGameStarted(nextTracker.gameStarted);
@@ -8749,6 +8885,17 @@ function App() {
           Import Match
           <input type="file" accept="application/json" disabled={Boolean(sessionCode)} onChange={e => { importMatchRecording(e.target.files?.[0]); e.target.value = ""; }} />
         </label>
+        <button
+          className={ruleSetEditingLocked ? "rules-locked" : ""}
+          onClick={() => {
+            setRuleSetSelectionId(activeRuleSet.id);
+            setRuleSetDraft(activeRuleSet);
+            setRulesPanelOpen(true);
+          }}
+          title={ruleSetEditingLocked ? "Rule Sets are locked while a Match is active." : "Manage the active Rule Set."}
+        >
+          Rules
+        </button>
         </>
         )}
         </>
@@ -9327,6 +9474,41 @@ function App() {
             <div className="modal-actions turn-confirm-actions">
               <button onClick={confirmEndTurn}>Yes</button>
               <button onClick={() => setPendingEndTurn(null)}>No</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rulesPanelOpen && (
+        <div className="modal-backdrop" onPointerDown={() => setRulesPanelOpen(false)}>
+          <div className="modal rules-modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="modal-title"><strong>Rule Sets</strong><button className="icon-btn" onClick={() => setRulesPanelOpen(false)}>×</button></div>
+            {ruleSetEditingLocked ? (
+              <p className="rules-lock-note">This Rule Set is locked while a Match or Replay is active. Its snapshot stays fixed for History, replay, multiplayer, and AI export.</p>
+            ) : (
+              <p className="rules-lock-note">Rule Sets can be edited only in Editor Mode. Saving keeps the active configuration ready for the next Match.</p>
+            )}
+            <label>Saved Rule Set
+              <select value={ruleSetSelectionId} onChange={e => setRuleSetSelectionId(e.target.value)}>
+                {ruleSets.map(ruleSet => <option key={ruleSet.id} value={ruleSet.id}>{ruleSet.name}</option>)}
+              </select>
+            </label>
+            <label>Name
+              <input disabled={ruleSetEditingLocked} value={ruleSetDraft.name} maxLength="80" onChange={e => setRuleSetDraft(draft => ({ ...draft, name: e.target.value }))} />
+            </label>
+            <label className="rules-notes-label">Notes
+              <textarea disabled={ruleSetEditingLocked} value={ruleSetDraft.notes} maxLength="4000" placeholder="Optional design notes for this Rule Set" onChange={e => setRuleSetDraft(draft => ({ ...draft, notes: e.target.value }))} />
+            </label>
+            <section className="rule-action-card">
+              <div><strong>Pass</strong><span>Prepared for the first automation step</span></div>
+              <p>Resolution is not configured yet. The future action flow may request an interception roll, but every die roll remains manual.</p>
+              <span className="rule-manual-pill">Dice: manual roll only</span>
+            </section>
+            <div className="rules-actions">
+              <button disabled={ruleSetEditingLocked} onClick={createNewRuleSet}>New</button>
+              <button disabled={ruleSetEditingLocked} onClick={duplicateActiveRuleSet}>Duplicate</button>
+              <button disabled={ruleSetEditingLocked} onClick={loadSelectedRuleSet}>Load</button>
+              <button className="save-label" disabled={ruleSetEditingLocked} onClick={saveRuleSetDraft}>Save Rule Set</button>
             </div>
           </div>
         </div>

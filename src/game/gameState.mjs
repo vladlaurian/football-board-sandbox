@@ -1,3 +1,5 @@
+import { normalizeRuleSet } from "../rules/ruleSets.mjs";
+
 export const GAME_STATE_SCHEMA_VERSION = 1;
 
 export function cloneGameState(value) {
@@ -16,6 +18,7 @@ export function createGameState(raw = {}) {
     pieces: Array.isArray(raw.pieces) ? raw.pieces : [],
     movementStateByPieceId: raw.movementStateByPieceId || {},
     gameMode: raw.gameMode === "match" ? "match" : "editor",
+    ruleSet: normalizeRuleSet(raw.ruleSet),
     tracker: {
       gameStarted: Boolean(tracker.gameStarted),
       startingTeam: tracker.startingTeam === "blue" ? "blue" : "red",

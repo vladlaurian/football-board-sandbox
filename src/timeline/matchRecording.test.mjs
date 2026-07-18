@@ -43,6 +43,8 @@ test("a match recording keeps the initial state, actions and exact card snapshot
   assert.equal(loaded.timeline.entries.length, 1);
   assert.equal(loaded.cardSnapshot[0].name, "Test Player");
   assert.equal(loaded.finalState.pieces[0].x, 2);
+  assert.equal(loaded.ruleSetSnapshot.name, "Default Rules");
+  assert.equal(loaded.ruleSetSnapshot.actions.pass.rollMode, "manual");
 });
 
 test("a future replay branch retains its origin metadata", () => {

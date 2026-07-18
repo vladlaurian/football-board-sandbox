@@ -1,4 +1,5 @@
 import { cloneGameState } from "../game/gameState.mjs";
+import { normalizeRuleSet } from "../rules/ruleSets.mjs";
 import { normalizeTimeline, timelineStateAt } from "./timelineEngine.mjs";
 
 export const MATCH_RECORDING_TYPE = "football-board-match-recording";
@@ -48,6 +49,7 @@ export function createMatchRecording(timeline, metadata = {}) {
     cardSnapshot: cloneGameState(metadata.cardSnapshot || []),
     timeline: normalized,
     finalState: timelineStateAt(normalized, normalized.cursor),
+    ruleSetSnapshot: normalizeRuleSet(metadata.ruleSetSnapshot || normalized.initialState?.ruleSet),
   };
 }
 
@@ -74,5 +76,6 @@ export function readMatchRecording(raw) {
     ...raw,
     timeline: normalizeTimeline(raw.timeline, raw.finalState || {}),
     cardSnapshot: cloneGameState(raw.cardSnapshot || []),
+    ruleSetSnapshot: normalizeRuleSet(raw.ruleSetSnapshot || raw.timeline?.initialState?.ruleSet),
   };
 }

@@ -1,6 +1,7 @@
 import { cloneGameState } from "../game/gameState.mjs";
 import { rowLetter } from "../board/boardGeometry.mjs";
 import { createGameplayCardMap } from "../cards/gameplayCard.mjs";
+import { normalizeRuleSet } from "../rules/ruleSets.mjs";
 import { normalizeTimeline, timelineStateAt } from "./timelineEngine.mjs";
 
 export const AI_ANALYSIS_EXPORT_TYPE = "football-board-ai-analysis";
@@ -78,6 +79,22 @@ function compactState(state, cardsById) {
       dieType: Math.max(2, Number(state?.dice?.dieType) || 20),
       blueResult: state?.dice?.blueResult ?? null,
       redResult: state?.dice?.redResult ?? null,
+    },
+  };
+}
+
+function compactRuleSet(ruleSet) {
+  const normalized = normalizeRuleSet(ruleSet);
+  return {
+    id: normalized.id,
+    name: normalized.name,
+    notes: normalized.notes || null,
+    schemaVersion: normalized.schemaVersion,
+    actions: {
+      pass: {
+        status: normalized.actions.pass.status,
+        rollMode: "manual",
+      },
     },
   };
 }
@@ -333,6 +350,7 @@ export function createAiAnalysisExport(recording, metadata = {}) {
       mode: "MANUAL_UNAUTOMATED",
       version: "manual-sandbox-v1",
       note: "Gameplay formulas, outcomes, and probabilities are not automated in this export version. Unknown intent remains explicit instead of being inferred.",
+      ruleSet: compactRuleSet(recording.ruleSetSnapshot || initialState.ruleSet),
       tracker: compactTracker(initialState.tracker).actionLimits,
       dieType: Math.max(2, Number(initialState?.dice?.dieType) || 20),
     },

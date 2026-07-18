@@ -66,6 +66,7 @@ test("AI analysis export is compact, directional, and keeps one action ID across
   assert.equal(exported.initialState.tracker.currentAttackingTeam, "blue");
   assert.equal(exported.initialState.tracker.startingTeam, undefined);
   assert.equal(exported.rulesetSnapshot.mode, "MANUAL_UNAUTOMATED");
+  assert.equal(exported.rulesetSnapshot.ruleSet.actions.pass.rollMode, "manual");
   assert.equal(exported.gameplayCardSnapshot[0].graphics, undefined);
   assert.deepEqual(exported.gameplayCardSnapshot[0].bonuses, [{ name: "Dribbling", value: 2 }]);
   assert.equal(exported.semanticTimeline[0].actionId, "move_1");
