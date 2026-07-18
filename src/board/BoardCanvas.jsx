@@ -5,6 +5,7 @@ import {
   rowLetter,
   withBoardPosition,
 } from "./boardGeometry.mjs";
+import { MatchBallIcon } from "./MatchBallIcon.jsx";
 
 function GoalGrid({ side, settings }) {
   const mouthX = side === "left" ? settings.goalDepth : 0;
@@ -179,14 +180,14 @@ export function BoardCanvas({
           {defensiveAreaOverlays.map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
 
           {passPreview?.lines?.length > 0 && <svg className="pass-preview-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
-            {passPreview.lines.map(line => <g key={line.id} className={`pass-preview-line ${line.risk ? "risk" : "clear"} ${line.selected ? "selected" : ""}`}>
+            {passPreview.lines.map(line => <g key={line.id} className={`pass-preview-line ${line.risk ? "risk" : "clear"} ${line.selected ? "route-selected" : ""}`}>
               <line x1={line.origin.x} y1={line.origin.y} x2={line.endpoint.x} y2={line.endpoint.y} />
               <circle cx={line.origin.x} cy={line.origin.y} r=".13" />
               <circle cx={line.endpoint.x} cy={line.endpoint.y} r=".13" />
             </g>)}
           </svg>}
           {passPreview?.target && <div className="piece-hitbox ball-hitbox pass-target-ball" style={{ left: `calc(${passPreview.target.x} * var(--cell) + var(--cell) * .25)`, top: `calc(${passPreview.target.y} * var(--cell) + var(--cell) * .25)` }} aria-hidden="true">
-            <div className="piece ball pass-target-ghost"><span className="piece-label" /></div>
+            <div className="piece ball pass-target-ghost"><MatchBallIcon className="board-ball-icon" /></div>
           </div>}
           {passPreview?.routes?.map(route => <button
             key={`pass-route-${route.id}`}
@@ -207,7 +208,7 @@ export function BoardCanvas({
             const isBall = piece.team === "BALL";
             const normalizedPiece = withBoardPosition(piece, settings);
             return <div key={piece.id} data-coord={normalizedPiece.coord} title={`${getPieceDisplayLabel(piece)} ${normalizedPiece.coord}${piece.cardId ? " · Card attached" : ""}${piece.inactive ? " · INACTIVE" : ""}`} className={`piece-hitbox ${isBall ? "ball-hitbox" : "player-hitbox"}`} style={{ left: `calc(${piece.x} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})`, top: `calc(${piece.y} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})` }} onPointerDown={event => onPiecePointerDown(piece.id, event)} onDoubleClick={() => openEdit(piece)}>
-              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${selectedId === piece.id ? "selected" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""}`}><span className="piece-label">{isBall ? piece.label : getPieceDisplayLabel(piece)}</span></div>
+              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${selectedId === piece.id ? "selected" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""}`}>{isBall ? <MatchBallIcon className="board-ball-icon" /> : <span className="piece-label">{getPieceDisplayLabel(piece)}</span>}</div>
             </div>;
           })}
         </div>

@@ -1,5 +1,32 @@
 # Football Board Sandbox
 
+## v19.5 — Pass SVG selection isolation and shared match-ball visual
+
+### What changed
+
+- Removed the generic `selected` class from pass-route SVG elements and replaced it with the explicit `route-selected` state.
+- Deleted the unused yellow pass-cell preview CSS left behind by the earlier route UI.
+- Replaced the board-only football approximation with the exact same football glyph used by Inspector, through one shared component.
+
+### Why it changed
+
+The generic puck-selection CSS was accidentally applied to an SVG route group. SVG outlines are evaluated in its internal coordinate space and then scaled with the pitch, producing the large yellow frame during pass flow and Undo/Redo.
+
+### Problems resolved
+
+- The yellow frame can no longer be created by a selected pass route, including after Undo/Redo restores a route state.
+- Board and Inspector now render the same Match Ball model.
+
+### Impact
+
+- The v16.6 board-ball position, dimensions, and mouse/touch hitbox are unchanged; only the visible drawing changed.
+- Pass geometry, roll resolution, Timeline, replay, multiplayer synchronization, and AI export are unchanged.
+
+### Verification focus
+
+1. Trigger an interception route, then Undo/Redo around it. No large yellow frame or yellow pass-cell overlay may appear at any point.
+2. Confirm the ball on the board visually matches the Inspector ball while retaining its existing drag/select behavior.
+
 ## v19.4 — Pass resolution data, controls, and feedback corrections
 
 ### What changed

@@ -41,6 +41,7 @@ import {
   teamKeyForPiece,
 } from "./rules/passEngine.mjs";
 import { BoardCanvas } from "./board/BoardCanvas.jsx";
+import { MatchBallIcon } from "./board/MatchBallIcon.jsx";
 import { clamp } from "./game/numberUtils.mjs";
 import {
   closeTimeline,
@@ -114,7 +115,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.4";
+const APP_VERSION = "v19.5";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -9575,7 +9576,7 @@ function App() {
               <p className="muted">No selection.</p>
             ) : inspectedPiece.team === "BALL" ? (
               <div className="inspector-ball-state" role="status">
-                <span className="inspector-ball-icon" aria-hidden="true">⚽</span>
+                <MatchBallIcon className="inspector-ball-icon" />
                 <strong>Match Ball</strong>
               </div>
             ) : (

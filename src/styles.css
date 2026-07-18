@@ -1353,10 +1353,7 @@ select option {
 .pass-preview-line circle { fill: #f7fbff; stroke-width: .05; vector-effect: non-scaling-stroke; }
 .pass-preview-line.clear circle { stroke: #20be67; }
 .pass-preview-line.risk circle { stroke: #db3440; }
-.pass-preview-line.selected line { stroke-width: .4; filter: drop-shadow(0 0 6px rgba(255,255,255,.98)); }
-.pass-preview-cell { position: absolute; width: var(--cell); height: var(--cell); box-sizing: border-box; pointer-events: none; z-index: 12; }
-.pass-preview-cell.visible { background: rgba(255, 197, 47, .24); border: 2px solid rgba(255, 213, 69, .75); }
-.pass-preview-cell.blocked { background: repeating-linear-gradient(135deg, rgba(91, 99, 112, .12) 0 4px, rgba(91, 99, 112, .4) 4px 7px); border: 1px dashed rgba(200, 210, 220, .65); }
+.pass-preview-line.route-selected line { stroke-width: .4; filter: drop-shadow(0 0 6px rgba(255,255,255,.98)); }
 .pass-route-badge { position:absolute; z-index:20; min-width:68px; min-height:43px; padding:4px 7px; border:2px solid; border-radius:7px; color:white; font-weight:900; line-height:1.05; box-shadow:0 3px 10px rgba(0,0,0,.6); cursor:pointer!important; display:grid; place-items:center; gap:2px; }
 .pass-route-badge.top-left { transform:translate(calc(-100% - 9px), calc(-100% - 9px)); }
 .pass-route-badge.top-right { transform:translate(9px, calc(-100% - 9px)); }
@@ -7452,15 +7449,20 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 
 /* The ball remains inside the same v16.6 wrapper/hitbox; only its drawing is
    upgraded from the old text dot to a compact football pattern. */
-.ball-hitbox > .piece.ball {
-  background-color:#f8fbfc;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='47' fill='%23f8fbfc' stroke='%23182027' stroke-width='5'/%3E%3Cpath d='M50 32 65 43 59 61 41 61 35 43Z' fill='%23182027'/%3E%3Cpath d='m34 24 10 8-9 11-12-3zM66 24l12 5-13 11-9-8zM21 54l14 5 1 14-12 4zM79 54l12 9-3 14-13-4zM50 72l11 8-7 12H46l-7-12z' fill='%23182027'/%3E%3C/svg%3E");
-  background-size:100% 100%;
-  background-repeat:no-repeat;
-  border-color:#182027;
-  box-shadow:0 2px 7px rgba(0,0,0,.62), inset 0 0 0 1px rgba(255,255,255,.82);
+.match-ball-icon {
+  display:block;
+  font-family:"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  line-height:1;
+  user-select:none;
 }
-.ball-hitbox > .piece.ball .piece-label { font-size:0; width:0; height:0; }
+.ball-hitbox > .piece.ball {
+  background:transparent;
+  border:0;
+  box-shadow:none;
+}
+.board-ball-icon {
+  font-size:calc(var(--cell) * .6);
+}
 
 /* Retire the old pseudo-element hitboxes; the wrappers above are now the single source of truth. */
 .piece::after {
