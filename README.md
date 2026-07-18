@@ -1,5 +1,37 @@
 # Football Board Sandbox
 
+## v18.5 — Stable multiplayer selection
+
+### What changed
+
+- Split incoming multiplayer Timeline handling into three explicit modes: ignore a stale state, replace with a genuinely newer state, or restore from a matching revision acknowledgement.
+- Matching-revision restoration now preserves the locally selected puck when that puck still exists and the current user can still control it.
+- A genuinely newer Timeline state still clears selection and hover state as before.
+- Added regression coverage for the three reconciliation modes.
+
+### Why it changed
+
+The v18.4 same-revision restoration correctly protected board positions from delayed Firebase projections, but it used the general Timeline-state application path. That path intentionally clears selection, so routine Firebase acknowledgements could deselect a puck shortly after the user clicked it.
+
+### Problems resolved
+
+- A multiplayer player selection no longer disappears because Firebase acknowledged the already-current Timeline revision.
+- Selection remains local UI state and is not treated as shared gameplay state.
+- Remote gameplay changes, Undo, Redo, replay navigation, missing pieces, and loss of control still close an invalid selection safely.
+
+### Impact
+
+- Multiplayer selection should remain stable while waiting to choose a destination square.
+- The v18.4 protection against rare guest-only position rollback remains active.
+- Editor Mode, Match rules, movement costs, History, Tracker, replay, cards, and Firebase formats are unchanged.
+- Editor = Inspector = Export remains intact.
+
+### Verification focus
+
+1. In multiplayer Match Mode, select one of the guest's players and wait ten seconds without moving it. The selection must remain visible.
+2. Deselect and reselect several players on both browsers, then perform a `MOVE` normally.
+3. Make an opponent action or use host Undo/Redo and confirm obsolete selections still close when the shared gameplay state genuinely changes.
+
 ## v18.4 — Multiplayer Match Timeline authority
 
 ### What changed

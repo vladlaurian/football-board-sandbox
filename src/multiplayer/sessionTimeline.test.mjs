@@ -8,6 +8,7 @@ import {
   shouldApplySessionBoardProjection,
   shouldApplyIncomingTimeline,
   shouldRestoreTimelineState,
+  timelineReconciliationMode,
   timelineDiceRollId,
 } from "./sessionTimeline.mjs";
 
@@ -72,6 +73,9 @@ test("a matching timeline revision can restore a locally rolled-back board view"
   const stale = { ...local, revision: 3 };
   assert.equal(shouldRestoreTimelineState(local, sameRevision, 1), true);
   assert.equal(shouldRestoreTimelineState(local, stale, 0), false);
+  assert.equal(timelineReconciliationMode(local, sameRevision, 1), "restore");
+  assert.equal(timelineReconciliationMode(local, { ...local, revision: 5 }, 0), "replace");
+  assert.equal(timelineReconciliationMode(local, stale, 0), "ignore");
 });
 
 test("an active Match Timeline rejects delayed board projections", () => {

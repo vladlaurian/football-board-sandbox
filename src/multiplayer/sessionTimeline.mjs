@@ -70,6 +70,12 @@ export function shouldRestoreTimelineState(localTimeline, incomingTimeline, pend
   return local.recordingId === incoming.recordingId && incoming.revision === local.revision;
 }
 
+export function timelineReconciliationMode(localTimeline, incomingTimeline, pendingSyncCount = 0) {
+  if (shouldApplyIncomingTimeline(localTimeline, incomingTimeline, pendingSyncCount)) return "replace";
+  if (shouldRestoreTimelineState(localTimeline, incomingTimeline, pendingSyncCount)) return "restore";
+  return "ignore";
+}
+
 // In Match Mode, the Timeline is authoritative. The session board document is
 // a projection for persistence and Editor Mode, not a second state authority.
 export function shouldApplySessionBoardProjection({ isOwnUpdate = false, timelineActive = false } = {}) {

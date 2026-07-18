@@ -51,8 +51,7 @@ import {
   hydrateSessionTimeline,
   nullableFiniteNumber,
   shouldApplySessionBoardProjection,
-  shouldApplyIncomingTimeline,
-  shouldRestoreTimelineState,
+  timelineReconciliationMode,
   timelineDiceRollId,
 } from "./multiplayer/sessionTimeline.mjs";
 import {
@@ -80,7 +79,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v18.4";
+const APP_VERSION = "v18.5";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2621,11 +2620,14 @@ function App() {
     const hydrated = hydrateSessionTimeline(meta, sessionTimelineEntriesRef.current, captureTimelineGameState());
     if (!hydrated) return;
     const localTimeline = gameTimelineRef.current;
-    if (!shouldRestoreTimelineState(localTimeline, hydrated, pendingTimelineSyncCountRef.current)) return;
-    if (shouldApplyIncomingTimeline(localTimeline, hydrated, pendingTimelineSyncCountRef.current)) {
+    const reconciliationMode = timelineReconciliationMode(localTimeline, hydrated, pendingTimelineSyncCountRef.current);
+    if (reconciliationMode === "ignore") return;
+    if (reconciliationMode === "replace") {
       replaceGameTimeline(hydrated);
     }
-    applyTimelineGameState(timelineStateAt(hydrated, hydrated.cursor));
+    applyTimelineGameState(timelineStateAt(hydrated, hydrated.cursor), {
+      preserveLocalSelection: reconciliationMode === "restore",
+    });
   }
 
   async function saveSessionState(overrides = {}) {
@@ -4228,7 +4230,7 @@ function App() {
     });
   }
 
-  function applyTimelineGameState(rawState) {
+  function applyTimelineGameState(rawState, { preserveLocalSelection = false } = {}) {
     if (!rawState) return;
     const state = createGameState(rawState);
     const nextSettings = normalizeSettingsForApp(state.settings || settingsRef.current);
@@ -4263,8 +4265,19 @@ function App() {
     setRedDieResult(state.dice.redResult);
     setBlueLastDieType(state.dice.blueLastDieType);
     setRedLastDieType(state.dice.redLastDieType);
-    setSelectedId(null);
-    setHoveredCell(null);
+    if (preserveLocalSelection) {
+      // Snapshot listeners intentionally live across renders. Read the latest
+      // selection through the state updater instead of a captured render value.
+      setSelectedId(currentSelectedId => {
+        const selectedPieceStillValid = currentSelectedId
+          && nextPieces.some(piece => piece.id === currentSelectedId && !piece.inactive);
+        if (!selectedPieceStillValid) setHoveredCell(null);
+        return selectedPieceStillValid ? currentSelectedId : null;
+      });
+    } else {
+      setSelectedId(null);
+      setHoveredCell(null);
+    }
   }
 
   function restoreTimelineCursor(cursor) {
