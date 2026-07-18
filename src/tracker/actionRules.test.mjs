@@ -146,6 +146,13 @@ test("the next numbered turn requires both team phases to be ended", () => {
   }), { allowed: true, direction: "advance" });
   assert.deepEqual(trackerTurnChangeDecision({
     gameStarted: true,
+    gameMode: "editor",
+    currentTurn: 3,
+    targetTurn: 4,
+    turnPhase: "attack",
+  }), { allowed: true, direction: "advance" });
+  assert.deepEqual(trackerTurnChangeDecision({
+    gameStarted: true,
     currentTurn: 3,
     targetTurn: 2,
     turnPhase: "attack",

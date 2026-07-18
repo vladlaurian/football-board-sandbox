@@ -99,7 +99,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v18.9";
+const APP_VERSION = "v18.10";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -1940,7 +1940,7 @@ function App() {
   // Dice window layout is intentionally local to each browser.  The compact
   // default keeps both results and Roll buttons visible on first open; any
   // later resize remains in memory for this running session only.
-  const [dicePanelSize, setDicePanelSize] = useState({ w: 360, h: 240 });
+  const [dicePanelSize, setDicePanelSize] = useState({ w: 340, h: 250 });
   const [dicePanelDragging, setDicePanelDragging] = useState(null);
   const [dicePanelResizing, setDicePanelResizing] = useState(null);
   const [rulerPanelPosition, setRulerPanelPosition] = useState({ x: 20, y: 150 });
@@ -8466,6 +8466,7 @@ function App() {
     const decision = trackerTurnChangeDecision({
       readOnly: trackerReadOnly,
       gameStarted: trackerGameStarted,
+      gameMode,
       currentTurn: trackerCurrentTurn,
       targetTurn: turn,
       turnPhase,

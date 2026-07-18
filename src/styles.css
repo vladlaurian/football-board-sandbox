@@ -6684,15 +6684,17 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .join-session-confirm { width:100%; min-height:46px; margin-top:18px; border-radius:10px; font-weight:800; }
 .join-session-confirm:disabled { opacity:.45; cursor:not-allowed; }
 
-/* Shared team dice */
-.dice-panel { min-width: 320px; }
+/* Shared team dice. Explicit control metrics keep the default panel consistent
+   across Chromium and Firefox while preserving per-session user resizing. */
+.dice-panel { min-width: 320px; box-sizing: border-box; }
+.dice-panel *, .dice-panel *::before, .dice-panel *::after { box-sizing: border-box; }
 .dice-panel-body { display: flex; flex-direction: column; gap: 12px; }
 .dice-toolbar { display:flex; align-items:center; justify-content:center; gap:8px; }
-.dice-toolbar select { padding:6px; border-radius:8px; border:1px solid rgba(255,255,255,.2); background:#222; color:white; }
+.dice-toolbar select { height:34px; padding:6px; line-height:20px; border-radius:8px; border:1px solid rgba(255,255,255,.2); background:#222; color:white; }
 .team-dice-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .team-die-card { min-width:0; padding:12px; border-radius:12px; display:flex; flex-direction:column; align-items:center; gap:9px; border:1px solid rgba(255,255,255,.2); }
-.team-die-card strong { font-size:12px; letter-spacing:.8px; }
-.team-die-card button { width:100%; padding:8px 10px; border-radius:9px; border:1px solid rgba(255,255,255,.24); color:white; font-weight:900; cursor:pointer; }
+.team-die-card strong { font-size:12px; line-height:14px; letter-spacing:.8px; }
+.team-die-card button { width:100%; min-height:35px; padding:8px 10px; line-height:19px; border-radius:9px; border:1px solid rgba(255,255,255,.24); color:white; font-weight:900; cursor:pointer; }
 .team-die-card button:disabled { opacity:.42; cursor:not-allowed; }
 .blue-team-die { background:rgba(22,93,232,.22); }
 .red-team-die { background:rgba(216,39,39,.22); }

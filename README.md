@@ -1,5 +1,40 @@
 # Football Board Sandbox
 
+## v18.10 — Editor turn freedom and cross-browser Dice sizing
+
+### What changed
+
+- Allowed a manually run Tracker in Editor Mode to advance to the next numbered turn without requiring both teams to use END TURN.
+- Kept the completed-phase requirement unchanged in Match Mode.
+- Reduced the local Dice default to `340 × 250`.
+- Normalized Dice layout sizing for Chromium and Firefox by giving its select and Roll controls explicit box metrics.
+- Updated the in-app Sandbox version and package version to v18.10.
+
+### Why it changed
+
+Editor Mode is the intentionally unrestricted manual test environment. Its card-action and END TURN controls are unavailable, so requiring END TURN before selecting the next Tracker turn made the manual Tracker impossible to advance. Dice also calculated its compact layout slightly differently across browsers.
+
+### Problems resolved
+
+- Editor Mode can now use manual Tracker turn navigation as intended.
+- Match Mode still enforces explicit END TURN for attack and defense before advancing.
+- Dice has a narrower default and a more consistent first-open layout in Chrome and Firefox.
+
+### Impact
+
+- The bypass applies only to the forward completed-phase guard in Editor Mode. Tracker read-only access, whether a game has started, and the no-skip turn rule remain enforced.
+- Match Mode rules, Timeline, History, Undo, Redo, replay, Firebase synchronization, and multiplayer permissions are unchanged.
+- Dice size and position remain local to each browser session, are not written to Firebase, and are not shared with guests.
+- Editor = Inspector = Export remains intact; no card data or card rendering changed.
+
+### Verification focus
+
+1. In Editor Mode, start Tracker, select a future immediate turn during attack or defense, and confirm it advances without an END TURN warning.
+2. In Match Mode, repeat the same attempt before both teams end their phases and confirm the existing warning still blocks it.
+3. In either mode, try skipping more than one turn and confirm it remains blocked.
+4. Open Dice in Chrome and Firefox; confirm both result areas and Roll buttons are visible at the new compact default.
+5. Resize Dice in one browser and confirm that resize remains local to that running browser session only.
+
 ## v18.9 — TrackerPanel extraction and compact Dice default
 
 ### What changed

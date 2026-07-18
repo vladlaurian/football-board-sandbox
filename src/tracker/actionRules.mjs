@@ -46,12 +46,15 @@ export function nextTrackerPhase(phase) {
   return phase === "attack" ? "defense" : "complete";
 }
 
-export function trackerTurnChangeDecision({ readOnly = false, gameStarted = false, currentTurn = 0, targetTurn = 0, turnPhase = "attack" } = {}) {
+export function trackerTurnChangeDecision({ readOnly = false, gameStarted = false, currentTurn = 0, targetTurn = 0, turnPhase = "attack", gameMode = "match" } = {}) {
   const current = Math.max(0, Number(currentTurn) || 0);
   const target = Math.max(0, Number(targetTurn) || 0);
   if (readOnly || !gameStarted || target < 1 || target === current) return { allowed: false, reason: "unavailable" };
   if (target > current + 1) return { allowed: false, reason: "skip-not-allowed" };
-  if (target > current && turnPhase !== "complete") {
+  // Editor Mode is the deliberately unrestricted test sandbox. It retains
+  // manual Tracker marking, but does not require inaccessible END TURN actions
+  // before moving its numbered turn forward.
+  if (target > current && gameMode !== "editor" && turnPhase !== "complete") {
     return { allowed: false, reason: "both-teams-must-end" };
   }
   return { allowed: true, direction: target > current ? "advance" : "reverse" };
