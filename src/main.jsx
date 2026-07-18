@@ -99,7 +99,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v18.7";
+const APP_VERSION = "v18.8";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -1937,7 +1937,10 @@ function App() {
   const [historyVisible, setHistoryVisible] = useState(false);
   const [dicePanelVisible, setDicePanelVisible] = useState(false);
   const [dicePanelPosition, setDicePanelPosition] = useState({ x: 420, y: 180 });
-  const [dicePanelSize, setDicePanelSize] = useState({ w: 300, h: 150 });
+  // Dice window layout is intentionally local to each browser.  The larger
+  // default keeps both results and Roll buttons visible on first open; any
+  // later resize remains in memory for this running session only.
+  const [dicePanelSize, setDicePanelSize] = useState({ w: 420, h: 300 });
   const [dicePanelDragging, setDicePanelDragging] = useState(null);
   const [dicePanelResizing, setDicePanelResizing] = useState(null);
   const [rulerPanelPosition, setRulerPanelPosition] = useState({ x: 20, y: 150 });
@@ -8901,22 +8904,24 @@ function App() {
           <button onClick={() => saveCurrentAsFormation("B", redFormationId)}>Save</button>
         </div>
 
-        <div className="situation-control">
-          <span>Scenario</span>
-          <select value={activeSituationId} onChange={e => selectScenarioSlot(Number(e.target.value))}>
-            {gameSituations.map(s => (
-              <option key={s.id} value={s.id}>{s.id}. {s.name}{s.snapshot ? "" : " (empty)"}</option>
-            ))}
-          </select>
-          <input
-            className="situation-name"
-            value={activeSituationName}
-            onChange={e => setActiveSituationName(e.target.value)}
-            onFocus={e => e.target.select()}
-          />
-          <button onClick={saveActiveGameSituation}>Save</button>
-          <button onClick={loadActiveScenario}>Load</button>
-        </div>
+        {!isSessionGuest && (
+          <div className="situation-control">
+            <span>Scenario</span>
+            <select value={activeSituationId} onChange={e => selectScenarioSlot(Number(e.target.value))}>
+              {gameSituations.map(s => (
+                <option key={s.id} value={s.id}>{s.id}. {s.name}{s.snapshot ? "" : " (empty)"}</option>
+              ))}
+            </select>
+            <input
+              className="situation-name"
+              value={activeSituationName}
+              onChange={e => setActiveSituationName(e.target.value)}
+              onFocus={e => e.target.select()}
+            />
+            <button onClick={saveActiveGameSituation}>Save</button>
+            <button onClick={loadActiveScenario}>Load</button>
+          </div>
+        )}
 
         <button className={historyVisible ? "toggle-on" : ""} onClick={() => setHistoryVisible(v => !v)}>
           History {historyVisible ? "ON" : "OFF"}

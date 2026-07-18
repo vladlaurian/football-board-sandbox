@@ -1,5 +1,37 @@
 # Football Board Sandbox
 
+## v18.8 — Guest Scenario visibility and Dice window default
+
+### What changed
+
+- Hid the `Scenario` selector, name field, Save, and Load controls from connected guests. The control remains available to the host.
+- Increased the default local Dice window size from `300 × 150` to `420 × 300`, so both team results and Roll buttons are visible on first open.
+- Kept Dice window position and manual resizing local to each browser and only for the current running session.
+- Updated the in-app Sandbox version and package version to v18.8.
+
+### Why it changed
+
+Guests cannot use Scenario slots meaningfully, while their visibility made the second toolbar more confusing. The prior Dice default was too small for its own controls and required a manual resize before rolling.
+
+### Problems resolved
+
+- Guests no longer see Scenario Save/Load controls that are host-only in practice.
+- Dice opens at a usable size immediately.
+
+### Impact
+
+- A host loading a Scenario still updates the shared board state seen by the guest; this change removes only the guest's Scenario UI.
+- Dice size and position are not written to Firebase and are not shared between host and guest. A later manual resize remains until refresh/reopen, then returns to the new `420 × 300` default.
+- Tracker, History, Undo, Redo, replay, Timeline, card rendering, Editor, Inspector, Export, multiplayer authority, and gameplay rules are unchanged.
+- Editor = Inspector = Export remains intact.
+
+### Verification focus
+
+1. As host, open Dice and confirm both result areas and both Roll buttons are visible without resizing.
+2. Resize Dice, close and reopen it in the same browser session, and confirm the chosen size is retained. Refresh the app and confirm it returns to the new default.
+3. Join as guest and confirm the second bar has no Scenario controls, while its other controls keep their existing permissions.
+4. As host, load a Scenario during a multiplayer session and confirm the guest receives the resulting board state.
+
 ## v18.7 — Completed-turn guard and guest toolbar safety
 
 ### What changed
