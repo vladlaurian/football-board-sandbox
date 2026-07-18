@@ -3,7 +3,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --test src/board/*.test.mjs src/cards/*.test.mjs src/rules/*.test.mjs src/timeline/*.test.mjs src/tracker/*.test.mjs src/multiplayer/*.test.mjs"
+    "test": "node --test src/board/*.test.mjs src/cards/*.test.mjs src/rules/*.test.mjs src/timeline/*.test.mjs src/tracker/*.test.mjs src/multiplayer/*.test.mjs src/match/*.test.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.0",
@@ -16,6 +16,6 @@
     "puppeteer-core": "^25.3.0"
   },
   "name": "football-board-sandbox",
-  "version": "19.5.0",
+  "version": "19.6.0",
   "private": true
 }

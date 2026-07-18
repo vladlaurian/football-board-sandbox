@@ -1,5 +1,43 @@
 # Football Board Sandbox
 
+## v19.6 — Pass cancellation, guided reaction dice, and reusable bonus continuation
+
+### What changed
+
+- `PASS` now becomes `CANCEL PASS` while its target/route preview is open. The remaining card-action controls are locked both visually and in their handlers until the pass is cancelled or committed.
+- Cancelling a preview returns the board to its normal state without consuming a Tracker action.
+- When an interception roll is required, Dice opens automatically, D20 is fixed for that reaction, and only the defending team’s Roll button is enabled.
+- A direct pass into an opponent now produces a persistent result message confirming the possession change and the next turn.
+- Replaced the old pass-specific Natural 20 lock with a Timeline-backed `actionContinuation` state. The intercepting team can select a player, take exactly one non-Group/Free card action without consuming Tracker economy, then press `END TURN` to begin the next turn with its possession.
+- Added Timeline/Replay/Undo/Redo/multiplayer/AI-export data for the continuation state and its start, completion, and turn-advance events.
+
+### Why it changed
+
+The former Natural 20 behavior retained an unresolved pass state after the interception. That correctly prevented conflicting pass input, but also blocked the bonus team from selecting any player. Bonus consequences are a general gameplay concept, so they now live outside the pass resolver and can be reused by later Shot, Dribble, Tackle, or similar mechanics.
+
+### Problems resolved
+
+- A player cannot accidentally start another card action while choosing a pass target or route.
+- A pass preview can be cancelled deliberately from the same button without changing button dimensions or typography.
+- The correct manual reaction die is ready immediately; no automatic roll is introduced.
+- A Natural 20 no longer leaves the board in an unselectable state.
+- The bonus action is not written into Tracker action economy, but is auditable in History and AI analysis.
+
+### Impact
+
+- Match Timeline remains the source of truth. Host, guest, Undo/Redo, replay, Save Match, and AI export receive the same continuation state.
+- Normal pass/interception geometry and current interceptor ordering are unchanged. The separate interceptor-priority redesign is intentionally not part of v19.6.
+- Editor = Inspector = Export remains intact. This build changes match flow and result data only; it does not change card rendering or card data.
+
+### Verification focus
+
+1. Start `PASS`: it must change to `CANCEL PASS`; every other card action must be disabled. Press it again before confirming a route and confirm nothing was consumed.
+2. Trigger an interception: Dice should open itself, show D20, and permit only the required defending team to roll.
+3. Pass directly onto an opponent: confirm the persistent message says possession changes and the next turn begins.
+4. Roll a Natural 20 interception, dismiss the result dialog, select any player on the intercepting team, and take one card action other than Group Move/Free Mode. Confirm Tracker counts do not increase.
+5. After that action, press `END TURN` and confirm possession remains with the intercepting team, the next turn begins, and normal Tracker economy resets.
+6. Use Undo/Redo around the bonus flow, then repeat one pass in multiplayer. Confirm both clients retain the same selectable/locked state and Dice availability.
+
 ## v19.5 — Pass SVG selection isolation and shared match-ball visual
 
 ### What changed

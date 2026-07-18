@@ -135,6 +135,29 @@ test("AI export retains the exact interception modifier sources and cap", () => 
   assert.equal(roll.modifierSources[2].detail, "non-preferred foot");
 });
 
+test("AI export retains a pending bonus-action continuation without adding Tracker economy", () => {
+  const before = state();
+  const after = state({
+    actionContinuation: {
+      id: "bonus_1",
+      kind: "bonus-card-action",
+      source: "natural-20-interception",
+      team: "blue",
+      status: "ready",
+      nextTurn: 2,
+      actionType: null,
+      pieceId: null,
+    },
+  });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, { id: "natural_20", type: "PASS_NATURAL_20", label: "Natural 20", team: "blue", before, after });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  assert.equal(exported.semanticTimeline[0].continuation.kind, "bonus-card-action");
+  assert.equal(exported.semanticTimeline[0].continuation.nextTurn, 2);
+  assert.equal(exported.finalState.actionContinuation.status, "ready");
+  assert.equal(exported.semanticTimeline[0].actionEconomyAfter.teamActionsUsed, 0);
+});
+
 test("an older ungrouped physical move still links to the preceding tracker Move activation", () => {
   const before = state();
   const activated = state({

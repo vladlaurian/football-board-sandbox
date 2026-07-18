@@ -1,6 +1,6 @@
 import { normalizeRuleSet } from "../rules/ruleSets.mjs";
 
-export const GAME_STATE_SCHEMA_VERSION = 1;
+export const GAME_STATE_SCHEMA_VERSION = 2;
 
 export function cloneGameState(value) {
   if (value === undefined) return undefined;
@@ -24,6 +24,12 @@ export function createGameState(raw = {}) {
     // a loaded replay.
     actionResolution: raw.actionResolution && typeof raw.actionResolution === "object"
       ? raw.actionResolution
+      : null,
+    // A resolved automated action may leave a controlled follow-up before a
+    // turn changes (such as a Natural 20 bonus card action). This belongs in
+    // Timeline state for replay, Undo/Redo and multiplayer parity.
+    actionContinuation: raw.actionContinuation && typeof raw.actionContinuation === "object"
+      ? raw.actionContinuation
       : null,
     tracker: {
       gameStarted: Boolean(tracker.gameStarted),

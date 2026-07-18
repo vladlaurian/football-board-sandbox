@@ -80,6 +80,15 @@ function compactState(state, cardsById) {
       blueResult: state?.dice?.blueResult ?? null,
       redResult: state?.dice?.redResult ?? null,
     },
+    actionContinuation: state?.actionContinuation ? {
+      kind: String(state.actionContinuation.kind || ""),
+      source: String(state.actionContinuation.source || ""),
+      team: state.actionContinuation.team === "blue" ? "blue" : state.actionContinuation.team === "red" ? "red" : null,
+      status: String(state.actionContinuation.status || ""),
+      nextTurn: Math.max(0, Number(state.actionContinuation.nextTurn) || 0),
+      actionType: state.actionContinuation.actionType || null,
+      pieceId: state.actionContinuation.pieceId || null,
+    } : null,
   };
 }
 
@@ -238,6 +247,7 @@ function semanticEvent(entry, sequence, cardsById) {
       ? before.actionResolution
       : null;
   const passPlan = passResolution?.plan || null;
+  const continuation = after?.actionContinuation || before?.actionContinuation || null;
   return {
     eventId: String(entry.id),
     sequence,
@@ -297,7 +307,16 @@ function semanticEvent(entry, sequence, cardsById) {
       status: "NOT_AUTOMATED",
       reason: "This sandbox action was recorded without an automated gameplay rule or probability calculation.",
     },
-    explicitOutcome: entry.type === "PASS_COMPLETED" ? "PASS_COMPLETED" : entry.type === "PASS_INTERCEPTED" ? "INTERCEPTED" : entry.type === "PASS_NATURAL_20" ? "NATURAL_20_INTERCEPTION" : "NOT_DECLARED",
+    continuation: continuation ? {
+      kind: String(continuation.kind || ""),
+      source: String(continuation.source || ""),
+      team: continuation.team === "blue" ? "blue" : continuation.team === "red" ? "red" : null,
+      status: String(continuation.status || ""),
+      nextTurn: Math.max(0, Number(continuation.nextTurn) || 0),
+      actionType: continuation.actionType || null,
+      pieceId: continuation.pieceId || null,
+    } : null,
+    explicitOutcome: entry.type === "PASS_COMPLETED" ? "PASS_COMPLETED" : entry.type === "PASS_INTERCEPTED" ? "INTERCEPTED" : entry.type === "PASS_NATURAL_20" ? "NATURAL_20_INTERCEPTION" : entry.type === "CONTINUATION_TURN_ADVANCED" ? "CONTINUATION_TURN_ADVANCED" : "NOT_DECLARED",
   };
 }
 
