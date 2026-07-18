@@ -1,5 +1,42 @@
 # Football Board Sandbox
 
+## v19.2 — Pass route board controls and persistent roll results
+
+### What changed
+
+- Removed the blocking `Pass: choose target square` prompt. During target selection the board cursor is now a crosshair only.
+- Removed the blocking route-selection dialog. After selecting a target, the four physical pass lines remain directly on the board.
+- Added one clickable route badge at every origin corner: `LF` / `RF` / `BF`, the foot modifier (`0` preferred or `-1` non-preferred), and `SHORT` / `LONG` classification.
+- Route badges are green when the line does not enter any defensive area and red when it enters at least one defensive area. This remains separate from the later line-of-sight eligibility check for an actual interception roll.
+- Removed the movement destination highlight from the pass-targeting flow, eliminating the large yellow board rectangle.
+- Increased the minimum suspense delay after an interception D20 to two seconds.
+- Added a persistent English result dialog after every manual interception roll. It shows the die, Interception bonus, order/foot/Natural-1 modifiers, clamped total, Pass target, outcome, and the next gameplay consequence. It remains visible until `OK`.
+- Result dialogs are derived from the committed Match Timeline event, so host and guest receive the same result independently; either browser can close its own dialog without closing the other browser's copy.
+
+### Why it changed
+
+Pass route selection needs to be read directly from the pitch, not from a modal that hides it. Roll outcomes also need to be understandable and auditable before play continues, especially when a reaction changes possession or creates a Natural 20 bonus action.
+
+### Problems resolved
+
+- The board is no longer blocked while selecting a pass corner.
+- The user can see exactly which foot and modifier each route uses before spending PASS.
+- A D20 no longer resolves silently after the suspense delay; the calculation and consequence remain readable until acknowledged.
+
+### Impact
+
+- PASS geometry and all manual-roll rules from v19.1 remain unchanged.
+- The result dialog is local UI layered over a Timeline-derived result. Its `OK` button does not alter the game state or dismiss the other player's dialog.
+- Editor = Inspector = Export remains intact; no card appearance or card data path changed.
+
+### Verification focus
+
+1. Press PASS and confirm the cursor changes to a crosshair with no popup. Press `Esc` before selecting a target to cancel without spending PASS.
+2. Select a target and confirm four visible pitch routes appear, each with a clickable foot/modifier badge and `SHORT` or `LONG`; no dialog should cover the board.
+3. Confirm green means no defensive-area entry and red means the path enters a defensive area, including a later-blocked defensive square.
+4. Trigger an interception roll. Confirm two seconds of suspense, then read the persistent result dialog: D20, Interception bonus, all modifiers, total vs Pass, and consequence must be present.
+5. Confirm `OK` closes only the local result dialog. In multiplayer, later verify that both host and guest receive their own copy of the same result.
+
 ## v19.1 — Configurable Pass engine (manual interception rolls)
 
 ### What changed

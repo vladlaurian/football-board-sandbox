@@ -172,6 +172,11 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
   const foot = footForPass(origin, targetPoint, passer, passerCard?.preferredFoot);
   const passCells = traversedCells(origin, effectiveTargetPoint, settings).filter(cell => !(cell.x === Number(passer.x) && cell.y === Number(passer.y)));
   const defenseTeam = oppositeTeam(teamKeyForPiece(passer));
+  const defensiveAreaCrossings = (pieces || [])
+    .filter(piece => teamKeyForPiece(piece) === defenseTeam && !piece.inactive)
+    .flatMap(defender => defensiveCellsForPiece(defender, cardById?.[defender.cardId], settings)
+      .map(cell => ({ defenderId: defender.id, ...cell, entryT: segmentEntryT(origin, effectiveTargetPoint, cell) }))
+      .filter(cell => cell.entryT !== null));
   const interceptors = (pieces || [])
     .filter(piece => teamKeyForPiece(piece) === defenseTeam && !piece.inactive)
     .map(defender => {
@@ -197,6 +202,7 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     passerPass: cardStat(passerCard, "Pass"),
     directHit: hit ? { pieceId: hit.piece.id, team: teamKeyForPiece(hit.piece), entryT: hit.entryT } : null,
     passCells,
+    defensiveAreaCrossings,
     interceptors,
   };
 }

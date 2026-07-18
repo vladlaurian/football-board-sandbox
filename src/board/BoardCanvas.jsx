@@ -80,6 +80,8 @@ export function BoardCanvas({
   rulerMarkers,
   defensiveAreaOverlays,
   passPreview,
+  passTargeting,
+  onSelectPassRoute,
   pieces,
   getPieceDisplayLabel,
   onPiecePointerDown,
@@ -100,7 +102,7 @@ export function BoardCanvas({
 
   return (
     <div
-      className={`board-wrap ${selectedId ? "piece-selected" : ""}`}
+      className={`board-wrap ${selectedId ? "piece-selected" : ""} ${passTargeting ? "pass-targeting" : ""}`}
       ref={boardWrapRef}
       onPointerDown={startBoardPan}
       onPointerMove={moveBoardPan}
@@ -138,8 +140,8 @@ export function BoardCanvas({
             {selectedMovementAxis && <div className="selected-axis-badge" style={{ left: `calc((${selectedPiece.x} + .82) * var(--cell))`, top: `calc((${selectedPiece.y} + .08) * var(--cell))` }}>{movementAxisSymbol(selectedMovementAxis)}</div>}
           </>}
 
-          {movementPreview && hoveredCell && <div className={`destination-cell-highlight ${!movementPreview.legal ? "illegal" : "legal"}`} style={{ left: `calc(${hoveredCell.x} * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell))` }} />}
-          {movementPreview && hoveredCell && <div className={`movement-cost-badge ${movementPreview.legal ? "" : "illegal"}`} style={{ left: `calc((${hoveredCell.x} + .5) * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell) - 4px)` }}>{movementPreview.label}</div>}
+          {!passTargeting && movementPreview && hoveredCell && <div className={`destination-cell-highlight ${!movementPreview.legal ? "illegal" : "legal"}`} style={{ left: `calc(${hoveredCell.x} * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell))` }} />}
+          {!passTargeting && movementPreview && hoveredCell && <div className={`movement-cost-badge ${movementPreview.legal ? "" : "illegal"}`} style={{ left: `calc((${hoveredCell.x} + .5) * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell) - 4px)` }}>{movementPreview.label}</div>}
 
           {coordinateCells.map(cell => <div key={`${cell.x}-${cell.y}`} className="coord-label" style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }}>{rowLetter(cell.y)}{cell.x + 1}</div>)}
 
@@ -180,6 +182,17 @@ export function BoardCanvas({
               <circle cx={line.endpoint.x} cy={line.endpoint.y} r=".13" />
             </g>)}
           </svg>}
+          {passPreview?.routes?.map(route => <button
+            key={`pass-route-${route.id}`}
+            type="button"
+            className={`pass-route-badge ${route.risk ? "risk" : "clear"}`}
+            style={{ left: `calc(${route.origin.x} * var(--cell))`, top: `calc(${route.origin.y} * var(--cell))` }}
+            onPointerDown={event => event.stopPropagation()}
+            onClick={() => onSelectPassRoute?.(route.cornerId)}
+            title={`${route.foot} ${route.modifier} · ${route.isLong ? "Long Pass" : "Short Pass"}`}
+          >
+            <span>{route.foot} {route.modifier}</span><small>{route.isLong ? "LONG" : "SHORT"}</small>
+          </button>)}
 
           {pieces.map(piece => {
             const isBall = piece.team === "BALL";

@@ -114,7 +114,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.1";
+const APP_VERSION = "v19.2";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2020,6 +2020,7 @@ function App() {
   const [pendingEndTurn, setPendingEndTurn] = useState(null);
   const [pendingAutoMove, setPendingAutoMove] = useState(null);
   const [actionResolution, setActionResolution] = useState(null);
+  const [passResultNotice, setPassResultNotice] = useState(null);
   const [trackerSharedEnabled, setTrackerSharedEnabled] = useState(false);
   const [gameMode, setGameMode] = useState("editor");
   const [movementStateByPieceId, setMovementStateByPieceId] = useState({});
@@ -2090,6 +2091,7 @@ function App() {
   const cardStateRef = useRef(cardState);
   const activeRuleSetRef = useRef(activeRuleSet);
   const actionResolutionRef = useRef(actionResolution);
+  const shownPassResultEntryIdsRef = useRef(new Set());
   const [sessionCardsById, setSessionCardsById] = useState({});
   const sessionCardsByIdRef = useRef({});
   const [sessionLibraryById, setSessionLibraryById] = useState({});
@@ -2108,6 +2110,15 @@ function App() {
   useEffect(() => { actionResolutionRef.current = actionResolution; }, [actionResolution]);
   useEffect(() => { movementStateRef.current = movementStateByPieceId; }, [movementStateByPieceId]);
   useEffect(() => { gameTimelineRef.current = gameTimeline; }, [gameTimeline]);
+  useEffect(() => {
+    const cancelPendingPassWithEscape = event => {
+      if (event.key !== "Escape") return;
+      const pending = actionResolutionRef.current;
+      if (pending?.kind === "pass" && ["targeting", "route-selection"].includes(pending.status)) cancelPassTargeting();
+    };
+    window.addEventListener("keydown", cancelPendingPassWithEscape);
+    return () => window.removeEventListener("keydown", cancelPendingPassWithEscape);
+  }, []);
   useEffect(() => { sessionCardsByIdRef.current = sessionCardsById; }, [sessionCardsById]);
   useEffect(() => { sessionLibraryByIdRef.current = sessionLibraryById; }, [sessionLibraryById]);
 
@@ -5499,6 +5510,15 @@ function App() {
       visibleCells,
       blockedCells,
       lines: plans.map(plan => ({ id: plan.origin.cornerId || "center", origin: plan.origin, endpoint: plan.endpoint, selected: plan.origin.cornerId === pending.cornerId || (plans.length === 1 && !pending.cornerId) })),
+      routes: pending.status === "route-selection" ? plans.map(plan => ({
+        id: plan.origin.cornerId || "center",
+        cornerId: plan.origin.cornerId,
+        origin: plan.origin,
+        foot: plan.foot?.foot === "Left" ? "LF" : plan.foot?.foot === "Right" ? "RF" : "BF",
+        modifier: plan.foot?.dominant ? "0" : "-1",
+        isLong: plan.isLong,
+        risk: Boolean(plan.defensiveAreaCrossings?.length),
+      })) : [],
     };
   }, [actionResolution, pieces, cardById, settings, activeRuleSet]);
 
@@ -8357,6 +8377,7 @@ function App() {
     const next = { ...pending, target: { x: Number(x), y: Number(y) }, status: "route-selection" };
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
     setLiveActionResolution(next);
+    setHoveredCell(null);
     recordTimelineTransition({
       type: "PASS_TARGET_SELECTED",
       label: `Pass target selected: ${toCoord(x, y)}`,
@@ -8441,7 +8462,10 @@ function App() {
   }
 
   function schedulePassResolution(id) {
-    const delay = Number(activeRuleSetRef.current.actions?.pass?.resolutionDelayMs) || 1500;
+    // A result must remain suspenseful long enough to read the die. Rule Sets
+    // may lengthen it, but the match flow never resolves an interception in
+    // under the agreed two seconds.
+    const delay = Math.max(2000, Number(activeRuleSetRef.current.actions?.pass?.resolutionDelayMs) || 2000);
     window.setTimeout(() => resolvePendingPass(id), delay);
   }
 
@@ -8449,7 +8473,75 @@ function App() {
     return (piecesRef.current || pieces).map(piece => piece.team === "BALL" ? { ...piece, x: Number(x), y: Number(y) } : piece);
   }
 
-  function finishPassWithPossession(pending, interceptor, naturalTwenty = false) {
+  function showPassResultNotice(notice) {
+    if (!notice) return;
+    setPassResultNotice({ id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, ...notice });
+  }
+
+  function interceptionResultNotice({ defender, roll, pending, continuation }) {
+    const plan = pending.plan;
+    const team = teamKeyForPiece(defender);
+    const modifierParts = [
+      `Interception ${roll.interception >= 0 ? "+" : ""}${roll.interception}`,
+      `order +${roll.orderModifier}`,
+      ...(roll.nonDominantPenalty ? [`non-preferred foot +${roll.nonDominantPenalty}`] : []),
+      ...(roll.previousNaturalOnePenalty ? [`previous Natural 1 ${roll.previousNaturalOnePenalty}`] : []),
+    ];
+    const isNaturalOne = roll.natural === 1;
+    const isNaturalTwenty = roll.natural === 20;
+    const title = isNaturalTwenty ? "Natural 20 — Interception" : isNaturalOne ? "Natural 1 — Pass continues" : roll.outcome === "interception" ? "Interception" : "Interception failed";
+    return {
+      title,
+      team,
+      lines: [
+        `${getPieceDisplayLabel(defender)} (${team === "blue" ? "Blue" : "Red"}) rolled ${roll.natural} on D20.`,
+        isNaturalOne || isNaturalTwenty ? "Natural result: no normal comparison is needed." : `${modifierParts.join(" · ")} = ${roll.modifier >= 0 ? "+" : ""}${roll.modifier}.`,
+        isNaturalOne || isNaturalTwenty ? `Pass target: ${plan.passerPass}.` : `Total ${roll.total} vs Pass ${plan.passerPass}.`,
+        continuation,
+      ],
+    };
+  }
+
+  useEffect(() => {
+    const timeline = gameTimelineRef.current;
+    const entry = timeline?.entries?.[(timeline?.cursor || 0) - 1];
+    if (!entry || !["PASS_INTERCEPTION_MISSED", "PASS_COMPLETED", "PASS_INTERCEPTED", "PASS_NATURAL_20"].includes(entry.type)) return;
+    if (shownPassResultEntryIdsRef.current.has(entry.id)) return;
+    const pending = entry.before?.actionResolution;
+    const interceptor = pending?.plan?.interceptors?.[pending?.interceptorIndex];
+    const defender = (entry.before?.pieces || []).find(piece => piece.id === interceptor?.defender?.id);
+    const natural = Number(pending?.lastRoll?.value);
+    if (!pending || !defender || !Number.isFinite(natural)) return;
+    shownPassResultEntryIdsRef.current.add(entry.id);
+    const passRules = activeRuleSetRef.current.actions?.pass || {};
+    const roll = resolveInterceptionRoll({
+      natural,
+      interception: cardStat(cardById[defender.cardId], "Interception"),
+      orderModifier: interceptor?.orderModifier || 0,
+      nonDominantPenalty: pending.plan?.foot?.dominant ? 0 : 1,
+      previousNaturalOnePenalty: pending.naturalOnePenalty || 0,
+      passerPass: pending.plan?.passerPass || 0,
+      modifierCap: passRules.modifierCap || 4,
+    });
+    const details = {
+      ...roll,
+      interception: cardStat(cardById[defender.cardId], "Interception"),
+      orderModifier: interceptor?.orderModifier || 0,
+      nonDominantPenalty: pending.plan?.foot?.dominant ? 0 : 1,
+      previousNaturalOnePenalty: pending.naturalOnePenalty || 0,
+    };
+    const nextTeam = entry.team === "blue" ? "Blue" : "Red";
+    const continuation = entry.type === "PASS_NATURAL_20"
+      ? `${nextTeam} wins the ball and now has one bonus card action before the turn changes.`
+      : entry.type === "PASS_INTERCEPTED"
+        ? `${nextTeam} wins the ball. Possession changes and play continues at Turn ${entry.after?.tracker?.currentTurn || 1}.`
+        : entry.type === "PASS_COMPLETED"
+          ? "No further interception reactions apply. The pass is completed."
+          : `The pass continues. The next eligible defender must roll D20${natural === 1 ? " with an additional -1 modifier" : ""}.`;
+    showPassResultNotice(interceptionResultNotice({ defender, roll: details, pending, continuation }));
+  }, [gameTimeline, cardById]);
+
+  function finishPassWithPossession(pending, interceptor, naturalTwenty = false, resultNotice = null) {
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
     const nextPieces = moveBallTo(interceptor.x, interceptor.y);
     if (naturalTwenty) {
@@ -8469,7 +8561,7 @@ function App() {
     recordTimelineTransition({ type: "PASS_INTERCEPTED", label: `${nextTeam === "blue" ? "Blue" : "Red"} intercepts — Turn ${nextTurn}`, team: nextTeam, groupId: pending.entryId, before, after: mergeTimelineGameState(before, { pieces: nextPieces, actionResolution: null, trackerStartingTeam: nextTeam, trackerCurrentTurn: nextTurn, trackerUsedActions: emptyTurn.usedActions, trackerActionLog: emptyTurn.actionLog, matchActionState: emptyTurn.matchActionState, turnPhase: "attack", movementStateByPieceId: {} }), allowNoop: true });
   }
 
-  function finishPassSuccess(pending) {
+  function finishPassSuccess(pending, resultNotice = null) {
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
     const nextPieces = moveBallTo(pending.plan.target.x, pending.plan.target.y);
     piecesRef.current = nextPieces; setPieces(nextPieces); setLiveActionResolution(null);
@@ -8492,10 +8584,28 @@ function App() {
     const defender = (piecesRef.current || pieces).find(piece => piece.id === interceptor.defender.id);
     if (!defender || !result) { finishPassSuccess(pending); return; }
     const roll = resolveInterceptionRoll({ natural: result.value, interception: cardStat(cardById[defender.cardId], "Interception"), orderModifier: interceptor.orderModifier, nonDominantPenalty: plan.foot?.dominant ? 0 : 1, previousNaturalOnePenalty: pending.naturalOnePenalty || 0, passerPass: plan.passerPass, modifierCap: activeRuleSetRef.current.actions?.pass?.modifierCap || 4 });
-    if (roll.outcome === "natural-20-interception") { finishPassWithPossession(pending, defender, true); return; }
-    if (roll.outcome === "interception") { finishPassWithPossession(pending, defender); return; }
+    const rollDetails = {
+      ...roll,
+      interception: cardStat(cardById[defender.cardId], "Interception"),
+      orderModifier: interceptor.orderModifier || 0,
+      nonDominantPenalty: plan.foot?.dominant ? 0 : 1,
+      previousNaturalOnePenalty: pending.naturalOnePenalty || 0,
+    };
+    if (roll.outcome === "natural-20-interception") {
+      finishPassWithPossession(pending, defender, true, interceptionResultNotice({ defender, roll: rollDetails, pending, continuation: `${teamKeyForPiece(defender) === "blue" ? "Blue" : "Red"} wins the ball and now has one bonus card action before the turn changes.` }));
+      return;
+    }
+    if (roll.outcome === "interception") {
+      const nextTeam = teamKeyForPiece(defender);
+      const nextTurn = Math.min(trackerSettings.turns, Math.max(1, trackerCurrentTurn + 1));
+      finishPassWithPossession(pending, defender, false, interceptionResultNotice({ defender, roll: rollDetails, pending, continuation: `${nextTeam === "blue" ? "Blue" : "Red"} wins the ball. Possession changes and play continues at Turn ${nextTurn}.` }));
+      return;
+    }
     const nextIndex = pending.interceptorIndex + 1;
-    if (nextIndex >= plan.interceptors.length) { finishPassSuccess(pending); return; }
+    if (nextIndex >= plan.interceptors.length) {
+      finishPassSuccess(pending, interceptionResultNotice({ defender, roll: rollDetails, pending, continuation: "No further interception reactions apply. The pass is completed." }));
+      return;
+    }
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
     const next = { ...pending, status: "awaiting-interception-roll", interceptorIndex: nextIndex, naturalOnePenalty: (pending.naturalOnePenalty || 0) + (result.value === 1 ? -1 : 0), lastRoll: null };
     setLiveActionResolution(next);
@@ -9329,6 +9439,8 @@ function App() {
         rulerMarkers={rulerMarkers}
         defensiveAreaOverlays={defensiveAreaOverlays}
         passPreview={passPreview}
+        passTargeting={actionResolution?.kind === "pass" && actionResolution.status === "targeting"}
+        onSelectPassRoute={confirmPassRoute}
         pieces={pieces}
         getPieceDisplayLabel={getPieceDisplayLabel}
         onPiecePointerDown={onPiecePointerDown}
@@ -9726,31 +9838,6 @@ function App() {
         </div>
       )}
 
-      {actionResolution?.kind === "pass" && actionResolution.status === "targeting" && (
-        <div className="pass-action-prompt">
-          <strong>Pass: choose target square</strong>
-          <span>Select any square or player. Nothing is spent until you confirm a route.</span>
-          <button onClick={cancelPassTargeting}>Cancel Pass</button>
-        </div>
-      )}
-
-      {actionResolution?.kind === "pass" && actionResolution.status === "route-selection" && passPreview?.plans?.length > 0 && (
-        <div className="modal-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) cancelPassTargeting(); }}>
-          <div className="modal pass-route-modal" onPointerDown={e => e.stopPropagation()}>
-            <div className="modal-title"><strong>Choose pass route</strong><button className="icon-btn" onClick={cancelPassTargeting}>×</button></div>
-            <p>The pass ends at {toCoord(actionResolution.target.x, actionResolution.target.y)}. Select the physical line to use.</p>
-            <div className="pass-route-options">
-              {passPreview.plans.map(plan => <button key={plan.origin.cornerId || "center"} onClick={() => confirmPassRoute(plan.origin.cornerId)}>
-                <strong>{plan.origin.cornerId ? plan.origin.cornerId.replace(/\b\w/g, char => char.toUpperCase()) : "Center → Center"}</strong>
-                <span>{plan.distance.toFixed(2)} squares · {plan.foot.foot ? `${plan.foot.foot} foot${plan.foot.dominant ? " (preferred)" : " (non-preferred)"}` : "No foot modifier"}</span>
-                <small>{plan.isLong ? "Long pass" : "Normal pass"} · {plan.interceptors.length} interception {plan.interceptors.length === 1 ? "reaction" : "reactions"}</small>
-              </button>)}
-            </div>
-            <div className="modal-actions"><button onClick={cancelPassTargeting}>Cancel — do not spend PASS</button></div>
-          </div>
-        </div>
-      )}
-
       {actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interception-roll" && (() => {
         const interceptor = actionResolution.plan?.interceptors?.[actionResolution.interceptorIndex];
         const defender = pieces.find(piece => piece.id === interceptor?.defender?.id);
@@ -9768,6 +9855,16 @@ function App() {
 
       {actionResolution?.kind === "pass" && actionResolution.status === "bonus-action" && (
         <div className="pass-action-prompt bonus"><strong>Natural 20 interception</strong><span>{actionResolution.bonusTeam === "blue" ? "Blue" : "Red"} has one bonus card action before the turn changes.</span></div>
+      )}
+
+      {passResultNotice && (
+        <div className="modal-backdrop pass-result-backdrop">
+          <div className={`modal pass-result-modal ${passResultNotice.team || ""}`} role="dialog" aria-modal="true">
+            <div className="modal-title"><strong>{passResultNotice.title}</strong></div>
+            <div className="pass-result-lines">{passResultNotice.lines.map((line, index) => <p key={index}>{line}</p>)}</div>
+            <div className="modal-actions"><button className="save-label" onClick={() => setPassResultNotice(null)}>OK</button></div>
+          </div>
+        </div>
       )}
 
       {pendingThreeTwoMove && (
