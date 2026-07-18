@@ -26,7 +26,7 @@ import {
   toCoord,
   withBoardPosition,
 } from "./board/boardGeometry.mjs";
-import { getMovementGeometry, normalizeMovementState } from "./board/movementState.mjs";
+import { diagonalCostForDistance, getMovementGeometry, normalizeMovementState } from "./board/movementState.mjs";
 import { createDefaultScenarioSlots, normalizeScenarioSlots } from "./board/scenarioUtils.mjs";
 import { clamp } from "./game/numberUtils.mjs";
 import {
@@ -78,7 +78,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v18.0";
+const APP_VERSION = "v18.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {

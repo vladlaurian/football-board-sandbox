@@ -1,5 +1,32 @@
 # Football Board Sandbox
 
+## v18.1 — Match Mode movement calculation repair
+
+### What changed
+
+- Restored the missing `diagonalCostForDistance` import in the application shell after its v18.0 extraction into `src/board/movementState.mjs`.
+
+### Why it changed
+
+In Match Mode, selecting a player with an attached card lets the Sandbox read that player's `Speed` and calculate movement cost. The diagonal-cost function had been moved successfully, but `main.jsx` did not import it. The resulting runtime error crashed the React screen when that calculation was reached.
+
+### Problems resolved
+
+- Selecting a puck with an attached card in Match Mode no longer produces a black screen.
+- Cardless pucks and Editor Mode were not the underlying issue; they simply did not reach the missing speed-based calculation.
+
+### Impact
+
+- This is a one-line wiring repair. Card data, shared card rendering, Editor, Inspector, Export, Tracker, History, Undo, Redo, replay, Firebase state, and multiplayer protocol are unchanged.
+- Editor = Inspector = Export remains untouched.
+
+### Verification focus
+
+1. Enter Match Mode and select several pucks with attached cards.
+2. Hover a destination cell, including a diagonal destination, and confirm the movement-cost preview remains visible without a crash.
+3. Complete a normal `MOVE`, then use Undo and Redo once.
+4. Repeat with a guest connected if convenient; both screens must remain aligned.
+
 ## v18.0 — Structural foundation before gameplay automation
 
 ### What changed
