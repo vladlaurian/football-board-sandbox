@@ -59,6 +59,23 @@ import {
   normalizeTrackerSnapshot,
   TRACKER_ACTION_ABBR,
 } from "./tracker/trackerState.mjs";
+import {
+  activateTrackerAction,
+  canUseTrackerActionForPiece,
+  canUseTrackerFreeModeForPiece,
+  createEmptyTrackerTurnState,
+  hasGroupMoveAuthorization,
+  isTeamActiveForTrackerPhase,
+  movementAuthorizationForPiece,
+  nextTrackerPhase,
+  opposingTeam,
+  toggleFreeModeState,
+  toggleTrackerActionMarker,
+  trackerActionLimitForTeam,
+  trackerActionStatusForTeam,
+  trackerPhaseBlockReason,
+  trackerRoleForTeam,
+} from "./tracker/actionRules.mjs";
 import { HistoryPanel } from "./match/HistoryPanel.jsx";
 import "./styles.css";
 
@@ -79,7 +96,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v18.5";
+const APP_VERSION = "v18.6";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -8134,9 +8151,19 @@ function App() {
   }
 
   function getTeamActionStatus(team, usedOverride = trackerUsedActions) {
-    const limit = trackerActionCountFor(team);
-    const used = clamp(Number(usedOverride?.[team]) || 0, 0, limit);
-    return { limit, used, remaining: Math.max(0, limit - used), exhausted: used >= limit };
+    return trackerActionStatusForTeam(trackerRulesSnapshot({ usedActions: usedOverride }), team, usedOverride);
+  }
+  function trackerRulesSnapshot(overrides = {}) {
+    return {
+      gameStarted: overrides.gameStarted ?? trackerGameStarted,
+      startingTeam: overrides.startingTeam ?? trackerStartingTeam,
+      currentTurn: overrides.currentTurn ?? trackerCurrentTurn,
+      usedActions: overrides.usedActions ?? trackerUsedActions,
+      actionLog: overrides.actionLog ?? trackerActionLog,
+      matchActionState: overrides.matchActionState ?? matchActionState,
+      turnPhase: overrides.turnPhase ?? turnPhase,
+      settings: overrides.settings ?? trackerSettings,
+    };
   }
   function currentTimelineTrackerSnapshot() {
     const timelineState = currentTimelineGameStateSnapshot();
@@ -8158,25 +8185,32 @@ function App() {
       ? timelineStateAt(timeline, timeline.cursor)
       : null;
   }
-  function activeTeamForPhase(phase = turnPhase) {
-    if (phase === "attack") return trackerStartingTeam;
-    if (phase === "defense") return trackerStartingTeam === "red" ? "blue" : "red";
-    return null;
-  }
   function isTeamPhaseActive(team) {
-    return Boolean(team && activeTeamForPhase() === team);
+    return isTeamActiveForTrackerPhase(trackerRulesSnapshot(), team);
   }
   function phaseBlockReason() {
-    return turnPhase === "complete" ? "all-actions-complete" : "wait-active-team";
+    return trackerPhaseBlockReason(turnPhase);
   }
   function canUseActionForPiece(piece) {
-    if (replayModeRef.current) return false;
-    if (!piece || piece.team === "BALL" || piece.inactive || gameMode !== "match" || !trackerGameStarted) return false;
-    if (!sessionCode) return true;
-    return myTeam !== "spectator" && pieceTeamKey(piece) === myTeam;
+    return canUseTrackerActionForPiece({
+      replay: replayModeRef.current,
+      piece,
+      gameMode,
+      gameStarted: trackerGameStarted,
+      sessionActive: Boolean(sessionCode),
+      myTeam,
+      pieceTeam: pieceTeamKey(piece),
+    });
   }
   function canUseFreeModeForPiece(piece) {
-    return Boolean(!replayModeRef.current && piece && piece.team !== "BALL" && !piece.inactive && gameMode === "match" && trackerGameStarted && (!sessionCode || myTeam !== "spectator"));
+    return canUseTrackerFreeModeForPiece({
+      replay: replayModeRef.current,
+      piece,
+      gameMode,
+      gameStarted: trackerGameStarted,
+      sessionActive: Boolean(sessionCode),
+      myTeam,
+    });
   }
   async function applyActionStateUpdate(nextLog, nextState, nextUsed) {
     setTrackerActionLog(nextLog); setMatchActionState(nextState); setTrackerUsedActions(nextUsed);
@@ -8187,11 +8221,7 @@ function App() {
     } else if (!canUseActionForPiece(piece)) return;
     const team = pieceTeamKey(piece);
     const currentTracker = currentTimelineTrackerSnapshot();
-    const currentLog = currentTracker.actionLog;
-    const currentUsed = currentTracker.usedActions;
     const currentActionState = currentTracker.matchActionState;
-    const currentPieceState = currentActionState.byPieceId[piece.id] || {};
-    if (type !== "FREE" && hasValidGroupMoveAuthorization(team)) return;
     if (type === "FREE") {
       const beforeTimeline = currentTimelineGameStateSnapshot() || captureTimelineGameState();
       const freeModeActive = Boolean(currentActionState.freeMode?.active);
@@ -8199,13 +8229,8 @@ function App() {
       const timelineGroupId = isSameFreePiece
         ? (currentActionState.freeMode?.timelineGroupId || `free_${piece.id}_${trackerCurrentTurn}`)
         : `free_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const nextState = normalizeMatchActionState({
-        ...currentActionState,
-        byPieceId: currentActionState.byPieceId,
-        freeMode: isSameFreePiece
-          ? { active: false, pieceId: null, team: null, timelineGroupId }
-          : { active: true, pieceId: piece.id, team, timelineGroupId },
-      });
+      const freeTransition = toggleFreeModeState(currentActionState, { pieceId: piece.id, team, timelineGroupId });
+      const nextState = freeTransition.state;
       setMatchActionState(nextState);
       setSelectedId(piece.id);
       const afterTimeline = createGameState({
@@ -8222,24 +8247,19 @@ function App() {
       });
       return;
     }
-    if (!isTeamPhaseActive(team)) {
-      setIllegalMoveNotice({ reason: phaseBlockReason() });
-      return;
-    }
-    const status = getTeamActionStatus(team, currentUsed);
-    if (status.exhausted) { setIllegalMoveNotice({ reason: "actions-complete-end-turn" }); return; }
-    if (type === "MOVE" && currentPieceState.moveUsed) return;
-    if (type === "GROUP_MOVE" && status.remaining !== 1) return;
-    const entry = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    const activation = activateTrackerAction(currentTracker, {
       type,
       pieceId: piece.id,
-    };
-    const nextLog = { ...currentLog, [team]: [...currentLog[team], entry] };
-    const nextUsed = { ...currentUsed, [team]: nextLog[team].length };
-    let nextState = currentActionState;
-    if (type === "MOVE") nextState = normalizeMatchActionState({ ...currentActionState, byPieceId: { ...currentActionState.byPieceId, [piece.id]: { ...currentPieceState, moveUsed: true, moveAuthorized: true, moveGroupId: entry.id } } });
-    if (type === "GROUP_MOVE") nextState = normalizeMatchActionState({ ...currentActionState, groupMove: { active: true, team, timelineGroupId: entry.id } });
+      team,
+      entryId: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    });
+    if (!activation.allowed) {
+      if (["wait-active-team", "all-actions-complete", "actions-complete-end-turn"].includes(activation.reason)) {
+        setIllegalMoveNotice({ reason: activation.reason });
+      }
+      return;
+    }
+    const { entry, actionLog: nextLog, usedActions: nextUsed, matchActionState: nextState } = activation;
     const beforeTimeline = currentTimelineGameStateSnapshot() || captureTimelineGameState();
     await applyActionStateUpdate(nextLog, nextState, nextUsed);
     const afterTimeline = createGameState({
@@ -8294,26 +8314,15 @@ function App() {
     window.alert("This action predates the active unified timeline and cannot be removed safely. Start a new Match Mode recording first.");
   }
   function hasValidGroupMoveAuthorization(team) {
-    if (!matchActionState.groupMove.active || matchActionState.groupMove.team !== team) return false;
-    const log = Array.isArray(trackerActionLog?.[team]) ? trackerActionLog[team] : [];
-    const lastAction = log[log.length - 1];
-    const status = getTeamActionStatus(team);
-    return Boolean(
-      trackerGameStarted &&
-      lastAction?.type === "GROUP_MOVE" &&
-      status.exhausted &&
-      log.length === status.limit
-    );
+    return hasGroupMoveAuthorization(trackerRulesSnapshot(), team);
   }
   function movementAuthorization(piece) {
-    if (!piece || piece.team === "BALL" || gameMode === "editor") return { allowed: true, mode: "normal" };
-    const team = pieceTeamKey(piece);
-    const state = matchActionState.byPieceId[piece.id] || {};
-    if (matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === piece.id) return { allowed: true, mode: "free" };
-    if (!isTeamPhaseActive(team)) return { allowed: false, mode: "blocked", reason: phaseBlockReason() };
-    if (hasValidGroupMoveAuthorization(team)) return { allowed: true, mode: "group" };
-    if (state.moveAuthorized) return { allowed: true, mode: "normal" };
-    return { allowed: false, mode: "blocked" };
+    return movementAuthorizationForPiece({
+      piece,
+      team: pieceTeamKey(piece),
+      gameMode,
+      tracker: trackerRulesSnapshot(),
+    });
   }
 
   async function confirmAutoMove(shouldMove) {
@@ -8390,7 +8399,7 @@ function App() {
     if (!pendingEndTurn) return;
     const endingTeam = pendingEndTurn.team;
     const beforeTimeline = captureTimelineGameState();
-    const nextPhase = turnPhase === "attack" ? "defense" : "complete";
+    const nextPhase = nextTrackerPhase(turnPhase);
     setPendingEndTurn(null);
     setTurnPhase(nextPhase);
     setSelectedId(null);
@@ -8407,9 +8416,8 @@ function App() {
   function startTrackedGame(team) {
     if (trackerReadOnly) return;
     const beforeTimeline = captureTimelineGameState();
-    const usedActions = { red: 0, blue: 0 };
-    const emptyLog = { red: [], blue: [] };
-    const emptyMatchState = normalizeMatchActionState({});
+    const emptyTurn = createEmptyTrackerTurnState();
+    const { usedActions, actionLog: emptyLog, matchActionState: emptyMatchState } = emptyTurn;
     setTrackerStartingTeam(team);
     setTrackerCurrentTurn(1);
     setTrackerUsedActions(usedActions); setTrackerActionLog(emptyLog); setMatchActionState(emptyMatchState);
@@ -8427,9 +8435,8 @@ function App() {
   }
   function applyTrackerTurn(turn) {
     const beforeTimeline = captureTimelineGameState();
-    const usedActions = { red: 0, blue: 0 };
-    const emptyLog = { red: [], blue: [] };
-    const emptyMatchState = normalizeMatchActionState({});
+    const emptyTurn = createEmptyTrackerTurnState();
+    const { usedActions, actionLog: emptyLog, matchActionState: emptyMatchState } = emptyTurn;
     setTrackerCurrentTurn(turn);
     setTurnPhase("attack");
     setTrackerUsedActions(usedActions); setTrackerActionLog(emptyLog); setMatchActionState(emptyMatchState);
@@ -8454,9 +8461,8 @@ function App() {
   function resetTrackerActions() {
     if (trackerReadOnly) return;
     const beforeTimeline = captureTimelineGameState();
-    const usedActions = { red: 0, blue: 0 };
-    const emptyLog = { red: [], blue: [] };
-    const emptyMatchState = normalizeMatchActionState({});
+    const emptyTurn = createEmptyTrackerTurnState();
+    const { usedActions, actionLog: emptyLog, matchActionState: emptyMatchState } = emptyTurn;
     setTrackerUsedActions(usedActions); setTrackerActionLog(emptyLog); setMatchActionState(emptyMatchState);
     setMovementStateByPieceId({}); movementStateRef.current = {};
     recordTimelineTransition({
@@ -8469,10 +8475,9 @@ function App() {
   function changeTrackerPossession() {
     if (trackerReadOnly || !trackerGameStarted) return;
     const beforeTimeline = captureTimelineGameState();
-    const nextAttackingTeam = trackerStartingTeam === "red" ? "blue" : "red";
-    const usedActions = { red: 0, blue: 0 };
-    const emptyLog = { red: [], blue: [] };
-    const emptyMatchState = normalizeMatchActionState({});
+    const nextAttackingTeam = opposingTeam(trackerStartingTeam);
+    const emptyTurn = createEmptyTrackerTurnState();
+    const { usedActions, actionLog: emptyLog, matchActionState: emptyMatchState } = emptyTurn;
     setTrackerStartingTeam(nextAttackingTeam);
     setTurnPhase("attack");
     setTrackerUsedActions(usedActions); setTrackerActionLog(emptyLog); setMatchActionState(emptyMatchState);
@@ -8486,15 +8491,24 @@ function App() {
     });
   }
   function trackerRoleFor(team) {
-    if (!trackerGameStarted || trackerCurrentTurn < 1) return "waiting";
-    return team === trackerStartingTeam ? "attack" : "defense";
+    return trackerRoleForTeam({
+      gameStarted: trackerGameStarted,
+      startingTeam: trackerStartingTeam,
+      currentTurn: trackerCurrentTurn,
+      settings: trackerSettings,
+    }, team);
   }
   function trackerActionCountFor(team) {
-    return trackerRoleFor(team) === "attack" ? trackerSettings.attackActions : trackerSettings.defenseActions;
+    return trackerActionLimitForTeam({
+      gameStarted: trackerGameStarted,
+      startingTeam: trackerStartingTeam,
+      currentTurn: trackerCurrentTurn,
+      settings: trackerSettings,
+    }, team);
   }
   function toggleTrackerAction(team, index) {
     if (trackerReadOnly || !trackerGameStarted) return;
-    const usedActions = { ...trackerUsedActions, [team]: trackerUsedActions[team] === index + 1 ? index : index + 1 };
+    const usedActions = toggleTrackerActionMarker(trackerUsedActions, team, index);
     setTrackerUsedActions(usedActions);
     syncSharedTracker({ usedActions });
   }

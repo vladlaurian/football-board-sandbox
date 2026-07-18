@@ -1,5 +1,42 @@
 # Football Board Sandbox
 
+## v18.6 — Tracker action rules extraction
+
+### What changed
+
+- Extracted Tracker phase ownership, attack/defense roles, action limits, used/remaining action status, phase progression, and possession-team switching into `src/tracker/actionRules.mjs`.
+- Extracted reusable permission rules for normal player actions, Free Mode, MOVE authorization, and GROUP MOVE authorization.
+- Extracted pure state transitions for action activation, Free Mode toggling, turn resets, and manual Tracker action markers.
+- Rewired `main.jsx` through one React-to-rules adapter while keeping Timeline recording, Firebase synchronization, dialogs, and visual state in the application shell.
+- Added focused tests for phase ownership, action economy, MOVE, GROUP MOVE, Free Mode, permissions, and movement authorization.
+
+### Why it changed
+
+The future editable action engine will automate PASS first, then Interception, Tackle, Dribble, Shot, and Cross. Those systems must share one definition of whose phase is active, whether an action is available, how it is consumed, and which movement mode is authorized. Keeping those decisions inside the application component would make every automated action depend on UI and multiplayer implementation details.
+
+### Problems resolved
+
+- Tracker rules can now be tested without rendering React or connecting to Firebase.
+- PASS and the later action modules have a reusable action-economy boundary instead of needing independent copies of phase and permission logic.
+- GROUP MOVE and Free Mode transitions now have explicit pure functions rather than being embedded only in button handlers.
+- Repeated reset objects for new turns, possession changes, and Tracker reset now come from one factory.
+
+### Impact
+
+- No gameplay rule, action count, phase order, button behavior, movement cost, Tracker appearance, or multiplayer authority changed.
+- History, Undo, Redo, replay, AI export, Firebase data, dice, cards, and Scenario flow remain unchanged.
+- This prepares v18.7 to extract the visual `TrackerPanel` and prepares the later configurable action engine without implementing automatic passing yet.
+- Editor = Inspector = Export remains intact; card rendering and card data were not modified.
+
+### Verification focus
+
+1. Start a Match with Blue attacking, consume attack actions, end the attack phase, and confirm only Red can act during defense.
+2. Confirm MOVE can be used once per player and that the selected player moves with the same distance and axis rules.
+3. Use GROUP MOVE only as the final available action and confirm its players can be moved as before.
+4. Toggle Free Mode on and off, move its selected player, and confirm no normal action is consumed.
+5. Change possession, advance one turn, reset Tracker actions, then verify History, Undo, and Redo reproduce each state.
+6. Repeat MOVE and phase progression in multiplayer and confirm host and guest retain the same board, Tracker, and History.
+
 ## v18.5 — Stable multiplayer selection
 
 ### What changed
