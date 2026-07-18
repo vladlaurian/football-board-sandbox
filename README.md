@@ -1,5 +1,49 @@
 # Football Board Sandbox
 
+## v17.9 — Scenario Save/Load flow and action deselection
+
+### What changed
+
+- Renamed the board-state slot UI from `Situație` to `Scenario`; default slots are now `Scenario 1` through `Scenario 12`.
+- Existing default Romanian slot names such as `Situația 1` are migrated to the new `Scenario 1` naming without deleting their saved board snapshots. Custom scenario names remain unchanged.
+- Selecting a Scenario slot now only selects that slot and its editable name. It never changes the board automatically.
+- Added a separate `Load` button next to `Save`.
+- Loading an occupied Scenario now requires confirmation: `Load this Scenario? Your current board state will be replaced.`
+- Loading an empty slot reports: `This Scenario slot is empty.`
+- Saving to an empty slot proceeds immediately. Saving over an occupied slot requires confirmation: `Overwrite this Scenario? The existing saved Scenario will be replaced.`
+- A completed physical movement now deselects the moved player, including normal Move, Group Move, Free Mode movement, 3/2 movement, and ball movement.
+- `MOVE`, `GROUP MOVE`, and `FREE MODE` retain selection only while they are preparing a physical move. Other completed player actions (`PASS`, `SHOT`, `CROSS`, `DRIBBLE`, `TACKLING`) deselect the player immediately after being recorded.
+- Added regression coverage for Scenario slot-name migration and saved-snapshot preservation.
+
+### Why it changed
+
+A selector must not also be an irreversible command. Previously, choosing an occupied Situation slot immediately replaced the current board, which made it unsafe to select a destination before saving a new setup. Save and Load are now explicit operations with confirmation only when data would be replaced.
+
+Keeping a player selected after a completed action also made the next interaction ambiguous. Selection now represents an action still awaiting its physical movement, rather than a player who has already completed an action.
+
+### Problems resolved
+
+- Selecting a Scenario can no longer accidentally load and replace the current board.
+- Overwriting a saved Scenario requires an explicit decision; empty slots remain quick to save.
+- Loading a Scenario requires an explicit decision; empty slots are reported clearly.
+- Completed actions no longer leave a stale player selection on the board.
+- Legacy default Situation labels do not leave mixed terminology in the Scenario UI.
+
+### Impact
+
+- Scenario contents, Full Replay, Match Timeline, History, Undo, Redo, tracker rules, Firebase schema, multiplayer protocol, card rendering, Inspector, and Export formats are unchanged.
+- Loading and saving retain their previous board-state behavior after the new confirmation step.
+- In Match Mode, a loaded or saved Scenario continues to be represented by the existing timeline transition behavior; this build changes only how the user initiates that existing operation.
+- Editor = Inspector = Export remains intact; no card or rendering path was changed.
+
+### Verification focus
+
+1. Select an occupied Scenario: the board must not change.
+2. Press `Load`, cancel the confirmation: the board must still not change.
+3. Press `Save` on an empty Scenario: it must save without confirmation.
+4. Press `Save` on an occupied Scenario: it must ask before overwriting.
+5. Use `MOVE`, move the player, and confirm it deselects. Repeat with `GROUP MOVE` and `FREE MODE`.
+
 ## v17.8 — AI export semantic cleanup
 
 ### What changed

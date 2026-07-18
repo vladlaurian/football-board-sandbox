@@ -13,6 +13,7 @@ import {
   normalizeFormationPlayers,
   normalizeFormationSlots,
 } from "./board/formationUtils.mjs";
+import { createDefaultScenarioSlots, normalizeScenarioSlots } from "./board/scenarioUtils.mjs";
 import {
   closeTimeline,
   commitTimelineEntry,
@@ -57,7 +58,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v17.8";
+const APP_VERSION = "v17.9";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2055,18 +2056,14 @@ function loadStoredFormations() {
   }
 }
 
-const DEFAULT_GAME_SITUATIONS = Array.from({ length: 12 }, (_, i) => ({
-  id: i + 1,
-  name: `Situația ${i + 1}`,
-  snapshot: null,
-}));
+const DEFAULT_GAME_SITUATIONS = createDefaultScenarioSlots(12);
 
 function loadStoredGameSituations() {
   try {
     const raw = localStorage.getItem("football-board-game-situations-v20");
     if (!raw) return DEFAULT_GAME_SITUATIONS;
     const stored = JSON.parse(raw);
-    return DEFAULT_GAME_SITUATIONS.map(base => stored.find(s => s.id === base.id) || base);
+    return normalizeScenarioSlots(stored, DEFAULT_GAME_SITUATIONS);
   } catch {
     return DEFAULT_GAME_SITUATIONS;
   }
@@ -2125,7 +2122,7 @@ function App() {
   const [redFormationId, setRedFormationId] = useState(2);
   const [gameSituations, setGameSituations] = useState(() => loadStoredGameSituations());
   const [activeSituationId, setActiveSituationId] = useState(1);
-  const [activeSituationName, setActiveSituationName] = useState("Situația 1");
+  const [activeSituationName, setActiveSituationName] = useState("Scenario 1");
   const [pieces, setPieces] = useState(() => normalizePiecesForBoard(createInitialPieces(DEFAULT_SETTINGS.cols, DEFAULT_SETTINGS.rows, FORMATION_SLOTS[0], FORMATION_SLOTS[1]), DEFAULT_SETTINGS));
   const [selectedId, setSelectedId] = useState(null);
   const [hoveredCell, setHoveredCell] = useState(null);
@@ -2593,9 +2590,14 @@ function App() {
 
     if (data.settings) setSettings(nextSettings);
     if (data.formations) setFormations(normalizeFormationSlots(data.formations, FORMATION_SLOTS));
-    if (data.gameSituations) setGameSituations(data.gameSituations);
-    if (typeof data.activeSituationId === "number") setActiveSituationId(data.activeSituationId);
-    if (data.activeSituationName) setActiveSituationName(data.activeSituationName);
+    const nextScenarios = data.gameSituations
+      ? normalizeScenarioSlots(data.gameSituations, DEFAULT_GAME_SITUATIONS)
+      : gameSituations;
+    const nextScenarioId = typeof data.activeSituationId === "number" ? data.activeSituationId : activeSituationId;
+    if (data.gameSituations) setGameSituations(nextScenarios);
+    if (typeof data.activeSituationId === "number") setActiveSituationId(nextScenarioId);
+    const selectedScenario = nextScenarios.find(scenario => scenario.id === Number(nextScenarioId));
+    if (selectedScenario) setActiveSituationName(selectedScenario.name);
     if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
     if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
     if (data.pieces) {
@@ -3954,14 +3956,20 @@ function App() {
     };
   }
 
-  function applyGameSituation(id) {
-    const situation = gameSituations.find(s => s.id === Number(id));
-    if (!situation) return;
-
+  function selectScenarioSlot(id) {
+    const scenario = gameSituations.find(item => item.id === Number(id));
+    if (!scenario) return;
     setActiveSituationId(Number(id));
-    setActiveSituationName(situation.name);
+    setActiveSituationName(scenario.name);
+  }
 
-    if (!situation.snapshot) return;
+  function loadActiveScenario() {
+    const situation = gameSituations.find(s => s.id === Number(activeSituationId));
+    if (!situation?.snapshot) {
+      window.alert("This Scenario slot is empty.");
+      return;
+    }
+    if (!window.confirm("Load this Scenario? Your current board state will be replaced.")) return;
 
     pushHistory();
     const snapshotSettings = normalizeSettingsForApp(situation.snapshot.settings || settings);
@@ -3986,7 +3994,7 @@ function App() {
       setRedDieResult(null);
     }
     if (situation.snapshot.cardState) setCardState(snapshotCardState);
-    logSnapshot(`Load situație: ${situation.name}`, snapshotPieces, {
+    logSnapshot(`Load Scenario: ${situation.name}`, snapshotPieces, {
       type: "SITUATION_LOADED",
       stateOverrides: {
         settings: snapshotSettings,
@@ -3998,7 +4006,9 @@ function App() {
   }
 
   function saveActiveGameSituation() {
-    const cleanName = activeSituationName.trim() || `Situația ${activeSituationId}`;
+    const currentScenario = gameSituations.find(s => s.id === Number(activeSituationId));
+    if (currentScenario?.snapshot && !window.confirm("Overwrite this Scenario? The existing saved Scenario will be replaced.")) return;
+    const cleanName = activeSituationName.trim() || `Scenario ${activeSituationId}`;
     const nextSituations = gameSituations.map(s =>
       s.id === Number(activeSituationId)
         ? { ...s, name: cleanName, snapshot: createCurrentSnapshot() }
@@ -4009,7 +4019,7 @@ function App() {
     localStorage.setItem("football-board-game-situations-v20", JSON.stringify(nextSituations));
     setActiveSituationName(cleanName);
     saveCloudState({ gameSituations: nextSituations, activeSituationName: cleanName }, `Scenario saved`);
-    logSnapshot(`Save situație: ${cleanName}`);
+    logSnapshot(`Save Scenario: ${cleanName}`);
   }
 
   function resetPiecePositions() {
@@ -4946,10 +4956,9 @@ function App() {
       groupId: timelineGroupId,
       stateOverrides: { movementStateByPieceId: nextMovement },
     });
-    // Keep the moved player selected so the next action (pass, dribble, shot, etc.)
-    // can be chosen immediately. Match Ball keeps the previous deselect behavior.
-    if (piece.team !== "BALL") setSelectedId(piece.id);
-    else setSelectedId(null);
+    // A completed movement always closes the current player selection. MOVE,
+    // GROUP MOVE, and FREE MODE keep their selection only until this physical move.
+    setSelectedId(null);
     setHoveredCell(null);
     return true;
   }
@@ -8602,7 +8611,12 @@ function App() {
       after: afterTimeline,
       allowNoop: true,
     });
-    if (type === "MOVE" || type === "GROUP_MOVE") setSelectedId(piece.id);
+    if (type === "MOVE" || type === "GROUP_MOVE") {
+      setSelectedId(piece.id);
+    } else {
+      setSelectedId(null);
+      setHoveredCell(null);
+    }
   }
   async function removeLastTrackerAction(team) {
     if (!trackerGameStarted || !trackerActionLog[team]?.length) return;
@@ -9196,10 +9210,10 @@ function App() {
         </div>
 
         <div className="situation-control">
-          <span>Situație</span>
-          <select value={activeSituationId} onChange={e => applyGameSituation(Number(e.target.value))}>
+          <span>Scenario</span>
+          <select value={activeSituationId} onChange={e => selectScenarioSlot(Number(e.target.value))}>
             {gameSituations.map(s => (
-              <option key={s.id} value={s.id}>{s.id}. {s.name}{s.snapshot ? "" : " (gol)"}</option>
+              <option key={s.id} value={s.id}>{s.id}. {s.name}{s.snapshot ? "" : " (empty)"}</option>
             ))}
           </select>
           <input
@@ -9209,6 +9223,7 @@ function App() {
             onFocus={e => e.target.select()}
           />
           <button onClick={saveActiveGameSituation}>Save</button>
+          <button onClick={loadActiveScenario}>Load</button>
         </div>
 
         <button className={historyVisible ? "toggle-on" : ""} onClick={() => setHistoryVisible(v => !v)}>
