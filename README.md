@@ -1,5 +1,46 @@
 # Football Board Sandbox
 
+## v19.4 — Pass resolution data, controls, and feedback corrections
+
+### What changed
+
+- Fixed normal passing-stat lookup: the gameplay `Pass` rule now reads the established card attribute named `Passing`; `Long Pass` remains a separate future rule.
+- Added a structured interception-resolution record to pending Timeline state and AI export: natural D20, raw modifier, applied/clamped modifier, cap, every modifier source, Pass target, and outcome.
+- Changed modifier language from `Order` to readable `Advantage` / `Disadvantage`, including the source: interceptor order, non-preferred foot, or previous Natural 1.
+- Result prompts now identify a defender as `Position Player Name (Team)`.
+- Applied the ±cap visibly and in export data. A capped total is marked as `maximum advantage` or `maximum disadvantage`.
+- Removed the duplicate drawn targeting reticle. The native crosshair is the single target cursor; the live distance label is larger and remains visible during target selection.
+- Removed all yellow pass-cell overlays. Pass route information is now conveyed only by the thick green/red route lines and the four origin controls.
+- Fixed the route-control class mismatch, so the four corner controls are placed separately around their corresponding physical corners.
+- Increased route-line thickness and replaced the previous ball drawing with a compact SVG football visual while retaining the existing ball wrapper and hitbox.
+- A pass with no interception roll now completes immediately. The suspense prompt can appear only after a manual D20 and now says only `Resolving interception… Please wait.`
+
+### Why it changed
+
+The UI must expose the same resolution data that Match Timeline and AI export use, without visual noise or a delay where no die was rolled. The former `Pass 0` was especially misleading because it ignored the card editor's real `Passing` field.
+
+### Problems resolved
+
+- Route controls no longer overlap because `top-left` / `top-right` / `bottom-left` / `bottom-right` now use matching layout classes.
+- A successful uncontested pass no longer shows an irrelevant suspense popup.
+- Interception feedback no longer uses the unexplained `Order +0` wording or punctuation between additive modifiers.
+- AI analysis can now inspect both the raw and capped interception math rather than infer it from a UI sentence.
+
+### Impact
+
+- All dice remain manual. This build changes neither the eligibility rules nor the outcome threshold; it records and presents their inputs more accurately.
+- Match Timeline, Undo/Redo, replay, multiplayer timeline synchronization, Save Match, and AI export carry the same structured roll details.
+- Editor = Inspector = Export remains intact; the ball is a board visual only and no card rendering/data path was changed.
+
+### Verification focus
+
+1. Start PASS and confirm there is one crosshair target only, plus a clearly readable live distance label.
+2. Select a target and confirm four separated corner controls appear, with thick green/red lines and no yellow cell/frame overlay.
+3. Complete a pass with no eligible interceptor: it should resolve immediately with no `Resolving…` popup.
+4. Trigger an interception. Confirm only the post-roll two-second prompt appears: `Resolving interception… Please wait.`
+5. Confirm the final dialog names the defender as `Position Name (Team)`, reads card `Passing`, lists all modifier sources with `+`, and marks a clamped result as `maximum advantage` / `maximum disadvantage`.
+6. Export AI Analysis and confirm the pass event contains `interceptionRoll.rawModifier`, `appliedModifier`, `modifierCap`, `capped`, and `modifierSources`.
+
 ## v19.3 — Pass interaction, targeting, and ball visual polish
 
 ### What changed

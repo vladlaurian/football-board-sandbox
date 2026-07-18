@@ -145,7 +145,7 @@ export function BoardCanvas({
           {!passActive && movementPreview && hoveredCell && <div className={`destination-cell-highlight ${!movementPreview.legal ? "illegal" : "legal"}`} style={{ left: `calc(${hoveredCell.x} * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell))` }} />}
           {!passActive && movementPreview && hoveredCell && <div className={`movement-cost-badge ${movementPreview.legal ? "" : "illegal"}`} style={{ left: `calc((${hoveredCell.x} + .5) * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell) - 4px)` }}>{movementPreview.label}</div>}
           {passTargeting && passTargetDistance && <div className="pass-target-distance" style={{ left: `calc((${passTargetDistance.x} + .5) * var(--cell))`, top: `calc((${passTargetDistance.y} + .5) * var(--cell))` }}>
-            <span className="pass-target-crosshair" /><strong>{passTargetDistance.label}</strong>
+            <strong>{passTargetDistance.label}</strong>
           </div>}
 
           {coordinateCells.map(cell => <div key={`${cell.x}-${cell.y}`} className="coord-label" style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }}>{rowLetter(cell.y)}{cell.x + 1}</div>)}
@@ -178,8 +178,6 @@ export function BoardCanvas({
 
           {defensiveAreaOverlays.map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
 
-          {passPreview?.blockedCells?.map(cell => <div key={`pass-blocked-${cell.id}`} className="pass-preview-cell blocked" style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
-          {passPreview?.visibleCells?.map(cell => <div key={`pass-visible-${cell.id}`} className="pass-preview-cell visible" style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
           {passPreview?.lines?.length > 0 && <svg className="pass-preview-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
             {passPreview.lines.map(line => <g key={line.id} className={`pass-preview-line ${line.risk ? "risk" : "clear"} ${line.selected ? "selected" : ""}`}>
               <line x1={line.origin.x} y1={line.origin.y} x2={line.endpoint.x} y2={line.endpoint.y} />

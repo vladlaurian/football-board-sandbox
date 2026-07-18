@@ -281,6 +281,18 @@ function semanticEvent(entry, sequence, cardsById) {
           orderModifier: item.orderModifier,
         })),
       },
+      interceptionRoll: passResolution.lastResolution ? {
+        natural: passResolution.lastResolution.natural,
+        total: passResolution.lastResolution.total,
+        outcome: passResolution.lastResolution.outcome,
+        passerPass: passResolution.lastResolution.passerPass,
+        rawModifier: passResolution.lastResolution.rawModifier,
+        appliedModifier: passResolution.lastResolution.modifier,
+        modifierCap: passResolution.lastResolution.modifierCap,
+        capped: Boolean(passResolution.lastResolution.capped),
+        modifierSources: passResolution.lastResolution.modifierSources || [],
+        appliedModifierSources: passResolution.lastResolution.appliedModifierSources || passResolution.lastResolution.modifierSources || [],
+      } : null,
     } : {
       status: "NOT_AUTOMATED",
       reason: "This sandbox action was recorded without an automated gameplay rule or probability calculation.",

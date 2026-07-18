@@ -1347,40 +1347,36 @@ select option {
 
 .pass-preview-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 13; overflow: visible; }
 .board-wrap.pass-active,.board-wrap.pass-active * { cursor: crosshair !important; }
-.pass-preview-line line { stroke-width: .22; vector-effect: non-scaling-stroke; }
+.pass-preview-line line { stroke-width: .34; vector-effect: non-scaling-stroke; }
 .pass-preview-line.clear line { stroke: #3dff8c; filter: drop-shadow(0 0 4px rgba(61,255,140,.95)); }
 .pass-preview-line.risk line { stroke: #ff565f; filter: drop-shadow(0 0 4px rgba(255,86,95,.95)); }
 .pass-preview-line circle { fill: #f7fbff; stroke-width: .05; vector-effect: non-scaling-stroke; }
 .pass-preview-line.clear circle { stroke: #20be67; }
 .pass-preview-line.risk circle { stroke: #db3440; }
-.pass-preview-line.selected line { stroke-width: .27; filter: drop-shadow(0 0 5px rgba(255,255,255,.95)); }
+.pass-preview-line.selected line { stroke-width: .4; filter: drop-shadow(0 0 6px rgba(255,255,255,.98)); }
 .pass-preview-cell { position: absolute; width: var(--cell); height: var(--cell); box-sizing: border-box; pointer-events: none; z-index: 12; }
 .pass-preview-cell.visible { background: rgba(255, 197, 47, .24); border: 2px solid rgba(255, 213, 69, .75); }
 .pass-preview-cell.blocked { background: repeating-linear-gradient(135deg, rgba(91, 99, 112, .12) 0 4px, rgba(91, 99, 112, .4) 4px 7px); border: 1px dashed rgba(200, 210, 220, .65); }
 .pass-route-badge { position:absolute; z-index:20; min-width:68px; min-height:43px; padding:4px 7px; border:2px solid; border-radius:7px; color:white; font-weight:900; line-height:1.05; box-shadow:0 3px 10px rgba(0,0,0,.6); cursor:pointer!important; display:grid; place-items:center; gap:2px; }
-.pass-route-badge.tl { transform:translate(calc(-100% - 8px), calc(-100% - 8px)); }
-.pass-route-badge.tr { transform:translate(8px, calc(-100% - 8px)); }
-.pass-route-badge.bl { transform:translate(calc(-100% - 8px), 8px); }
-.pass-route-badge.br { transform:translate(8px, 8px); }
+.pass-route-badge.top-left { transform:translate(calc(-100% - 9px), calc(-100% - 9px)); }
+.pass-route-badge.top-right { transform:translate(9px, calc(-100% - 9px)); }
+.pass-route-badge.bottom-left { transform:translate(calc(-100% - 9px), 9px); }
+.pass-route-badge.bottom-right { transform:translate(9px, 9px); }
 .pass-route-badge.center { transform:translate(-50%,-50%); }
 .pass-route-badge span { font-size:13px; letter-spacing:.2px; white-space:nowrap; }
 .pass-route-badge small { font-size:9px; letter-spacing:.5px; }
 .pass-route-badge.clear { background:rgba(22,125,66,.96); border-color:#73ffab; }
 .pass-route-badge.risk { background:rgba(156,37,42,.96); border-color:#ff9a9a; }
-.pass-route-badge.tl:hover,.pass-route-badge.tl:focus-visible { transform:translate(calc(-100% - 8px), calc(-100% - 8px)) scale(1.08); }
-.pass-route-badge.tr:hover,.pass-route-badge.tr:focus-visible { transform:translate(8px, calc(-100% - 8px)) scale(1.08); }
-.pass-route-badge.bl:hover,.pass-route-badge.bl:focus-visible { transform:translate(calc(-100% - 8px), 8px) scale(1.08); }
-.pass-route-badge.br:hover,.pass-route-badge.br:focus-visible { transform:translate(8px, 8px) scale(1.08); }
+.pass-route-badge.top-left:hover,.pass-route-badge.top-left:focus-visible { transform:translate(calc(-100% - 9px), calc(-100% - 9px)) scale(1.08); }
+.pass-route-badge.top-right:hover,.pass-route-badge.top-right:focus-visible { transform:translate(9px, calc(-100% - 9px)) scale(1.08); }
+.pass-route-badge.bottom-left:hover,.pass-route-badge.bottom-left:focus-visible { transform:translate(calc(-100% - 9px), 9px) scale(1.08); }
+.pass-route-badge.bottom-right:hover,.pass-route-badge.bottom-right:focus-visible { transform:translate(9px, 9px) scale(1.08); }
 .pass-route-badge.center:hover,.pass-route-badge.center:focus-visible { transform:translate(-50%,-50%) scale(1.08); }
 .pass-route-badge:hover,.pass-route-badge:focus-visible { filter:brightness(1.16); outline:none; }
 .pass-target-ball { pointer-events:none; z-index:15; }
 .pass-target-ghost { opacity:.48; filter:saturate(.8) brightness(1.35); box-shadow:0 0 0 2px rgba(190,235,255,.5), 0 0 11px rgba(130,220,255,.7); }
-.pass-target-distance { position:absolute; z-index:21; pointer-events:none; transform:translate(-50%,-50%); display:grid; place-items:center; min-width:calc(var(--cell) * .95); min-height:calc(var(--cell) * .95); color:#eaf9ff; text-shadow:0 2px 4px #001018; }
-.pass-target-distance strong { position:absolute; top:calc(var(--cell) * .52); padding:2px 5px; border:1px solid rgba(176,241,255,.8); border-radius:5px; background:rgba(6,24,35,.88); white-space:nowrap; font-size:calc(var(--cell) * .22); }
-.pass-target-crosshair { width:calc(var(--cell) * .64); height:calc(var(--cell) * .64); border:2px solid #b8f3ff; border-radius:50%; box-shadow:0 0 8px rgba(105,224,255,.95); position:relative; }
-.pass-target-crosshair::before,.pass-target-crosshair::after { content:""; position:absolute; background:#d8fbff; box-shadow:0 0 5px rgba(105,224,255,.95); }
-.pass-target-crosshair::before { width:calc(var(--cell) * .9); height:2px; left:50%; top:50%; transform:translate(-50%,-50%); }
-.pass-target-crosshair::after { width:2px; height:calc(var(--cell) * .9); left:50%; top:50%; transform:translate(-50%,-50%); }
+.pass-target-distance { position:absolute; z-index:21; pointer-events:none; transform:translate(-50%,-50%); color:#eaf9ff; text-shadow:0 2px 4px #001018; }
+.pass-target-distance strong { position:absolute; top:10px; left:12px; padding:5px 9px; border:2px solid rgba(176,241,255,.92); border-radius:7px; background:rgba(6,24,35,.92); white-space:nowrap; font-size:clamp(14px, calc(var(--cell) * .34), 22px); line-height:1; }
 .pass-action-prompt { position: fixed; z-index: 80; left: 50%; top: 138px; transform: translateX(-50%); min-width: 320px; max-width: min(560px, calc(100vw - 30px)); padding: 12px 16px; border: 1px solid #d9ad35; border-radius: 10px; background: rgba(20, 29, 44, .96); box-shadow: 0 10px 30px rgba(0,0,0,.35); color: #fff5ca; display: grid; gap: 5px; text-align: center; }
 .pass-action-prompt strong { color: #ffe16c; }
 .pass-action-prompt span { font-size: .9rem; color: #d9e1eb; }
@@ -7457,15 +7453,10 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 /* The ball remains inside the same v16.6 wrapper/hitbox; only its drawing is
    upgraded from the old text dot to a compact football pattern. */
 .ball-hitbox > .piece.ball {
-  background:
-    radial-gradient(circle at 50% 49%, #20242a 0 16%, transparent 17%),
-    radial-gradient(circle at 23% 30%, #20242a 0 9%, transparent 10%),
-    radial-gradient(circle at 76% 30%, #20242a 0 9%, transparent 10%),
-    radial-gradient(circle at 28% 76%, #20242a 0 9%, transparent 10%),
-    radial-gradient(circle at 72% 76%, #20242a 0 9%, transparent 10%),
-    radial-gradient(circle at 38% 13%, #edf3f5 0 16%, transparent 17%),
-    radial-gradient(circle at 62% 86%, #dbe4e8 0 20%, transparent 21%),
-    #f8fbfc;
+  background-color:#f8fbfc;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='47' fill='%23f8fbfc' stroke='%23182027' stroke-width='5'/%3E%3Cpath d='M50 32 65 43 59 61 41 61 35 43Z' fill='%23182027'/%3E%3Cpath d='m34 24 10 8-9 11-12-3zM66 24l12 5-13 11-9-8zM21 54l14 5 1 14-12 4zM79 54l12 9-3 14-13-4zM50 72l11 8-7 12H46l-7-12z' fill='%23182027'/%3E%3C/svg%3E");
+  background-size:100% 100%;
+  background-repeat:no-repeat;
   border-color:#182027;
   box-shadow:0 2px 7px rgba(0,0,0,.62), inset 0 0 0 1px rgba(255,255,255,.82);
 }

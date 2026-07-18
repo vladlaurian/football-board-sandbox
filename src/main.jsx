@@ -114,7 +114,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.3";
+const APP_VERSION = "v19.4";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5560,6 +5560,13 @@ function App() {
     const assignedCard = cardById[piece.cardId];
     return (assignedCard?.position || piece.label || "SUB").trim();
   };
+  const getPieceIdentity = (piece) => {
+    if (!piece) return "Unknown player";
+    const assignedCard = cardById[piece.cardId];
+    const position = getPieceDisplayLabel(piece);
+    const name = String(assignedCard?.name || "").trim();
+    return name ? `${position} ${name}` : position;
+  };
   const rosterSlots = useMemo(() => {
     const orderIndex = (label) => {
       const clean = String(label || "").trim().toUpperCase();
@@ -8452,7 +8459,9 @@ function App() {
     });
     const next = {
       ...pending,
-      status: plan.directHit || !plan.interceptors.length ? "resolving" : "awaiting-interception-roll",
+      // A direct pass/no reaction does not have a die result and therefore
+      // must complete immediately, without the roll suspense state.
+      status: plan.directHit || !plan.interceptors.length ? "completing" : "awaiting-interception-roll",
       cornerId: plan.origin.cornerId,
       plan,
       entryId: activation.entry.id,
@@ -8491,6 +8500,7 @@ function App() {
       allowNoop: true,
     });
     if (next.status === "resolving") schedulePassResolution(next.id);
+    if (next.status === "completing") resolvePendingPass(next.id);
   }
 
   function schedulePassResolution(id) {
@@ -8510,15 +8520,82 @@ function App() {
     setPassResultNotice({ id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, ...notice });
   }
 
+  function interceptionOrderLabel(orderModifier) {
+    const value = Number(orderModifier) || 0;
+    if (value === 0) return "first interceptor";
+    if (value === 1) return "second interceptor";
+    if (value === 2) return "third interceptor";
+    if (value === 3) return "fourth interceptor";
+    return `${value + 1}th interceptor`;
+  }
+
+  function buildInterceptionRollDetails({ pending, defender, interceptor, natural }) {
+    const plan = pending.plan;
+    const interception = cardStat(cardById[defender.cardId], "Interception");
+    const orderModifier = Number(interceptor?.orderModifier) || 0;
+    const nonDominantPenalty = plan.foot?.dominant ? 0 : 1;
+    const previousNaturalOnePenalty = Number(pending.naturalOnePenalty) || 0;
+    const modifierCap = activeRuleSetRef.current.actions?.pass?.modifierCap || 4;
+    const roll = resolveInterceptionRoll({
+      natural: Number(natural),
+      interception,
+      orderModifier,
+      nonDominantPenalty,
+      previousNaturalOnePenalty,
+      passerPass: plan.passerPass,
+      modifierCap,
+    });
+    const sources = [
+      { label: "Interception", value: interception, source: "card" },
+      { label: "Advantage", value: orderModifier, source: "interceptor-order", detail: interceptionOrderLabel(orderModifier) },
+      ...(nonDominantPenalty ? [{ label: "Advantage", value: nonDominantPenalty, source: "non-preferred-foot", detail: "non-preferred foot" }] : []),
+      ...(previousNaturalOnePenalty ? [{ label: "Disadvantage", value: previousNaturalOnePenalty, source: "previous-natural-1", detail: "previous Natural 1" }] : []),
+    ];
+    // The math is still clamped only after every modifier is summed. For the
+    // player-facing dialog, however, a capped result shows only the sources
+    // that actually fill the visible ±cap; the complete raw list remains in
+    // modifierSources for Timeline and AI analysis.
+    const appliedModifierSources = !roll.capped
+      ? sources
+      : (() => {
+          const direction = Number(roll.modifier) >= 0 ? 1 : -1;
+          let remaining = Math.abs(Number(roll.modifier) || 0);
+          return sources.reduce((applied, source) => {
+            const value = Number(source.value) || 0;
+            if (remaining <= 0 || value * direction <= 0) return applied;
+            const visibleValue = direction * Math.min(Math.abs(value), remaining);
+            remaining -= Math.abs(visibleValue);
+            return [...applied, { ...source, value: visibleValue }];
+          }, []);
+        })();
+    return {
+      ...roll,
+      passerPass: plan.passerPass,
+      interception,
+      orderModifier,
+      nonDominantPenalty,
+      previousNaturalOnePenalty,
+      modifierSources: sources,
+      appliedModifierSources,
+    };
+  }
+
+  function formatModifierSource(source) {
+    const value = Number(source?.value) || 0;
+    const sign = value >= 0 ? "+" : "";
+    return `${source?.label || "Modifier"} ${sign}${value}${source?.detail ? ` (${source.detail})` : ""}`;
+  }
+
+  function formatInterceptionModifiers(roll) {
+    const sources = Array.isArray(roll?.appliedModifierSources) ? roll.appliedModifierSources : (Array.isArray(roll?.modifierSources) ? roll.modifierSources : []);
+    const expression = sources.map(formatModifierSource).join(" + ");
+    const capNote = roll?.capped ? ` (${Number(roll.modifier) >= 0 ? "maximum advantage" : "maximum disadvantage"})` : "";
+    return `${expression || "No modifier"} = ${Number(roll?.modifier) >= 0 ? "+" : ""}${Number(roll?.modifier) || 0}${capNote}.`;
+  }
+
   function interceptionResultNotice({ defender, roll, pending, continuation }) {
     const plan = pending.plan;
     const team = teamKeyForPiece(defender);
-    const modifierParts = [
-      `Interception ${roll.interception >= 0 ? "+" : ""}${roll.interception}`,
-      `order +${roll.orderModifier}`,
-      ...(roll.nonDominantPenalty ? [`non-preferred foot +${roll.nonDominantPenalty}`] : []),
-      ...(roll.previousNaturalOnePenalty ? [`previous Natural 1 ${roll.previousNaturalOnePenalty}`] : []),
-    ];
     const isNaturalOne = roll.natural === 1;
     const isNaturalTwenty = roll.natural === 20;
     const title = isNaturalTwenty ? "Natural 20 — Interception" : isNaturalOne ? "Natural 1 — Pass continues" : roll.outcome === "interception" ? "Interception" : "Interception failed";
@@ -8526,8 +8603,8 @@ function App() {
       title,
       team,
       lines: [
-        `${getPieceDisplayLabel(defender)} (${team === "blue" ? "Blue" : "Red"}) rolled ${roll.natural} on D20.`,
-        isNaturalOne || isNaturalTwenty ? "Natural result: no normal comparison is needed." : `${modifierParts.join(" · ")} = ${roll.modifier >= 0 ? "+" : ""}${roll.modifier}.`,
+        `${getPieceIdentity(defender)} (${team === "blue" ? "Blue" : "Red"}) rolled ${roll.natural} on D20.`,
+        isNaturalOne || isNaturalTwenty ? "Natural result: no normal comparison is needed." : formatInterceptionModifiers(roll),
         isNaturalOne || isNaturalTwenty ? `Pass target: ${plan.passerPass}.` : `Total ${roll.total} vs Pass ${plan.passerPass}.`,
         continuation,
       ],
@@ -8545,23 +8622,7 @@ function App() {
     const natural = Number(pending?.lastRoll?.value);
     if (!pending || !defender || !Number.isFinite(natural)) return;
     shownPassResultEntryIdsRef.current.add(entry.id);
-    const passRules = activeRuleSetRef.current.actions?.pass || {};
-    const roll = resolveInterceptionRoll({
-      natural,
-      interception: cardStat(cardById[defender.cardId], "Interception"),
-      orderModifier: interceptor?.orderModifier || 0,
-      nonDominantPenalty: pending.plan?.foot?.dominant ? 0 : 1,
-      previousNaturalOnePenalty: pending.naturalOnePenalty || 0,
-      passerPass: pending.plan?.passerPass || 0,
-      modifierCap: passRules.modifierCap || 4,
-    });
-    const details = {
-      ...roll,
-      interception: cardStat(cardById[defender.cardId], "Interception"),
-      orderModifier: interceptor?.orderModifier || 0,
-      nonDominantPenalty: pending.plan?.foot?.dominant ? 0 : 1,
-      previousNaturalOnePenalty: pending.naturalOnePenalty || 0,
-    };
+    const details = pending.lastResolution || buildInterceptionRollDetails({ pending, defender, interceptor, natural });
     const nextTeam = entry.team === "blue" ? "Blue" : "Red";
     const continuation = entry.type === "PASS_NATURAL_20"
       ? `${nextTeam} wins the ball and now has one bonus card action before the turn changes.`
@@ -8602,7 +8663,7 @@ function App() {
 
   function resolvePendingPass(id) {
     const pending = actionResolutionRef.current;
-    if (pending?.kind !== "pass" || pending.id !== id || pending.status !== "resolving") return;
+    if (pending?.kind !== "pass" || pending.id !== id || !["resolving", "completing"].includes(pending.status)) return;
     const plan = pending.plan;
     if (plan.directHit) {
       const hitPiece = (piecesRef.current || pieces).find(piece => piece.id === plan.directHit.pieceId);
@@ -8615,14 +8676,8 @@ function App() {
     const result = pending.lastRoll;
     const defender = (piecesRef.current || pieces).find(piece => piece.id === interceptor.defender.id);
     if (!defender || !result) { finishPassSuccess(pending); return; }
-    const roll = resolveInterceptionRoll({ natural: result.value, interception: cardStat(cardById[defender.cardId], "Interception"), orderModifier: interceptor.orderModifier, nonDominantPenalty: plan.foot?.dominant ? 0 : 1, previousNaturalOnePenalty: pending.naturalOnePenalty || 0, passerPass: plan.passerPass, modifierCap: activeRuleSetRef.current.actions?.pass?.modifierCap || 4 });
-    const rollDetails = {
-      ...roll,
-      interception: cardStat(cardById[defender.cardId], "Interception"),
-      orderModifier: interceptor.orderModifier || 0,
-      nonDominantPenalty: plan.foot?.dominant ? 0 : 1,
-      previousNaturalOnePenalty: pending.naturalOnePenalty || 0,
-    };
+    const rollDetails = pending.lastResolution || buildInterceptionRollDetails({ pending, defender, interceptor, natural: result.value });
+    const roll = rollDetails;
     if (roll.outcome === "natural-20-interception") {
       finishPassWithPossession(pending, defender, true, interceptionResultNotice({ defender, roll: rollDetails, pending, continuation: `${teamKeyForPiece(defender) === "blue" ? "Blue" : "Red"} wins the ball and now has one bonus card action before the turn changes.` }));
       return;
@@ -8648,7 +8703,10 @@ function App() {
     const pending = actionResolutionRef.current;
     const interceptor = pending?.plan?.interceptors?.[pending.interceptorIndex];
     if (pending?.kind !== "pass" || pending.status !== "awaiting-interception-roll" || teamKeyForPiece(interceptor?.defender) !== team) return false;
-    const next = { ...pending, status: "resolving", lastRoll: { team, value: Number(value) } };
+    const defender = (piecesRef.current || pieces).find(piece => piece.id === interceptor?.defender?.id);
+    if (!defender) return false;
+    const lastResolution = buildInterceptionRollDetails({ pending, defender, interceptor, natural: value });
+    const next = { ...pending, status: "resolving", lastRoll: { team, value: Number(value) }, lastResolution };
     setLiveActionResolution(next);
     schedulePassResolution(next.id);
     return true;
@@ -9890,15 +9948,16 @@ function App() {
         const interceptor = actionResolution.plan?.interceptors?.[actionResolution.interceptorIndex];
         const defender = pieces.find(piece => piece.id === interceptor?.defender?.id);
         const defenseTeam = teamKeyForPiece(defender);
+        const preview = defender ? buildInterceptionRollDetails({ pending: actionResolution, defender, interceptor, natural: 2 }) : null;
         return <div className="pass-action-prompt warning">
           <strong>Interception roll required</strong>
-          <span>{getPieceDisplayLabel(defender)} ({defenseTeam === "blue" ? "Blue" : "Red"}) rolls D20. Open Dice and roll {defenseTeam?.toUpperCase()}.</span>
-          <span>Order +{interceptor?.orderModifier || 0}{actionResolution.plan?.foot?.dominant ? "" : " · non-preferred foot +1"}{actionResolution.naturalOnePenalty ? ` · previous natural 1: ${actionResolution.naturalOnePenalty}` : ""}</span>
+          <span>{getPieceIdentity(defender)} ({defenseTeam === "blue" ? "Blue" : "Red"}) rolls D20. Open Dice and roll {defenseTeam?.toUpperCase()}.</span>
+          {preview && <span>{preview.modifierSources.map(formatModifierSource).join(" + ")}</span>}
         </div>;
       })()}
 
       {actionResolution?.kind === "pass" && actionResolution.status === "resolving" && (
-        <div className="pass-action-prompt resolving"><strong>Resolving pass…</strong><span>The result will be applied after the suspense delay.</span></div>
+        <div className="pass-action-prompt resolving"><strong>Resolving interception…</strong><span>Please wait.</span></div>
       )}
 
       {actionResolution?.kind === "pass" && actionResolution.status === "bonus-action" && (

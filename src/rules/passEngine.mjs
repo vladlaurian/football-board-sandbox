@@ -147,9 +147,13 @@ export function footForPass(origin, target, passer, preferredFoot = "Both") {
 
 export function cardStat(card, name) {
   const wanted = String(name).trim().toLowerCase();
+  // The card editor's established label is "Passing". Gameplay rules may use
+  // the shorter semantic name "Pass", but must read the same underlying stat.
+  // Keep Long Pass separate: it is a future rule, not the normal Passing value.
+  const acceptedNames = wanted === "pass" ? new Set(["pass", "passing"]) : new Set([wanted]);
   const sources = [card?.bonuses, card?.passiveAttributes, card?.attributes];
   for (const source of sources) {
-    const row = Array.isArray(source) && source.find(item => String(item?.name || item?.label || "").trim().toLowerCase() === wanted);
+    const row = Array.isArray(source) && source.find(item => acceptedNames.has(String(item?.name || item?.label || "").trim().toLowerCase()));
     if (row) return Number(row.value ?? row.amount ?? 0) || 0;
   }
   return 0;
@@ -208,9 +212,11 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
 }
 
 export function resolveInterceptionRoll({ natural, interception, orderModifier, nonDominantPenalty = 0, previousNaturalOnePenalty = 0, passerPass, modifierCap = 4 }) {
-  if (natural === 1) return { outcome: "pass-continues", natural: 1, total: 1, modifier: 0 };
-  if (natural === 20) return { outcome: "natural-20-interception", natural: 20, total: 20, modifier: 0 };
-  const modifier = clampModifier(Number(interception) + Number(orderModifier) + Number(nonDominantPenalty) + Number(previousNaturalOnePenalty), modifierCap);
+  const rawModifier = Number(interception) + Number(orderModifier) + Number(nonDominantPenalty) + Number(previousNaturalOnePenalty);
+  if (natural === 1) return { outcome: "pass-continues", natural: 1, total: 1, modifier: 0, rawModifier, modifierCap: Math.max(0, Number(modifierCap) || 4), capped: false };
+  if (natural === 20) return { outcome: "natural-20-interception", natural: 20, total: 20, modifier: 0, rawModifier, modifierCap: Math.max(0, Number(modifierCap) || 4), capped: false };
+  const cap = Math.max(0, Number(modifierCap) || 4);
+  const modifier = clampModifier(rawModifier, cap);
   const total = Number(natural) + modifier;
-  return { outcome: total > Number(passerPass) ? "interception" : "pass-continues", natural: Number(natural), total, modifier };
+  return { outcome: total > Number(passerPass) ? "interception" : "pass-continues", natural: Number(natural), total, modifier, rawModifier, modifierCap: cap, capped: modifier !== rawModifier };
 }

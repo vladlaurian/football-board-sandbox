@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildPassPlan,
+  cardStat,
   resolveInterceptionRoll,
   segmentIntersectsOpenRect,
   traversedCells,
@@ -28,4 +29,17 @@ test("roll results enforce natural results and the strict greater-than intercept
   assert.equal(resolveInterceptionRoll({ natural: 20, passerPass: 99 }).outcome, "natural-20-interception");
   assert.equal(resolveInterceptionRoll({ natural: 10, interception: 1, orderModifier: 0, passerPass: 11 }).outcome, "pass-continues");
   assert.equal(resolveInterceptionRoll({ natural: 10, interception: 1, orderModifier: 1, passerPass: 11 }).outcome, "interception");
+});
+
+test("normal Pass gameplay reads the established Passing card attribute", () => {
+  const card = { passiveAttributes: [{ name: "Passing", value: 14 }], bonuses: [{ name: "Long Pass", value: 19 }] };
+  assert.equal(cardStat(card, "Pass"), 14);
+});
+
+test("interception resolution exposes its unclamped modifier and cap", () => {
+  const result = resolveInterceptionRoll({ natural: 12, interception: 3, orderModifier: 1, nonDominantPenalty: 1, passerPass: 16, modifierCap: 4 });
+  assert.equal(result.rawModifier, 5);
+  assert.equal(result.modifier, 4);
+  assert.equal(result.capped, true);
+  assert.equal(result.modifierCap, 4);
 });
