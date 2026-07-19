@@ -1,5 +1,52 @@
 # Football Board Sandbox
 
+## Architecture documents — read before structural changes
+
+- [`docs/ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md): permanent integration contract for automated Match actions.
+- [`docs/ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md): permanent Architecture Decision Log. **Every major architectural change must update it in the same build.**
+- [`docs/MULTIPLAYER_ARCHITECTURE_REFACTOR_PLAN.md`](docs/MULTIPLAYER_ARCHITECTURE_REFACTOR_PLAN.md): temporary OPEN migration plan. Delete it after the multiplayer storage refactor is fully implemented and validated.
+
+## v19.13 — Teammate interception, guest resolution and safer session writes
+
+### What changed
+
+- A pass whose effective target is a teammate now resolves every eligible interception reaction before the ball reaches that teammate. A direct hit on an opponent still changes possession immediately without a roll.
+- Multiplayer host authority now derives pending delayed resolution from the canonical hydrated Timeline on every relevant snapshot, not only from the moment a remote roll entry is first detected. Repeated snapshots no longer restart the same suspense timer.
+- Interception prompts now show the applied aggregate explicitly as `Total Bonus`, `Total Penalty`, or `Total Modifier`, including the applied cap note.
+- Normal Timeline events no longer resend the complete board, card assignments and Timeline initial state in every Firestore transaction. The full projection is established at the Match baseline; later events update compact Timeline metadata, tracker/dice projection and the individual Timeline entry.
+- `End Session` blocks new writes, cancels pending cosmetic resolution, drains the Timeline queue and legacy board save before deleting session data. Repeated deletion remains safe when the session document was already removed.
+- Added permanent architecture decisions and the temporary multiplayer refactor plan requested for the later dedicated storage migration.
+
+### Why
+
+The teammate destination was incorrectly treated as any direct hit and therefore skipped reactions even though geometry correctly marked the route as interceptable. In multiplayer, host resolution depended on a fragile one-time "new entry" detection, allowing a guest-authored roll to remain forever in `Resolving interception…`. Firestore also received oversized writes because small Timeline events repeatedly included unrelated full-board data.
+
+### Problems resolved
+
+- Interceptable passes to teammates no longer jump directly to completion.
+- A guest-authorized interception roll can be picked up and resolved once by the host from canonical state.
+- Modifier dialogs expose both sources and their applied sum.
+- Routine Match events produce substantially smaller Firestore commits.
+- End Session no longer proceeds after an arbitrary 2.5-second wait while known write queues remain active.
+
+### Impact
+
+- Pass geometry, effective target, eligibility, priority, Natural 1/20 and bonus rules are unchanged.
+- The host remains the only authority applying deterministic multiplayer consequences.
+- The session board projection may be stale during an active Match by design; the Timeline remains authoritative and reconstructs current gameplay.
+- This build stabilizes current storage but does not replace the future revisioned snapshot/event architecture documented in the temporary multiplayer plan.
+
+### Tests performed
+
+- Teammate direct hit with eligible interceptors enters the interception sequence.
+- Direct opponent hit remains immediate and an empty interceptor list completes normally.
+- Canonical delayed resolution is scheduled only by the live host, never by guest/replay/ending sessions.
+- Existing same-value roll, six-interceptor, Undo/Redo, bonus continuation, Timeline, replay and AI export tests.
+
+### Required maintenance
+
+Any future major architectural change must update [`docs/ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md). Temporary migration plans must be deleted after completion.
+
 ## v19.12 — Same-value roll fix and optional bonus-action decline
 
 ### What changed

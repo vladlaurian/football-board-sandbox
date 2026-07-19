@@ -298,6 +298,15 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
   };
 }
 
+export function passRequiresInterceptionSequence(plan, passingTeam) {
+  const interceptors = Array.isArray(plan?.interceptors) ? plan.interceptors : [];
+  if (!interceptors.length) return false;
+  const directHitTeam = plan?.directHit?.team || null;
+  // A direct opponent hit transfers possession immediately. A teammate hit
+  // only shortens the pass endpoint; eligible reactions still resolve first.
+  return !directHitTeam || directHitTeam === passingTeam;
+}
+
 export function resolveInterceptionRoll({ natural, interception, orderModifier, nonDominantPenalty = 0, previousNaturalOnePenalty = 0, passerPass, modifierCap = 4 }) {
   const rawModifier = Number(interception) + Number(orderModifier) + Number(nonDominantPenalty) + Number(previousNaturalOnePenalty);
   if (natural === 1) return { outcome: "pass-continues", natural: 1, total: 1, modifier: 0, rawModifier, modifierCap: Math.max(0, Number(modifierCap) || 4), capped: false };

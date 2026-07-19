@@ -49,3 +49,18 @@ export function delayedResolutionRemaining(request, now = Date.now()) {
   if (!Number.isFinite(resolveAt)) return 0;
   return Math.max(0, resolveAt - (Number(now) || 0));
 }
+
+
+export function shouldScheduleCanonicalDelayedResolution({
+  sessionActive = false,
+  isHost = false,
+  replayMode = false,
+  sessionEnding = false,
+  timeline = null,
+  request = null,
+} = {}) {
+  if (!sessionActive || !isHost || replayMode || sessionEnding || !request) return false;
+  const cursor = Math.max(0, Number(timeline?.cursor) || 0);
+  const entryCount = Array.isArray(timeline?.entries) ? timeline.entries.length : 0;
+  return cursor === entryCount;
+}

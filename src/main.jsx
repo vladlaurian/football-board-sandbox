@@ -39,6 +39,7 @@ import {
   buildPassPlan,
   cardStat,
   interceptorChoiceCandidates,
+  passRequiresInterceptionSequence,
   resolveInterceptionRoll,
   teamKeyForPiece,
 } from "./rules/passEngine.mjs";
@@ -94,6 +95,7 @@ import {
   createDelayedResolution,
   delayedResolutionAtCursor,
   delayedResolutionRemaining,
+  shouldScheduleCanonicalDelayedResolution,
 } from "./match/delayedResolution.mjs";
 import {
   canAccessPrimaryToolbar,
@@ -149,7 +151,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.12";
+const APP_VERSION = "v19.13";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2140,6 +2142,7 @@ function App() {
   const actionResolutionRef = useRef(actionResolution);
   const actionContinuationRef = useRef(actionContinuation);
   const delayedResolutionTimerRef = useRef(null);
+  const delayedResolutionEntryIdRef = useRef("");
   const shownPassResultEntryIdsRef = useRef(new Set());
   const liveTimelinePresentationReadyRef = useRef(false);
   const [sessionCardsById, setSessionCardsById] = useState({});
@@ -2740,31 +2743,53 @@ function App() {
           throw conflict;
         }
 
-        const board = buildLiveBoardState({
-          settings: nextState.settings,
-          pieces: nextState.pieces,
-          activeRuleSet: nextState.ruleSet,
-          dieType: nextState.dice.dieType,
-          dieResult: { blue: nextState.dice.blueResult, red: nextState.dice.redResult },
-        });
         const sharedTracker = buildTimelineTrackerSnapshot(nextState);
         const sharedTimeline = buildSharedTimelineMeta(next);
         const blueRollId = timelineDiceRollId(next, "blue");
         const redRollId = timelineDiceRollId(next, "red");
-        transaction.set(sessionDocumentRef, {
-          board: encodeForFirestore(board),
-          sharedTracker: encodeForFirestore(sharedTracker),
-          sharedTimeline: encodeForFirestore(sharedTimeline),
-          sharedDice: {
-            blue: { value: nextState.dice.blueResult, dieType: nextState.dice.blueLastDieType, rollId: blueRollId },
-            red: { value: nextState.dice.redResult, dieType: nextState.dice.redLastDieType, rollId: redRollId },
-          },
-          cardAssignments: buildSessionCardAssignments(nextState.pieces),
-          cardAssignmentsUpdatedBy: clientIdRef.current,
-          updatedAt: serverTimestamp(),
-          expiresAt: nextSessionExpiryDate(),
-          updatedBy: clientIdRef.current,
-        }, { merge: true });
+        const sharedDice = {
+          blue: { value: nextState.dice.blueResult, dieType: nextState.dice.blueLastDieType, rollId: blueRollId },
+          red: { value: nextState.dice.redResult, dieType: nextState.dice.redLastDieType, rollId: redRollId },
+        };
+
+        if (baseline) {
+          // The baseline establishes the full projection once. Later timeline
+          // events update only compact canonical metadata and their own entry.
+          const board = buildLiveBoardState({
+            settings: nextState.settings,
+            pieces: nextState.pieces,
+            activeRuleSet: nextState.ruleSet,
+            dieType: nextState.dice.dieType,
+            dieResult: { blue: nextState.dice.blueResult, red: nextState.dice.redResult },
+          });
+          transaction.set(sessionDocumentRef, {
+            board: encodeForFirestore(board),
+            sharedTracker: encodeForFirestore(sharedTracker),
+            sharedTimeline: encodeForFirestore(sharedTimeline),
+            sharedDice: encodeForFirestore(sharedDice),
+            cardAssignments: buildSessionCardAssignments(nextState.pieces),
+            cardAssignmentsUpdatedBy: clientIdRef.current,
+            updatedAt: serverTimestamp(),
+            expiresAt: nextSessionExpiryDate(),
+            updatedBy: clientIdRef.current,
+          }, { merge: true });
+        } else {
+          // Do not resend board + initialState for every roll/action. Keeping the
+          // existing initialState and updating only timeline metadata prevents
+          // Firestore transactions from growing with unrelated board data.
+          transaction.update(sessionDocumentRef, {
+            "sharedTimeline.cursor": sharedTimeline.cursor,
+            "sharedTimeline.revision": sharedTimeline.revision,
+            "sharedTimeline.entryCount": sharedTimeline.entryCount,
+            "sharedTimeline.endedAt": sharedTimeline.endedAt || null,
+            "sharedTimeline.updatedBy": sharedTimeline.updatedBy,
+            sharedTracker: encodeForFirestore(sharedTracker),
+            sharedDice: encodeForFirestore(sharedDice),
+            updatedAt: serverTimestamp(),
+            expiresAt: nextSessionExpiryDate(),
+            updatedBy: clientIdRef.current,
+          });
+        }
         if (entry) {
           transaction.set(sessionTimelineEntryRef(code, next.recordingId, entry.sequence), {
             recordingId: next.recordingId,
@@ -2775,10 +2800,10 @@ function App() {
         }
       });
       sessionLastSaveAtRef.current = Date.now();
-      setSessionStatus("Online saved");
+      if (!sessionEndingRef.current) setSessionStatus("Online saved");
     } catch (error) {
       console.error("Timeline sync failed", error);
-      setSessionStatus(error?.code === "timeline-conflict" ? "Timeline conflict — refreshing" : "Timeline sync error");
+      if (!sessionEndingRef.current) setSessionStatus(error?.code === "timeline-conflict" ? "Timeline conflict — refreshing" : "Timeline sync error");
     }
   }
 
@@ -2787,18 +2812,23 @@ function App() {
       window.clearTimeout(delayedResolutionTimerRef.current);
       delayedResolutionTimerRef.current = null;
     }
+    delayedResolutionEntryIdRef.current = "";
     setLiveDelayedResolutionEntryId("");
   }
 
   function scheduleDelayedResolution(request) {
-    cancelDelayedResolutionTimer();
     if (!request || replayModeRef.current) return;
     const entryId = String(request.entryId || "");
     if (!entryId) return;
+    // Repeated Firestore snapshots must not restart the same suspense timer.
+    if (delayedResolutionEntryIdRef.current === entryId && delayedResolutionTimerRef.current) return;
+    cancelDelayedResolutionTimer();
+    delayedResolutionEntryIdRef.current = entryId;
     setLiveDelayedResolutionEntryId(entryId);
     if (sessionCode && !isSessionHost) return;
     delayedResolutionTimerRef.current = window.setTimeout(() => {
       delayedResolutionTimerRef.current = null;
+      delayedResolutionEntryIdRef.current = "";
       const currentTimeline = gameTimelineRef.current;
       const currentState = timelineStateAt(currentTimeline, currentTimeline?.cursor);
       const current = delayedResolutionAtCursor(currentTimeline, currentState?.actionResolution);
@@ -2831,6 +2861,19 @@ function App() {
     if (request) scheduleDelayedResolution(request);
   }
 
+  function ensureHostCanonicalDelayedResolution(timeline) {
+    const state = timelineStateAt(timeline, timeline?.cursor);
+    const request = delayedResolutionAtCursor(timeline, state?.actionResolution);
+    if (shouldScheduleCanonicalDelayedResolution({
+      sessionActive: Boolean(sessionCode),
+      isHost: isSessionHost,
+      replayMode: replayModeRef.current,
+      sessionEnding: sessionEndingRef.current,
+      timeline,
+      request,
+    })) scheduleDelayedResolution(request);
+  }
+
   function hydrateSharedTimelineIfReady() {
     const meta = sharedTimelineMetaRef.current;
     const hydrated = hydrateSessionTimeline(meta, sessionTimelineEntriesRef.current, captureTimelineGameState());
@@ -2845,6 +2888,9 @@ function App() {
     applyTimelineGameState(timelineStateAt(hydrated, hydrated.cursor), {
       preserveLocalSelection: reconciliationMode === "restore",
     });
+    // Host authority is derived from canonical state, not only from the brief
+    // moment when a remote DICE_ROLLED entry is first detected.
+    ensureHostCanonicalDelayedResolution(hydrated);
   }
 
   async function saveSessionState(overrides = {}) {
@@ -2862,7 +2908,7 @@ function App() {
       setSessionStatus("Online saved");
     } catch (error) {
       console.error(error);
-      setSessionStatus("Online error");
+      if (!sessionEndingRef.current) setSessionStatus("Online error");
     }
   }
 
@@ -3210,9 +3256,15 @@ function App() {
     setSessionStatus(safeFinalStatus);
   }
 
-  async function waitForSessionWritesToFinish(timeoutMs = 2500) {
+  async function waitForSessionWritesToFinish(timeoutMs = 15000) {
     const startedAt = Date.now();
-    while (sessionSaveInFlightRef.current && Date.now() - startedAt < timeoutMs) {
+    // Timeline writes are serialized through this promise. Await the exact queue
+    // that existed when End Session started, then wait for any legacy board save.
+    await timelineSyncQueueRef.current;
+    while (sessionSaveInFlightRef.current || pendingTimelineSyncCountRef.current > 0) {
+      if (Date.now() - startedAt >= timeoutMs) {
+        throw new Error("Timed out waiting for active session writes to finish");
+      }
       await new Promise(resolve => window.setTimeout(resolve, 25));
     }
   }
@@ -3229,16 +3281,21 @@ function App() {
       window.clearTimeout(sessionSaveTimerRef.current);
       sessionSaveTimerRef.current = null;
     }
+    cancelDelayedResolutionTimer();
     setSessionStatus("Ending session...");
 
     try {
       await waitForSessionWritesToFinish();
-      await updateDoc(sessionRef(code), {
-        status: "ending",
-        endedBy: user.uid,
-        endedAt: serverTimestamp(),
-      });
-      await new Promise(resolve => window.setTimeout(resolve, 150));
+      try {
+        await updateDoc(sessionRef(code), {
+          status: "ending",
+          endedBy: user.uid,
+          endedAt: serverTimestamp(),
+        });
+      } catch (error) {
+        // Retrying End Session after the document was already removed is safe.
+        if (error?.code !== "not-found") throw error;
+      }
       await deleteSessionData(code);
       leaveSession("Session ended");
     } catch (error) {
@@ -8882,9 +8939,9 @@ function App() {
       pendingDecision: null,
       pendingRoll: null,
     };
-    const next = plan.directHit || !plan.interceptors.length
-      ? baseNext
-      : passWithNextInput(baseNext, 0);
+    const next = passRequiresInterceptionSequence(plan, pending.team)
+      ? passWithNextInput(baseNext, 0)
+      : baseNext;
     return { next, activation, plan };
   }
 
@@ -9045,11 +9102,18 @@ function App() {
     return `${source?.label || "Modifier"} ${sign}${value}${source?.detail ? ` (${source.detail})` : ""}`;
   }
 
+  function formatTotalModifier(roll) {
+    const modifier = Number(roll?.modifier) || 0;
+    const sign = modifier >= 0 ? "+" : "";
+    const label = modifier > 0 ? "Total Bonus" : modifier < 0 ? "Total Penalty" : "Total Modifier";
+    const capNote = roll?.capped ? ` — ${modifier >= 0 ? "maximum advantage" : "maximum disadvantage"}` : "";
+    return `${label} ${sign}${modifier}${capNote}`;
+  }
+
   function formatInterceptionModifiers(roll) {
     const sources = Array.isArray(roll?.appliedModifierSources) ? roll.appliedModifierSources : (Array.isArray(roll?.modifierSources) ? roll.modifierSources : []);
     const expression = sources.map(formatModifierSource).join(" + ");
-    const capNote = roll?.capped ? ` (${Number(roll.modifier) >= 0 ? "maximum advantage" : "maximum disadvantage"})` : "";
-    return `${expression || "No modifier"} = ${Number(roll?.modifier) >= 0 ? "+" : ""}${Number(roll?.modifier) || 0}${capNote}.`;
+    return `${expression || "No modifier"}. ${formatTotalModifier(roll)}.`;
   }
 
   function interceptionResultNotice({ defender, roll, pending, continuation }) {
@@ -10681,6 +10745,7 @@ function App() {
           <strong>Interception roll required</strong>
           <span>{getPieceIdentity(defender)} ({defenseTeam === "blue" ? "Blue" : "Red"}) rolls D20. Roll {defenseTeam?.toUpperCase()}.</span>
           {preview && <span>{preview.modifierSources.map(formatModifierSource).join(" + ")}</span>}
+          {preview && <span><strong>{formatTotalModifier(preview)}</strong></span>}
         </div>;
       })()}
 

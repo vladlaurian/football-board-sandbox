@@ -8,6 +8,7 @@ import {
   interceptorPriorityDistanceSquared,
   opponentBlockingPassOrigin,
   resolveInterceptionRoll,
+  passRequiresInterceptionSequence,
   segmentIntersectsOpenRect,
   traversedCells,
 } from "./passEngine.mjs";
@@ -133,4 +134,12 @@ test("interception resolution exposes its unclamped modifier and cap", () => {
   assert.equal(result.modifier, 4);
   assert.equal(result.capped, true);
   assert.equal(result.modifierCap, 4);
+});
+
+
+test("teammate direct hit still resolves eligible interception reactions", () => {
+  assert.equal(passRequiresInterceptionSequence({ directHit: { team: "blue" }, interceptors: [{ defender: { id: "B-1" } }] }, "blue"), true);
+  assert.equal(passRequiresInterceptionSequence({ directHit: { team: "red" }, interceptors: [{ defender: { id: "B-1" } }] }, "blue"), false);
+  assert.equal(passRequiresInterceptionSequence({ directHit: null, interceptors: [{ defender: { id: "B-1" } }] }, "blue"), true);
+  assert.equal(passRequiresInterceptionSequence({ directHit: { team: "blue" }, interceptors: [] }, "blue"), false);
 });

@@ -4,6 +4,7 @@ import {
   createDelayedResolution,
   delayedResolutionAtCursor,
   delayedResolutionRemaining,
+  shouldScheduleCanonicalDelayedResolution,
 } from "./delayedResolution.mjs";
 
 const pendingPass = { id: "pass-1", kind: "pass", status: "awaiting-interception-roll" };
@@ -37,4 +38,15 @@ test("derives a pending resolution only from the applied DICE_ROLLED entry", () 
 test("Undo and Redo deterministically remove and restore the remaining delay", () => {
   assert.equal(delayedResolutionRemaining(request, 1500), 1500);
   assert.equal(delayedResolutionRemaining(request, 4000), 0);
+});
+
+
+test("only the host schedules a canonical multiplayer resolution at the live cursor", () => {
+  const timeline = { cursor: 1, entries: [{ id: "roll-1" }] };
+  const args = { sessionActive: true, isHost: true, timeline, request: { entryId: "roll-1" } };
+  assert.equal(shouldScheduleCanonicalDelayedResolution(args), true);
+  assert.equal(shouldScheduleCanonicalDelayedResolution({ ...args, isHost: false }), false);
+  assert.equal(shouldScheduleCanonicalDelayedResolution({ ...args, replayMode: true }), false);
+  assert.equal(shouldScheduleCanonicalDelayedResolution({ ...args, sessionEnding: true }), false);
+  assert.equal(shouldScheduleCanonicalDelayedResolution({ ...args, timeline: { ...timeline, cursor: 0 } }), false);
 });

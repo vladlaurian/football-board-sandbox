@@ -147,3 +147,9 @@ Both outcomes apply the same serialized `resumePolicy`. The distinction must rem
 ## Pass migration in v19.11
 
 Pass remains responsible for its current geometry and rules. It uses explicit pending decisions, pending roll requests and unique roll events. This is the reference implementation for future automated actions.
+
+## Multiplayer canonical resolution rule added in v19.13
+
+A remote user may create an authorized pending decision or RollEvent, but only the host applies the deterministic consequence. Host scheduling must be derived from the canonical hydrated Timeline state, not exclusively from a one-time "new entry" notification. Repeated Firestore snapshots for the same entry must not restart its cosmetic delay, and an already consumed RollEvent must remain idempotent.
+
+A direct hit on a teammate is an effective-target shortening rule, not an automatic completion rule. If eligible reactions remain on the shortened path, the generic action flow must resolve them before completing the Pass.
