@@ -4500,8 +4500,16 @@ function App() {
     setActiveRuleSet(nextActiveRuleSet);
     setRuleSetDraft(nextActiveRuleSet);
     setRuleSetSelectionId(nextActiveRuleSet.id);
-    setActionResolution(state.actionResolution || null);
-    setActionContinuation(normalizeActionContinuation(state.actionContinuation));
+    // Timeline restoration drives both the rendered React state and the refs
+    // read by pointer/dice handlers. Updating only React state leaves a stale
+    // pass target mode alive after Undo/Redo until a later render happens to
+    // refresh the refs.
+    const nextActionResolution = state.actionResolution || null;
+    const nextActionContinuation = normalizeActionContinuation(state.actionContinuation);
+    actionResolutionRef.current = nextActionResolution;
+    actionContinuationRef.current = nextActionContinuation;
+    setActionResolution(nextActionResolution);
+    setActionContinuation(nextActionContinuation);
     setTrackerSettings(nextTracker.settings);
     setTrackerSettingsDraft(nextTracker.settings);
     setTrackerGameStarted(nextTracker.gameStarted);
