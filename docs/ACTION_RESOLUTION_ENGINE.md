@@ -129,6 +129,21 @@ For a future Dribble action:
 
 Do not add Dribble-specific branches to generic Dice, Undo/Redo or Firebase code unless the generic contract itself genuinely needs expansion.
 
+## Timeline event rule added in v19.12
+
+A roll is a gameplay event even when its visible number equals the previous die result. Timeline transitions for `DICE_ROLLED` must therefore be committed with explicit event semantics (`allowNoop`) so metadata identity is not discarded merely because `before` and `after` board snapshots are numerically equal.
+
+The unique `RollEvent.id` and `requestId`, not the die number, determine whether an event is new.
+
+## Bonus continuation completion
+
+A bonus-card continuation may finish in two valid ways:
+
+- `BONUS_ACTION_ENDED`: one bonus card action was used and resolved, then `END B.A.` was pressed;
+- `BONUS_ACTION_DECLINED`: `END B.A.` was pressed while the continuation was still `ready`, before any bonus action started.
+
+Both outcomes apply the same serialized `resumePolicy`. The distinction must remain in Timeline and AI export. `END B.A.` must remain unavailable while a bonus action is `action-active`, because that action must resolve or be undone first.
+
 ## Pass migration in v19.11
 
-Pass remains responsible for its current geometry and rules. It now uses explicit pending decisions, pending roll requests and unique roll events. This is the reference implementation for future automated actions.
+Pass remains responsible for its current geometry and rules. It uses explicit pending decisions, pending roll requests and unique roll events. This is the reference implementation for future automated actions.

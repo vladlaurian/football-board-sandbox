@@ -123,7 +123,15 @@ test("AI export distinguishes a deliberately chosen test roll from a random roll
     after,
   });
   const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
-  assert.deepEqual(exported.semanticTimeline[0].diceRoll, { source: "CHOSEN", chosenResult: 20 });
+  assert.deepEqual(exported.semanticTimeline[0].diceRoll, {
+    source: "CHOSEN",
+    chosenResult: 20,
+    eventId: null,
+    requestId: null,
+    actionId: null,
+    subjectId: null,
+    reactionIndex: null,
+  });
 });
 
 test("AI export retains the exact interception modifier sources and cap", () => {
@@ -194,7 +202,7 @@ test("AI export retains a pending bonus-action continuation without adding Track
     after,
   });
   const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
-  assert.equal(exported.schemaVersion, 6);
+  assert.equal(exported.schemaVersion, 7);
   assert.equal(exported.semanticTimeline[0].continuation.kind, "bonus-card-action");
   assert.equal(exported.semanticTimeline[0].continuation.resumePolicy.nextTurn, 2);
   assert.equal(exported.semanticTimeline[0].continuation.resumePolicy.type, "advance-turn");
@@ -234,4 +242,46 @@ test("AI analysis excludes undone future steps and cards from the inactive redo 
   assert.equal(exported.semanticTimeline.length, 0);
   assert.equal(exported.matchSummary.retainedTimelineEntryCount, 1);
   assert.deepEqual(exported.gameplayCardSnapshot.map(card => card.id).sort(), ["blue-card", "red-card"]);
+});
+
+
+test("AI export records an explicitly declined bonus action separately from a completed one", () => {
+  const before = state({
+    actionContinuation: {
+      id: "bonus_declined",
+      kind: "bonus-card-action",
+      source: "natural-20-interception",
+      team: "red",
+      status: "ready",
+      resumePolicy: { type: "advance-turn", team: "red", nextTurn: 4, phase: "attack" },
+      actionType: null,
+      pieceId: null,
+    },
+  });
+  const after = state({
+    tracker: { ...before.tracker, startingTeam: "red", currentTurn: 4 },
+    actionContinuation: null,
+  });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, {
+    id: "bonus_declined_event",
+    type: "BONUS_ACTION_DECLINED",
+    label: "Red declines the bonus action — Turn 4",
+    team: "red",
+    metadata: {
+      continuationId: "bonus_declined",
+      bonusAction: { used: false, declined: true, actionType: null, pieceId: null },
+    },
+    before,
+    after,
+  });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  assert.equal(exported.semanticTimeline[0].explicitOutcome, "BONUS_ACTION_DECLINED");
+  assert.deepEqual(exported.semanticTimeline[0].bonusAction, {
+    used: false,
+    declined: true,
+    actionType: null,
+    pieceId: null,
+    continuationId: "bonus_declined",
+  });
 });

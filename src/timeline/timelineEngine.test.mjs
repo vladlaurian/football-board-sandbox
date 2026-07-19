@@ -247,3 +247,26 @@ test("a pending decision survives Undo and Redo as gameplay state", () => {
   const redone = redoTimeline(undone.timeline);
   assert.equal(redone.state.actionResolution.pendingRoll.requestId, "request-a");
 });
+
+
+test("two consecutive same-value rolls remain distinct timeline events when explicitly allowed", () => {
+  const rolledEight = { ...state(1), dice: { dieType: 20, blueResult: 8, redResult: null } };
+  let timeline = createTimeline(rolledEight);
+  timeline = commitTimelineEntry(timeline, {
+    id: "roll_event_a",
+    type: "DICE_ROLLED",
+    metadata: { rollEvent: { id: "event_a", requestId: "request_a", natural: 8 } },
+    before: rolledEight,
+    after: rolledEight,
+  }, { allowNoop: true });
+  timeline = commitTimelineEntry(timeline, {
+    id: "roll_event_b",
+    type: "DICE_ROLLED",
+    metadata: { rollEvent: { id: "event_b", requestId: "request_b", natural: 8 } },
+    before: rolledEight,
+    after: rolledEight,
+  }, { allowNoop: true });
+  assert.equal(timeline.entries.length, 2);
+  assert.equal(timeline.entries[0].metadata.rollEvent.id, "event_a");
+  assert.equal(timeline.entries[1].metadata.rollEvent.id, "event_b");
+});

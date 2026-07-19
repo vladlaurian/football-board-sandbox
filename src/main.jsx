@@ -149,7 +149,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.11";
+const APP_VERSION = "v19.12";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4811,6 +4811,10 @@ function App() {
           blueLastDieType: team === "blue" ? rollingDieType : blueLastDieType,
           redLastDieType: team === "red" ? rollingDieType : redLastDieType,
         }),
+        // A roll is a gameplay event even when its visible numeric value is
+        // identical to the previous roll. Its unique rollEvent/request IDs
+        // must therefore enter Timeline and trigger resolution.
+        allowNoop: true,
       });
       if (sessionCode && gameMode === "match" && nextTimeline) {
         const diceEntry = nextTimeline.entries[nextTimeline.cursor - 1];
@@ -9503,8 +9507,11 @@ function App() {
     if (!completion || actionResolutionRef.current) return;
     const beforeTimeline = captureTimelineGameState();
     const policy = completion.resumePolicy;
+    const declined = Boolean(completion.declined);
     let overrides = { actionContinuation: null };
-    let label = `${team === "blue" ? "Blue" : "Red"} bonus action ended`;
+    let label = declined
+      ? `${team === "blue" ? "Blue" : "Red"} declines the bonus action`
+      : `${team === "blue" ? "Blue" : "Red"} bonus action ended`;
 
     if (policy.type === CONTINUATION_RESUME_TYPE.ADVANCE_TURN) {
       const emptyTurn = createEmptyTrackerTurnState();
@@ -9535,12 +9542,18 @@ function App() {
     setSelectedId(null);
     setHoveredCell(null);
     recordTimelineTransition({
-      type: "BONUS_ACTION_ENDED",
+      type: declined ? "BONUS_ACTION_DECLINED" : "BONUS_ACTION_ENDED",
       label,
       team,
       metadata: {
         continuationId: continuation.id,
         resumePolicy: policy,
+        bonusAction: {
+          used: !declined,
+          declined,
+          actionType: continuation.actionType || null,
+          pieceId: continuation.pieceId || null,
+        },
       },
       before: beforeTimeline,
       after: mergeTimelineGameState(beforeTimeline, overrides),
@@ -10288,7 +10301,10 @@ function App() {
                         className={`inspector-flip-request-btn team-action-btn ${pieceTeamKey(inspectedPiece)}`}
                         disabled={
                           pieceTeamKey(inspectedPiece) !== actionContinuation.team
-                          || actionContinuation.status !== CONTINUATION_STATUS.AWAITING_END_BONUS_ACTION
+                          || ![
+                            CONTINUATION_STATUS.READY,
+                            CONTINUATION_STATUS.AWAITING_END_BONUS_ACTION,
+                          ].includes(actionContinuation.status)
                           || Boolean(actionResolution)
                         }
                         onClick={() => endBonusAction(inspectedPiece)}
@@ -10674,7 +10690,7 @@ function App() {
 
       {actionContinuation?.kind === "bonus-card-action" && (
         <div className="pass-action-prompt bonus"><strong>Natural 20 interception</strong><span>{actionContinuation.status === CONTINUATION_STATUS.READY
-          ? `Select a ${actionContinuation.team === "blue" ? "Blue" : "Red"} player, then choose one card action before the turn changes.`
+          ? `Select a ${actionContinuation.team === "blue" ? "Blue" : "Red"} player and choose one card action, or press END B.A. to decline it.`
           : actionContinuation.status === CONTINUATION_STATUS.ACTION_ACTIVE
             ? `${actionContinuation.team === "blue" ? "Blue" : "Red"} is taking the bonus ${String(actionContinuation.actionType || "card").replace("_", " ")} action.`
             : `${actionContinuation.team === "blue" ? "Blue" : "Red"} completed the bonus action. Press END B.A. to continue.`}</span></div>

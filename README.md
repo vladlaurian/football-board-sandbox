@@ -1,5 +1,45 @@
 # Football Board Sandbox
 
+## v19.12 — Same-value roll fix and optional bonus-action decline
+
+### What changed
+
+- Every `DICE_ROLLED` event is now committed to Timeline even when its numeric value is identical to the immediately previous visible die result.
+- The unique `RollEvent` and `requestId` therefore always reach delayed resolution; consecutive results such as `8 → 8` are processed normally.
+- `END B.A.` is enabled immediately while a Natural 20 bonus action is still unused. The player may decline the bonus without starting a card action.
+- Declining and completing a bonus action use the same resume policy, but create different Timeline outcomes: `BONUS_ACTION_DECLINED` versus `BONUS_ACTION_ENDED`.
+- AI Analysis schema v7 exports whether the bonus was used or explicitly declined, together with its continuation ID, action type and piece ID when applicable.
+- Added regression tests for consecutive identical Timeline roll events, bonus decline, active-action protection and AI export.
+
+### Why
+
+The v19.11 engine correctly created unique roll identities, but Timeline still discarded a `DICE_ROLLED` transition as a no-op when the visible die value did not change. Because no entry was created, the delayed resolver was never scheduled. Bonus actions also required the player to use the granted action even when they preferred to decline it.
+
+### Problems resolved
+
+- The immediately repeated D20 value no longer leaves Pass waiting as if no roll occurred.
+- A different roll event with the same natural value is preserved, while replaying the same event ID remains protected against duplicate consumption.
+- Natural 20 bonus actions can be explicitly declined without changing the resulting possession/turn transition.
+- AI export distinguishes a declined bonus from a used and completed bonus.
+
+### Impact
+
+- Pass calculations, interceptor order, Natural 1, Natural 20 and modifier rules are unchanged.
+- Undo/Redo remains atomic for roll plus deterministic resolution.
+- `END B.A.` remains disabled only while a selected bonus card action is actively unresolved.
+- Existing recordings remain readable; the AI export schema increases from 6 to 7.
+
+### Tests performed
+
+- Pure Node test suite.
+- Consecutive identical roll events (`8 → 8`) retained with different event/request IDs.
+- Bonus decline from `ready`, normal completion after an action, and rejection while an action is active.
+- AI export outcome `BONUS_ACTION_DECLINED`.
+
+### Architecture reference
+
+Future chats and engineers must read [`docs/ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md) before implementing any automated Match action.
+
 ## v19.11 — Generic action-resolution foundation and robust Pass roll identity
 
 ### What changed

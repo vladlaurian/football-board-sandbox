@@ -41,3 +41,22 @@ test("legacy end-turn continuations migrate without retaining old gameplay branc
     phase: "attack",
   });
 });
+
+
+test("a ready bonus action can be explicitly declined before any card action starts", () => {
+  const ready = normalizeActionContinuation({ id: "bonus_decline", team: "red", nextTurn: 5 });
+  const ended = endContinuationAction(ready);
+  assert.equal(ended.declined, true);
+  assert.equal(ended.continuation.status, CONTINUATION_STATUS.READY);
+  assert.equal(ended.resumePolicy.type, CONTINUATION_RESUME_TYPE.ADVANCE_TURN);
+  assert.equal(ended.resumePolicy.team, "red");
+  assert.equal(ended.resumePolicy.nextTurn, 5);
+});
+
+test("an active bonus action cannot be ended until its action resolves", () => {
+  const ready = normalizeActionContinuation({ id: "bonus_active", team: "blue", nextTurn: 3 });
+  const active = beginContinuationAction(ready, { type: "PASS", pieceId: "A-1" });
+  assert.equal(endContinuationAction(active), null);
+  const complete = completeContinuationAction(active);
+  assert.equal(endContinuationAction(complete).declined, false);
+});

@@ -5,7 +5,7 @@ import { normalizeRuleSet } from "../rules/ruleSets.mjs";
 import { normalizeTimeline, timelineStateAt } from "./timelineEngine.mjs";
 
 export const AI_ANALYSIS_EXPORT_TYPE = "football-board-ai-analysis";
-export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 6;
+export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 7;
 
 export function analysisCoord(piece) {
   if (!piece || !Number.isFinite(Number(piece.x)) || !Number.isFinite(Number(piece.y))) return null;
@@ -370,7 +370,14 @@ function semanticEvent(entry, sequence, cardsById) {
       actionType: continuation.actionType || null,
       pieceId: continuation.pieceId || null,
     } : null,
-    explicitOutcome: entry.type === "PASS_COMPLETED" ? "PASS_COMPLETED" : entry.type === "PASS_INTERCEPTED" ? "INTERCEPTED" : entry.type === "PASS_NATURAL_20" ? "NATURAL_20_INTERCEPTION" : entry.type === "BONUS_ACTION_ENDED" ? "BONUS_ACTION_ENDED" : "NOT_DECLARED",
+    bonusAction: entry.type === "BONUS_ACTION_ENDED" || entry.type === "BONUS_ACTION_DECLINED" ? {
+      used: entry.type === "BONUS_ACTION_ENDED",
+      declined: entry.type === "BONUS_ACTION_DECLINED",
+      actionType: entry.metadata?.bonusAction?.actionType || null,
+      pieceId: entry.metadata?.bonusAction?.pieceId || null,
+      continuationId: String(entry.metadata?.continuationId || "") || null,
+    } : null,
+    explicitOutcome: entry.type === "PASS_COMPLETED" ? "PASS_COMPLETED" : entry.type === "PASS_INTERCEPTED" ? "INTERCEPTED" : entry.type === "PASS_NATURAL_20" ? "NATURAL_20_INTERCEPTION" : entry.type === "BONUS_ACTION_ENDED" ? "BONUS_ACTION_ENDED" : entry.type === "BONUS_ACTION_DECLINED" ? "BONUS_ACTION_DECLINED" : "NOT_DECLARED",
   };
 }
 
