@@ -1,5 +1,51 @@
 # Football Board Sandbox
 
+## v19.8 — Defender-controlled interception priority
+
+### What changed
+
+- Replaced interception ordering by pass-entry position with the official board-game measurement: Euclidean distance from the centre of the passer's occupied square to the centre of each eligible defender's occupied square.
+- The exact selected pass corner still determines route geometry, preferred foot, defensive-area crossings, blockers, and interception eligibility. It no longer changes the priority of defenders who are already eligible.
+- Added a defending-team decision whenever two or more currently eligible interceptors have exactly equal priority. The selection is stored in the unified Match Timeline instead of local modal state.
+- The choice prompt displays only the requested gameplay identity and relevant attribute, for example `ST Arvid (Blue) — Interception +2`. Internal distance is deliberately not shown in the gameplay prompt.
+- In multiplayer, only the defending team can choose. The other client receives the same pending Timeline state and waits without gaining access to private card attributes.
+- After a failed reaction, a later equal-distance group triggers its own decision only when that group is actually reached.
+- AI Analysis Export schema is now version 6. It records the priority method, internal distances, automatic order, equal-distance candidates, defending-team selection, and the reason for the selected order.
+
+### Why it changed
+
+The former `firstEntryT` ordering answered where the ball first entered a defensive area, not which defender was closer to the passer's square. That made priority depend on the selected pass corner and was difficult to reproduce in the physical board game. The new rule has one manual measurement and preserves the exact route only for eligibility.
+
+### Problems resolved
+
+- Four different legal origins for the same pass no longer reshuffle the same eligible defenders.
+- Exact priority ties are no longer resolved silently by an internal piece id.
+- The defending player, not the attacking player or a local-only UI state, owns the tie decision.
+- Undo, Redo, replay, Save Match, multiplayer hydration, and AI export can restore and explain the same interceptor choice.
+- Dice remain manual: an equal-priority choice leads to the existing D20 reaction flow and never rolls automatically.
+
+### Impact
+
+- Pass route validation, direct-player hits, foot selection, short/long classification, and interception-roll formulas are unchanged.
+- Order advantages still follow the actual resolved interceptor order and remain capped by the active Rule Set.
+- The new decision state is reusable by future Dribble, Tackle, Shot, and Cross rules that require a defending-team choice before a roll.
+- Editor, Inspector, and Export card rendering are unchanged. The prompt reads the same gameplay-card projection used by the interception calculation.
+- Existing Match Recording files remain readable. Older recordings keep their historical order; new matches record the v19.8 priority data.
+
+### Verification focus
+
+1. Create one pass with two eligible defenders at different distances. Confirm the closer defender rolls first, regardless of which of the four pass corners is selected.
+2. Create two equally distant eligible defenders. Confirm the defending team sees options formatted as `Position Name (Team) — Interception ±value`, with no displayed distance.
+3. In multiplayer, confirm only the defending client can choose; the other client sees a waiting message. After selection, both clients must show the same chosen defender and Dice must enable only that team's D20.
+4. Fail the first interception. If the next two eligible defenders are tied, confirm a new selection appears only then.
+5. Undo the selection and confirm the choice prompt returns. Redo and confirm the selected defender and roll prompt return identically.
+6. Save/import the match and inspect replay around the choice. Export AI Analysis and confirm it contains the internal distance, candidates, selected player, and `defender-choice-equal-distance` reason.
+
+### Verified locally
+
+- `npm test`: 69/69 tests passed.
+- `npm run build`: Vite production build passed. The existing bundle-size warning remains non-fatal.
+
 ## v19.7 — Playable Timeline start and explicit bonus-action completion
 
 ### What changed

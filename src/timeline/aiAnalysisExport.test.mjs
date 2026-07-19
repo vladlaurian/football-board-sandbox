@@ -133,7 +133,14 @@ test("AI export retains the exact interception modifier sources and cap", () => 
       status: "resolving",
       plan: {
         pathMode: "corner-to-center", origin: { x: 10, y: 8 }, requestedTarget: { x: 15, y: 8 }, target: { x: 15, y: 8 }, distance: 5,
-        isLong: false, foot: { foot: "Right", dominant: false }, passerPass: 14, directHit: null, interceptors: [],
+        isLong: false, foot: { foot: "Right", dominant: false }, passerPass: 14, directHit: null,
+        interceptorPriority: {
+          method: "passer-square-center-to-defender-square-center",
+          metric: "euclidean-distance",
+          tieBreak: "defending-team-choice",
+          selections: [{ atIndex: 0, selectedPieceId: "blue-1", candidatePieceIds: ["blue-1", "blue-2"], priorityDistanceSquared: 25, reason: "defender-choice-equal-distance" }],
+        },
+        interceptors: [{ defender: { id: "blue-1" }, firstEntryT: 0.25, priorityDistance: 5, priorityDistanceSquared: 25, priorityMethod: "passer-square-center-to-defender-square-center", orderModifier: 0 }],
       },
       lastResolution: {
         natural: 12, total: 16, outcome: "interception", passerPass: 14, rawModifier: 5, modifier: 4, modifierCap: 4, capped: true,
@@ -150,6 +157,9 @@ test("AI export retains the exact interception modifier sources and cap", () => 
   assert.equal(roll.rawModifier, 5);
   assert.equal(roll.capped, true);
   assert.equal(roll.modifierSources[2].detail, "non-preferred foot");
+  assert.equal(exported.semanticTimeline[0].resolution.pass.interceptorPriority.tieBreak, "defending-team-choice");
+  assert.equal(exported.semanticTimeline[0].resolution.pass.interceptorOrder[0].priorityDistance, 5);
+  assert.equal(exported.semanticTimeline[0].resolution.pass.interceptorOrder[0].priorityReason, "defender-choice-equal-distance");
 });
 
 test("AI export retains a pending bonus-action continuation without adding Tracker economy", () => {
@@ -184,7 +194,7 @@ test("AI export retains a pending bonus-action continuation without adding Track
     after,
   });
   const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
-  assert.equal(exported.schemaVersion, 5);
+  assert.equal(exported.schemaVersion, 6);
   assert.equal(exported.semanticTimeline[0].continuation.kind, "bonus-card-action");
   assert.equal(exported.semanticTimeline[0].continuation.resumePolicy.nextTurn, 2);
   assert.equal(exported.semanticTimeline[0].continuation.resumePolicy.type, "advance-turn");

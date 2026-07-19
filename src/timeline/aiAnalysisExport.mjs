@@ -5,7 +5,7 @@ import { normalizeRuleSet } from "../rules/ruleSets.mjs";
 import { normalizeTimeline, timelineStateAt } from "./timelineEngine.mjs";
 
 export const AI_ANALYSIS_EXPORT_TYPE = "football-board-ai-analysis";
-export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 5;
+export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 6;
 
 export function analysisCoord(piece) {
   if (!piece || !Number.isFinite(Number(piece.x)) || !Number.isFinite(Number(piece.y))) return null;
@@ -312,9 +312,27 @@ function semanticEvent(entry, sequence, cardsById) {
         foot: passPlan.foot,
         passerPass: passPlan.passerPass,
         directHit: passPlan.directHit,
+        interceptorPriority: passPlan.interceptorPriority ? {
+          method: passPlan.interceptorPriority.method || "passer-square-center-to-defender-square-center",
+          metric: passPlan.interceptorPriority.metric || "euclidean-distance",
+          tieBreak: passPlan.interceptorPriority.tieBreak || "defending-team-choice",
+          selections: (passPlan.interceptorPriority.selections || []).map(selection => ({
+            atIndex: Math.max(0, Number(selection.atIndex) || 0),
+            selectedPieceId: selection.selectedPieceId || null,
+            candidatePieceIds: Array.isArray(selection.candidatePieceIds) ? selection.candidatePieceIds : [],
+            priorityDistanceSquared: Number.isFinite(Number(selection.priorityDistanceSquared)) ? Number(selection.priorityDistanceSquared) : null,
+            reason: selection.reason || "defender-choice-equal-distance",
+          })),
+        } : null,
         interceptorOrder: (passPlan.interceptors || []).map(item => ({
           pieceId: item.defender?.id || null,
           firstEntryT: item.firstEntryT,
+          priorityDistance: Number.isFinite(Number(item.priorityDistance)) ? Number(item.priorityDistance) : null,
+          priorityDistanceSquared: Number.isFinite(Number(item.priorityDistanceSquared)) ? Number(item.priorityDistanceSquared) : null,
+          priorityMethod: item.priorityMethod || passPlan.interceptorPriority?.method || null,
+          priorityReason: (passPlan.interceptorPriority?.selections || []).some(selection => selection.selectedPieceId === item.defender?.id)
+            ? "defender-choice-equal-distance"
+            : "shorter-center-distance",
           orderModifier: item.orderModifier,
         })),
       },

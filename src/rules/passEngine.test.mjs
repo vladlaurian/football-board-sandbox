@@ -1,13 +1,62 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyInterceptorChoice,
   buildPassPlan,
   cardStat,
+  interceptorChoiceCandidates,
+  interceptorPriorityDistanceSquared,
   opponentBlockingPassOrigin,
   resolveInterceptionRoll,
   segmentIntersectsOpenRect,
   traversedCells,
 } from "./passEngine.mjs";
+
+test("interceptor priority uses passer-square to defender-square distance for all four pass origins", () => {
+  const passer = { id: "passer", team: "A", x: 5, y: 5, cardId: "pass-card" };
+  const near = { id: "near", team: "B", x: 8, y: 7, cardId: "def-card" };
+  const far = { id: "far", team: "B", x: 11, y: 8, cardId: "def-card" };
+  const defensiveArea = [];
+  for (let dx = -12; dx <= 12; dx += 1) {
+    for (let dy = -12; dy <= 12; dy += 1) defensiveArea.push({ dx, dy });
+  }
+  const cardById = {
+    "pass-card": { passiveAttributes: [{ name: "Passing", value: 12 }] },
+    "def-card": { defensiveArea },
+  };
+  const orders = ["top-left", "top-right", "bottom-left", "bottom-right"].map(cornerId => buildPassPlan({
+    passer,
+    passerCard: cardById["pass-card"],
+    pieces: [passer, near, far],
+    cardById,
+    settings: { cols: 24, rows: 18 },
+    target: { x: 16, y: 5 },
+    cornerId,
+    rules: { pathMode: "corner-to-center", modifierCap: 4 },
+  }).interceptors.map(item => item.defender.id));
+  assert.deepEqual(orders, [
+    ["near", "far"],
+    ["near", "far"],
+    ["near", "far"],
+    ["near", "far"],
+  ]);
+  assert.equal(interceptorPriorityDistanceSquared(passer, near), 13);
+  assert.equal(interceptorPriorityDistanceSquared(passer, far), 45);
+});
+
+test("equally distant interceptors require defender choice and receive order modifiers after selection", () => {
+  const interceptors = [
+    { defender: { id: "left" }, priorityDistanceSquared: 9, orderModifier: 0 },
+    { defender: { id: "right" }, priorityDistanceSquared: 9, orderModifier: 1 },
+    { defender: { id: "far" }, priorityDistanceSquared: 16, orderModifier: 2 },
+  ];
+  assert.deepEqual(interceptorChoiceCandidates(interceptors, 0).map(item => item.defender.id), ["left", "right"]);
+  const chosen = applyInterceptorChoice(interceptors, 0, "right", 4);
+  assert.deepEqual(chosen.interceptors.map(item => item.defender.id), ["right", "left", "far"]);
+  assert.deepEqual(chosen.interceptors.map(item => item.orderModifier), [0, 1, 2]);
+  assert.equal(chosen.selection.reason, "defender-choice-equal-distance");
+  assert.deepEqual(chosen.selection.candidatePieceIds, ["left", "right"]);
+});
 
 test("a segment which only touches a square corner does not enter it", () => {
   assert.equal(segmentIntersectsOpenRect({ x: 0, y: 0 }, { x: 2, y: 2 }, { x: 1, y: 0 }), false);

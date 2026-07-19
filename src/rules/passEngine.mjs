@@ -184,6 +184,55 @@ export function clampModifier(value, cap = 4) {
   return Math.max(-safeCap, Math.min(safeCap, Number(value) || 0));
 }
 
+/**
+ * Interception priority is a board-game measurement between occupied squares,
+ * not a measurement from the selected pass corner or along the pass segment.
+ * With square centres on the same unit grid, comparing squared distances gives
+ * exactly the same order as Euclidean distance and avoids rounding tie errors.
+ */
+export function interceptorPriorityDistanceSquared(passer, defender) {
+  const dx = Number(defender?.x) - Number(passer?.x);
+  const dy = Number(defender?.y) - Number(passer?.y);
+  if (!Number.isFinite(dx) || !Number.isFinite(dy)) return Infinity;
+  return dx * dx + dy * dy;
+}
+
+export function interceptorChoiceCandidates(interceptors, index = 0) {
+  const list = Array.isArray(interceptors) ? interceptors : [];
+  const safeIndex = Math.max(0, Math.floor(Number(index) || 0));
+  const current = list[safeIndex];
+  if (!current) return [];
+  return list.slice(safeIndex).filter(item => item.priorityDistanceSquared === current.priorityDistanceSquared);
+}
+
+export function applyInterceptorChoice(interceptors, index, selectedPieceId, modifierCap = 4) {
+  const list = Array.isArray(interceptors) ? interceptors : [];
+  const safeIndex = Math.max(0, Math.floor(Number(index) || 0));
+  const candidates = interceptorChoiceCandidates(list, safeIndex);
+  const selected = candidates.find(item => String(item?.defender?.id) === String(selectedPieceId));
+  if (!selected || candidates.length < 2) return null;
+  const candidateIds = new Set(candidates.map(item => String(item?.defender?.id)));
+  const reordered = [
+    ...list.slice(0, safeIndex),
+    selected,
+    ...list.slice(safeIndex).filter(item => candidateIds.has(String(item?.defender?.id)) && item !== selected),
+    ...list.slice(safeIndex).filter(item => !candidateIds.has(String(item?.defender?.id))),
+  ].map((item, orderIndex) => ({
+    ...item,
+    orderModifier: Math.min(Math.max(0, Number(modifierCap) || 4), orderIndex),
+  }));
+  return {
+    interceptors: reordered,
+    selection: {
+      atIndex: safeIndex,
+      selectedPieceId: String(selectedPieceId),
+      candidatePieceIds: candidates.map(item => String(item?.defender?.id)),
+      priorityDistanceSquared: selected.priorityDistanceSquared,
+      reason: "defender-choice-equal-distance",
+    },
+  };
+}
+
 export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, target, cornerId, rules }) {
   const passRules = rules?.actions?.pass || rules || {};
   const pathMode = passRules.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center";
@@ -209,10 +258,19 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
         .map(cell => ({ ...cell, passEntryT: segmentEntryT(origin, effectiveTargetPoint, cell) }))
         .filter(cell => cell.passEntryT !== null);
       const visibleCells = cells.filter(cell => isCellVisibleToDefender(defender, cell, pieces));
-      return { defender, cells, visibleCells, firstEntryT: visibleCells.length ? Math.min(...visibleCells.map(cell => cell.passEntryT)) : null };
+      const priorityDistanceSquared = interceptorPriorityDistanceSquared(passer, defender);
+      return {
+        defender,
+        cells,
+        visibleCells,
+        firstEntryT: visibleCells.length ? Math.min(...visibleCells.map(cell => cell.passEntryT)) : null,
+        priorityDistanceSquared,
+        priorityDistance: Math.sqrt(priorityDistanceSquared),
+        priorityMethod: "passer-square-center-to-defender-square-center",
+      };
     })
     .filter(item => item.visibleCells.length)
-    .sort((left, right) => left.firstEntryT - right.firstEntryT || String(left.defender.id).localeCompare(String(right.defender.id)))
+    .sort((left, right) => left.priorityDistanceSquared - right.priorityDistanceSquared || String(left.defender.id).localeCompare(String(right.defender.id)))
     .map((item, index) => ({ ...item, orderModifier: Math.min(Number(passRules.modifierCap) || 4, index) }));
   return {
     kind: "pass-plan",
@@ -230,6 +288,12 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     directHit: hit ? { pieceId: hit.piece.id, team: teamKeyForPiece(hit.piece), entryT: hit.entryT } : null,
     passCells,
     defensiveAreaCrossings,
+    interceptorPriority: {
+      method: "passer-square-center-to-defender-square-center",
+      metric: "euclidean-distance",
+      tieBreak: "defending-team-choice",
+      selections: [],
+    },
     interceptors,
   };
 }

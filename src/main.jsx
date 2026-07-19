@@ -35,8 +35,10 @@ import {
 } from "./rules/ruleSets.mjs";
 import {
   PASS_CORNERS,
+  applyInterceptorChoice,
   buildPassPlan,
   cardStat,
+  interceptorChoiceCandidates,
   resolveInterceptionRoll,
   teamKeyForPiece,
 } from "./rules/passEngine.mjs";
@@ -133,7 +135,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.7";
+const APP_VERSION = "v19.8";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4594,6 +4596,7 @@ function App() {
     if (Date.now() < diceCooldownUntilRef.current) return false;
     if (diceRollingRef.current.blue || diceRollingRef.current.red) return false;
     const pending = actionResolutionRef.current;
+    if (pending?.kind === "pass" && pending.status === "awaiting-interceptor-choice") return false;
     if (pending?.kind === "pass" && pending.status === "awaiting-interception-roll") {
       const interceptor = pending.plan?.interceptors?.[pending.interceptorIndex];
       if (teamKeyForPiece(interceptor?.defender) !== team) return false;
@@ -5664,7 +5667,7 @@ function App() {
     };
   }, [actionResolution, pieces, cardById, settings, activeRuleSet]);
 
-  const passActive = actionResolution?.kind === "pass" && ["targeting", "route-selection", "awaiting-interception-roll", "resolving"].includes(actionResolution.status);
+  const passActive = actionResolution?.kind === "pass" && ["targeting", "route-selection", "awaiting-interceptor-choice", "awaiting-interception-roll", "resolving"].includes(actionResolution.status);
   const passInterceptionRollRequired = actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interception-roll";
   const passTargetDistance = useMemo(() => {
     const pending = actionResolution;
@@ -8687,11 +8690,16 @@ function App() {
       setIllegalMoveNotice({ reason: activation.reason || "move-not-authorized" });
       return null;
     }
+    const reactionCandidates = interceptorChoiceCandidates(plan.interceptors, 0);
     const next = {
       ...pending,
       // A direct pass/no reaction does not have a die result and therefore
       // must complete immediately, without the roll suspense state.
-      status: plan.directHit || !plan.interceptors.length ? "completing" : "awaiting-interception-roll",
+      status: plan.directHit || !plan.interceptors.length
+        ? "completing"
+        : reactionCandidates.length > 1
+          ? "awaiting-interceptor-choice"
+          : "awaiting-interception-roll",
       cornerId: plan.origin.cornerId,
       plan,
       entryId: activation.entry.id,
@@ -8701,6 +8709,54 @@ function App() {
       bonusContinuationId: continuation?.id || null,
     };
     return { next, activation, plan };
+  }
+
+  function choosePassInterceptor(pieceId) {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "pass" || pending.status !== "awaiting-interceptor-choice") return false;
+    const candidates = interceptorChoiceCandidates(pending.plan?.interceptors, pending.interceptorIndex);
+    const selected = candidates.find(item => String(item?.defender?.id) === String(pieceId));
+    const defenseTeam = teamKeyForPiece(selected?.defender);
+    if (!selected || !defenseTeam) return false;
+    if (sessionCode && myTeam !== defenseTeam) return false;
+    const applied = applyInterceptorChoice(
+      pending.plan.interceptors,
+      pending.interceptorIndex,
+      pieceId,
+      activeRuleSetRef.current.actions?.pass?.modifierCap || 4,
+    );
+    if (!applied) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const nextPlan = {
+      ...pending.plan,
+      interceptors: applied.interceptors,
+      interceptorPriority: {
+        ...(pending.plan.interceptorPriority || {}),
+        selections: [
+          ...(pending.plan.interceptorPriority?.selections || []),
+          applied.selection,
+        ],
+      },
+    };
+    const next = {
+      ...pending,
+      status: "awaiting-interception-roll",
+      plan: nextPlan,
+    };
+    setLiveActionResolution(next);
+    recordTimelineTransition({
+      type: "PASS_INTERCEPTOR_SELECTED",
+      label: `${defenseTeam === "blue" ? "Blue" : "Red"} chooses ${getPieceIdentity(selected.defender)} to attempt the next interception`,
+      team: defenseTeam,
+      groupId: passTimelineGroupId(pending),
+      metadata: {
+        interceptorChoice: applied.selection,
+      },
+      before,
+      after: mergeTimelineGameState(before, { actionResolution: next }),
+      allowNoop: true,
+    });
+    return true;
   }
 
   function confirmPassRoute(cornerId) {
@@ -8865,7 +8921,9 @@ function App() {
         ? `${nextTeam} wins the ball. Possession changes and play continues at Turn ${entry.after?.tracker?.currentTurn || 1}.`
         : entry.type === "PASS_COMPLETED"
           ? "No further interception reactions apply. The pass is completed."
-          : `The pass continues. The next eligible defender must roll D20${natural === 1 ? " with an additional -1 modifier" : ""}.`;
+          : entry.after?.actionResolution?.status === "awaiting-interceptor-choice"
+            ? `The pass continues. ${nextTeam} must choose which equally ranked defender attempts the next interception.`
+            : `The pass continues. The next eligible defender must roll D20${natural === 1 ? " with an additional -1 modifier" : ""}.`;
     showPassResultNotice(interceptionResultNotice({ defender, roll: details, pending, continuation }));
   }, [gameTimeline, cardById]);
 
@@ -8947,7 +9005,14 @@ function App() {
       return;
     }
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
-    const next = { ...pending, status: "awaiting-interception-roll", interceptorIndex: nextIndex, naturalOnePenalty: (pending.naturalOnePenalty || 0) + (result.value === 1 ? -1 : 0), lastRoll: null };
+    const nextCandidates = interceptorChoiceCandidates(plan.interceptors, nextIndex);
+    const next = {
+      ...pending,
+      status: nextCandidates.length > 1 ? "awaiting-interceptor-choice" : "awaiting-interception-roll",
+      interceptorIndex: nextIndex,
+      naturalOnePenalty: (pending.naturalOnePenalty || 0) + (result.value === 1 ? -1 : 0),
+      lastRoll: null,
+    };
     setLiveActionResolution(next);
     recordTimelineTransition({ type: "PASS_INTERCEPTION_MISSED", label: `${getPieceDisplayLabel(defender)} cannot intercept — next reaction required`, team: teamKeyForPiece(defender), groupId: passTimelineGroupId(pending), before, after: mergeTimelineGameState(before, { actionResolution: next }), allowNoop: true });
   }
@@ -10330,6 +10395,33 @@ function App() {
           </div>
         </div>
       )}
+
+      {actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interceptor-choice" && (() => {
+        const candidates = interceptorChoiceCandidates(actionResolution.plan?.interceptors, actionResolution.interceptorIndex);
+        const defenseTeam = teamKeyForPiece(candidates[0]?.defender);
+        const canChoose = !sessionCode || myTeam === defenseTeam;
+        const teamName = defenseTeam === "blue" ? "Blue" : "Red";
+        return <div className="modal-backdrop interceptor-choice-backdrop">
+          <div className={`modal interceptor-choice-modal ${defenseTeam || ""}`} role="dialog" aria-modal="true">
+            <div className="modal-title"><strong>Choose interceptor</strong></div>
+            <div className="interceptor-choice-message">
+              {canChoose
+                ? `${teamName} has equally ranked eligible defenders. Choose who attempts the next interception.`
+                : `Waiting for ${teamName} to choose the next interceptor.`}
+            </div>
+            {canChoose && <div className="interceptor-choice-options">
+              {candidates.map(item => {
+                const defender = pieces.find(piece => piece.id === item.defender?.id) || item.defender;
+                const interception = cardStat(cardById[defender?.cardId], "Interception");
+                const sign = interception >= 0 ? "+" : "";
+                return <button key={defender?.id} type="button" onClick={() => choosePassInterceptor(defender?.id)}>
+                  {getPieceIdentity(defender)} ({teamName}) — Interception {sign}{interception}
+                </button>;
+              })}
+            </div>}
+          </div>
+        </div>;
+      })()}
 
       {actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interception-roll" && (() => {
         const interceptor = actionResolution.plan?.interceptors?.[actionResolution.interceptorIndex];
