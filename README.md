@@ -1,5 +1,45 @@
 # Football Board Sandbox
 
+## v19.10 — Atomic roll resolution and non-replaying result dialogs
+
+### What changed
+
+- A manual interception `DICE_ROLLED` event and its deterministic automatic consequence are now one reusable atomic Timeline transaction.
+- Undo from an interception outcome returns directly to the state before that roll. Redo returns directly to the resolved outcome. Neither navigation direction can stop on a temporary dice state that re-runs a consequence.
+- Result dialogs are now live notifications, not a UI effect derived from the currently selected Timeline cursor. Undo, Redo, History navigation, replay import, and ordinary session hydration restore state silently.
+- The two-second suspense indicator is also a live dispatch only. It appears during a new roll for host and guest, but never starts merely because a user navigates back to a historical `DICE_ROLLED` entry.
+- Session hydration detects genuinely new live Timeline entries so a guest receives the same result dialog without re-triggering historical ones.
+- Added a pure Timeline test proving that `DICE_ROLLED` plus `PASS_COMPLETED` undo and redo together as one transaction.
+
+### Why it changed
+
+The previous design correctly stored the die and outcome as Timeline entries, but it also derived the result dialog and delay from the current cursor. Returning to an old cursor position therefore treated an already-recorded resolution as if it had just happened again.
+
+### Problems resolved
+
+- Undo no longer traps the user in a repeated result dialog.
+- Redo no longer replays a cosmetic resolution callback or leaves a target cursor behind.
+- A historical or replayed dice step cannot start a fresh browser timer.
+- The solution is generic Timeline infrastructure: future Dribble, Tackle, Shot, and Cross roll→resolution pairs can use the same `undoTransaction` contract.
+
+### Impact
+
+- Pass/interception rules, manual rolls, Natural 1, Natural 20, modifier calculations, Tracker economy, bonus actions, multiplayer authority, and AI export content are unchanged.
+- The meaningful History entries remain visible; the atomic behavior changes only how the two inseparable events are traversed by Undo and Redo.
+- Editor, Inspector, and Export rendering remain unchanged.
+
+### Verification focus
+
+1. Resolve an interception, close its result dialog, then press Undo once. Confirm the board returns before the D20 was rolled with no dialog, delay, or target cursor.
+2. Press Redo once. Confirm it returns straight to the resolved outcome with no dialog, delay, or new roll.
+3. Create a new roll and observe the live two-second wait; then use History/Undo/Redo around it and confirm a historical roll never starts a new wait.
+4. In multiplayer, confirm both players see the wait and the one live outcome dialog, while neither sees dialogs merely by moving through History.
+
+### Verified locally
+
+- `npm test`: 73/73 tests passed.
+- `npm run build`: Vite production build passed. The existing bundle-size warning remains non-fatal.
+
 ## v19.9 — Timeline-derived delayed resolution
 
 ### What changed

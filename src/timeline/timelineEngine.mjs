@@ -119,6 +119,15 @@ export function redoTimeline(timeline) {
 }
 
 export function atomicTimelineTransactionId(entry) {
+  // Resolution transactions join a manual die roll with the automatic
+  // consequence it deterministically produces. They deliberately do not use
+  // groupId: the result may belong to a different gameplay group than the
+  // die, but Undo/Redo must never stop between the two.
+  const resolutionTransaction = entry?.metadata?.undoTransaction;
+  if (resolutionTransaction?.undoMode === "atomic") {
+    const resolutionTransactionId = String(resolutionTransaction.id || "").trim();
+    if (resolutionTransactionId) return resolutionTransactionId;
+  }
   const transaction = entry?.metadata?.actionTransaction;
   if (!transaction || transaction.undoMode !== "atomic") return null;
   const transactionId = String(transaction.id || "").trim();

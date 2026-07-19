@@ -108,6 +108,29 @@ test("atomic action metadata makes activation, roll and result one undoable tran
   assert.equal(redone.state.actionContinuation.status, "awaiting-end-bonus-action");
 });
 
+test("a die roll and its automatic resolution are one atomic undo transaction", () => {
+  const awaitingRoll = { ...state(1), actionResolution: { id: "pass-a", kind: "pass", status: "awaiting-interception-roll" } };
+  const rolled = { ...awaitingRoll, dice: { blueResult: 5 } };
+  const resolved = { ...state(2), actionResolution: null, dice: { blueResult: 5 } };
+  const metadata = { undoTransaction: { id: "resolution-pass-a-roll-1", source: "roll-resolution", undoMode: "atomic" } };
+  let timeline = createTimeline(awaitingRoll);
+  timeline = commitTimelineEntry(timeline, { type: "DICE_ROLLED", metadata, before: awaitingRoll, after: rolled });
+  timeline = commitTimelineEntry(timeline, { type: "PASS_COMPLETED", metadata, before: rolled, after: resolved });
+
+  assert.equal(atomicTimelineTransactionId(timeline.entries[0]), "resolution-pass-a-roll-1");
+  const undone = undoAtomicTimelineTransaction(timeline);
+  assert.equal(undone.timeline.cursor, 0);
+  assert.equal(undone.entries.length, 2);
+  assert.equal(undone.state.actionResolution.status, "awaiting-interception-roll");
+  assert.equal(undone.state.dice?.blueResult, null);
+
+  const redone = redoAtomicTimelineTransaction(undone.timeline);
+  assert.equal(redone.timeline.cursor, 2);
+  assert.equal(redone.entries.length, 2);
+  assert.equal(redone.state.actionResolution, null);
+  assert.equal(redone.state.pieces[0].x, 2);
+});
+
 test("matching group ids without atomic metadata remain stepwise", () => {
   let timeline = createTimeline(state(1));
   timeline = commitTimelineEntry(timeline, { type: "MOVE_ACTIVATED", groupId: "move-a", before: state(1), after: state(2) });
