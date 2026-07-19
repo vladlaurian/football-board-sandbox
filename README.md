@@ -2,6 +2,13 @@
 
 ## v19.6 — Pass cancellation, guided reaction dice, and reusable bonus continuation
 
+### Repair build
+
+- Fixed bonus continuation selection after its action completes: the bonus team can now select one of its players again in order to access the enabled `END TURN` button.
+- Bonus action internals now form one Undo/Redo transaction. Undoing a completed bonus Pass or Move returns directly to the Natural 20 “ready to choose one action” state; it cannot leave the cursor in an orphaned pass-target state.
+- Deleted the unused bonus-action cancellation helper rather than retaining a second, inactive state path.
+- The Natural 20 prompt now makes the required interaction explicit: select a player, then choose exactly one card action.
+
 ### What changed
 
 - `PASS` now becomes `CANCEL PASS` while its target/route preview is open. The remaining card-action controls are locked both visually and in their handlers until the pass is cancelled or committed.
@@ -36,7 +43,7 @@ The former Natural 20 behavior retained an unresolved pass state after the inter
 3. Pass directly onto an opponent: confirm the persistent message says possession changes and the next turn begins.
 4. Roll a Natural 20 interception, dismiss the result dialog, select any player on the intercepting team, and take one card action other than Group Move/Free Mode. Confirm Tracker counts do not increase.
 5. After that action, press `END TURN` and confirm possession remains with the intercepting team, the next turn begins, and normal Tracker economy resets.
-6. Use Undo/Redo around the bonus flow, then repeat one pass in multiplayer. Confirm both clients retain the same selectable/locked state and Dice availability.
+6. Use Undo/Redo around the completed bonus flow. Undo must return to the ready bonus-action state (not to a pass cursor); Redo must restore the completed action. Then repeat one pass in multiplayer and confirm both clients retain the same selectable/locked state and Dice availability.
 
 ## v19.5 — Pass SVG selection isolation and shared match-ball visual
 

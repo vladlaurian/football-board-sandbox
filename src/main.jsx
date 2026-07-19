@@ -49,8 +49,10 @@ import {
   createTimeline,
   moveTimelineCursor,
   normalizeTimeline,
+  redoTimelineGroup,
   redoTimeline,
   timelineStateAt,
+  undoTimelineGroup,
   undoTimeline,
 } from "./timeline/timelineEngine.mjs";
 import {
@@ -4657,7 +4659,14 @@ function App() {
     if (!replayModeRef.current && sessionCode && !isSessionHost) return;
     const current = gameTimelineRef.current;
     if (!current) return;
-    const result = undoTimeline(current);
+    const lastEntry = current.entries?.[(current.cursor || 0) - 1];
+    // A Natural 20 continuation is one bounded gameplay transaction: choosing
+    // its one bonus action and resolving it must undo back to the ready state,
+    // never strand the board halfway through a pass preview.
+    const isBonusTransaction = Boolean(lastEntry?.groupId) && current.entries
+      .slice(0, current.cursor)
+      .some(entry => entry.groupId === lastEntry.groupId && entry.type === "BONUS_CARD_ACTION_STARTED");
+    const result = isBonusTransaction ? undoTimelineGroup(current) : undoTimeline(current);
     if (!result.state) return;
     replaceGameTimeline(result.timeline);
     applyTimelineGameState(result.state);
@@ -4669,7 +4678,11 @@ function App() {
     if (!replayModeRef.current && sessionCode && !isSessionHost) return;
     const current = gameTimelineRef.current;
     if (!current) return;
-    const result = redoTimeline(current);
+    const nextEntry = current.entries?.[current.cursor || 0];
+    const isBonusTransaction = Boolean(nextEntry?.groupId) && current.entries
+      .slice(current.cursor)
+      .some(entry => entry.groupId === nextEntry.groupId && entry.type === "BONUS_CARD_ACTION_STARTED");
+    const result = isBonusTransaction ? redoTimelineGroup(current) : redoTimeline(current);
     if (!result.state) return;
     replaceGameTimeline(result.timeline);
     applyTimelineGameState(result.state);
@@ -4858,7 +4871,7 @@ function App() {
         : isGroupPlacement
           ? (matchActionState.groupMove?.timelineGroupId || null)
           : isBonusPlacement
-            ? (actionContinuationRef.current?.sourceEntryId || actionContinuationRef.current?.id || null)
+            ? (actionContinuationRef.current?.id || null)
             : (matchActionState.byPieceId?.[piece.id]?.moveGroupId || null);
     const currentPieces = piecesRef.current || pieces;
     const carriesBall = piece.team !== "BALL" && currentPieces.some(item =>
@@ -5105,7 +5118,6 @@ function App() {
     if (continuation?.kind === "bonus-card-action") {
       if (piece.team !== "BALL" && pieceTeamKey(piece) !== continuation.team) return;
       if (continuation.status === CONTINUATION_STATUS.ACTION_ACTIVE && continuation.actionType === "MOVE" && piece.id !== continuation.pieceId) return;
-      if (continuation.status === CONTINUATION_STATUS.AWAITING_END_TURN && piece.team !== "BALL") return;
     }
 
     if (e.pointerType === "touch") {
@@ -8437,7 +8449,7 @@ function App() {
       type: "BONUS_CARD_ACTION_STARTED",
       label: `${team === "blue" ? "Blue" : "Red"} bonus ${type.replace("_", " ")}: ${getPieceDisplayLabel(piece)}`,
       team,
-      groupId: current.sourceEntryId || current.id,
+      groupId: current.id,
       before,
       after: mergeTimelineGameState(before, { actionContinuation: next }),
       allowNoop: true,
@@ -8457,7 +8469,7 @@ function App() {
       type: "BONUS_CARD_ACTION_COMPLETED",
       label: `${next.team === "blue" ? "Blue" : "Red"} bonus ${(actionType || next.actionType || "card action").replace("_", " ")} complete — End Turn to continue`,
       team: next.team,
-      groupId: next.sourceEntryId || next.id,
+      groupId: next.id,
       before,
       after: mergeTimelineGameState(before, { actionContinuation: next }),
       allowNoop: true,
@@ -8465,11 +8477,12 @@ function App() {
     return true;
   }
 
-  function cancelBonusCardActionStart() {
-    const current = actionContinuationRef.current;
-    if (!current || current.status !== CONTINUATION_STATUS.ACTION_ACTIVE) return;
-    const next = { ...current, status: CONTINUATION_STATUS.READY, actionType: null, pieceId: null };
-    setLiveActionContinuation(next);
+  function passTimelineGroupId(pending) {
+    const continuationId = pending?.bonusContinuationId || pending?.continuationId;
+    const continuation = continuationId && actionContinuationRef.current?.id === continuationId
+      ? actionContinuationRef.current
+      : null;
+    return continuation?.id || pending?.entryId || null;
   }
 
   function beginPassTargeting(piece, { continuationId = null } = {}) {
@@ -8494,6 +8507,7 @@ function App() {
       type: "PASS_TARGETING_STARTED",
       label: `${team === "blue" ? "Blue" : "Red"} PASS: choose target for ${getPieceDisplayLabel(piece)}`,
       team,
+      groupId: passTimelineGroupId(pending),
       before,
       after: mergeTimelineGameState(before, { actionResolution: pending }),
       allowNoop: true,
@@ -8516,6 +8530,7 @@ function App() {
       type: "PASS_CANCELLED",
       label: "Pass cancelled before route confirmation",
       team: pending.team,
+      groupId: passTimelineGroupId(pending),
       before,
       after: mergeTimelineGameState(before, { actionResolution: null, actionContinuation: nextContinuation }),
       allowNoop: true,
@@ -8533,6 +8548,7 @@ function App() {
       type: "PASS_TARGET_SELECTED",
       label: `Pass target selected: ${toCoord(x, y)}`,
       team: pending.team,
+      groupId: passTimelineGroupId(pending),
       before,
       after: mergeTimelineGameState(before, { actionResolution: next }),
       allowNoop: true,
@@ -8615,7 +8631,7 @@ function App() {
       type: "PASS_CONFIRMED",
       label: `${pending.team === "blue" ? "Blue" : "Red"} PASS: ${getPieceDisplayLabel((piecesRef.current || pieces).find(piece => piece.id === pending.passerId))} → ${toCoord(plan.target.x, plan.target.y)}${plan.isLong ? " (Long)" : ""}`,
       team: pending.team,
-      groupId: activation.entry.id,
+      groupId: next.bonusContinuationId ? passTimelineGroupId(next) : activation.entry.id,
       before,
       after: mergeTimelineGameState(before, {
         actionResolution: next,
@@ -8770,7 +8786,7 @@ function App() {
       const nextTurn = Math.min(trackerSettings.turns, Math.max(1, trackerCurrentTurn + 1));
       const continuation = createBonusCardActionContinuation({ team: bonusTeam, nextTurn, sourceEntryId: pending.entryId });
       piecesRef.current = nextPieces; setPieces(nextPieces); setLiveActionResolution(null); setLiveActionContinuation(continuation);
-      recordTimelineTransition({ type: "PASS_NATURAL_20", label: `Natural 20 interception: ${getPieceDisplayLabel(interceptor)} earns one bonus action`, team: bonusTeam, groupId: pending.entryId, before, after: mergeTimelineGameState(before, { pieces: nextPieces, actionResolution: null, actionContinuation: continuation }), allowNoop: true });
+      recordTimelineTransition({ type: "PASS_NATURAL_20", label: `Natural 20 interception: ${getPieceDisplayLabel(interceptor)} earns one bonus action`, team: bonusTeam, groupId: passTimelineGroupId(pending), before, after: mergeTimelineGameState(before, { pieces: nextPieces, actionResolution: null, actionContinuation: continuation }), allowNoop: true });
       return;
     }
     const nextTeam = teamKeyForPiece(interceptor);
@@ -8782,7 +8798,7 @@ function App() {
     setMovementStateByPieceId({}); movementStateRef.current = {};
     setLiveActionResolution(null);
     setLiveActionContinuation(null);
-    recordTimelineTransition({ type: "PASS_INTERCEPTED", label: `${nextTeam === "blue" ? "Blue" : "Red"} intercepts — Turn ${nextTurn}`, team: nextTeam, groupId: pending.entryId, before, after: mergeTimelineGameState(before, { pieces: nextPieces, actionResolution: null, actionContinuation: null, trackerStartingTeam: nextTeam, trackerCurrentTurn: nextTurn, trackerUsedActions: emptyTurn.usedActions, trackerActionLog: emptyTurn.actionLog, matchActionState: emptyTurn.matchActionState, turnPhase: "attack", movementStateByPieceId: {} }), allowNoop: true });
+    recordTimelineTransition({ type: "PASS_INTERCEPTED", label: `${nextTeam === "blue" ? "Blue" : "Red"} intercepts — Turn ${nextTurn}`, team: nextTeam, groupId: passTimelineGroupId(pending), before, after: mergeTimelineGameState(before, { pieces: nextPieces, actionResolution: null, actionContinuation: null, trackerStartingTeam: nextTeam, trackerCurrentTurn: nextTurn, trackerUsedActions: emptyTurn.usedActions, trackerActionLog: emptyTurn.actionLog, matchActionState: emptyTurn.matchActionState, turnPhase: "attack", movementStateByPieceId: {} }), allowNoop: true });
     if (resultNotice) showPassResultNotice(resultNotice);
   }
 
@@ -8793,7 +8809,7 @@ function App() {
       ? completeContinuationAction(actionContinuationRef.current)
       : actionContinuationRef.current;
     piecesRef.current = nextPieces; setPieces(nextPieces); setLiveActionResolution(null); setLiveActionContinuation(continuation);
-    recordTimelineTransition({ type: "PASS_COMPLETED", label: `Pass completed to ${toCoord(pending.plan.target.x, pending.plan.target.y)}${pending.plan.isLong ? " (Long)" : ""}`, team: pending.team, groupId: pending.entryId, before, after: mergeTimelineGameState(before, { pieces: nextPieces, actionResolution: null, actionContinuation: continuation }), allowNoop: true });
+    recordTimelineTransition({ type: "PASS_COMPLETED", label: `Pass completed to ${toCoord(pending.plan.target.x, pending.plan.target.y)}${pending.plan.isLong ? " (Long)" : ""}`, team: pending.team, groupId: passTimelineGroupId(pending), before, after: mergeTimelineGameState(before, { pieces: nextPieces, actionResolution: null, actionContinuation: continuation }), allowNoop: true });
   }
 
   function resolvePendingPass(id) {
@@ -8842,7 +8858,7 @@ function App() {
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
     const next = { ...pending, status: "awaiting-interception-roll", interceptorIndex: nextIndex, naturalOnePenalty: (pending.naturalOnePenalty || 0) + (result.value === 1 ? -1 : 0), lastRoll: null };
     setLiveActionResolution(next);
-    recordTimelineTransition({ type: "PASS_INTERCEPTION_MISSED", label: `${getPieceDisplayLabel(defender)} cannot intercept — next reaction required`, team: teamKeyForPiece(defender), groupId: pending.entryId, before, after: mergeTimelineGameState(before, { actionResolution: next }), allowNoop: true });
+    recordTimelineTransition({ type: "PASS_INTERCEPTION_MISSED", label: `${getPieceDisplayLabel(defender)} cannot intercept — next reaction required`, team: teamKeyForPiece(defender), groupId: passTimelineGroupId(pending), before, after: mergeTimelineGameState(before, { actionResolution: next }), allowNoop: true });
   }
 
   function registerPassRoll(team, value) {
@@ -10153,7 +10169,7 @@ function App() {
 
       {actionContinuation?.kind === "bonus-card-action" && (
         <div className="pass-action-prompt bonus"><strong>Natural 20 interception</strong><span>{actionContinuation.status === CONTINUATION_STATUS.READY
-          ? `${actionContinuation.team === "blue" ? "Blue" : "Red"} has one bonus card action before the turn changes.`
+          ? `Select a ${actionContinuation.team === "blue" ? "Blue" : "Red"} player, then choose one card action before the turn changes.`
           : actionContinuation.status === CONTINUATION_STATUS.ACTION_ACTIVE
             ? `${actionContinuation.team === "blue" ? "Blue" : "Red"} is taking the bonus ${String(actionContinuation.actionType || "card").replace("_", " ")} action.`
             : `${actionContinuation.team === "blue" ? "Blue" : "Red"} completed the bonus action. Press End Turn to begin Turn ${actionContinuation.nextTurn}.`}</span></div>
