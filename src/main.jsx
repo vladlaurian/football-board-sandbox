@@ -92,6 +92,7 @@ import {
   withPendingRoll,
 } from "./match/actionResolutionEngine.mjs";
 import {
+  canonicalDelayedResolutionContext,
   createDelayedResolution,
   delayedResolutionAtCursor,
   delayedResolutionRemaining,
@@ -151,7 +152,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.13";
+const APP_VERSION = "v19.14";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2828,12 +2829,16 @@ function App() {
     if (sessionCode && !isSessionHost) return;
     delayedResolutionTimerRef.current = window.setTimeout(() => {
       delayedResolutionTimerRef.current = null;
-      delayedResolutionEntryIdRef.current = "";
       const currentTimeline = gameTimelineRef.current;
-      const currentState = timelineStateAt(currentTimeline, currentTimeline?.cursor);
-      const current = delayedResolutionAtCursor(currentTimeline, currentState?.actionResolution);
-      if (!current || current.entryId !== entryId) return;
-      applyDelayedActionResolution(current);
+      const canonical = canonicalDelayedResolutionContext(currentTimeline);
+      if (!canonical || canonical.request.entryId !== entryId) {
+        delayedResolutionEntryIdRef.current = "";
+        setLiveDelayedResolutionEntryId("");
+        return;
+      }
+      // The host resolves from the canonical Timeline cursor state. React refs
+      // may lag behind a Firestore hydration and must never veto authority.
+      applyDelayedActionResolution(canonical.request, canonical.actionResolution);
     }, delayedResolutionRemaining(request));
   }
 
@@ -9297,10 +9302,9 @@ function App() {
     };
   }
 
-  function applyDelayedActionResolution(request) {
+  function applyDelayedActionResolution(request, canonicalActionResolution = null) {
     if (request?.kind !== "pass-interception") return;
-    cancelDelayedResolutionTimer();
-    const pending = actionResolutionRef.current;
+    const pending = canonicalActionResolution || actionResolutionRef.current;
     const interceptor = pending?.plan?.interceptors?.[pending.interceptorIndex];
     if (
       pending?.kind !== "pass"
@@ -9315,6 +9319,9 @@ function App() {
     if (!defender || !Number.isFinite(Number(request.value)) || !rollEvent) return;
     const consumed = consumeActionEvent(pending, rollEvent);
     if (!consumed) return;
+    // Validation succeeded. Clear the cosmetic wait only now; an invalid or
+    // stale local ref must not permanently suppress a canonical retry.
+    cancelDelayedResolutionTimer();
     const recordedResolution = request.payload?.interceptionResolution
       || buildInterceptionRollDetails({ pending, defender, interceptor, natural: request.value });
     resolveRecordedPassInterception({

@@ -1,5 +1,13 @@
 # Football Board Sandbox
 
+## v19.14 — Canonical host interception resolution
+
+- The multiplayer host now resolves a guest interception roll from the canonical Timeline cursor state, not from a potentially stale React ref.
+- `Resolving interception…` is cleared only after the canonical roll has passed validation and is being consumed.
+- Invalid local state can no longer silently cancel the only host retry.
+- Added regression coverage for canonical delayed-resolution context.
+
+
 ## Architecture documents — read before structural changes
 
 - [`docs/ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md): permanent integration contract for automated Match actions.

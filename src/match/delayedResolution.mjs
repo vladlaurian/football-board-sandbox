@@ -43,6 +43,17 @@ export function delayedResolutionAtCursor(timeline, actionResolution) {
     entryId: String(entry.id || ""),
   };
 }
+export function canonicalDelayedResolutionContext(timeline) {
+  const cursor = Math.max(0, Number(timeline?.cursor) || 0);
+  const entries = Array.isArray(timeline?.entries) ? timeline.entries : [];
+  if (!cursor || cursor !== entries.length) return null;
+  const entry = entries[cursor - 1];
+  const state = entry?.after && typeof entry.after === "object" ? entry.after : null;
+  const actionResolution = state?.actionResolution || null;
+  const request = delayedResolutionAtCursor(timeline, actionResolution);
+  if (!request) return null;
+  return { request, actionResolution, state };
+}
 
 export function delayedResolutionRemaining(request, now = Date.now()) {
   const resolveAt = Number(request?.resolveAt);

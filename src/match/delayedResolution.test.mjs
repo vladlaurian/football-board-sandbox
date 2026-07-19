@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  canonicalDelayedResolutionContext,
   createDelayedResolution,
   delayedResolutionAtCursor,
   delayedResolutionRemaining,
@@ -49,4 +50,19 @@ test("only the host schedules a canonical multiplayer resolution at the live cur
   assert.equal(shouldScheduleCanonicalDelayedResolution({ ...args, replayMode: true }), false);
   assert.equal(shouldScheduleCanonicalDelayedResolution({ ...args, sessionEnding: true }), false);
   assert.equal(shouldScheduleCanonicalDelayedResolution({ ...args, timeline: { ...timeline, cursor: 0 } }), false);
+});
+
+
+test("host resolution context is derived from the canonical cursor state", () => {
+  const rollEntry = {
+    id: "roll-1",
+    type: "DICE_ROLLED",
+    metadata: { delayedResolution: request },
+    after: { actionResolution: pendingPass },
+  };
+  const context = canonicalDelayedResolutionContext({ cursor: 1, entries: [rollEntry] });
+  assert.equal(context?.request?.entryId, "roll-1");
+  assert.equal(context?.actionResolution?.id, "pass-1");
+  assert.equal(canonicalDelayedResolutionContext({ cursor: 0, entries: [rollEntry] }), null);
+  assert.equal(canonicalDelayedResolutionContext({ cursor: 1, entries: [rollEntry, { id: "later" }] }), null);
 });
