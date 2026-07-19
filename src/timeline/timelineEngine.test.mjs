@@ -43,6 +43,31 @@ test("commit, undo and redo use the same timeline entry", () => {
   assert.equal(redone.state.pieces[0].x, 2);
 });
 
+test("the Match Started audit entry keeps cursor zero as a playable match baseline", () => {
+  const playableStart = {
+    ...state(1),
+    tracker: {
+      gameStarted: true,
+      startingTeam: "blue",
+      currentTurn: 1,
+      usedActions: { blue: 0, red: 0 },
+      actionLog: { blue: [], red: [] },
+      matchActionState: {},
+      turnPhase: "attack",
+    },
+  };
+  let timeline = createTimeline(playableStart);
+  timeline = commitTimelineEntry(timeline, {
+    type: "MATCH_STARTED",
+    before: playableStart,
+    after: playableStart,
+  }, { allowNoop: true });
+  const cursorZero = moveTimelineCursor(timeline, 0).state;
+  assert.equal(cursorZero.tracker.gameStarted, true);
+  assert.equal(cursorZero.tracker.currentTurn, 1);
+  assert.equal(cursorZero.tracker.startingTeam, "blue");
+});
+
 test("timeline entries retain explicit dice-test metadata", () => {
   let timeline = createTimeline(state(1));
   timeline = commitTimelineEntry(timeline, {
@@ -59,7 +84,7 @@ test("atomic action metadata makes activation, roll and result one undoable tran
   const active = { ...ready, actionContinuation: { ...ready.actionContinuation, status: "action-active", actionType: "PASS", pieceId: "A-1" } };
   const targeting = { ...active, actionResolution: { id: "pass-a", kind: "pass", status: "targeting" } };
   const rolled = { ...active, actionResolution: { id: "pass-a", kind: "pass", status: "resolving" }, dice: { blueResult: 20 } };
-  const complete = { ...state(3), actionResolution: null, actionContinuation: { ...active.actionContinuation, status: "awaiting-end-turn" } };
+  const complete = { ...state(3), actionResolution: null, actionContinuation: { ...active.actionContinuation, status: "awaiting-end-bonus-action" } };
   const metadata = { actionTransaction: { id: "bonus-a", actionType: "PASS", team: "blue", source: "natural-20-interception", undoMode: "atomic" } };
   let timeline = createTimeline(ready);
   timeline = commitTimelineEntry(timeline, { type: "BONUS_CARD_ACTION_STARTED", groupId: "bonus-a", metadata, before: ready, after: active }, { allowNoop: true });
@@ -80,7 +105,7 @@ test("atomic action metadata makes activation, roll and result one undoable tran
   assert.equal(redone.entries.length, 4);
   assert.equal(redone.state.pieces[0].x, 3);
   assert.equal(redone.state.actionResolution, null);
-  assert.equal(redone.state.actionContinuation.status, "awaiting-end-turn");
+  assert.equal(redone.state.actionContinuation.status, "awaiting-end-bonus-action");
 });
 
 test("matching group ids without atomic metadata remain stepwise", () => {
@@ -97,7 +122,7 @@ test("a bonus Move is restored as one generic atomic action", () => {
   const metadata = { actionTransaction: { id: "bonus-move", actionType: "MOVE", team: "blue", source: "natural-20-interception", undoMode: "atomic" } };
   const ready = { ...state(1), actionContinuation: { id: "bonus-move", kind: "bonus-card-action", team: "blue", status: "ready" } };
   const active = { ...ready, actionContinuation: { ...ready.actionContinuation, status: "action-active", actionType: "MOVE", pieceId: "A-1" } };
-  const moved = { ...state(4), actionContinuation: { ...active.actionContinuation, status: "awaiting-end-turn" } };
+  const moved = { ...state(4), actionContinuation: { ...active.actionContinuation, status: "awaiting-end-bonus-action" } };
   let timeline = createTimeline(ready);
   timeline = commitTimelineEntry(timeline, { type: "BONUS_CARD_ACTION_STARTED", groupId: "bonus-move", metadata, before: ready, after: active }, { allowNoop: true });
   timeline = commitTimelineEntry(timeline, { type: "PIECE_MOVED", groupId: "bonus-move", metadata, before: active, after: moved });
@@ -111,7 +136,7 @@ test("a bonus Pass without a roll is still one atomic action", () => {
   const metadata = { actionTransaction: { id: "bonus-direct-pass", actionType: "PASS", team: "blue", source: "natural-20-interception", undoMode: "atomic" } };
   const ready = { ...state(1), actionResolution: null, actionContinuation: { id: "bonus-direct-pass", kind: "bonus-card-action", team: "blue", status: "ready" } };
   const targeting = { ...ready, actionResolution: { id: "pass-direct", kind: "pass", status: "targeting" }, actionContinuation: { ...ready.actionContinuation, status: "action-active", actionType: "PASS", pieceId: "A-1" } };
-  const completed = { ...state(1), actionResolution: null, actionContinuation: { ...targeting.actionContinuation, status: "awaiting-end-turn" } };
+  const completed = { ...state(1), actionResolution: null, actionContinuation: { ...targeting.actionContinuation, status: "awaiting-end-bonus-action" } };
   let timeline = createTimeline(ready);
   timeline = commitTimelineEntry(timeline, { type: "BONUS_CARD_ACTION_STARTED", groupId: "bonus-direct-pass", metadata, before: ready, after: targeting }, { allowNoop: true });
   timeline = commitTimelineEntry(timeline, { type: "PASS_COMPLETED", groupId: "bonus-direct-pass", metadata, before: targeting, after: completed });
@@ -120,7 +145,7 @@ test("a bonus Pass without a roll is still one atomic action", () => {
   assert.equal(undone.state.actionContinuation.status, "ready");
   const redone = redoAtomicTimelineTransaction(undone.timeline);
   assert.equal(redone.state.actionResolution, null);
-  assert.equal(redone.state.actionContinuation.status, "awaiting-end-turn");
+  assert.equal(redone.state.actionContinuation.status, "awaiting-end-bonus-action");
 });
 
 test("a new action after undo removes the abandoned redo branch", () => {

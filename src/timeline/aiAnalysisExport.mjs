@@ -5,7 +5,7 @@ import { normalizeRuleSet } from "../rules/ruleSets.mjs";
 import { normalizeTimeline, timelineStateAt } from "./timelineEngine.mjs";
 
 export const AI_ANALYSIS_EXPORT_TYPE = "football-board-ai-analysis";
-export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 4;
+export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 5;
 
 export function analysisCoord(piece) {
   if (!piece || !Number.isFinite(Number(piece.x)) || !Number.isFinite(Number(piece.y))) return null;
@@ -82,6 +82,16 @@ function compactActionTransaction(value) {
   };
 }
 
+function compactResumePolicy(value) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    type: String(value.type || ""),
+    team: value.team === "blue" ? "blue" : value.team === "red" ? "red" : null,
+    nextTurn: Math.max(0, Number(value.nextTurn) || 0),
+    phase: String(value.phase || "attack"),
+  };
+}
+
 function compactState(state, cardsById) {
   return {
     pieces: (Array.isArray(state?.pieces) ? state.pieces : []).map(piece => compactPiece(piece, cardsById)),
@@ -96,7 +106,7 @@ function compactState(state, cardsById) {
       source: String(state.actionContinuation.source || ""),
       team: state.actionContinuation.team === "blue" ? "blue" : state.actionContinuation.team === "red" ? "red" : null,
       status: String(state.actionContinuation.status || ""),
-      nextTurn: Math.max(0, Number(state.actionContinuation.nextTurn) || 0),
+      resumePolicy: compactResumePolicy(state.actionContinuation.resumePolicy),
       actionType: state.actionContinuation.actionType || null,
       pieceId: state.actionContinuation.pieceId || null,
       transaction: compactActionTransaction(state.actionContinuation.transaction),
@@ -329,11 +339,11 @@ function semanticEvent(entry, sequence, cardsById) {
       source: String(continuation.source || ""),
       team: continuation.team === "blue" ? "blue" : continuation.team === "red" ? "red" : null,
       status: String(continuation.status || ""),
-      nextTurn: Math.max(0, Number(continuation.nextTurn) || 0),
+      resumePolicy: compactResumePolicy(continuation.resumePolicy),
       actionType: continuation.actionType || null,
       pieceId: continuation.pieceId || null,
     } : null,
-    explicitOutcome: entry.type === "PASS_COMPLETED" ? "PASS_COMPLETED" : entry.type === "PASS_INTERCEPTED" ? "INTERCEPTED" : entry.type === "PASS_NATURAL_20" ? "NATURAL_20_INTERCEPTION" : entry.type === "CONTINUATION_TURN_ADVANCED" ? "CONTINUATION_TURN_ADVANCED" : "NOT_DECLARED",
+    explicitOutcome: entry.type === "PASS_COMPLETED" ? "PASS_COMPLETED" : entry.type === "PASS_INTERCEPTED" ? "INTERCEPTED" : entry.type === "PASS_NATURAL_20" ? "NATURAL_20_INTERCEPTION" : entry.type === "BONUS_ACTION_ENDED" ? "BONUS_ACTION_ENDED" : "NOT_DECLARED",
   };
 }
 

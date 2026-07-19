@@ -1,5 +1,56 @@
 # Football Board Sandbox
 
+## v19.7 — Playable Timeline start and explicit bonus-action completion
+
+### What changed
+
+- Redefined Timeline cursor `0. Start` as the first playable match state: Tracker started, starting team selected, Turn 1 active, empty action economy, and no pending automated action or continuation.
+- The `MATCH_STARTED` entry remains as an auditable History/AI event, but it no longer places an unusable pre-kickoff state behind the first action.
+- Added `END B.A.` to the inspected card between flip controls and `END TURN`, with the same compact team-coloured control design. It is shown contextually during a bonus continuation and becomes available after the bonus action resolves.
+- Replaced the bonus-specific `AWAITING_END_TURN` state with `AWAITING_END_BONUS_ACTION` and a generic `resumePolicy`.
+- Natural 20 interception currently supplies an `advance-turn` resume policy. The engine can later use `resume-phase` for Dribble or other bonuses that must return to the existing turn instead of advancing it.
+- `END TURN` now controls only the normal team phase. It no longer completes a bonus action or contains a hidden continuation branch.
+- Added a hard gameplay guard that rejects Match Mode player movement before Tracker has a playable start, so the board cannot preview a move that the action engine will later refuse.
+- AI Analysis Export schema is now version 5 and includes the continuation resume policy and the explicit `BONUS_ACTION_ENDED` outcome.
+
+### Why it changed
+
+Timeline previously began when Match Mode was selected, before the user chose the starting team. Undoing every entry therefore restored a technically accurate but non-playable pre-kickoff snapshot: card actions were disabled, while board movement could still display a misleading confirmation that could never execute.
+
+Bonus completion was also incorrectly coupled to `END TURN`. That happened to fit a Natural 20 interception, but it cannot represent future rewards such as a Dribble bonus after which the same turn must continue. Completion and its consequence are now separate engine concepts.
+
+### Problems resolved
+
+- Undo to `0. Start` restores a playable Turn 1 instead of an inaccessible pre-match state.
+- Player movement and card actions use the same Tracker-start requirement.
+- A completed bonus action no longer requires selecting a player merely to reach `END TURN`.
+- Bonus completion no longer pretends that every future bonus must end the turn.
+- Undo after `END B.A.` returns to the completed bonus state; the atomic bonus-action Undo remains a separate earlier step.
+- Old v19.6 recordings containing `awaiting-end-turn` are normalized at import to the new continuation state without retaining the old gameplay branch.
+
+### Impact
+
+- History, Undo, Redo, replay, multiplayer hydration, Save Match, and AI export share the same playable baseline and continuation policy.
+- Natural 20 Pass behavior still advances to the next turn with the intercepting team in possession, but only after explicit `END B.A.`.
+- Future automated actions can choose how play resumes without adding action-specific End Turn workarounds.
+- Editor, Inspector, and Export card rendering remain unchanged; the new control uses the existing Inspector action-control system.
+- Existing Match Recording files remain readable. New AI Analysis exports use schema version 5 because continuation consequences are now explicit data.
+
+### Verification focus
+
+1. Start a new match, perform at least one action, then Undo to `0. Start`. Select a player, press a card action, and move a player; all must work from Turn 1.
+2. Confirm `0. Start` retains the originally selected starting team and has zero actions consumed.
+3. Trigger a Natural 20 interception and complete a bonus `MOVE`. `END B.A.` must appear and become enabled; `END TURN` must remain unavailable for bonus completion.
+4. Press `END B.A.` and confirm possession stays with the intercepting team, the next turn begins, and Tracker economy resets.
+5. Undo once: return to the completed bonus action with `END B.A.` available. Undo again: return atomically to the ready bonus-action choice. Redo both steps and confirm the same states return.
+6. Repeat with a bonus `PASS`, including a manual interception roll through Choose Roll.
+7. Repeat the start and bonus flows in multiplayer; host and guest must show the same board, Tracker, continuation prompt, and History cursor.
+
+### Verified locally
+
+- `npm test`: 67/67 tests passed.
+- `npm run build`: Vite production build passed. The existing bundle-size warning remains non-fatal.
+
 ## v19.6 — Choose Roll test mode, guided reaction dice, bonus continuation, and pass-route corrections
 
 ### Repair build

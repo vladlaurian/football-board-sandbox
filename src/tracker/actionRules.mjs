@@ -87,6 +87,9 @@ export function hasGroupMoveAuthorization(rawTracker, team) {
 export function movementAuthorizationForPiece({ piece, team, gameMode, tracker: rawTracker }) {
   if (!piece || piece.team === "BALL" || gameMode === "editor") return { allowed: true, mode: "normal" };
   const tracker = normalizeTrackerSnapshot(rawTracker);
+  if (!tracker.gameStarted || tracker.currentTurn < 1) {
+    return { allowed: false, mode: "blocked", reason: "match-not-started" };
+  }
   const state = tracker.matchActionState.byPieceId[piece.id] || {};
   if (tracker.matchActionState.freeMode?.active && tracker.matchActionState.freeMode?.pieceId === piece.id) {
     return { allowed: true, mode: "free" };

@@ -161,7 +161,7 @@ test("AI export retains a pending bonus-action continuation without adding Track
       source: "natural-20-interception",
       team: "blue",
       status: "ready",
-      nextTurn: 2,
+      resumePolicy: { type: "advance-turn", team: "blue", nextTurn: 2, phase: "attack" },
       actionType: null,
       pieceId: null,
       transaction: {
@@ -184,9 +184,10 @@ test("AI export retains a pending bonus-action continuation without adding Track
     after,
   });
   const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
-  assert.equal(exported.schemaVersion, 4);
+  assert.equal(exported.schemaVersion, 5);
   assert.equal(exported.semanticTimeline[0].continuation.kind, "bonus-card-action");
-  assert.equal(exported.semanticTimeline[0].continuation.nextTurn, 2);
+  assert.equal(exported.semanticTimeline[0].continuation.resumePolicy.nextTurn, 2);
+  assert.equal(exported.semanticTimeline[0].continuation.resumePolicy.type, "advance-turn");
   assert.equal(exported.semanticTimeline[0].actionTransaction.undoMode, "atomic");
   assert.equal(exported.finalState.actionContinuation.status, "ready");
   assert.equal(exported.finalState.actionContinuation.transaction.id, "bonus_1");

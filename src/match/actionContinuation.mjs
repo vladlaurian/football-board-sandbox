@@ -12,15 +12,41 @@ import {
 export const CONTINUATION_STATUS = Object.freeze({
   READY: "ready",
   ACTION_ACTIVE: "action-active",
-  AWAITING_END_TURN: "awaiting-end-turn",
+  AWAITING_END_BONUS_ACTION: "awaiting-end-bonus-action",
 });
+
+export const CONTINUATION_RESUME_TYPE = Object.freeze({
+  ADVANCE_TURN: "advance-turn",
+  RESUME_PHASE: "resume-phase",
+});
+
+export function normalizeContinuationResumePolicy(value, legacy = {}) {
+  const source = value && typeof value === "object" ? value : {};
+  const type = Object.values(CONTINUATION_RESUME_TYPE).includes(source.type)
+    ? source.type
+    : CONTINUATION_RESUME_TYPE.ADVANCE_TURN;
+  return {
+    type,
+    team: source.team === "blue" ? "blue" : source.team === "red"
+      ? "red"
+      : legacy.team === "blue" ? "blue" : legacy.team === "red" ? "red" : null,
+    nextTurn: Math.max(1, Number(source.nextTurn ?? legacy.nextTurn) || 1),
+    phase: ["attack", "defense", "complete"].includes(source.phase) ? source.phase : "attack",
+  };
+}
 
 export function normalizeActionContinuation(value) {
   if (!value || typeof value !== "object") return null;
   const team = value.team === "blue" ? "blue" : value.team === "red" ? "red" : null;
   if (!team) return null;
-  const status = Object.values(CONTINUATION_STATUS).includes(value.status)
-    ? value.status
+  // v19.6 recordings used "awaiting-end-turn". Normalize that historical
+  // value at the boundary; gameplay no longer contains an END TURN branch for
+  // bonus actions.
+  const rawStatus = value.status === "awaiting-end-turn"
+    ? CONTINUATION_STATUS.AWAITING_END_BONUS_ACTION
+    : value.status;
+  const status = Object.values(CONTINUATION_STATUS).includes(rawStatus)
+    ? rawStatus
     : CONTINUATION_STATUS.READY;
   const id = String(value.id || "");
   if (!id) return null;
@@ -37,7 +63,10 @@ export function normalizeActionContinuation(value) {
     source: String(value.source || ""),
     team,
     status,
-    nextTurn: Math.max(1, Number(value.nextTurn) || 1),
+    resumePolicy: normalizeContinuationResumePolicy(value.resumePolicy, {
+      team,
+      nextTurn: value.nextTurn,
+    }),
     sourceEntryId: String(value.sourceEntryId || ""),
     actionType: value.actionType ? String(value.actionType) : null,
     pieceId: value.pieceId ? String(value.pieceId) : null,
@@ -45,7 +74,7 @@ export function normalizeActionContinuation(value) {
   };
 }
 
-export function createBonusCardActionContinuation({ team, nextTurn, sourceEntryId = "" } = {}) {
+export function createBonusCardActionContinuation({ team, nextTurn, resumePolicy = null, sourceEntryId = "" } = {}) {
   const id = `continuation_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   return normalizeActionContinuation({
     id,
@@ -53,7 +82,12 @@ export function createBonusCardActionContinuation({ team, nextTurn, sourceEntryI
     source: "natural-20-interception",
     team,
     status: CONTINUATION_STATUS.READY,
-    nextTurn,
+    resumePolicy: resumePolicy || {
+      type: CONTINUATION_RESUME_TYPE.ADVANCE_TURN,
+      team,
+      nextTurn,
+      phase: "attack",
+    },
     sourceEntryId,
     transaction: createActionTransaction({
       id,
@@ -80,5 +114,14 @@ export function beginContinuationAction(continuation, { type, pieceId } = {}) {
 export function completeContinuationAction(continuation) {
   const current = normalizeActionContinuation(continuation);
   if (!current || current.status !== CONTINUATION_STATUS.ACTION_ACTIVE) return null;
-  return { ...current, status: CONTINUATION_STATUS.AWAITING_END_TURN };
+  return { ...current, status: CONTINUATION_STATUS.AWAITING_END_BONUS_ACTION };
+}
+
+export function endContinuationAction(continuation) {
+  const current = normalizeActionContinuation(continuation);
+  if (!current || current.status !== CONTINUATION_STATUS.AWAITING_END_BONUS_ACTION) return null;
+  return {
+    continuation: current,
+    resumePolicy: normalizeContinuationResumePolicy(current.resumePolicy, { team: current.team }),
+  };
 }

@@ -46,6 +46,17 @@ test("phase ownership and action economy remain independent of the UI", () => {
   assert.equal(trackerPhaseBlockReason("complete"), "all-actions-complete");
 });
 
+test("match movement is unavailable before the playable Tracker start", () => {
+  const piece = { id: "A-9", team: "A" };
+  const result = movementAuthorizationForPiece({
+    piece,
+    team: "blue",
+    gameMode: "match",
+    tracker: tracker({ gameStarted: false, currentTurn: 0 }),
+  });
+  assert.deepEqual(result, { allowed: false, mode: "blocked", reason: "match-not-started" });
+});
+
 test("action activation produces a reusable state transition", () => {
   const pass = activateTrackerAction(tracker(), {
     type: "PASS",

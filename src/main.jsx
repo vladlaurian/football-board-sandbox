@@ -65,10 +65,12 @@ import {
 } from "./timeline/matchRecording.mjs";
 import { createAiAnalysisExport } from "./timeline/aiAnalysisExport.mjs";
 import {
+  CONTINUATION_RESUME_TYPE,
   CONTINUATION_STATUS,
   beginContinuationAction,
   completeContinuationAction,
   createBonusCardActionContinuation,
+  endContinuationAction,
   normalizeActionContinuation,
 } from "./match/actionContinuation.mjs";
 import {
@@ -131,7 +133,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.6";
+const APP_VERSION = "v19.7";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2050,6 +2052,11 @@ function App() {
   const movementStateRef = useRef({});
   const [gameTimeline, setGameTimeline] = useState(null);
   const gameTimelineRef = useRef(null);
+  // Match Mode may exist briefly before Tracker has a real kickoff. This ref
+  // marks whether the current recording already owns its playable baseline;
+  // it is orchestration state, not gameplay state and never participates in
+  // Undo/Redo.
+  const matchPlayableStartEstablishedRef = useRef(false);
   const [pendingEditorModeExit, setPendingEditorModeExit] = useState(false);
   const [replayRecording, setReplayRecording] = useState(null);
   const isReplayView = Boolean(replayRecording);
@@ -4517,6 +4524,9 @@ function App() {
     setTrackerActionLog(nextTracker.actionLog);
     setMatchActionState(nextTracker.matchActionState);
     setTurnPhase(nextTracker.turnPhase);
+    if (state.gameMode === "match" && nextTracker.gameStarted) {
+      matchPlayableStartEstablishedRef.current = true;
+    }
     setDieType(state.dice.dieType);
     setBlueDieResult(state.dice.blueResult);
     setRedDieResult(state.dice.redResult);
@@ -4833,6 +4843,7 @@ function App() {
     else if (result.reason === "no-speed") primary = <>No Speed value is assigned to this player.</>;
     else if (result.reason === "occupied") primary = <>The destination cell is occupied by another player.</>;
     else if (result.reason === "movement-ended") primary = <>This player has no legal movement remaining during the current turn.</>;
+    else if (result.reason === "match-not-started") primary = <>Start the match in Tracker before moving players.</>;
     else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE MODE before moving this player, or advance to next turn.</>;
     else if (result.reason === "pass-origin-blocked") primary = <>A pass cannot start from a corner shared with an opposing player.</>;
     else if (result.reason === "team-exhausted") primary = <>Wait for opponent team or advance to next turn.</>;
@@ -4867,8 +4878,12 @@ function App() {
   function completeGameModeChange(next) {
     const nextState = captureTimelineGameState({ gameMode: next });
     setGameMode(next);
-    if (next === "match") startGameTimeline(nextState, { syncSession: Boolean(sessionCode) });
+    if (next === "match") {
+      matchPlayableStartEstablishedRef.current = false;
+      startGameTimeline(nextState, { syncSession: Boolean(sessionCode) });
+    }
     else if (gameTimelineRef.current) {
+      matchPlayableStartEstablishedRef.current = false;
       const currentTimeline = gameTimelineRef.current;
       const wasExportedAtCurrentRevision =
         currentTimeline.cursor === currentTimeline.entries.length &&
@@ -8528,7 +8543,7 @@ function App() {
     setHoveredCell(null);
     recordTimelineTransition({
       type: "BONUS_CARD_ACTION_COMPLETED",
-      label: `${next.team === "blue" ? "Blue" : "Red"} bonus ${(actionType || next.actionType || "card action").replace("_", " ")} complete — End Turn to continue`,
+      label: `${next.team === "blue" ? "Blue" : "Red"} bonus ${(actionType || next.actionType || "card action").replace("_", " ")} complete — END B.A. to continue`,
       team: next.team,
       groupId: next.id,
       before,
@@ -9163,10 +9178,7 @@ function App() {
   function requestEndTurn(piece) {
     const team = pieceTeamKey(piece);
     const continuation = currentBonusContinuationForTeam(team);
-    if (continuation?.status === CONTINUATION_STATUS.AWAITING_END_TURN) {
-      setPendingEndTurn({ team, continuationId: continuation.id });
-      return;
-    }
+    if (continuation) return;
     if (!canUseActionForPiece(piece) || matchActionState.freeMode?.active || actionResolutionRef.current) return;
     if (!isTeamPhaseActive(team)) {
       setIllegalMoveNotice({ reason: phaseBlockReason() });
@@ -9178,36 +9190,6 @@ function App() {
     if (!pendingEndTurn) return;
     const endingTeam = pendingEndTurn.team;
     const beforeTimeline = captureTimelineGameState();
-    const continuation = actionContinuationRef.current;
-    if (pendingEndTurn.continuationId && continuation?.id === pendingEndTurn.continuationId && continuation.status === CONTINUATION_STATUS.AWAITING_END_TURN) {
-      const emptyTurn = createEmptyTrackerTurnState();
-      const nextTurn = Math.min(trackerSettings.turns, Math.max(1, continuation.nextTurn));
-      setPendingEndTurn(null);
-      setTrackerStartingTeam(endingTeam); setTrackerCurrentTurn(nextTurn); setTurnPhase("attack");
-      setTrackerUsedActions(emptyTurn.usedActions); setTrackerActionLog(emptyTurn.actionLog); setMatchActionState(emptyTurn.matchActionState);
-      setMovementStateByPieceId({}); movementStateRef.current = {};
-      setLiveActionContinuation(null);
-      setSelectedId(null);
-      setHoveredCell(null);
-      recordTimelineTransition({
-        type: "CONTINUATION_TURN_ADVANCED",
-        label: `${endingTeam === "blue" ? "Blue" : "Red"} bonus action ended — Turn ${nextTurn}`,
-        team: endingTeam,
-        groupId: continuation.sourceEntryId || continuation.id,
-        before: beforeTimeline,
-        after: mergeTimelineGameState(beforeTimeline, {
-          actionContinuation: null,
-          trackerStartingTeam: endingTeam,
-          trackerCurrentTurn: nextTurn,
-          trackerUsedActions: emptyTurn.usedActions,
-          trackerActionLog: emptyTurn.actionLog,
-          matchActionState: emptyTurn.matchActionState,
-          turnPhase: "attack",
-          movementStateByPieceId: {},
-        }),
-      });
-      return;
-    }
     const nextPhase = nextTrackerPhase(turnPhase);
     setPendingEndTurn(null);
     setTurnPhase(nextPhase);
@@ -9222,6 +9204,57 @@ function App() {
     });
   }
 
+  function endBonusAction(piece) {
+    const team = pieceTeamKey(piece);
+    const continuation = currentBonusContinuationForTeam(team);
+    const completion = endContinuationAction(continuation);
+    if (!completion || actionResolutionRef.current) return;
+    const beforeTimeline = captureTimelineGameState();
+    const policy = completion.resumePolicy;
+    let overrides = { actionContinuation: null };
+    let label = `${team === "blue" ? "Blue" : "Red"} bonus action ended`;
+
+    if (policy.type === CONTINUATION_RESUME_TYPE.ADVANCE_TURN) {
+      const emptyTurn = createEmptyTrackerTurnState();
+      const nextTeam = policy.team || team;
+      const nextTurn = Math.min(trackerSettings.turns, Math.max(1, policy.nextTurn));
+      setTrackerStartingTeam(nextTeam);
+      setTrackerCurrentTurn(nextTurn);
+      setTurnPhase(policy.phase || "attack");
+      setTrackerUsedActions(emptyTurn.usedActions);
+      setTrackerActionLog(emptyTurn.actionLog);
+      setMatchActionState(emptyTurn.matchActionState);
+      setMovementStateByPieceId({});
+      movementStateRef.current = {};
+      overrides = {
+        ...overrides,
+        trackerStartingTeam: nextTeam,
+        trackerCurrentTurn: nextTurn,
+        trackerUsedActions: emptyTurn.usedActions,
+        trackerActionLog: emptyTurn.actionLog,
+        matchActionState: emptyTurn.matchActionState,
+        turnPhase: policy.phase || "attack",
+        movementStateByPieceId: {},
+      };
+      label += ` — Turn ${nextTurn}`;
+    }
+
+    setLiveActionContinuation(null);
+    setSelectedId(null);
+    setHoveredCell(null);
+    recordTimelineTransition({
+      type: "BONUS_ACTION_ENDED",
+      label,
+      team,
+      metadata: {
+        continuationId: continuation.id,
+        resumePolicy: policy,
+      },
+      before: beforeTimeline,
+      after: mergeTimelineGameState(beforeTimeline, overrides),
+    });
+  }
+
   function startTrackedGame(team) {
     if (trackerReadOnly) return;
     const beforeTimeline = captureTimelineGameState();
@@ -9233,13 +9266,33 @@ function App() {
     setTrackerGameStarted(true);
     setTurnPhase("attack");
     setMovementStateByPieceId({}); movementStateRef.current = {};
+    setLiveActionResolution(null);
+    setLiveActionContinuation(null);
     setTrackerStartChoiceOpen(false);
+    const playableStart = mergeTimelineGameState(beforeTimeline, {
+      trackerGameStarted: true,
+      trackerStartingTeam: team,
+      trackerCurrentTurn: 1,
+      trackerUsedActions: usedActions,
+      trackerActionLog: emptyLog,
+      matchActionState: emptyMatchState,
+      turnPhase: "attack",
+      movementStateByPieceId: {},
+      actionResolution: null,
+      actionContinuation: null,
+    });
+    const shouldCreatePlayableBaseline = !matchPlayableStartEstablishedRef.current;
+    if (shouldCreatePlayableBaseline) {
+      matchPlayableStartEstablishedRef.current = true;
+      startGameTimeline(playableStart, { syncSession: Boolean(sessionCode) });
+    }
     recordTimelineTransition({
       type: "MATCH_STARTED",
       label: `Match started: ${team === "blue" ? "Blue" : "Red"} attacks`,
       team,
-      before: beforeTimeline,
-      after: captureTimelineGameState({ trackerGameStarted: true, trackerStartingTeam: team, trackerCurrentTurn: 1, trackerUsedActions: usedActions, trackerActionLog: emptyLog, matchActionState: emptyMatchState, turnPhase: "attack", movementStateByPieceId: {} }),
+      before: shouldCreatePlayableBaseline ? playableStart : beforeTimeline,
+      after: playableStart,
+      allowNoop: true,
     });
   }
   function applyTrackerTurn(turn) {
@@ -9937,12 +9990,25 @@ function App() {
                     </button>
                   ))}
                   <div className="inspector-turn-actions">
+                    {actionContinuation?.kind === "bonus-card-action" && (
+                      <button
+                        type="button"
+                        className={`inspector-flip-request-btn team-action-btn ${pieceTeamKey(inspectedPiece)}`}
+                        disabled={
+                          pieceTeamKey(inspectedPiece) !== actionContinuation.team
+                          || actionContinuation.status !== CONTINUATION_STATUS.AWAITING_END_BONUS_ACTION
+                          || Boolean(actionResolution)
+                        }
+                        onClick={() => endBonusAction(inspectedPiece)}
+                      >
+                        END B.A.
+                      </button>
+                    )}
                     <button
                       type="button"
                       className={`inspector-flip-request-btn team-action-btn ${pieceTeamKey(inspectedPiece)}`}
                       disabled={(() => {
                         const continuation = currentBonusContinuationForTeam(pieceTeamKey(inspectedPiece));
-                        if (continuation?.status === CONTINUATION_STATUS.AWAITING_END_TURN) return false;
                         if (continuation) return true;
                         return !canUseActionForPiece(inspectedPiece) || !isTeamPhaseActive(pieceTeamKey(inspectedPiece)) || matchActionState.freeMode?.active || Boolean(actionResolution);
                       })()}
@@ -10286,7 +10352,7 @@ function App() {
           ? `Select a ${actionContinuation.team === "blue" ? "Blue" : "Red"} player, then choose one card action before the turn changes.`
           : actionContinuation.status === CONTINUATION_STATUS.ACTION_ACTIVE
             ? `${actionContinuation.team === "blue" ? "Blue" : "Red"} is taking the bonus ${String(actionContinuation.actionType || "card").replace("_", " ")} action.`
-            : `${actionContinuation.team === "blue" ? "Blue" : "Red"} completed the bonus action. Press End Turn to begin Turn ${actionContinuation.nextTurn}.`}</span></div>
+            : `${actionContinuation.team === "blue" ? "Blue" : "Red"} completed the bonus action. Press END B.A. to continue.`}</span></div>
       )}
 
       {passResultNotice && (
@@ -10356,8 +10422,8 @@ function App() {
       {pendingEndTurn && (
         <div className="modal-backdrop turn-confirm-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setPendingEndTurn(null); }}>
           <div className="modal turn-confirm-modal" onPointerDown={e => e.stopPropagation()}>
-            <div className="modal-title"><strong>{pendingEndTurn.continuationId ? "Finish bonus action?" : "End your turn?"}</strong></div>
-            <div className="turn-confirm-message">{pendingEndTurn.continuationId ? "End the bonus action and begin the next turn?" : "End your turn?"}</div>
+            <div className="modal-title"><strong>End your turn?</strong></div>
+            <div className="turn-confirm-message">End your turn?</div>
             <div className="modal-actions turn-confirm-actions">
               <button onClick={confirmEndTurn}>Yes</button>
               <button onClick={() => setPendingEndTurn(null)}>No</button>
