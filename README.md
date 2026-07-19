@@ -6,13 +6,18 @@
 
 - Pass preview colour now reflects real interception eligibility: a route stays green when it crosses a defensive area whose defender is geometrically blocked from reaching the ball. It becomes red only when at least one eligible interceptor exists.
 - Added a route-origin rule for corner-to-centre passing: an origin corner shared with an active opposing player's square is unavailable and cannot consume a Tracker action. Same-team pieces, inactive pieces, and centre-to-centre passing are unaffected.
-- Timeline restoration now updates the input-handler references together with the visible React state. Undo/Redo, replay, and multiplayer hydration cannot retain a stale pass-target cursor after restoring a Natural 20 bonus action.
+- Repaired the underlying Timeline snapshot merge. An explicit `null` now clears `actionResolution`, `actionContinuation`, and nullable die results; it is no longer mistaken for an omitted field that should retain stale state.
+- Replaced the previous bonus-specific Undo/Redo event scan with generic action-transaction metadata. An atomic transaction now includes activation, board changes, every required roll, and resolution regardless of whether the action is Move, Pass, or a future Dribble/Shot/Tackle/Cross flow.
+- Timeline restoration updates both the visible React state and the live input-handler references. Undo/Redo, replay, and multiplayer hydration therefore restore the same complete engine state.
+- Deleted the obsolete grouped Undo/Redo helpers and the special search for `BONUS_CARD_ACTION_STARTED`; atomic behavior is declared by transaction metadata instead of inferred from event names.
+- Added regression coverage for bonus Move, direct bonus Pass, bonus Pass with a reaction roll, Redo, explicit `null` restoration, and ordinary stepwise actions.
+- AI Analysis Export schema is now version 4 and exposes the same action-transaction identity and undo mode used by gameplay. This keeps external analysis aligned with History rather than exporting only the visible result.
 
 - Added host-controlled `Choose Roll` test mode immediately after `Rules`. It is OFF by default (red border); when ON (green border), the active team's `ROLL` control opens an in-place result selector instead of generating a random value.
 - In multiplayer the host synchronizes the mode to the whole session. The guest does not see the top-toolbar setting, but can choose the result for their own permitted die while the host has enabled the mode.
 - A chosen value executes through the same roll handler as a random roll: cooldown, Dice display, pass reaction, delay, Timeline, replay, multiplayer, and result dialogs are unchanged. Timeline and AI export explicitly record its `CHOSEN` source so test data cannot masquerade as random play.
 - Fixed bonus continuation selection after its action completes: the bonus team can now select one of its players again in order to access the enabled `END TURN` button.
-- Bonus action internals now form one Undo/Redo transaction. Undoing a completed bonus Pass or Move returns directly to the Natural 20 “ready to choose one action” state; it cannot leave the cursor in an orphaned pass-target state.
+- Bonus action internals now form one declared Undo/Redo transaction. Undoing a completed bonus Pass or Move returns directly to the Natural 20 “ready to choose one action” state; Redo restores the full result.
 - Deleted the unused bonus-action cancellation helper rather than retaining a second, inactive state path.
 - The Natural 20 prompt now makes the required interaction explicit: select a player, then choose exactly one card action.
 
@@ -29,6 +34,8 @@
 
 The former Natural 20 behavior retained an unresolved pass state after the interception. That correctly prevented conflicting pass input, but also blocked the bonus team from selecting any player. Bonus consequences are a general gameplay concept, so they now live outside the pass resolver and can be reused by later Shot, Dribble, Tackle, or similar mechanics.
 
+The first repair updated the live refs during restoration, but that was not the complete cause of the Undo defect. Timeline snapshots themselves were being assembled with null-coalescing semantics: `null` meant both “clear this state” and “no override supplied.” As a result, a snapshot that should have cleared Pass could silently retain it. The merge now distinguishes omitted fields from explicit clearing, and atomicity belongs to a reusable action transaction rather than to Pass or Natural 20 code.
+
 Choose Roll solves targeted testing without creating a second gameplay engine or bypassing the normal resolution path. It is a transparent input source for manual testing only.
 
 ### Problems resolved
@@ -38,11 +45,15 @@ Choose Roll solves targeted testing without creating a second gameplay engine or
 - The correct manual reaction die is ready immediately; no automatic roll is introduced.
 - Natural 1, Natural 20, equal totals, stacked modifiers, and multi-roll sequences can now be reproduced immediately instead of waiting for random luck.
 - A Natural 20 no longer leaves the board in an unselectable state.
+- Undo after a Natural 20 bonus action cannot preserve a hidden Pass target cursor or stale card-action lock.
+- A reaction roll inside a bonus Pass cannot sit outside the action transaction and strand Undo halfway through resolution.
 - The bonus action is not written into Tracker action economy, but is auditable in History and AI analysis.
 
 ### Impact
 
 - Match Timeline remains the source of truth. Host, guest, Undo/Redo, replay, Save Match, and AI export receive the same continuation state.
+- Future automated actions can opt into the same atomic transaction contract without adding action-specific Undo/Redo branches. Normal actions remain granular and keep their existing step-by-step History behavior.
+- Existing Match Recording files remain readable. New AI Analysis exports use schema version 4 because transaction identity is now explicit in semantic events and continuation snapshots.
 - Normal pass/interception geometry and current interceptor ordering are unchanged. The separate interceptor-priority redesign is intentionally not part of v19.6.
 - Editor = Inspector = Export remains intact. This build changes match flow and result data only; it does not change card rendering or card data.
 
@@ -53,8 +64,11 @@ Choose Roll solves targeted testing without creating a second gameplay engine or
 3. Pass directly onto an opponent: confirm the persistent message says possession changes and the next turn begins.
 4. Roll a Natural 20 interception, dismiss the result dialog, select any player on the intercepting team, and take one card action other than Group Move/Free Mode. Confirm Tracker counts do not increase.
 5. After that action, press `END TURN` and confirm possession remains with the intercepting team, the next turn begins, and normal Tracker economy resets.
-6. Use Undo/Redo around the completed bonus flow. Undo must return to the ready bonus-action state (not to a pass cursor); Redo must restore the completed action. Then repeat one pass in multiplayer and confirm both clients retain the same selectable/locked state and Dice availability.
-7. Enable `Choose Roll`: each valid `ROLL` button should become an in-place selector for its team. Choose 1, 20, and a tie-producing result; confirm the normal result dialogs, Timeline, replay, and AI analysis all record the same outcome, with the roll source marked `CHOSEN`.
+6. Complete a bonus `MOVE`, then Undo. The piece must return and the prompt must allow choosing any eligible bonus action; Redo must restore the completed Move.
+7. Complete a bonus `PASS` with no interception roll, then Undo/Redo. Repeat with one or more interception rolls. Every Undo must return directly to the ready bonus-action state with a normal cursor and enabled eligible card actions.
+8. Continue Undo to the start of the match, then Redo forward. Pass targeting, card-action locks, bonus continuation, board, Dice, and Tracker must always match the visible History cursor.
+9. Repeat the bonus Pass Undo/Redo flow in multiplayer and confirm host and guest retain the same selectable/locked state and Dice availability.
+10. Enable `Choose Roll`: each valid `ROLL` button should become an in-place selector for its team. Choose 1, 20, and a tie-producing result; confirm the normal result dialogs, Timeline, replay, and AI analysis all record the same outcome, with the roll source marked `CHOSEN`.
 
 ## v19.5 — Pass SVG selection isolation and shared match-ball visual
 

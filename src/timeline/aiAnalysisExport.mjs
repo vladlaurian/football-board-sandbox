@@ -5,7 +5,7 @@ import { normalizeRuleSet } from "../rules/ruleSets.mjs";
 import { normalizeTimeline, timelineStateAt } from "./timelineEngine.mjs";
 
 export const AI_ANALYSIS_EXPORT_TYPE = "football-board-ai-analysis";
-export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 3;
+export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 4;
 
 export function analysisCoord(piece) {
   if (!piece || !Number.isFinite(Number(piece.x)) || !Number.isFinite(Number(piece.y))) return null;
@@ -71,6 +71,17 @@ function compactTracker(tracker = {}) {
   };
 }
 
+function compactActionTransaction(value) {
+  if (!value || typeof value !== "object" || !String(value.id || "").trim()) return null;
+  return {
+    id: String(value.id),
+    actionType: String(value.actionType || "UNKNOWN"),
+    team: value.team === "blue" ? "blue" : value.team === "red" ? "red" : null,
+    source: String(value.source || "gameplay"),
+    undoMode: value.undoMode === "atomic" ? "atomic" : "step",
+  };
+}
+
 function compactState(state, cardsById) {
   return {
     pieces: (Array.isArray(state?.pieces) ? state.pieces : []).map(piece => compactPiece(piece, cardsById)),
@@ -88,6 +99,7 @@ function compactState(state, cardsById) {
       nextTurn: Math.max(0, Number(state.actionContinuation.nextTurn) || 0),
       actionType: state.actionContinuation.actionType || null,
       pieceId: state.actionContinuation.pieceId || null,
+      transaction: compactActionTransaction(state.actionContinuation.transaction),
     } : null,
   };
 }
@@ -256,6 +268,7 @@ function semanticEvent(entry, sequence, cardsById) {
     actionId: String(entry.groupId || entry.id),
     parentActionId: null,
     actionLink: entry.groupId ? "TIMELINE_GROUP" : "NONE",
+    actionTransaction: compactActionTransaction(entry.metadata?.actionTransaction),
     turnId: `turn_${Math.max(0, Number(eventState?.tracker?.currentTurn) || 0)}`,
     possessionId: null,
     eventSource: eventSource(entry),

@@ -6,11 +6,12 @@ import {
   createTimeline,
   forkTimeline,
   moveTimelineCursor,
+  atomicTimelineTransactionId,
   redoTimeline,
-  redoTimelineGroup,
+  redoAtomicTimelineTransaction,
   timelineStateAt,
   undoTimeline,
-  undoTimelineGroup,
+  undoAtomicTimelineTransaction,
 } from "./timelineEngine.mjs";
 
 function state(x) {
@@ -53,21 +54,73 @@ test("timeline entries retain explicit dice-test metadata", () => {
   assert.deepEqual(timeline.entries[0].metadata, { rollSource: "CHOSEN", chosenResult: 20 });
 });
 
-test("group undo and redo treat activation plus movements as one action", () => {
-  let timeline = createTimeline(state(1));
-  timeline = commitTimelineEntry(timeline, { type: "MOVE_ACTIVATED", groupId: "move-a", before: state(1), after: state(1) }, { allowNoop: true });
-  timeline = commitTimelineEntry(timeline, { type: "PIECE_MOVED", groupId: "move-a", before: state(1), after: state(2) });
-  timeline = commitTimelineEntry(timeline, { type: "PIECE_MOVED", groupId: "move-a", before: state(2), after: state(3) });
+test("atomic action metadata makes activation, roll and result one undoable transaction", () => {
+  const ready = { ...state(1), actionResolution: null, actionContinuation: { id: "bonus-a", kind: "bonus-card-action", team: "blue", status: "ready" } };
+  const active = { ...ready, actionContinuation: { ...ready.actionContinuation, status: "action-active", actionType: "PASS", pieceId: "A-1" } };
+  const targeting = { ...active, actionResolution: { id: "pass-a", kind: "pass", status: "targeting" } };
+  const rolled = { ...active, actionResolution: { id: "pass-a", kind: "pass", status: "resolving" }, dice: { blueResult: 20 } };
+  const complete = { ...state(3), actionResolution: null, actionContinuation: { ...active.actionContinuation, status: "awaiting-end-turn" } };
+  const metadata = { actionTransaction: { id: "bonus-a", actionType: "PASS", team: "blue", source: "natural-20-interception", undoMode: "atomic" } };
+  let timeline = createTimeline(ready);
+  timeline = commitTimelineEntry(timeline, { type: "BONUS_CARD_ACTION_STARTED", groupId: "bonus-a", metadata, before: ready, after: active }, { allowNoop: true });
+  timeline = commitTimelineEntry(timeline, { type: "PASS_TARGETING_STARTED", groupId: "bonus-a", metadata, before: active, after: targeting }, { allowNoop: true });
+  timeline = commitTimelineEntry(timeline, { type: "DICE_ROLLED", groupId: "bonus-a", metadata, before: targeting, after: rolled });
+  timeline = commitTimelineEntry(timeline, { type: "PASS_COMPLETED", groupId: "bonus-a", metadata, before: rolled, after: complete });
 
-  const undone = undoTimelineGroup(timeline);
+  assert.equal(atomicTimelineTransactionId(timeline.entries[0]), "bonus-a");
+  const undone = undoAtomicTimelineTransaction(timeline);
   assert.equal(undone.timeline.cursor, 0);
-  assert.equal(undone.entries.length, 3);
+  assert.equal(undone.entries.length, 4);
   assert.equal(undone.state.pieces[0].x, 1);
+  assert.equal(undone.state.actionResolution, null);
+  assert.equal(undone.state.actionContinuation.status, "ready");
 
-  const redone = redoTimelineGroup(undone.timeline);
-  assert.equal(redone.timeline.cursor, 3);
-  assert.equal(redone.entries.length, 3);
+  const redone = redoAtomicTimelineTransaction(undone.timeline);
+  assert.equal(redone.timeline.cursor, 4);
+  assert.equal(redone.entries.length, 4);
   assert.equal(redone.state.pieces[0].x, 3);
+  assert.equal(redone.state.actionResolution, null);
+  assert.equal(redone.state.actionContinuation.status, "awaiting-end-turn");
+});
+
+test("matching group ids without atomic metadata remain stepwise", () => {
+  let timeline = createTimeline(state(1));
+  timeline = commitTimelineEntry(timeline, { type: "MOVE_ACTIVATED", groupId: "move-a", before: state(1), after: state(2) });
+  timeline = commitTimelineEntry(timeline, { type: "PIECE_MOVED", groupId: "move-a", before: state(2), after: state(3) });
+  assert.equal(atomicTimelineTransactionId(timeline.entries[1]), null);
+  const undone = undoAtomicTimelineTransaction(timeline);
+  assert.equal(undone.timeline.cursor, 1);
+  assert.equal(undone.state.pieces[0].x, 2);
+});
+
+test("a bonus Move is restored as one generic atomic action", () => {
+  const metadata = { actionTransaction: { id: "bonus-move", actionType: "MOVE", team: "blue", source: "natural-20-interception", undoMode: "atomic" } };
+  const ready = { ...state(1), actionContinuation: { id: "bonus-move", kind: "bonus-card-action", team: "blue", status: "ready" } };
+  const active = { ...ready, actionContinuation: { ...ready.actionContinuation, status: "action-active", actionType: "MOVE", pieceId: "A-1" } };
+  const moved = { ...state(4), actionContinuation: { ...active.actionContinuation, status: "awaiting-end-turn" } };
+  let timeline = createTimeline(ready);
+  timeline = commitTimelineEntry(timeline, { type: "BONUS_CARD_ACTION_STARTED", groupId: "bonus-move", metadata, before: ready, after: active }, { allowNoop: true });
+  timeline = commitTimelineEntry(timeline, { type: "PIECE_MOVED", groupId: "bonus-move", metadata, before: active, after: moved });
+  const undone = undoAtomicTimelineTransaction(timeline);
+  assert.equal(undone.timeline.cursor, 0);
+  assert.equal(undone.state.pieces[0].x, 1);
+  assert.equal(undone.state.actionContinuation.status, "ready");
+});
+
+test("a bonus Pass without a roll is still one atomic action", () => {
+  const metadata = { actionTransaction: { id: "bonus-direct-pass", actionType: "PASS", team: "blue", source: "natural-20-interception", undoMode: "atomic" } };
+  const ready = { ...state(1), actionResolution: null, actionContinuation: { id: "bonus-direct-pass", kind: "bonus-card-action", team: "blue", status: "ready" } };
+  const targeting = { ...ready, actionResolution: { id: "pass-direct", kind: "pass", status: "targeting" }, actionContinuation: { ...ready.actionContinuation, status: "action-active", actionType: "PASS", pieceId: "A-1" } };
+  const completed = { ...state(1), actionResolution: null, actionContinuation: { ...targeting.actionContinuation, status: "awaiting-end-turn" } };
+  let timeline = createTimeline(ready);
+  timeline = commitTimelineEntry(timeline, { type: "BONUS_CARD_ACTION_STARTED", groupId: "bonus-direct-pass", metadata, before: ready, after: targeting }, { allowNoop: true });
+  timeline = commitTimelineEntry(timeline, { type: "PASS_COMPLETED", groupId: "bonus-direct-pass", metadata, before: targeting, after: completed });
+  const undone = undoAtomicTimelineTransaction(timeline);
+  assert.equal(undone.state.actionResolution, null);
+  assert.equal(undone.state.actionContinuation.status, "ready");
+  const redone = redoAtomicTimelineTransaction(undone.timeline);
+  assert.equal(redone.state.actionResolution, null);
+  assert.equal(redone.state.actionContinuation.status, "awaiting-end-turn");
 });
 
 test("a new action after undo removes the abandoned redo branch", () => {

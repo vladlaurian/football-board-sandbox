@@ -118,15 +118,25 @@ export function redoTimeline(timeline) {
   return { timeline: nextTimeline, state: cloneGameState(entry.after), entry };
 }
 
-export function undoTimelineGroup(timeline) {
+export function atomicTimelineTransactionId(entry) {
+  const transaction = entry?.metadata?.actionTransaction;
+  if (!transaction || transaction.undoMode !== "atomic") return null;
+  const transactionId = String(transaction.id || "").trim();
+  if (!transactionId || String(entry?.groupId || "") !== transactionId) return null;
+  return transactionId;
+}
+
+export function undoAtomicTimelineTransaction(timeline) {
   const current = normalizeTimeline(timeline, {});
   if (current.cursor <= 0) return { timeline: current, state: null, entries: [] };
   const lastEntry = current.entries[current.cursor - 1];
-  const groupId = lastEntry?.groupId || null;
-  let nextCursor = current.cursor - 1;
-  if (groupId) {
-    while (nextCursor > 0 && current.entries[nextCursor - 1]?.groupId === groupId) nextCursor -= 1;
+  const transactionId = atomicTimelineTransactionId(lastEntry);
+  if (!transactionId) {
+    const result = undoTimeline(current);
+    return { timeline: result.timeline, state: result.state, entries: result.entry ? [result.entry] : [] };
   }
+  let nextCursor = current.cursor - 1;
+  while (nextCursor > 0 && atomicTimelineTransactionId(current.entries[nextCursor - 1]) === transactionId) nextCursor -= 1;
   const entries = current.entries.slice(nextCursor, current.cursor);
   return {
     timeline: { ...current, cursor: nextCursor, revision: current.revision + 1 },
@@ -135,15 +145,17 @@ export function undoTimelineGroup(timeline) {
   };
 }
 
-export function redoTimelineGroup(timeline) {
+export function redoAtomicTimelineTransaction(timeline) {
   const current = normalizeTimeline(timeline, {});
   if (current.cursor >= current.entries.length) return { timeline: current, state: null, entries: [] };
   const firstEntry = current.entries[current.cursor];
-  const groupId = firstEntry?.groupId || null;
-  let nextCursor = current.cursor + 1;
-  if (groupId) {
-    while (nextCursor < current.entries.length && current.entries[nextCursor]?.groupId === groupId) nextCursor += 1;
+  const transactionId = atomicTimelineTransactionId(firstEntry);
+  if (!transactionId) {
+    const result = redoTimeline(current);
+    return { timeline: result.timeline, state: result.state, entries: result.entry ? [result.entry] : [] };
   }
+  let nextCursor = current.cursor + 1;
+  while (nextCursor < current.entries.length && atomicTimelineTransactionId(current.entries[nextCursor]) === transactionId) nextCursor += 1;
   const entries = current.entries.slice(current.cursor, nextCursor);
   return {
     timeline: { ...current, cursor: nextCursor, revision: current.revision + 1 },

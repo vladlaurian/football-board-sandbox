@@ -164,14 +164,32 @@ test("AI export retains a pending bonus-action continuation without adding Track
       nextTurn: 2,
       actionType: null,
       pieceId: null,
+      transaction: {
+        id: "bonus_1",
+        actionType: "BONUS_ACTION",
+        team: "blue",
+        source: "natural-20-interception",
+        undoMode: "atomic",
+      },
     },
   });
   let timeline = createTimeline(before);
-  timeline = commitTimelineEntry(timeline, { id: "natural_20", type: "PASS_NATURAL_20", label: "Natural 20", team: "blue", before, after });
+  timeline = commitTimelineEntry(timeline, {
+    id: "natural_20",
+    type: "PASS_NATURAL_20",
+    label: "Natural 20",
+    team: "blue",
+    metadata: { actionTransaction: after.actionContinuation.transaction },
+    before,
+    after,
+  });
   const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  assert.equal(exported.schemaVersion, 4);
   assert.equal(exported.semanticTimeline[0].continuation.kind, "bonus-card-action");
   assert.equal(exported.semanticTimeline[0].continuation.nextTurn, 2);
+  assert.equal(exported.semanticTimeline[0].actionTransaction.undoMode, "atomic");
   assert.equal(exported.finalState.actionContinuation.status, "ready");
+  assert.equal(exported.finalState.actionContinuation.transaction.id, "bonus_1");
   assert.equal(exported.semanticTimeline[0].actionEconomyAfter.teamActionsUsed, 0);
 });
 

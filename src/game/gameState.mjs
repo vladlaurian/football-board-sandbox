@@ -53,6 +53,47 @@ export function createGameState(raw = {}) {
   });
 }
 
+function stateOverride(overrides, key, fallback) {
+  if (!overrides || !Object.prototype.hasOwnProperty.call(overrides, key) || overrides[key] === undefined) return fallback;
+  return overrides[key];
+}
+
+/**
+ * Applies the flattened Timeline overrides used by the app to a normalized
+ * game state. An omitted field retains its previous value; an explicit null
+ * is a real value and clears nullable state such as an action resolution,
+ * continuation, or die result.
+ */
+export function mergeGameState(baseState, overrides = {}) {
+  const base = createGameState(baseState || {});
+  return createGameState({
+    settings: stateOverride(overrides, "settings", base.settings),
+    pieces: stateOverride(overrides, "pieces", base.pieces),
+    movementStateByPieceId: stateOverride(overrides, "movementStateByPieceId", base.movementStateByPieceId),
+    gameMode: stateOverride(overrides, "gameMode", base.gameMode),
+    ruleSet: stateOverride(overrides, "ruleSet", base.ruleSet),
+    actionResolution: stateOverride(overrides, "actionResolution", base.actionResolution),
+    actionContinuation: stateOverride(overrides, "actionContinuation", base.actionContinuation),
+    tracker: {
+      gameStarted: stateOverride(overrides, "trackerGameStarted", base.tracker.gameStarted),
+      startingTeam: stateOverride(overrides, "trackerStartingTeam", base.tracker.startingTeam),
+      currentTurn: stateOverride(overrides, "trackerCurrentTurn", base.tracker.currentTurn),
+      usedActions: stateOverride(overrides, "trackerUsedActions", base.tracker.usedActions),
+      actionLog: stateOverride(overrides, "trackerActionLog", base.tracker.actionLog),
+      matchActionState: stateOverride(overrides, "matchActionState", base.tracker.matchActionState),
+      turnPhase: stateOverride(overrides, "turnPhase", base.tracker.turnPhase),
+      settings: stateOverride(overrides, "trackerSettings", base.tracker.settings),
+    },
+    dice: {
+      dieType: stateOverride(overrides, "dieType", base.dice.dieType),
+      blueResult: stateOverride(overrides, "blueDieResult", base.dice.blueResult),
+      redResult: stateOverride(overrides, "redDieResult", base.dice.redResult),
+      blueLastDieType: stateOverride(overrides, "blueLastDieType", base.dice.blueLastDieType),
+      redLastDieType: stateOverride(overrides, "redLastDieType", base.dice.redLastDieType),
+    },
+  });
+}
+
 export function gameStatesEqual(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }

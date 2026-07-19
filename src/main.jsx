@@ -7,7 +7,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, runTransaction
 import { getFirestore } from "firebase/firestore";
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import { RotateCcw, Plus, Minus, Undo2, Redo2, Edit3, X, Dices } from "lucide-react";
-import { createGameState } from "./game/gameState.mjs";
+import { createGameState, mergeGameState } from "./game/gameState.mjs";
 import {
   isBenchReservePiece,
   normalizeFormationPlayers,
@@ -49,10 +49,11 @@ import {
   createTimeline,
   moveTimelineCursor,
   normalizeTimeline,
-  redoTimelineGroup,
+  atomicTimelineTransactionId,
+  redoAtomicTimelineTransaction,
   redoTimeline,
   timelineStateAt,
-  undoTimelineGroup,
+  undoAtomicTimelineTransaction,
   undoTimeline,
 } from "./timeline/timelineEngine.mjs";
 import {
@@ -70,6 +71,12 @@ import {
   createBonusCardActionContinuation,
   normalizeActionContinuation,
 } from "./match/actionContinuation.mjs";
+import {
+  ACTION_TRANSACTION_UNDO_MODE,
+  atomicTransactionForTransition,
+  createActionTransaction,
+  transactionForActionState,
+} from "./match/actionTransaction.mjs";
 import {
   canAccessPrimaryToolbar,
   createSharedTimelineMeta,
@@ -3594,62 +3601,48 @@ function App() {
   }, [user, cloudReady]);
 
   function captureTimelineGameState(overrides = {}) {
-    return createGameState({
-      settings: overrides.settings ?? settingsRef.current,
-      pieces: overrides.pieces ?? piecesRef.current,
-      movementStateByPieceId: normalizeMovementState(overrides.movementStateByPieceId ?? movementStateRef.current),
-      gameMode: normalizeGameMode(overrides.gameMode ?? gameMode),
-      ruleSet: normalizeRuleSet(overrides.ruleSet ?? activeRuleSetRef.current),
-      actionResolution: overrides.actionResolution ?? actionResolutionRef.current,
-      actionContinuation: overrides.actionContinuation ?? actionContinuationRef.current,
+    const liveState = createGameState({
+      settings: settingsRef.current,
+      pieces: piecesRef.current,
+      movementStateByPieceId: normalizeMovementState(movementStateRef.current),
+      gameMode: normalizeGameMode(gameMode),
+      ruleSet: normalizeRuleSet(activeRuleSetRef.current),
+      actionResolution: actionResolutionRef.current,
+      actionContinuation: actionContinuationRef.current,
       tracker: {
-        gameStarted: overrides.trackerGameStarted ?? trackerGameStarted,
-        startingTeam: overrides.trackerStartingTeam ?? trackerStartingTeam,
-        currentTurn: overrides.trackerCurrentTurn ?? trackerCurrentTurn,
-        usedActions: overrides.trackerUsedActions ?? trackerUsedActions,
-        actionLog: overrides.trackerActionLog ?? trackerActionLog,
-        matchActionState: overrides.matchActionState ?? matchActionState,
-        turnPhase: overrides.turnPhase ?? turnPhase,
-        settings: overrides.trackerSettings ?? trackerSettings,
+        gameStarted: trackerGameStarted,
+        startingTeam: trackerStartingTeam,
+        currentTurn: trackerCurrentTurn,
+        usedActions: trackerUsedActions,
+        actionLog: trackerActionLog,
+        matchActionState,
+        turnPhase,
+        settings: trackerSettings,
       },
       dice: {
-        dieType: overrides.dieType ?? dieType,
-        blueResult: overrides.blueDieResult ?? blueDieResult,
-        redResult: overrides.redDieResult ?? redDieResult,
-        blueLastDieType: overrides.blueLastDieType ?? blueLastDieType,
-        redLastDieType: overrides.redLastDieType ?? redLastDieType,
+        dieType,
+        blueResult: blueDieResult,
+        redResult: redDieResult,
+        blueLastDieType,
+        redLastDieType,
       },
+    });
+    return mergeGameState(liveState, {
+      ...overrides,
+      ...(Object.prototype.hasOwnProperty.call(overrides, "movementStateByPieceId")
+        ? { movementStateByPieceId: normalizeMovementState(overrides.movementStateByPieceId) }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(overrides, "gameMode")
+        ? { gameMode: normalizeGameMode(overrides.gameMode) }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(overrides, "ruleSet")
+        ? { ruleSet: normalizeRuleSet(overrides.ruleSet) }
+        : {}),
     });
   }
 
   function mergeTimelineGameState(baseState, overrides = {}) {
-    const base = createGameState(baseState || {});
-    return createGameState({
-      settings: overrides.settings ?? base.settings,
-      pieces: overrides.pieces ?? base.pieces,
-      movementStateByPieceId: overrides.movementStateByPieceId ?? base.movementStateByPieceId,
-      gameMode: overrides.gameMode ?? base.gameMode,
-      ruleSet: overrides.ruleSet ?? base.ruleSet,
-      actionResolution: overrides.actionResolution ?? base.actionResolution,
-      actionContinuation: overrides.actionContinuation ?? base.actionContinuation,
-      tracker: {
-        gameStarted: overrides.trackerGameStarted ?? base.tracker.gameStarted,
-        startingTeam: overrides.trackerStartingTeam ?? base.tracker.startingTeam,
-        currentTurn: overrides.trackerCurrentTurn ?? base.tracker.currentTurn,
-        usedActions: overrides.trackerUsedActions ?? base.tracker.usedActions,
-        actionLog: overrides.trackerActionLog ?? base.tracker.actionLog,
-        matchActionState: overrides.matchActionState ?? base.tracker.matchActionState,
-        turnPhase: overrides.turnPhase ?? base.tracker.turnPhase,
-        settings: overrides.trackerSettings ?? base.tracker.settings,
-      },
-      dice: {
-        dieType: overrides.dieType ?? base.dice.dieType,
-        blueResult: overrides.blueDieResult ?? base.dice.blueResult,
-        redResult: overrides.redDieResult ?? base.dice.redResult,
-        blueLastDieType: overrides.blueLastDieType ?? base.dice.blueLastDieType,
-        redLastDieType: overrides.redLastDieType ?? base.dice.redLastDieType,
-      },
-    });
+    return mergeGameState(baseState, overrides);
   }
 
   function replaceGameTimeline(nextTimeline) {
@@ -3703,6 +3696,11 @@ function App() {
     const safeAfter = after || captureTimelineGameState();
     if (safeAfter.gameMode !== "match") return gameTimelineRef.current;
     const current = gameTimelineRef.current || createTimeline(safeBefore);
+    const actionTransaction = atomicTransactionForTransition(groupId, safeBefore, safeAfter);
+    const entryMetadata = {
+      ...(metadata && typeof metadata === "object" ? metadata : {}),
+      ...(actionTransaction ? { actionTransaction } : {}),
+    };
     const next = commitTimelineEntry(current, {
       ...(id ? { id } : {}),
       type,
@@ -3710,7 +3708,7 @@ function App() {
       actorId: user?.uid || clientIdRef.current,
       team,
       groupId,
-      metadata,
+      metadata: entryMetadata,
       before: safeBefore,
       after: safeAfter,
     }, { allowNoop });
@@ -4643,6 +4641,10 @@ function App() {
     if (hasChosenResult && (!Number.isInteger(requestedResult) || requestedResult < 1 || requestedResult > rollingDieType)) return;
     if (!(await reserveDiceRoll())) return;
     const beforeTimeline = captureTimelineGameState();
+    const activeActionTransaction = transactionForActionState(actionResolutionRef.current)
+      || (actionContinuationRef.current?.status === CONTINUATION_STATUS.ACTION_ACTIVE
+        ? transactionForActionState(actionContinuationRef.current)
+        : null);
     if (diceNoticeTimerRef.current) window.clearTimeout(diceNoticeTimerRef.current);
     setDiceNotice(null);
     const setRolling = team === "blue" ? setBlueDieRolling : setRedDieRolling;
@@ -4674,6 +4676,9 @@ function App() {
         type: "DICE_ROLLED",
         label: `${team === "blue" ? "Blue" : "Red"} D${rollingDieType}: ${result}${wasPassRoll ? " (interception)" : ""}${hasChosenResult ? " (chosen)" : ""}`,
         team,
+        groupId: activeActionTransaction?.undoMode === ACTION_TRANSACTION_UNDO_MODE.ATOMIC
+          ? activeActionTransaction.id
+          : null,
         metadata: { rollSource, chosenResult: hasChosenResult ? result : null },
         before: beforeTimeline,
         after: captureTimelineGameState({
@@ -4719,13 +4724,9 @@ function App() {
     const current = gameTimelineRef.current;
     if (!current) return;
     const lastEntry = current.entries?.[(current.cursor || 0) - 1];
-    // A Natural 20 continuation is one bounded gameplay transaction: choosing
-    // its one bonus action and resolving it must undo back to the ready state,
-    // never strand the board halfway through a pass preview.
-    const isBonusTransaction = Boolean(lastEntry?.groupId) && current.entries
-      .slice(0, current.cursor)
-      .some(entry => entry.groupId === lastEntry.groupId && entry.type === "BONUS_CARD_ACTION_STARTED");
-    const result = isBonusTransaction ? undoTimelineGroup(current) : undoTimeline(current);
+    const result = atomicTimelineTransactionId(lastEntry)
+      ? undoAtomicTimelineTransaction(current)
+      : undoTimeline(current);
     if (!result.state) return;
     replaceGameTimeline(result.timeline);
     applyTimelineGameState(result.state);
@@ -4738,10 +4739,9 @@ function App() {
     const current = gameTimelineRef.current;
     if (!current) return;
     const nextEntry = current.entries?.[current.cursor || 0];
-    const isBonusTransaction = Boolean(nextEntry?.groupId) && current.entries
-      .slice(current.cursor)
-      .some(entry => entry.groupId === nextEntry.groupId && entry.type === "BONUS_CARD_ACTION_STARTED");
-    const result = isBonusTransaction ? redoTimelineGroup(current) : redoTimeline(current);
+    const result = atomicTimelineTransactionId(nextEntry)
+      ? redoAtomicTimelineTransaction(current)
+      : redoTimeline(current);
     if (!result.state) return;
     replaceGameTimeline(result.timeline);
     applyTimelineGameState(result.state);
@@ -8548,8 +8548,12 @@ function App() {
 
   function beginPassTargeting(piece, { continuationId = null } = {}) {
     const team = pieceTeamKey(piece);
+    const continuationTransaction = continuationId && actionContinuationRef.current?.id === continuationId
+      ? transactionForActionState(actionContinuationRef.current)
+      : null;
+    const id = `pass_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const pending = {
-      id: `pass_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      id,
       kind: "pass",
       status: "targeting",
       passerId: piece.id,
@@ -8559,6 +8563,13 @@ function App() {
       naturalOnePenalty: 0,
       interceptorIndex: 0,
       continuationId,
+      transaction: continuationTransaction || createActionTransaction({
+        id,
+        actionType: "PASS",
+        team,
+        source: "pass",
+        undoMode: ACTION_TRANSACTION_UNDO_MODE.STEP,
+      }),
     };
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
     setLiveActionResolution(pending);
