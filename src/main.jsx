@@ -1971,6 +1971,11 @@ function App() {
   const [redDiceAnimationValue, setRedDiceAnimationValue] = useState(null);
   const [diceNotice, setDiceNotice] = useState(null);
   const [diceCooldownUntil, setDiceCooldownUntil] = useState(0);
+  // A host-controlled test aid. It changes only the source of a manual roll;
+  // all downstream dice, Timeline, reaction, and multiplayer flow remains the
+  // same as a normal roll.
+  const [chooseRollEnabled, setChooseRollEnabled] = useState(false);
+  const [chooseRollForTeam, setChooseRollForTeam] = useState(null);
   const [showCoordinates, setShowCoordinates] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
   const [measureType, setMeasureType] = useState("center");
@@ -2778,6 +2783,25 @@ function App() {
     }
   }
 
+  async function setChooseRollMode(enabled) {
+    if (sessionCode && !isSessionHost) return;
+    const nextEnabled = Boolean(enabled);
+    setChooseRollEnabled(nextEnabled);
+    if (!nextEnabled) setChooseRollForTeam(null);
+    if (!sessionCode || sessionEndingRef.current) return;
+    try {
+      await updateDoc(sessionRef(sessionCode.toUpperCase()), {
+        chooseRollEnabled: nextEnabled,
+        updatedAt: serverTimestamp(),
+        expiresAt: nextSessionExpiryDate(),
+        updatedBy: clientIdRef.current,
+      });
+    } catch (error) {
+      console.error("Choose Roll sync failed", error);
+      setSessionStatus("Online error");
+    }
+  }
+
   function scheduleSessionLiveSave() {
     if (!user || !sessionCode || gameMode === "match" || sessionEndingRef.current || isApplyingSessionRef.current || !sessionHydratedRef.current) return;
     sessionSavePendingRef.current = true;
@@ -2886,6 +2910,7 @@ function App() {
           blue: { value: null, dieType: 20 },
           red: { value: null, dieType: 20 },
         },
+        chooseRollEnabled: false,
         sharedRuler: {
           active: false,
           ownerUid: "",
@@ -3245,6 +3270,9 @@ function App() {
       }
 
       const data = snapshot.data();
+      const incomingChooseRollEnabled = Boolean(data.chooseRollEnabled);
+      setChooseRollEnabled(incomingChooseRollEnabled);
+      if (!incomingChooseRollEnabled) setChooseRollForTeam(null);
       const incomingTimelineMeta = data.sharedTimeline ? decodeFromFirestore(data.sharedTimeline) : null;
       sharedTimelineMetaRef.current = incomingTimelineMeta;
       if (incomingTimelineMeta) hydrateSharedTimelineIfReady();
@@ -3470,6 +3498,12 @@ function App() {
   }, [user?.uid, sessionCode]);
 
   useEffect(() => {
+    if (sessionCode) return;
+    setChooseRollEnabled(false);
+    setChooseRollForTeam(null);
+  }, [sessionCode]);
+
+  useEffect(() => {
     if (!sessionCode) return;
     const refreshCount = () => {
       presenceClockRef.current = Date.now();
@@ -3660,6 +3694,7 @@ function App() {
     after,
     team = null,
     groupId = null,
+    metadata = null,
     id = null,
     allowNoop = false,
   }) {
@@ -3675,6 +3710,7 @@ function App() {
       actorId: user?.uid || clientIdRef.current,
       team,
       groupId,
+      metadata,
       before: safeBefore,
       after: safeAfter,
     }, { allowNoop });
@@ -4581,11 +4617,23 @@ function App() {
     }
   }
 
-  async function rollTeamDie(team) {
+  function requestTeamDieRoll(team) {
     if (!canRollTeamDie(team)) return;
-    if (!(await reserveDiceRoll())) return;
+    if (chooseRollEnabled) {
+      setChooseRollForTeam(team);
+      return;
+    }
+    void rollTeamDie(team);
+  }
+
+  async function rollTeamDie(team, chosenResult = null) {
+    if (!canRollTeamDie(team)) return;
     const forcedPassDie = actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "awaiting-interception-roll";
     const rollingDieType = forcedPassDie ? 20 : dieType;
+    const hasChosenResult = chosenResult !== null && chosenResult !== undefined;
+    const requestedResult = hasChosenResult ? Number(chosenResult) : null;
+    if (hasChosenResult && (!Number.isInteger(requestedResult) || requestedResult < 1 || requestedResult > rollingDieType)) return;
+    if (!(await reserveDiceRoll())) return;
     const beforeTimeline = captureTimelineGameState();
     if (diceNoticeTimerRef.current) window.clearTimeout(diceNoticeTimerRef.current);
     setDiceNotice(null);
@@ -4603,7 +4651,8 @@ function App() {
     }, 80);
     window.setTimeout(async () => {
       window.clearInterval(animation);
-      const result = Math.floor(Math.random() * rollingDieType) + 1;
+      const result = hasChosenResult ? requestedResult : Math.floor(Math.random() * rollingDieType) + 1;
+      const rollSource = hasChosenResult ? "CHOSEN" : "RANDOM";
       const rollId = `${Date.now()}_${clientIdRef.current}_${team}`;
       pendingDiceRollRef.current[team] = sessionCode && gameMode !== "match" ? { rollId, result } : null;
       if (gameMode !== "match") diceSeenRollIdsRef.current[team] = rollId;
@@ -4615,8 +4664,9 @@ function App() {
       const wasPassRoll = registerPassRoll(team, result);
       const nextTimeline = recordTimelineTransition({
         type: "DICE_ROLLED",
-        label: `${team === "blue" ? "Blue" : "Red"} D${rollingDieType}: ${result}${wasPassRoll ? " (interception)" : ""}`,
+        label: `${team === "blue" ? "Blue" : "Red"} D${rollingDieType}: ${result}${wasPassRoll ? " (interception)" : ""}${hasChosenResult ? " (chosen)" : ""}`,
         team,
+        metadata: { rollSource, chosenResult: hasChosenResult ? result : null },
         before: beforeTimeline,
         after: captureTimelineGameState({
           blueDieResult: team === "blue" ? result : blueDieResult,
@@ -4639,6 +4689,7 @@ function App() {
               value: result,
               dieType: rollingDieType,
               rollId,
+              rollSource,
               rolledBy: user?.uid || "",
               rolledAt: serverTimestamp(),
             },
@@ -9448,6 +9499,37 @@ function App() {
     setDicePanelResizing(null);
   }
 
+  function renderTeamRollControl(team, { label = "ROLL", className = "" } = {}) {
+    const isRolling = team === "blue" ? blueDieRolling : redDieRolling;
+    const otherTeamRolling = team === "blue" ? redDieRolling : blueDieRolling;
+    const disabled = !canRollTeamDie(team) || isRolling || otherTeamRolling || diceCooldownUntil > Date.now();
+    const currentDieType = actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "awaiting-interception-roll"
+      ? 20
+      : dieType;
+    if (chooseRollEnabled && chooseRollForTeam === team) {
+      return (
+        <select
+          className={`choose-roll-select ${className}`.trim()}
+          value=""
+          autoFocus
+          aria-label={`Choose ${team} die result`}
+          onChange={e => {
+            const result = Number(e.target.value);
+            if (!Number.isInteger(result)) return;
+            setChooseRollForTeam(null);
+            void rollTeamDie(team, result);
+          }}
+        >
+          <option value="" disabled>Choose…</option>
+          {Array.from({ length: Math.max(2, Number(currentDieType) || 20) }, (_, index) => index + 1).map(result => (
+            <option key={result} value={result}>{result}</option>
+          ))}
+        </select>
+      );
+    }
+    return <button className={className} disabled={disabled} onClick={() => requestTeamDieRoll(team)}>{label}</button>;
+  }
+
   return (
     <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""} ${isReplayView ? "replay-mode" : ""}`}>
       <div className="topbar">
@@ -9610,6 +9692,13 @@ function App() {
           title={ruleSetEditingLocked ? "Rule Sets are locked while a Match is active." : "Manage the active Rule Set."}
         >
           Rules
+        </button>
+        <button
+          className={`choose-roll-toggle ${chooseRollEnabled ? "is-active" : "is-inactive"}`}
+          onClick={() => setChooseRollMode(!chooseRollEnabled)}
+          title="When enabled, Roll lets each team choose the die result for testing."
+        >
+          Choose Roll
         </button>
         </>
         )}
@@ -9943,9 +10032,9 @@ function App() {
             <select value={passInterceptionRollRequired ? 20 : dieType} disabled={passInterceptionRollRequired} onChange={e => setDieType(Number(e.target.value))}>
               <option value={20}>D20</option><option value={12}>D12</option><option value={10}>D10</option><option value={8}>D8</option><option value={6}>D6</option><option value={4}>D4</option>
             </select>
-            <button className="blue-die-button" disabled={!canRollTeamDie("blue") || blueDieRolling || redDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("blue")}>Blue</button>
+            {renderTeamRollControl("blue", { label: "Blue", className: "blue-die-button" })}
             <span className={`die-result blue-die-result ${!blueDieRolling && blueDieResult === 1 ? "die-min" : !blueDieRolling && blueDieResult === blueLastDieType ? "die-max" : ""}`}>{blueDieRolling ? (blueDiceAnimationValue ?? "—") : (blueDieResult ?? "—")}</span>
-            <button className="red-die-button" disabled={!canRollTeamDie("red") || redDieRolling || blueDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("red")}>Red</button>
+            {renderTeamRollControl("red", { label: "Red", className: "red-die-button" })}
             <span className={`die-result red-die-result ${!redDieRolling && redDieResult === 1 ? "die-min" : !redDieRolling && redDieResult === redLastDieType ? "die-max" : ""}`}>{redDieRolling ? (redDiceAnimationValue ?? "—") : (redDieResult ?? "—")}</span>
           </div>
           <button onClick={() => { const saved = beforeLockViewRef.current; setLockUI(false); if (saved) { setZoom(saved.zoom); setPanOffset(saved.panOffset); } else { setZoom(0.8); setPanOffset({x:0,y:0}); } }}>Unlock</button>
@@ -10043,12 +10132,12 @@ function App() {
               <div className="team-die-card blue-team-die">
                 <strong>BLUE DIE <small>D{blueLastDieType}</small></strong>
                 <span className={`team-die-value ${!blueDieRolling && blueDieResult === 1 ? "die-min" : !blueDieRolling && blueDieResult === blueLastDieType ? "die-twenty" : ""}`}>{blueDieRolling ? (blueDiceAnimationValue ?? "—") : (blueDieResult ?? "—")}</span>
-                <button disabled={!canRollTeamDie("blue") || blueDieRolling || redDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("blue")}>ROLL</button>
+                {renderTeamRollControl("blue")}
               </div>
               <div className="team-die-card red-team-die">
                 <strong>RED DIE <small>D{redLastDieType}</small></strong>
                 <span className={`team-die-value ${!redDieRolling && redDieResult === 1 ? "die-min" : !redDieRolling && redDieResult === redLastDieType ? "die-twenty" : ""}`}>{redDieRolling ? (redDiceAnimationValue ?? "—") : (redDieResult ?? "—")}</span>
-                <button disabled={!canRollTeamDie("red") || redDieRolling || blueDieRolling || diceCooldownUntil > Date.now()} onClick={() => rollTeamDie("red")}>ROLL</button>
+                {renderTeamRollControl("red")}
               </div>
             </div>
           </div>

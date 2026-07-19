@@ -42,6 +42,17 @@ test("commit, undo and redo use the same timeline entry", () => {
   assert.equal(redone.state.pieces[0].x, 2);
 });
 
+test("timeline entries retain explicit dice-test metadata", () => {
+  let timeline = createTimeline(state(1));
+  timeline = commitTimelineEntry(timeline, {
+    type: "DICE_ROLLED",
+    metadata: { rollSource: "CHOSEN", chosenResult: 20 },
+    before: state(1),
+    after: state(1),
+  }, { allowNoop: true });
+  assert.deepEqual(timeline.entries[0].metadata, { rollSource: "CHOSEN", chosenResult: 20 });
+});
+
 test("group undo and redo treat activation plus movements as one action", () => {
   let timeline = createTimeline(state(1));
   timeline = commitTimelineEntry(timeline, { type: "MOVE_ACTIVATED", groupId: "move-a", before: state(1), after: state(1) }, { allowNoop: true });

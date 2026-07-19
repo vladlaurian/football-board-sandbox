@@ -6746,10 +6746,14 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .team-die-card strong { font-size:12px; line-height:14px; letter-spacing:.8px; }
 .team-die-card button { width:100%; min-height:35px; padding:8px 10px; line-height:19px; border-radius:9px; border:1px solid rgba(255,255,255,.24); color:white; font-weight:900; cursor:pointer; }
 .team-die-card button:disabled { opacity:.42; cursor:not-allowed; }
+.team-die-card .choose-roll-select { width:100%; min-height:35px; padding:8px 10px; line-height:19px; border-radius:9px; border:1px solid rgba(255,255,255,.42); background:#141414; color:white; font-weight:900; cursor:pointer; }
+.dice-box .choose-roll-select { min-height:31px; padding:5px 7px; border-radius:8px; border:1px solid rgba(255,255,255,.42); background:#141414; color:white; font-weight:800; cursor:pointer; }
 .blue-team-die { background:rgba(22,93,232,.22); }
 .red-team-die { background:rgba(216,39,39,.22); }
 .blue-team-die button,.blue-die-button { background:#165de8!important; }
 .red-team-die button,.red-die-button { background:#d82727!important; }
+.blue-team-die .choose-roll-select { background:#165de8; }
+.red-team-die .choose-roll-select { background:#d82727; }
 .team-die-value { font-size:38px; line-height:1; font-weight:1000; font-variant-numeric:tabular-nums; }
 .blue-team-die .team-die-value,.blue-die-result { color:#75a7ff; }
 .red-team-die .team-die-value,.red-die-result { color:#ff8585; }
@@ -6759,6 +6763,8 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .dice-notice.red { background:#d82727; }
 .dice-notice-die { font-size:.72em; font-weight:800; letter-spacing:.25px; }
 .team-die-card strong small { opacity:.72; font-size:10px; margin-left:3px; }
+.choose-roll-toggle.is-active { border:2px solid #5bff7a !important; background:rgba(36,110,54,.58) !important; box-shadow:0 0 0 1px rgba(91,255,122,.18) inset; }
+.choose-roll-toggle.is-inactive { border:2px solid #ff5b5b !important; background:rgba(100,32,32,.34) !important; }
 
 /* Dice consistency: stable resize, fixed typography and special-result colors only. */
 .dice-resize { touch-action:none; }

@@ -8,6 +8,11 @@ function makeId(prefix = "timeline") {
   return `${prefix}_${Date.now()}_${random}`;
 }
 
+function normalizeEntryMetadata(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return { ...value };
+}
+
 export function createTimeline(initialState, metadata = {}) {
   return {
     schemaVersion: TIMELINE_SCHEMA_VERSION,
@@ -33,6 +38,7 @@ export function normalizeTimeline(raw, fallbackState) {
     actorId: entry?.actorId ? String(entry.actorId) : "",
     team: entry?.team === "blue" || entry?.team === "red" ? entry.team : null,
     groupId: entry?.groupId ? String(entry.groupId) : null,
+    metadata: normalizeEntryMetadata(entry?.metadata),
     createdAt: entry?.createdAt || new Date().toISOString(),
     before: createGameState(entry?.before || fallbackState || {}),
     after: createGameState(entry?.after || entry?.before || fallbackState || {}),
@@ -66,6 +72,7 @@ export function commitTimelineEntry(timeline, transition, options = {}) {
     actorId: transition?.actorId ? String(transition.actorId) : "",
     team: transition?.team === "blue" || transition?.team === "red" ? transition.team : null,
     groupId: transition?.groupId ? String(transition.groupId) : null,
+    metadata: normalizeEntryMetadata(transition?.metadata),
     createdAt: transition?.createdAt || new Date().toISOString(),
     before,
     after,

@@ -1,9 +1,12 @@
 # Football Board Sandbox
 
-## v19.6 — Pass cancellation, guided reaction dice, and reusable bonus continuation
+## v19.6 — Choose Roll test mode, guided reaction dice, and bonus continuation repairs
 
 ### Repair build
 
+- Added host-controlled `Choose Roll` test mode immediately after `Rules`. It is OFF by default (red border); when ON (green border), the active team's `ROLL` control opens an in-place result selector instead of generating a random value.
+- In multiplayer the host synchronizes the mode to the whole session. The guest does not see the top-toolbar setting, but can choose the result for their own permitted die while the host has enabled the mode.
+- A chosen value executes through the same roll handler as a random roll: cooldown, Dice display, pass reaction, delay, Timeline, replay, multiplayer, and result dialogs are unchanged. Timeline and AI export explicitly record its `CHOSEN` source so test data cannot masquerade as random play.
 - Fixed bonus continuation selection after its action completes: the bonus team can now select one of its players again in order to access the enabled `END TURN` button.
 - Bonus action internals now form one Undo/Redo transaction. Undoing a completed bonus Pass or Move returns directly to the Natural 20 “ready to choose one action” state; it cannot leave the cursor in an orphaned pass-target state.
 - Deleted the unused bonus-action cancellation helper rather than retaining a second, inactive state path.
@@ -22,11 +25,14 @@
 
 The former Natural 20 behavior retained an unresolved pass state after the interception. That correctly prevented conflicting pass input, but also blocked the bonus team from selecting any player. Bonus consequences are a general gameplay concept, so they now live outside the pass resolver and can be reused by later Shot, Dribble, Tackle, or similar mechanics.
 
+Choose Roll solves targeted testing without creating a second gameplay engine or bypassing the normal resolution path. It is a transparent input source for manual testing only.
+
 ### Problems resolved
 
 - A player cannot accidentally start another card action while choosing a pass target or route.
 - A pass preview can be cancelled deliberately from the same button without changing button dimensions or typography.
 - The correct manual reaction die is ready immediately; no automatic roll is introduced.
+- Natural 1, Natural 20, equal totals, stacked modifiers, and multi-roll sequences can now be reproduced immediately instead of waiting for random luck.
 - A Natural 20 no longer leaves the board in an unselectable state.
 - The bonus action is not written into Tracker action economy, but is auditable in History and AI analysis.
 
@@ -44,6 +50,7 @@ The former Natural 20 behavior retained an unresolved pass state after the inter
 4. Roll a Natural 20 interception, dismiss the result dialog, select any player on the intercepting team, and take one card action other than Group Move/Free Mode. Confirm Tracker counts do not increase.
 5. After that action, press `END TURN` and confirm possession remains with the intercepting team, the next turn begins, and normal Tracker economy resets.
 6. Use Undo/Redo around the completed bonus flow. Undo must return to the ready bonus-action state (not to a pass cursor); Redo must restore the completed action. Then repeat one pass in multiplayer and confirm both clients retain the same selectable/locked state and Dice availability.
+7. Enable `Choose Roll`: each valid `ROLL` button should become an in-place selector for its team. Choose 1, 20, and a tie-producing result; confirm the normal result dialogs, Timeline, replay, and AI analysis all record the same outcome, with the roll source marked `CHOSEN`.
 
 ## v19.5 — Pass SVG selection isolation and shared match-ball visual
 

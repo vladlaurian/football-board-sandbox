@@ -109,6 +109,23 @@ test("unlinked physical moves are explicitly exported as Manual Move", () => {
   assert.equal(exported.semanticTimeline[0].resolution.status, "NOT_AUTOMATED");
 });
 
+test("AI export distinguishes a deliberately chosen test roll from a random roll", () => {
+  const before = state();
+  const after = state({ dice: { ...before.dice, blueResult: 20 } });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, {
+    id: "chosen_roll",
+    type: "DICE_ROLLED",
+    label: "Blue D20: 20 (chosen)",
+    team: "blue",
+    metadata: { rollSource: "CHOSEN", chosenResult: 20 },
+    before,
+    after,
+  });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  assert.deepEqual(exported.semanticTimeline[0].diceRoll, { source: "CHOSEN", chosenResult: 20 });
+});
+
 test("AI export retains the exact interception modifier sources and cap", () => {
   const before = state({
     actionResolution: {

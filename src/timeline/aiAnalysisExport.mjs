@@ -261,6 +261,10 @@ function semanticEvent(entry, sequence, cardsById) {
     eventSource: eventSource(entry),
     type: semanticType(entry, trackerActions, movements),
     label: entry.label,
+    diceRoll: entry.type === "DICE_ROLLED" ? {
+      source: entry.metadata?.rollSource === "CHOSEN" ? "CHOSEN" : "RANDOM",
+      chosenResult: entry.metadata?.rollSource === "CHOSEN" ? Number(entry.metadata?.chosenResult) || null : null,
+    } : null,
     team,
     phase: String(eventState?.tracker?.turnPhase || "attack"),
     actor,
