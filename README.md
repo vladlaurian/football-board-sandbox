@@ -1,5 +1,44 @@
 # Football Board Sandbox
 
+## v19.11 — Generic action-resolution foundation and robust Pass roll identity
+
+### What changed
+
+- Added `src/match/actionResolutionEngine.mjs`, the generic foundation for pending decisions, pending roll requests and uniquely identified roll events.
+- Migrated Pass interception choices and rolls to explicit `pendingDecision` / `pendingRoll` state.
+- Random D20 and Choose Roll now produce the same serializable RollEvent contract.
+- Added duplicate-consumption protection: the same RollEvent ID cannot resolve twice, while two different events with the same natural value remain valid.
+- Added Undo/Redo controls inside the equal-interceptor prompt so a legitimate pending decision cannot trap the host behind a modal.
+- Added `docs/ACTION_RESOLUTION_ENGINE.md`, the canonical integration contract for future Dribble, Tackle, Shot and Cross modules.
+- Added automated tests for identical consecutive rolls, duplicate events, strict request matching, explicit pending decisions and a six-interceptor sequence.
+
+### Why
+
+The previous Pass implementation had reusable modules, but its complete orchestration was not yet represented by one generic action-resolution contract. This version establishes that contract without changing Pass gameplay rules.
+
+### Problems resolved
+
+- A second interception roll can no longer be confused with an earlier roll merely because both have the same D20 value.
+- A delayed/Firebase/re-render echo of the same roll event cannot resolve the action twice.
+- The host can navigate Undo/Redo while the equal-interceptor decision prompt is visible.
+- Future actions have a documented route into the same Timeline, Dice, Replay and multiplayer architecture instead of creating parallel systems.
+
+### Impact
+
+- Pass geometry, eligibility, modifier, Natural 1, Natural 20, bonus action and turn rules remain unchanged.
+- Match snapshots now contain explicit pending input and roll-event identity data.
+- Existing v19.10 recordings remain readable because legacy status fields are retained during this controlled migration.
+
+### Tests performed
+
+- Node test suite for all pure modules.
+- New generic-engine tests: same-value consecutive rolls, duplicate event rejection, request identity validation, explicit decision state and six sequential reactions.
+- Vite production build must pass before release is declared complete.
+
+### Architecture reference
+
+Future chats and engineers must read [`docs/ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md) before implementing any automated Match action.
+
 ## v19.10 — Atomic roll resolution and non-replaying result dialogs
 
 ### What changed

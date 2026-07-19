@@ -7495,3 +7495,4 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
     margin-top: calc(var(--cell) * -.05);
   }
 }
+.pending-decision-history-controls{display:flex;gap:6px;align-items:center}.pending-decision-history-controls button{display:flex;align-items:center;justify-content:center;padding:6px;border-radius:8px;border:1px solid rgba(255,255,255,.22);background:#252525;color:white;cursor:pointer}.pending-decision-history-controls button:disabled{opacity:.35;cursor:not-allowed}

@@ -291,6 +291,11 @@ function semanticEvent(entry, sequence, cardsById) {
     diceRoll: entry.type === "DICE_ROLLED" ? {
       source: entry.metadata?.rollSource === "CHOSEN" ? "CHOSEN" : "RANDOM",
       chosenResult: entry.metadata?.rollSource === "CHOSEN" ? Number(entry.metadata?.chosenResult) || null : null,
+      eventId: String(entry.metadata?.rollEvent?.id || "") || null,
+      requestId: String(entry.metadata?.rollEvent?.requestId || "") || null,
+      actionId: String(entry.metadata?.rollEvent?.actionId || "") || null,
+      subjectId: String(entry.metadata?.rollEvent?.subjectId || "") || null,
+      reactionIndex: Number.isFinite(Number(entry.metadata?.rollEvent?.reactionIndex)) ? Number(entry.metadata.rollEvent.reactionIndex) : null,
     } : null,
     team,
     phase: String(eventState?.tracker?.turnPhase || "attack"),

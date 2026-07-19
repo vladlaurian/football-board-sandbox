@@ -1,4 +1,4 @@
-export const DELAYED_RESOLUTION_SCHEMA_VERSION = 1;
+export const DELAYED_RESOLUTION_SCHEMA_VERSION = 2;
 
 function safeObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};

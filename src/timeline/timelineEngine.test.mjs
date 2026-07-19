@@ -236,3 +236,14 @@ test("sequential card actions accumulate in the state at the timeline cursor", (
   assert.deepEqual(finalState.tracker.actionLog.blue.map(item => item.type), types);
   assert.equal(finalState.tracker.usedActions.blue, 4);
 });
+
+test("a pending decision survives Undo and Redo as gameplay state", () => {
+  const beforeDecision = { ...state(1), actionResolution: { id: "pass-tie", kind: "pass", status: "awaiting-interceptor-choice", pendingDecision: { id: "decision-a", type: "CHOOSE_INTERCEPTOR", team: "red", options: [{ id: "R-1" }, { id: "R-2" }] } } };
+  const afterDecision = { ...beforeDecision, actionResolution: { ...beforeDecision.actionResolution, status: "awaiting-interception-roll", pendingDecision: null, pendingRoll: { requestId: "request-a", actionId: "pass-tie", team: "red", subjectId: "R-1", reactionIndex: 0 } } };
+  let timeline = createTimeline(beforeDecision);
+  timeline = commitTimelineEntry(timeline, { type: "PASS_INTERCEPTOR_SELECTED", before: beforeDecision, after: afterDecision });
+  const undone = undoTimeline(timeline);
+  assert.equal(undone.state.actionResolution.pendingDecision.id, "decision-a");
+  const redone = redoTimeline(undone.timeline);
+  assert.equal(redone.state.actionResolution.pendingRoll.requestId, "request-a");
+});

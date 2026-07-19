@@ -82,6 +82,15 @@ import {
   transactionForActionState,
 } from "./match/actionTransaction.mjs";
 import {
+  consumeActionEvent,
+  createActionEventId,
+  createPendingDecision,
+  createPendingRoll,
+  createRollEvent,
+  withPendingDecision,
+  withPendingRoll,
+} from "./match/actionResolutionEngine.mjs";
+import {
   createDelayedResolution,
   delayedResolutionAtCursor,
   delayedResolutionRemaining,
@@ -140,7 +149,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.10";
+const APP_VERSION = "v19.11";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4746,6 +4755,17 @@ function App() {
       setRolling(false);
       showDiceNotice(team, result, rollingDieType);
       const preparedPassRoll = preparePassInterceptionRoll(team, result);
+      const rollEvent = preparedPassRoll ? createRollEvent({
+        id: createActionEventId(`roll_${preparedPassRoll.actionId}`),
+        requestId: preparedPassRoll.requestId,
+        actionId: preparedPassRoll.actionId,
+        team,
+        dieType: rollingDieType,
+        natural: result,
+        source: rollSource,
+        subjectId: preparedPassRoll.defenderId,
+        reactionIndex: preparedPassRoll.interceptorIndex,
+      }) : null;
       const resolutionTransaction = preparedPassRoll
         ? {
             id: `resolution_${preparedPassRoll.actionId}_${Date.now()}_${clientIdRef.current}`,
@@ -4763,6 +4783,7 @@ function App() {
             payload: {
               defenderId: preparedPassRoll.defenderId,
               interceptorIndex: preparedPassRoll.interceptorIndex,
+              rollEvent,
               interceptionResolution: preparedPassRoll.interceptionResolution,
               undoTransaction: resolutionTransaction,
             },
@@ -4778,6 +4799,7 @@ function App() {
           : null,
         metadata: {
           rollSource,
+          rollEvent,
           chosenResult: hasChosenResult ? result : null,
           ...(resolutionTransaction ? { undoTransaction: resolutionTransaction } : {}),
           ...(delayedResolution ? { delayedResolution } : {}),
@@ -8678,6 +8700,41 @@ function App() {
     return continuation?.id || pending?.entryId || null;
   }
 
+  function passPendingDecision(pending, interceptorIndex = pending?.interceptorIndex || 0) {
+    const candidates = interceptorChoiceCandidates(pending?.plan?.interceptors, interceptorIndex);
+    if (candidates.length < 2) return null;
+    const team = teamKeyForPiece(candidates[0]?.defender);
+    return createPendingDecision({
+      id: createActionEventId(`decision_${pending.id}_${interceptorIndex}`),
+      type: "CHOOSE_INTERCEPTOR",
+      team,
+      options: candidates.map(item => ({ id: String(item?.defender?.id || ""), defenderId: String(item?.defender?.id || "") })),
+      context: { actionId: pending.id, interceptorIndex },
+    });
+  }
+
+  function passPendingRoll(pending, interceptorIndex = pending?.interceptorIndex || 0) {
+    const interceptor = pending?.plan?.interceptors?.[interceptorIndex];
+    const team = teamKeyForPiece(interceptor?.defender);
+    if (!interceptor || !team) return null;
+    return createPendingRoll({
+      requestId: createActionEventId(`roll_request_${pending.id}_${interceptorIndex}`),
+      actionId: pending.id,
+      team,
+      dieType: 20,
+      subjectId: interceptor?.defender?.id,
+      reactionIndex: interceptorIndex,
+      context: { actionType: "PASS", reactionType: "INTERCEPTION" },
+    });
+  }
+
+  function passWithNextInput(pending, interceptorIndex = pending?.interceptorIndex || 0) {
+    const decision = passPendingDecision(pending, interceptorIndex);
+    return decision
+      ? withPendingDecision({ ...pending, interceptorIndex }, decision)
+      : withPendingRoll({ ...pending, interceptorIndex }, passPendingRoll(pending, interceptorIndex));
+  }
+
   function beginPassTargeting(piece, { continuationId = null } = {}) {
     const team = pieceTeamKey(piece);
     const continuationTransaction = continuationId && actionContinuationRef.current?.id === continuationId
@@ -8694,6 +8751,10 @@ function App() {
       cornerId: null,
       naturalOnePenalty: 0,
       interceptorIndex: 0,
+      pendingDecision: null,
+      pendingRoll: null,
+      consumedEventIds: [],
+      lastRollEvent: null,
       continuationId,
       transaction: continuationTransaction || createActionTransaction({
         id,
@@ -8804,16 +8865,9 @@ function App() {
       setIllegalMoveNotice({ reason: activation.reason || "move-not-authorized" });
       return null;
     }
-    const reactionCandidates = interceptorChoiceCandidates(plan.interceptors, 0);
-    const next = {
+    const baseNext = {
       ...pending,
-      // A direct pass/no reaction does not have a die result and therefore
-      // must complete immediately, without the roll suspense state.
-      status: plan.directHit || !plan.interceptors.length
-        ? "completing"
-        : reactionCandidates.length > 1
-          ? "awaiting-interceptor-choice"
-          : "awaiting-interception-roll",
+      status: "completing",
       cornerId: plan.origin.cornerId,
       plan,
       entryId: activation.entry.id,
@@ -8821,7 +8875,12 @@ function App() {
       usedActions: activation.usedActions,
       matchActionState: activation.matchActionState,
       bonusContinuationId: continuation?.id || null,
+      pendingDecision: null,
+      pendingRoll: null,
     };
+    const next = plan.directHit || !plan.interceptors.length
+      ? baseNext
+      : passWithNextInput(baseNext, 0);
     return { next, activation, plan };
   }
 
@@ -8852,11 +8911,11 @@ function App() {
         ],
       },
     };
-    const next = {
+    const next = withPendingRoll({
       ...pending,
-      status: "awaiting-interception-roll",
       plan: nextPlan,
-    };
+      pendingDecision: null,
+    }, passPendingRoll({ ...pending, plan: nextPlan }, pending.interceptorIndex));
     setLiveActionResolution(next);
     recordTimelineTransition({
       type: "PASS_INTERCEPTOR_SELECTED",
@@ -9132,16 +9191,18 @@ function App() {
       return;
     }
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
-    const nextCandidates = interceptorChoiceCandidates(plan.interceptors, nextIndex);
-    const next = {
+    const advanced = {
       ...pending,
-      status: nextCandidates.length > 1 ? "awaiting-interceptor-choice" : "awaiting-interception-roll",
       interceptorIndex: nextIndex,
       naturalOnePenalty: (pending.naturalOnePenalty || 0) + (result.value === 1 ? -1 : 0),
       lastRoll: null,
       lastResolution: null,
+      lastRollEvent: null,
       resolutionTransaction: null,
+      pendingDecision: null,
+      pendingRoll: null,
     };
+    const next = passWithNextInput(advanced, nextIndex);
     setLiveActionResolution(next);
     const timeline = recordTimelineTransition({ type: "PASS_INTERCEPTION_MISSED", label: `${getPieceDisplayLabel(defender)} cannot intercept — next reaction required`, team: teamKeyForPiece(defender), groupId: passTimelineGroupId(pending), metadata: passInterceptionTimelineMetadata(pending), before, after: mergeTimelineGameState(before, { actionResolution: next }), allowNoop: true });
     presentPassResultEntry(timeline?.entries?.[timeline.cursor - 1]);
@@ -9150,11 +9211,18 @@ function App() {
   function preparePassInterceptionRoll(team, value) {
     const pending = actionResolutionRef.current;
     const interceptor = pending?.plan?.interceptors?.[pending.interceptorIndex];
-    if (pending?.kind !== "pass" || pending.status !== "awaiting-interception-roll" || teamKeyForPiece(interceptor?.defender) !== team) return null;
+    if (
+      pending?.kind !== "pass"
+      || pending.status !== "awaiting-interception-roll"
+      || pending.pendingRoll?.team !== team
+      || String(pending.pendingRoll?.subjectId || "") !== String(interceptor?.defender?.id || "")
+      || Number(pending.pendingRoll?.reactionIndex) !== Number(pending.interceptorIndex)
+    ) return null;
     const defender = (piecesRef.current || pieces).find(piece => piece.id === interceptor?.defender?.id);
     if (!defender) return null;
     return {
       actionId: pending.id,
+      requestId: pending.pendingRoll.requestId,
       defenderId: defender.id,
       interceptorIndex: pending.interceptorIndex,
       interceptionResolution: buildInterceptionRollDetails({ pending, defender, interceptor, natural: value }),
@@ -9175,12 +9243,15 @@ function App() {
       || teamKeyForPiece(interceptor?.defender) !== request.team
     ) return;
     const defender = (piecesRef.current || pieces).find(piece => piece.id === interceptor?.defender?.id);
-    if (!defender || !Number.isFinite(Number(request.value))) return;
+    const rollEvent = request.payload?.rollEvent;
+    if (!defender || !Number.isFinite(Number(request.value)) || !rollEvent) return;
+    const consumed = consumeActionEvent(pending, rollEvent);
+    if (!consumed) return;
     const recordedResolution = request.payload?.interceptionResolution
       || buildInterceptionRollDetails({ pending, defender, interceptor, natural: request.value });
     resolveRecordedPassInterception({
-      ...pending,
-      lastRoll: { team: request.team, value: Number(request.value) },
+      ...consumed,
+      lastRoll: { team: request.team, value: Number(request.value), eventId: rollEvent.id, requestId: rollEvent.requestId },
       lastResolution: recordedResolution,
       resolutionTransaction: request.payload?.undoTransaction || null,
     });
@@ -10559,7 +10630,13 @@ function App() {
         const teamName = defenseTeam === "blue" ? "Blue" : "Red";
         return <div className="modal-backdrop interceptor-choice-backdrop">
           <div className={`modal interceptor-choice-modal ${defenseTeam || ""}`} role="dialog" aria-modal="true">
-            <div className="modal-title"><strong>Choose interceptor</strong></div>
+            <div className="modal-title">
+              <strong>Choose interceptor</strong>
+              {(!sessionCode || isSessionHost) && <div className="pending-decision-history-controls">
+                <button type="button" onClick={undo} disabled={!gameTimeline?.cursor} title="Undo"><Undo2 size={15} /></button>
+                <button type="button" onClick={redo} disabled={(gameTimeline?.cursor || 0) >= (gameTimeline?.entries?.length || 0)} title="Redo"><Redo2 size={15} /></button>
+              </div>}
+            </div>
             <div className="interceptor-choice-message">
               {canChoose
                 ? `${teamName} has equally ranked eligible defenders. Choose who attempts the next interception.`
