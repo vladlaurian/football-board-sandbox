@@ -1379,7 +1379,7 @@ select option {
 .pass-action-prompt span { font-size: .9rem; color: #d9e1eb; }
 .pass-action-prompt button { justify-self: center; margin-top: 4px; }
 .pass-action-prompt.warning { border-color: #f0804b; }
-.pass-action-prompt.resolving { border-color: #8dbbf9; }
+.pass-action-prompt.waiting { border-color: #8dbbf9; }
 .pass-action-prompt.bonus { border-color: #c881ff; }
 .pass-route-modal { width: min(600px, calc(100vw - 30px)); }
 .pass-route-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }

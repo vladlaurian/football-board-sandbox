@@ -83,7 +83,7 @@ test("atomic action metadata makes activation, roll and result one undoable tran
   const ready = { ...state(1), actionResolution: null, actionContinuation: { id: "bonus-a", kind: "bonus-card-action", team: "blue", status: "ready" } };
   const active = { ...ready, actionContinuation: { ...ready.actionContinuation, status: "action-active", actionType: "PASS", pieceId: "A-1" } };
   const targeting = { ...active, actionResolution: { id: "pass-a", kind: "pass", status: "targeting" } };
-  const rolled = { ...active, actionResolution: { id: "pass-a", kind: "pass", status: "resolving" }, dice: { blueResult: 20 } };
+  const rolled = { ...active, actionResolution: { id: "pass-a", kind: "pass", status: "awaiting-interception-roll" }, dice: { blueResult: 20 } };
   const complete = { ...state(3), actionResolution: null, actionContinuation: { ...active.actionContinuation, status: "awaiting-end-bonus-action" } };
   const metadata = { actionTransaction: { id: "bonus-a", actionType: "PASS", team: "blue", source: "natural-20-interception", undoMode: "atomic" } };
   let timeline = createTimeline(ready);

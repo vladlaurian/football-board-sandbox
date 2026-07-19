@@ -130,7 +130,7 @@ test("AI export retains the exact interception modifier sources and cap", () => 
   const before = state({
     actionResolution: {
       kind: "pass",
-      status: "resolving",
+      status: "awaiting-interception-roll",
       plan: {
         pathMode: "corner-to-center", origin: { x: 10, y: 8 }, requestedTarget: { x: 15, y: 8 }, target: { x: 15, y: 8 }, distance: 5,
         isLong: false, foot: { foot: "Right", dominant: false }, passerPass: 14, directHit: null,
@@ -142,15 +142,15 @@ test("AI export retains the exact interception modifier sources and cap", () => 
         },
         interceptors: [{ defender: { id: "blue-1" }, firstEntryT: 0.25, priorityDistance: 5, priorityDistanceSquared: 25, priorityMethod: "passer-square-center-to-defender-square-center", orderModifier: 0 }],
       },
-      lastResolution: {
-        natural: 12, total: 16, outcome: "interception", passerPass: 14, rawModifier: 5, modifier: 4, modifierCap: 4, capped: true,
-        modifierSources: [{ label: "Interception", value: 3, source: "card" }, { label: "Advantage", value: 1, source: "interceptor-order", detail: "second interceptor" }, { label: "Advantage", value: 1, source: "non-preferred-foot", detail: "non-preferred foot" }],
-      },
     },
   });
   const after = state({ pieces: before.pieces, actionResolution: null });
+  const interceptionResolution = {
+    natural: 12, total: 16, outcome: "interception", passerPass: 14, rawModifier: 5, modifier: 4, modifierCap: 4, capped: true,
+    modifierSources: [{ label: "Interception", value: 3, source: "card" }, { label: "Advantage", value: 1, source: "interceptor-order", detail: "second interceptor" }, { label: "Advantage", value: 1, source: "non-preferred-foot", detail: "non-preferred foot" }],
+  };
   let timeline = createTimeline(before);
-  timeline = commitTimelineEntry(timeline, { id: "pass_roll", type: "PASS_INTERCEPTED", label: "Blue intercepts", team: "blue", before, after });
+  timeline = commitTimelineEntry(timeline, { id: "pass_roll", type: "PASS_INTERCEPTED", label: "Blue intercepts", team: "blue", metadata: { interceptionResolution }, before, after });
   const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
   const roll = exported.semanticTimeline[0].resolution.interceptionRoll;
   assert.equal(roll.appliedModifier, 4);

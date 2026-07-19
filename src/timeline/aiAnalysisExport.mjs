@@ -269,6 +269,10 @@ function semanticEvent(entry, sequence, cardsById) {
       ? before.actionResolution
       : null;
   const passPlan = passResolution?.plan || null;
+  const interceptionResolution = entry.metadata?.interceptionResolution
+    || entry.metadata?.delayedResolution?.payload?.interceptionResolution
+    || passResolution?.lastResolution
+    || null;
   const continuation = after?.actionContinuation || before?.actionContinuation || null;
   return {
     eventId: String(entry.id),
@@ -336,17 +340,17 @@ function semanticEvent(entry, sequence, cardsById) {
           orderModifier: item.orderModifier,
         })),
       },
-      interceptionRoll: passResolution.lastResolution ? {
-        natural: passResolution.lastResolution.natural,
-        total: passResolution.lastResolution.total,
-        outcome: passResolution.lastResolution.outcome,
-        passerPass: passResolution.lastResolution.passerPass,
-        rawModifier: passResolution.lastResolution.rawModifier,
-        appliedModifier: passResolution.lastResolution.modifier,
-        modifierCap: passResolution.lastResolution.modifierCap,
-        capped: Boolean(passResolution.lastResolution.capped),
-        modifierSources: passResolution.lastResolution.modifierSources || [],
-        appliedModifierSources: passResolution.lastResolution.appliedModifierSources || passResolution.lastResolution.modifierSources || [],
+      interceptionRoll: interceptionResolution ? {
+        natural: interceptionResolution.natural,
+        total: interceptionResolution.total,
+        outcome: interceptionResolution.outcome,
+        passerPass: interceptionResolution.passerPass,
+        rawModifier: interceptionResolution.rawModifier,
+        appliedModifier: interceptionResolution.modifier,
+        modifierCap: interceptionResolution.modifierCap,
+        capped: Boolean(interceptionResolution.capped),
+        modifierSources: interceptionResolution.modifierSources || [],
+        appliedModifierSources: interceptionResolution.appliedModifierSources || interceptionResolution.modifierSources || [],
       } : null,
     } : {
       status: "NOT_AUTOMATED",

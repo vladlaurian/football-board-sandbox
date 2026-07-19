@@ -1,5 +1,52 @@
 # Football Board Sandbox
 
+## v19.9 — Timeline-derived delayed resolution
+
+### What changed
+
+- Removed the persistent Pass state `resolving` and deleted the independent Pass-resolution timer that could not be restored by Timeline.
+- A manual interception roll is now committed immediately as one stable `DICE_ROLLED` entry while the gameplay state remains `awaiting-interception-roll`.
+- The two-second suspense period is derived from serializable metadata on the currently applied dice entry. It is cosmetic orchestration, not a gameplay snapshot or an extra History step.
+- Undo before the dice entry removes the pending deadline and cancels its local timer. Redo of the dice entry reconstructs the same pending deadline deterministically; an expired restored deadline resolves immediately.
+- In multiplayer, both host and guest derive and display the same waiting state. Only the host applies the authoritative consequence and publishes the resulting Timeline entry.
+- Changing to Editor Mode explicitly clears the pending action, continuation, selection, target cursor, and result dialog. Import/replay suppresses live delayed resolution and cannot leave a background timer active.
+- Added a generic `delayedResolution` match-engine module so future Dribble, Tackle, Shot, and Cross rolls can use the same stable event/deadline pattern.
+- Interception roll details remain attached to Timeline metadata and are read by both the result dialog and AI Analysis Export; no calculation data was lost when the temporary state was removed.
+
+### Why it changed
+
+The old implementation saved `status: resolving` inside the gameplay snapshot and separately started a browser `setTimeout`. Undo/Redo could restore the snapshot but could not restore the timer. The application therefore returned to a state that permanently waited for a callback which no longer existed, leaving the target cursor and action controls blocked.
+
+### Problems resolved
+
+- Undo from an interception result can no longer restore an orphaned `Resolving interception… Please wait.` state.
+- Redo can no longer retain a Pass target cursor after the corresponding roll or action is no longer applied.
+- Entering Editor Mode can no longer carry an unfinished Match action into the free editor.
+- A stale timer from an abandoned redo branch cannot resolve against a newer action.
+- Guest no longer skips the suspense delay or sees the authoritative result before the host applies it.
+
+### Impact
+
+- The Pass formula, modifier cap, Natural 1, Natural 20, normal interception, bonus continuation, Tracker economy, and manual dice requirement are unchanged.
+- History keeps the meaningful `DICE_ROLLED` and outcome entries; it does not gain a cosmetic `resolving` step.
+- Save Match, replay, Undo, Redo, Firebase Timeline synchronization, and AI Analysis Export all use the same stable roll event and outcome metadata.
+- Editor, Inspector, and Export card rendering are unchanged.
+- Older recordings remain readable. New v19.9 recordings no longer create `resolving` snapshots.
+
+### Verification focus
+
+1. Trigger an interception roll, then Undo while `Resolving interception…` is visible. Confirm the wait disappears, the cursor/control state matches the restored Timeline entry, and the abandoned timer never applies a later result.
+2. Redo the `DICE_ROLLED` entry. Confirm both the wait and outcome return without rolling again; if more than two seconds elapsed, the outcome may apply immediately.
+3. After a Natural 20 bonus action, test Undo/Redo through the Pass roll and result, then select a legal new bonus action.
+4. During the wait, switch to Editor Mode. Confirm there is no target cursor, waiting prompt, blocked card action, or delayed result in Editor Mode.
+5. In multiplayer, roll from either permitted team. Confirm host and guest both see the wait, neither can roll again during it, and both receive the same host-authored outcome after it.
+6. Export AI Analysis and confirm the interception natural result, total, Pass target, modifier sources, cap, and outcome are still present.
+
+### Verified locally
+
+- `npm test`: 72/72 tests passed.
+- `npm run build`: Vite production build passed. The existing bundle-size warning remains non-fatal.
+
 ## v19.8 — Defender-controlled interception priority
 
 ### What changed
