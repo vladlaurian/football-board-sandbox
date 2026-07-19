@@ -1,8 +1,11 @@
 # Football Board Sandbox
 
-## v19.6 — Choose Roll test mode, guided reaction dice, and bonus continuation repairs
+## v19.6 — Choose Roll test mode, guided reaction dice, bonus continuation, and pass-route corrections
 
 ### Repair build
+
+- Pass preview colour now reflects real interception eligibility: a route stays green when it crosses a defensive area whose defender is geometrically blocked from reaching the ball. It becomes red only when at least one eligible interceptor exists.
+- Added a route-origin rule for corner-to-centre passing: an origin corner shared with an active opposing player's square is unavailable and cannot consume a Tracker action. Same-team pieces, inactive pieces, and centre-to-centre passing are unaffected.
 
 - Added host-controlled `Choose Roll` test mode immediately after `Rules`. It is OFF by default (red border); when ON (green border), the active team's `ROLL` control opens an in-place result selector instead of generating a random value.
 - In multiplayer the host synchronizes the mode to the whole session. The guest does not see the top-toolbar setting, but can choose the result for their own permitted die while the host has enabled the mode.

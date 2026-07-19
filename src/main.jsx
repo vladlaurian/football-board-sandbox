@@ -4826,6 +4826,7 @@ function App() {
     else if (result.reason === "occupied") primary = <>The destination cell is occupied by another player.</>;
     else if (result.reason === "movement-ended") primary = <>This player has no legal movement remaining during the current turn.</>;
     else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE MODE before moving this player, or advance to next turn.</>;
+    else if (result.reason === "pass-origin-blocked") primary = <>A pass cannot start from a corner shared with an opposing player.</>;
     else if (result.reason === "team-exhausted") primary = <>Wait for opponent team or advance to next turn.</>;
     else if (result.reason === "wait-opponent") primary = <>Wait for opponent team.</>;
     else if (result.reason === "wait-active-team") primary = <>Wait for the opponent to finish their turn, or use Free Mode.</>;
@@ -5610,7 +5611,8 @@ function App() {
       cornerId,
       rules: activeRuleSet,
     }));
-    const chosen = plans.find(plan => plan.origin.cornerId === pending.cornerId) || plans[0];
+    const validPlans = plans.filter(plan => !plan.originBlocked);
+    const chosen = validPlans.find(plan => plan.origin.cornerId === pending.cornerId) || validPlans[0] || plans[0];
     const visibleCells = chosen?.interceptors.flatMap(item => item.visibleCells.map(cell => ({ ...cell, id: `${item.defender.id}-${cell.id}` }))) || [];
     const visibleIds = new Set(visibleCells.map(cell => `${cell.x}-${cell.y}`));
     const blockedCells = chosen?.interceptors.flatMap(item => item.cells.filter(cell => !visibleIds.has(`${cell.x}-${cell.y}`)).map(cell => ({ ...cell, id: `${item.defender.id}-${cell.id}` }))) || [];
@@ -5620,21 +5622,21 @@ function App() {
       target: pending.target,
       visibleCells,
       blockedCells,
-      lines: plans.map(plan => ({
+      lines: validPlans.map(plan => ({
         id: plan.origin.cornerId || "center",
         origin: plan.origin,
         endpoint: plan.endpoint,
-        risk: Boolean(plan.defensiveAreaCrossings?.length),
+        risk: Boolean(plan.interceptors?.length),
         selected: plan.origin.cornerId === pending.cornerId || (plans.length === 1 && !pending.cornerId),
       })),
-      routes: pending.status === "route-selection" ? plans.map(plan => ({
+      routes: pending.status === "route-selection" ? validPlans.map(plan => ({
         id: plan.origin.cornerId || "center",
         cornerId: plan.origin.cornerId,
         origin: plan.origin,
         foot: plan.foot?.foot === "Left" ? "LF" : plan.foot?.foot === "Right" ? "RF" : "BF",
         modifier: plan.foot?.dominant ? "0" : "-1",
         isLong: plan.isLong,
-        risk: Boolean(plan.defensiveAreaCrossings?.length),
+        risk: Boolean(plan.interceptors?.length),
       })) : [],
     };
   }, [actionResolution, pieces, cardById, settings, activeRuleSet]);
@@ -8615,6 +8617,20 @@ function App() {
     if (pending?.kind !== "pass" || pending.status !== "route-selection" || !pending.target) return null;
     const passer = (piecesRef.current || pieces).find(piece => piece.id === pending.passerId);
     if (!passer) return null;
+    const plan = buildPassPlan({
+      passer,
+      passerCard: cardById[passer.cardId],
+      pieces: piecesRef.current || pieces,
+      cardById,
+      settings: settingsRef.current,
+      target: pending.target,
+      cornerId,
+      rules: activeRuleSetRef.current,
+    });
+    if (plan.originBlocked) {
+      setIllegalMoveNotice({ reason: "pass-origin-blocked" });
+      return null;
+    }
     const continuation = pending.continuationId && actionContinuationRef.current?.id === pending.continuationId
       ? actionContinuationRef.current
       : null;
@@ -8637,16 +8653,6 @@ function App() {
       setIllegalMoveNotice({ reason: activation.reason || "move-not-authorized" });
       return null;
     }
-    const plan = buildPassPlan({
-      passer,
-      passerCard: cardById[passer.cardId],
-      pieces: piecesRef.current || pieces,
-      cardById,
-      settings: settingsRef.current,
-      target: pending.target,
-      cornerId,
-      rules: activeRuleSetRef.current,
-    });
     const next = {
       ...pending,
       // A direct pass/no reaction does not have a die result and therefore

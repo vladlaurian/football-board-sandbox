@@ -104,6 +104,26 @@ export function firstPlayerHit(origin, target, pieces, passerId) {
   return hits[0] || null;
 }
 
+/**
+ * A corner-to-centre pass cannot begin from a corner shared with an opposing
+ * player's occupied square. This is a route-origin rule, not a collision on
+ * the pass segment: the normal open-rectangle intersection deliberately
+ * ignores the segment's starting point.
+ */
+export function opponentBlockingPassOrigin(origin, passer, pieces) {
+  const passingTeam = teamKeyForPiece(passer);
+  if (!origin?.cornerId || !passingTeam) return null;
+  const defendingTeam = oppositeTeam(passingTeam);
+  return (pieces || []).find(piece => {
+    if (!piece || piece.id === passer?.id || piece.team === "BALL" || piece.inactive) return false;
+    if (teamKeyForPiece(piece) !== defendingTeam) return false;
+    return PASS_CORNERS.some(corner => (
+      Math.abs(Number(piece.x) + corner.x - Number(origin.x)) < EPSILON
+      && Math.abs(Number(piece.y) + corner.y - Number(origin.y)) < EPSILON
+    ));
+  }) || null;
+}
+
 export function isCellVisibleToDefender(defender, cell, pieces) {
   const from = { x: Number(defender.x) + 0.5, y: Number(defender.y) + 0.5 };
   const to = { x: Number(cell.x) + 0.5, y: Number(cell.y) + 0.5 };
@@ -168,6 +188,7 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
   const passRules = rules?.actions?.pass || rules || {};
   const pathMode = passRules.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center";
   const origin = pointForPassOrigin(passer, pathMode, cornerId);
+  const originBlocker = opponentBlockingPassOrigin(origin, passer, pieces);
   const targetPoint = pointForPassTarget(target);
   const distance = passDistance(origin, targetPoint);
   const hit = firstPlayerHit(origin, targetPoint, pieces, passer.id);
@@ -197,6 +218,8 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     kind: "pass-plan",
     pathMode,
     origin,
+    originBlocked: Boolean(originBlocker),
+    originBlocker: originBlocker ? { pieceId: originBlocker.id, team: teamKeyForPiece(originBlocker) } : null,
     requestedTarget: { x: Number(target.x), y: Number(target.y) },
     target: effectiveTarget,
     endpoint: effectiveTargetPoint,
