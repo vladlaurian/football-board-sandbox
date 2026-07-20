@@ -2157,7 +2157,6 @@ function App() {
   const actionContinuationRef = useRef(actionContinuation);
   const delayedResolutionTimerRef = useRef(null);
   const delayedResolutionEntryIdRef = useRef("");
-  const invalidatedDelayedResolutionEntryIdsRef = useRef(new Set());
   const delayedResolutionExecutionRef = useRef(createResolutionExecutionRegistry());
   const shownPassResultEntryIdsRef = useRef(new Set());
   const liveTimelinePresentationReadyRef = useRef(false);
@@ -2889,23 +2888,7 @@ function App() {
     setLiveDelayedResolutionEntryId("");
   }
 
-  function invalidateDelayedResolutionForTimelineTravel(timeline) {
-    const canonical = canonicalDelayedResolutionContext(timeline);
-    const activeEntryId = String(canonical?.request?.entryId || delayedResolutionEntryIdRef.current || "");
-    if (activeEntryId) {
-      invalidatedDelayedResolutionEntryIdsRef.current.add(activeEntryId);
-      // Keep the guard bounded during long sandbox sessions.
-      if (invalidatedDelayedResolutionEntryIdsRef.current.size > 100) {
-        const oldest = invalidatedDelayedResolutionEntryIdsRef.current.values().next().value;
-        invalidatedDelayedResolutionEntryIdsRef.current.delete(oldest);
-      }
-      multiplayerTracerRef.current.multiplayer("RESOLUTION_INVALIDATED_BY_TIMELINE_TRAVEL", {
-        entryId: activeEntryId,
-        actionId: canonical?.request?.actionId || "",
-        cursor: timeline?.cursor ?? null,
-        revision: timeline?.revision ?? null,
-      });
-    }
+  function resetDelayedResolutionForTimelineTravel() {
     cancelDelayedResolutionTimer();
     pendingDiceRollRef.current = { blue: null, red: null };
     diceRollingRef.current = { blue: false, red: false };
@@ -2915,6 +2898,7 @@ function App() {
       window.clearTimeout(diceCooldownTimerRef.current);
       diceCooldownTimerRef.current = null;
     }
+    multiplayerTracerRef.current.multiplayer("RESOLUTION_CANCELLED_BY_TIMELINE_TRAVEL", {});
     if (sessionCode) {
       void deleteDoc(sessionRuntimeRef(sessionCode.toUpperCase(), "dice")).catch(error => {
         multiplayerTracerRef.current.error("UNDO_DICE_RUNTIME_CLEAR_FAILED", error, { sessionCode });
@@ -2922,7 +2906,7 @@ function App() {
     }
   }
 
-  function scheduleDelayedResolution(request) {
+  function scheduleDelayedResolution(request, sourceTimeline = gameTimelineRef.current) {
     const traceId = String(request?.payload?.traceId || request?.payload?.rollEvent?.traceId || request?.traceId || actionTraceIdsRef.current.get(request?.actionId) || "");
     if (!request) {
       multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "missing delayed-resolution request", { traceId });
@@ -2937,24 +2921,29 @@ function App() {
       multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "missing timeline entry id", { traceId, actionId: request.actionId });
       return;
     }
-    if (invalidatedDelayedResolutionEntryIdsRef.current.has(entryId)) {
-      multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "invalidated by undo or redo", {
+    const canonicalAtSchedule = canonicalDelayedResolutionContext(sourceTimeline);
+    if (!canonicalAtSchedule
+      || canonicalAtSchedule.request.entryId !== entryId
+      || canonicalAtSchedule.request.actionId !== request.actionId) {
+      multiplayerTracerRef.current.guard("RESOLUTION_SCHEDULE_SKIPPED", "request is not canonical at live cursor", {
         traceId,
         entryId,
         actionId: request.actionId,
+        diagnosis: diagnoseCanonicalDelayedResolution(sourceTimeline, entryId),
       });
       return;
     }
-    // Repeated Firestore snapshots must not restart the same suspense timer.
-    if (delayedResolutionEntryIdRef.current === entryId && delayedResolutionTimerRef.current) {
-      multiplayerTracerRef.current.guard("RESOLUTION_SCHEDULE_SKIPPED", "already scheduled", { traceId, entryId });
+    // Repeated Firestore snapshots must not restart the same suspense timer or
+    // repeatedly re-open the same waiting overlay on either client.
+    if (delayedResolutionEntryIdRef.current === entryId) {
+      multiplayerTracerRef.current.guard("RESOLUTION_SCHEDULE_SKIPPED", "already active", { traceId, entryId });
       return;
     }
     cancelDelayedResolutionTimer();
     delayedResolutionEntryIdRef.current = entryId;
     setLiveDelayedResolutionEntryId(entryId);
     if (sessionCode && !sessionAuthorityRef.current.isHost) {
-      multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "not host", { traceId, entryId, actionId: request.actionId, ownerUid: sessionAuthorityRef.current.ownerUid, userUid: sessionAuthorityRef.current.userUid });
+      multiplayerTracerRef.current.multiplayer("GUEST_RESOLUTION_WAITING", { traceId, entryId, actionId: request.actionId });
       return;
     }
     multiplayerTracerRef.current.multiplayer("HOST_RESOLUTION_SCHEDULED", { traceId, entryId, actionId: request.actionId, resolveAt: request.resolveAt });
@@ -3023,10 +3012,17 @@ function App() {
 
     // A normal live roll may arrive here from the other player. A historical
     // cursor or a timeline that already has a later outcome never owns a timer.
-    if (hydratedTimeline?.cursor !== hydratedTimeline?.entries?.length) return;
+    if (hydratedTimeline?.cursor !== hydratedTimeline?.entries?.length) {
+      cancelDelayedResolutionTimer();
+      multiplayerTracerRef.current.multiplayer("RESOLUTION_CANCELLED_BY_REMOTE_TIMELINE_TRAVEL", {
+        cursor: hydratedTimeline?.cursor ?? null,
+        entryCount: hydratedTimeline?.entries?.length ?? null,
+      });
+      return;
+    }
     const state = timelineStateAt(hydratedTimeline, hydratedTimeline.cursor);
     const request = delayedResolutionAtCursor(hydratedTimeline, state?.actionResolution);
-    if (request) scheduleDelayedResolution(request);
+    if (request) scheduleDelayedResolution(request, hydratedTimeline);
   }
 
   function ensureHostCanonicalDelayedResolution(timeline) {
@@ -3039,7 +3035,7 @@ function App() {
       sessionEnding: sessionEndingRef.current,
       timeline,
       request,
-    })) scheduleDelayedResolution(request);
+    })) scheduleDelayedResolution(request, timeline);
   }
 
   function hydrateSharedTimelineIfReady() {
@@ -5111,7 +5107,7 @@ function App() {
       }
       if (delayedResolution && nextTimeline) {
         const diceEntry = nextTimeline.entries[nextTimeline.cursor - 1];
-        scheduleDelayedResolution({ ...delayedResolution, entryId: String(diceEntry?.id || "") });
+        scheduleDelayedResolution({ ...delayedResolution, entryId: String(diceEntry?.id || "") }, nextTimeline);
       }
       if (team === "blue") setBlueLastDieType(rollingDieType);
       else setRedLastDieType(rollingDieType);
@@ -5144,7 +5140,7 @@ function App() {
     if (!replayModeRef.current && sessionCode && !isSessionHost) return;
     const current = gameTimelineRef.current;
     if (!current) return;
-    invalidateDelayedResolutionForTimelineTravel(current);
+    resetDelayedResolutionForTimelineTravel();
     setPassResultNotice(null);
     const lastEntry = current.entries?.[(current.cursor || 0) - 1];
     const result = atomicTimelineTransactionId(lastEntry)
@@ -5161,7 +5157,7 @@ function App() {
     if (!replayModeRef.current && sessionCode && !isSessionHost) return;
     const current = gameTimelineRef.current;
     if (!current) return;
-    invalidateDelayedResolutionForTimelineTravel(current);
+    resetDelayedResolutionForTimelineTravel();
     setPassResultNotice(null);
     const nextEntry = current.entries?.[current.cursor || 0];
     const result = atomicTimelineTransactionId(nextEntry)

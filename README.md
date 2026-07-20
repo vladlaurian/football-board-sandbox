@@ -1710,3 +1710,12 @@ The 3/2 possession rule is active only in Match Mode.
 - Late Firestore snapshots cannot reschedule an invalidated dice resolution.
 - Local dice pending/cooldown state and the shared runtime dice lock are cleared during Timeline travel.
 - Normal pass, interception, and Bonus Action resolution logic is unchanged.
+
+
+## v19.22 — canonical pre-schedule guard + multiplayer Undo cleanup
+
+- Removed the experimental local invalidated-entry set from v19.21.
+- Delayed resolution is now accepted only when the supplied Timeline is canonical at the live cursor and matches the exact entry/action.
+- Remote cursor travel explicitly clears the delayed-resolution timer and waiting overlay on both clients.
+- Guest clients keep only the waiting overlay; only the Host owns the resolution timer.
+- Undo/Redo still clear transient dice runtime state, but no longer rely on local stale-entry memory.
