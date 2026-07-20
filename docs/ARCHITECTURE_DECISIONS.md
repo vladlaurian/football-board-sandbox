@@ -75,3 +75,19 @@ README records release changes. This file records durable architectural decision
 **Status:** Active
 
 **Decision:** Every future chat or engineer making a major architectural change must update this file in the same build. A release is not architecturally complete when durable decisions changed but this log did not.
+
+
+## ADR-007 — Separate ephemeral runtime locks from canonical session gameplay writes
+
+**Status:** Accepted
+
+**Decision:** Ephemeral coordination values such as the shared dice cooldown live in small runtime documents under `sessions/{code}/runtime/*`. They must not be written into the canonical session document used to publish Timeline metadata. Canonical Timeline entry + metadata publication uses an atomic batch after semantic revision validation, with bounded retry for transient transport/service failures.
+
+**Reason:** A Firestore transaction on the main session document acquired an update-time precondition. Heartbeat or dice-cooldown writes changed that same document and caused `failed-precondition`, preventing the host from publishing `PASS_INTERCEPTED` while both clients remained at `Resolving interception…`.
+
+**Consequences:**
+
+- Unrelated runtime writes no longer invalidate gameplay publication.
+- Timeline entry and metadata remain atomically visible in one batch.
+- Semantic revision conflicts remain explicit and are not silently overwritten.
+- Runtime subcollection documents must be deleted when ending a session.

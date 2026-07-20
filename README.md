@@ -1,5 +1,14 @@
 # Football Board Sandbox
 
+## v19.15 — Firestore contention audit and durable interception commit
+
+- Confirmed fixes retained: teammate-target passes still execute eligible interceptions; modifier totals remain visible; identical consecutive rolls and Bonus Action decline remain intact.
+- Audited the v19.13/v19.14 delayed-resolution changes. Canonical host resolution is retained as hardening, not treated as the root fix.
+- Timeline gameplay writes now use an atomic Firestore batch after semantic revision validation, instead of a transaction whose document-version precondition was invalidated by unrelated writes.
+- Timeline commits retry with bounded exponential backoff for transient Firestore failures and expose explicit `COMMIT_STARTED`, `COMMIT_CONFIRMED`, and `COMMIT_FAILED` console diagnostics.
+- The global dice cooldown moved from the heavily contested session document to `sessions/{code}/runtime/dice`, eliminating the observed `failed-precondition` collision with Timeline publication.
+- End Session now removes runtime documents as part of session cleanup.
+
 ## v19.14 — Canonical host interception resolution
 
 - The multiplayer host now resolves a guest interception roll from the canonical Timeline cursor state, not from a potentially stale React ref.

@@ -152,7 +152,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.14";
+const APP_VERSION = "v19.15";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -199,6 +199,13 @@ function sessionCardsCollectionRef(code) {
 
 function sessionTimelineEntriesCollectionRef(code) {
   return collection(db, "sessions", String(code || "").toUpperCase(), "timelineEntries");
+}
+function sessionRuntimeCollectionRef(code) {
+  return collection(db, "sessions", String(code || "").toUpperCase(), "runtime");
+}
+
+function sessionRuntimeRef(code, key) {
+  return doc(sessionRuntimeCollectionRef(code), String(key || "state"));
 }
 
 function sessionCardRef(code, cardId) {
@@ -2719,15 +2726,20 @@ function App() {
   }
 
   async function syncTimelineStateToSession(previousTimeline, nextTimeline, state, entry = null, { baseline = false } = {}) {
-    if (!sessionCode || sessionEndingRef.current || isApplyingSessionRef.current) return;
+    if (!sessionCode || sessionEndingRef.current || isApplyingSessionRef.current) return true;
     const code = sessionCode.toUpperCase();
     const previous = previousTimeline ? normalizeTimeline(previousTimeline, state) : null;
     const next = normalizeTimeline(nextTimeline, state);
     const nextState = createGameState(state);
     const sessionDocumentRef = sessionRef(code);
-    try {
-      await runTransaction(db, async transaction => {
-        const snap = await transaction.get(sessionDocumentRef);
+    const maxAttempts = 5;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        // Read only for semantic conflict detection. The actual write is a batch
+        // without a document-version precondition, so unrelated heartbeat/dice
+        // writes cannot invalidate a gameplay commit after this read.
+        const snap = await getDoc(sessionDocumentRef);
         if (!snap.exists()) throw new Error("Session missing");
         const remoteMeta = snap.data().sharedTimeline || null;
         if (!baseline && remoteMeta && previous && remoteMeta.recordingId === previous.recordingId) {
@@ -2752,10 +2764,9 @@ function App() {
           blue: { value: nextState.dice.blueResult, dieType: nextState.dice.blueLastDieType, rollId: blueRollId },
           red: { value: nextState.dice.redResult, dieType: nextState.dice.redLastDieType, rollId: redRollId },
         };
+        const batch = writeBatch(db);
 
         if (baseline) {
-          // The baseline establishes the full projection once. Later timeline
-          // events update only compact canonical metadata and their own entry.
           const board = buildLiveBoardState({
             settings: nextState.settings,
             pieces: nextState.pieces,
@@ -2763,7 +2774,7 @@ function App() {
             dieType: nextState.dice.dieType,
             dieResult: { blue: nextState.dice.blueResult, red: nextState.dice.redResult },
           });
-          transaction.set(sessionDocumentRef, {
+          batch.set(sessionDocumentRef, {
             board: encodeForFirestore(board),
             sharedTracker: encodeForFirestore(sharedTracker),
             sharedTimeline: encodeForFirestore(sharedTimeline),
@@ -2775,10 +2786,7 @@ function App() {
             updatedBy: clientIdRef.current,
           }, { merge: true });
         } else {
-          // Do not resend board + initialState for every roll/action. Keeping the
-          // existing initialState and updating only timeline metadata prevents
-          // Firestore transactions from growing with unrelated board data.
-          transaction.update(sessionDocumentRef, {
+          batch.update(sessionDocumentRef, {
             "sharedTimeline.cursor": sharedTimeline.cursor,
             "sharedTimeline.revision": sharedTimeline.revision,
             "sharedTimeline.entryCount": sharedTimeline.entryCount,
@@ -2792,20 +2800,35 @@ function App() {
           });
         }
         if (entry) {
-          transaction.set(sessionTimelineEntryRef(code, next.recordingId, entry.sequence), {
+          batch.set(sessionTimelineEntryRef(code, next.recordingId, entry.sequence), {
             recordingId: next.recordingId,
             sequence: entry.sequence,
             entry: encodeForFirestore(entry),
             updatedAt: serverTimestamp(),
           }, { merge: false });
         }
-      });
-      sessionLastSaveAtRef.current = Date.now();
-      if (!sessionEndingRef.current) setSessionStatus("Online saved");
-    } catch (error) {
-      console.error("Timeline sync failed", error);
-      if (!sessionEndingRef.current) setSessionStatus(error?.code === "timeline-conflict" ? "Timeline conflict — refreshing" : "Timeline sync error");
+
+        console.info("[TimelineSync] COMMIT_STARTED", { type: entry?.type || "BASELINE", revision: next.revision, attempt });
+        await batch.commit();
+        console.info("[TimelineSync] COMMIT_CONFIRMED", { type: entry?.type || "BASELINE", revision: next.revision, attempt });
+        sessionLastSaveAtRef.current = Date.now();
+        if (!sessionEndingRef.current) setSessionStatus("Online saved");
+        return true;
+      } catch (error) {
+        const retryable = ["aborted", "failed-precondition", "unavailable", "deadline-exceeded", "resource-exhausted"].includes(error?.code);
+        console.error("[TimelineSync] COMMIT_FAILED", { type: entry?.type || "BASELINE", revision: next.revision, attempt, code: error?.code, error });
+        if (error?.code === "timeline-conflict") {
+          if (!sessionEndingRef.current) setSessionStatus("Timeline conflict — refreshing");
+          throw error;
+        }
+        if (!retryable || attempt >= maxAttempts) {
+          if (!sessionEndingRef.current) setSessionStatus("Timeline sync error");
+          throw error;
+        }
+        await new Promise(resolve => window.setTimeout(resolve, 150 * (2 ** (attempt - 1))));
+      }
     }
+    return false;
   }
 
   function cancelDelayedResolutionTimer() {
@@ -2995,6 +3018,13 @@ function App() {
     for (let start = 0; start < timelineDocs.length; start += 450) {
       const batch = writeBatch(db);
       for (const timelineDoc of timelineDocs.slice(start, start + 450)) batch.delete(timelineDoc.ref);
+      await batch.commit();
+    }
+    const runtimeSnapshot = await getDocs(sessionRuntimeCollectionRef(normalizedCode));
+    const runtimeDocs = runtimeSnapshot.docs;
+    for (let start = 0; start < runtimeDocs.length; start += 450) {
+      const batch = writeBatch(db);
+      for (const runtimeDoc of runtimeDocs.slice(start, start + 450)) batch.delete(runtimeDoc.ref);
       await batch.commit();
     }
     await deleteDoc(sessionRef(normalizedCode));
@@ -3403,6 +3433,18 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!user || !sessionCode) return undefined;
+    const unsub = onSnapshot(sessionRuntimeRef(sessionCode.toUpperCase(), "dice"), snapshot => {
+      if (!snapshot.exists()) return;
+      const sharedCooldownUntil = Math.max(0, Number(snapshot.data().cooldownUntil) || 0);
+      if (sharedCooldownUntil > diceCooldownUntilRef.current) applyDiceCooldown(sharedCooldownUntil);
+    }, error => {
+      console.error("Dice runtime sync failed", error);
+    });
+    return () => unsub();
+  }, [user, sessionCode]);
+
+  useEffect(() => {
     if (!user || !sessionCode) return;
 
     setSessionStatus("Connecting...");
@@ -3469,8 +3511,6 @@ function App() {
         }
       }
 
-      const sharedCooldownUntil = Math.max(0, Number(data.sharedDiceCooldownUntil) || 0);
-      if (sharedCooldownUntil > diceCooldownUntilRef.current) applyDiceCooldown(sharedCooldownUntil);
       const ruler = data.sharedRuler || {};
       const rulerActive = !!ruler.active;
       setMeasureMode(rulerActive);
@@ -4745,17 +4785,22 @@ function App() {
       return true;
     }
     try {
-      const ref = sessionRef(sessionCode.toUpperCase());
+      // Dice locking lives in its own tiny runtime document. It must never
+      // invalidate the session Timeline transaction or heartbeat writes.
+      const ref = sessionRuntimeRef(sessionCode.toUpperCase(), "dice");
       await runTransaction(db, async transaction => {
         const snap = await transaction.get(ref);
-        if (!snap.exists()) throw new Error("Session missing");
-        const currentUntil = Math.max(0, Number(snap.data().sharedDiceCooldownUntil) || 0);
+        const currentUntil = snap.exists() ? Math.max(0, Number(snap.data().cooldownUntil) || 0) : 0;
         if (currentUntil > now) {
           const error = new Error("Dice cooldown");
           error.code = "dice-cooldown";
           throw error;
         }
-        transaction.set(ref, { sharedDiceCooldownUntil: until, updatedAt: serverTimestamp(), expiresAt: nextSessionExpiryDate() }, { merge: true });
+        transaction.set(ref, {
+          cooldownUntil: until,
+          reservedBy: clientIdRef.current,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
       });
       applyDiceCooldown(until);
       return true;
