@@ -292,6 +292,15 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     attackerTargetStatId: "stat:passing",
     attackerTargetValue: cardStat(passerCard, "stat:passing"),
     passerPass: cardStat(passerCard, "stat:passing"), // legacy projection
+    // Freeze the Interception configuration into the canonical action plan so
+    // host and guest always resolve the same roll in multiplayer.
+    interceptionRules: {
+      defenderRollStatId: interceptionRules.defenderRollStatId || "stat:interception",
+      useStandardModifiers: interceptionRules.useStandardModifiers !== false,
+      useProgressiveBonus: interceptionRules.useProgressiveBonus !== false,
+      modifierCap: Number.isFinite(Number(interceptionRules.modifierCap)) ? Number(interceptionRules.modifierCap) : 4,
+      equalRollOutcome: interceptionRules.equalRollOutcome === "interception" ? "interception" : "pass-succeeds",
+    },
     directHit: hit ? { pieceId: hit.piece.id, team: teamKeyForPiece(hit.piece), entryT: hit.entryT } : null,
     passCells,
     defensiveAreaCrossings,

@@ -139,3 +139,13 @@ Not implemented in v20:
 - Long Pass endpoint-only interception geometry.
 - Separate origin and destination interception groups.
 - Progressive-bonus reset between Long Pass endpoint groups.
+
+## Multiplayer authority boundary
+
+The Interception result is resolved only by the session host. When a player rolls, the shared Timeline carries the manual dice event and identity data. The host then reads the canonical pending pass action and the Interception configuration frozen into its pass plan, recomputes the result, and commits the outcome.
+
+This prevents host/guest Rule Set drift and avoids treating a client-generated resolution object as authoritative.
+
+## Rule Sets modal usability
+
+The Rule Sets editor is constrained to the viewport and scrolls internally. Its title and action controls remain sticky so Save is always reachable on smaller displays.

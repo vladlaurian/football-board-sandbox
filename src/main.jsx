@@ -156,7 +156,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.23";
+const APP_VERSION = "v20";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4957,7 +4957,6 @@ function App() {
               defenderId: preparedPassRoll.defenderId,
               interceptorIndex: preparedPassRoll.interceptorIndex,
               rollEvent,
-              interceptionResolution: preparedPassRoll.interceptionResolution,
               undoTransaction: resolutionTransaction,
             },
           })
@@ -8951,7 +8950,7 @@ function App() {
 
   function buildInterceptionRollDetails({ pending, defender, interceptor, natural }) {
     const plan = pending.plan;
-    const interceptionRules = activeRuleSetRef.current.actions?.interception || {};
+    const interceptionRules = plan.interceptionRules || activeRuleSetRef.current.actions?.interception || {};
     const defenderRollStatId = interceptionRules.defenderRollStatId || "stat:interception";
     const interception = cardStat(cardById[defender.cardId], defenderRollStatId);
     const orderModifier = interceptionRules.useProgressiveBonus === false ? 0 : (Number(interceptor?.orderModifier) || 0);
@@ -9246,8 +9245,10 @@ function App() {
     // Validation succeeded. Clear the cosmetic wait only now; an invalid or
     // stale local ref must not permanently suppress a canonical retry.
     cancelDelayedResolutionTimer();
-    const recordedResolution = request.payload?.interceptionResolution
-      || buildInterceptionRollDetails({ pending, defender, interceptor, natural: request.value });
+    // Multiplayer resolution is host-authoritative. Recompute from the
+    // canonical action plan and its frozen Interception rules instead of
+    // trusting a client-precomputed result carried in the dice event.
+    const recordedResolution = buildInterceptionRollDetails({ pending, defender, interceptor, natural: request.value });
     multiplayerTracerRef.current.multiplayer("ROLL_RECEIVED", { traceId, actionId: request.actionId, requestId: rollEvent.requestId, eventId: rollEvent.id, value: request.value });
     resolveRecordedPassInterception({
       ...consumed,

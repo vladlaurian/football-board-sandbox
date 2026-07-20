@@ -1774,3 +1774,10 @@ The 3/2 possession rule is active only in Match Mode.
 - Compact team-colored action controls remove the Inspector horizontal scrollbar.
 - Turn phase is included in local saves and shared tracker state for multiplayer compatibility.
 
+
+### v20 multiplayer/UI hotfix
+
+- Sandbox header now displays `v20`.
+- Rule Sets modal is height-limited and vertically scrollable; title and Save controls remain reachable.
+- Interception resolution in multiplayer is host-authoritative. The pass plan freezes the active Interception configuration, and the host recomputes the result from the canonical Timeline state after receiving the dice event.
+- Client-precomputed Interception outcomes are no longer trusted as the multiplayer source of truth.

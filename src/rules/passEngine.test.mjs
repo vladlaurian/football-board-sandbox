@@ -166,3 +166,37 @@ test("maximum total modifier clamps negative totals symmetrically", () => {
   assert.equal(result.modifierCap, 4);
   assert.equal(result.capped, true);
 });
+
+
+test("pass plan freezes Interception rules for canonical multiplayer resolution", () => {
+  const passer = { id: "passer", team: "A", x: 1, y: 1, cardId: "pass-card" };
+  const passerCard = { passiveAttributes: [{ id: "stat:passing", name: "Passing", value: 12 }] };
+  const plan = buildPassPlan({
+    passer,
+    passerCard,
+    pieces: [passer],
+    cardById: { "pass-card": passerCard },
+    settings: { cols: 20, rows: 12 },
+    target: { x: 6, y: 1 },
+    cornerId: null,
+    rules: {
+      actions: {
+        pass: { pathMode: "center-to-center", longPassThreshold: 15 },
+        interception: {
+          defenderRollStatId: "stat:tackling",
+          useStandardModifiers: false,
+          useProgressiveBonus: false,
+          modifierCap: 2,
+          equalRollOutcome: "interception",
+        },
+      },
+    },
+  });
+  assert.deepEqual(plan.interceptionRules, {
+    defenderRollStatId: "stat:tackling",
+    useStandardModifiers: false,
+    useProgressiveBonus: false,
+    modifierCap: 2,
+    equalRollOutcome: "interception",
+  });
+});
