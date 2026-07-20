@@ -98,6 +98,7 @@ import {
   delayedResolutionRemaining,
   shouldScheduleCanonicalDelayedResolution,
 } from "./match/delayedResolution.mjs";
+import { createResolutionExecutionRegistry } from "./match/resolutionExecutionRegistry.mjs";
 import {
   canAccessPrimaryToolbar,
   createSharedTimelineMeta,
@@ -154,7 +155,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.17";
+const APP_VERSION = "v19.18";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2155,6 +2156,7 @@ function App() {
   const actionContinuationRef = useRef(actionContinuation);
   const delayedResolutionTimerRef = useRef(null);
   const delayedResolutionEntryIdRef = useRef("");
+  const delayedResolutionExecutionRef = useRef(createResolutionExecutionRegistry());
   const shownPassResultEntryIdsRef = useRef(new Set());
   const liveTimelinePresentationReadyRef = useRef(false);
   const [sessionCardsById, setSessionCardsById] = useState({});
@@ -2932,7 +2934,25 @@ function App() {
       // The host resolves from the canonical Timeline cursor state. React refs
       // may lag behind a Firestore hydration and must never veto authority.
       multiplayerTracerRef.current.multiplayer("HOST_RESOLUTION_STARTED", { traceId, entryId, actionId: canonical.request.actionId });
-      applyDelayedActionResolution(canonical.request, canonical.actionResolution);
+      const execution = delayedResolutionExecutionRef.current.run(
+        { entryId, actionId: canonical.request.actionId },
+        () => applyDelayedActionResolution(canonical.request, canonical.actionResolution),
+      );
+      if (execution.status === "already-active") {
+        multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "resolution already executing", { traceId, entryId, actionId: canonical.request.actionId });
+        return;
+      }
+      if (execution.status === "failed") {
+        multiplayerTracerRef.current.error("RESOLUTION_FAILED", execution.error, {
+          traceId,
+          entryId,
+          actionId: canonical.request.actionId,
+          requestId: canonical.request?.payload?.rollEvent?.requestId || "",
+          eventId: canonical.request?.payload?.rollEvent?.id || "",
+        });
+        return;
+      }
+      multiplayerTracerRef.current.multiplayer("HOST_RESOLUTION_COMPLETED", { traceId, entryId, actionId: canonical.request.actionId });
     }, delayedResolutionRemaining(request));
   }
 

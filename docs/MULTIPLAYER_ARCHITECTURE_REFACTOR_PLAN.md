@@ -143,3 +143,11 @@ Automated coverage includes tracer activation/guard output, rollback eligibility
 - Long-lived Firebase callbacks and delayed timers read the ref rather than a stale React closure.
 - The timer revalidates ownership when it fires, so a client that lost host authority cannot commit a resolution.
 - No Pass rule, outcome calculation, Timeline schema, Undo/Redo behavior, or AI export format changed.
+
+
+## v19.18 — delayed-resolution execution diagnostics
+
+- Added a reusable single-flight resolution execution registry keyed by Timeline entry and action.
+- Host delayed resolutions now emit `RESOLUTION_FAILED` with the original exception metadata instead of leaving an unexplained gap after `ROLL_RECEIVED`.
+- Concurrent processing of the same canonical Timeline entry is rejected and traced.
+- This is diagnostic and execution-safety infrastructure; no Pass rule or outcome logic was changed.

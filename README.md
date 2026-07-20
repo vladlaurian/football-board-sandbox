@@ -1,6 +1,6 @@
 # Football Board Sandbox
 
-## v19.17 — Durable multiplayer host authority during Firebase hydration
+## v19.18 — Durable multiplayer host authority during Firebase hydration
 
 - Fixed the interception-resolution deadlock caused by Firebase listeners retaining the pre-hydration `isSessionHost = false` closure.
 - Long-lived listeners and delayed-resolution timers now read current session ownership from one authoritative ref.
