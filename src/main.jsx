@@ -93,6 +93,7 @@ import {
 } from "./match/actionResolutionEngine.mjs";
 import {
   canonicalDelayedResolutionContext,
+  diagnoseCanonicalDelayedResolution,
   createDelayedResolution,
   delayedResolutionAtCursor,
   delayedResolutionRemaining,
@@ -2926,7 +2927,13 @@ function App() {
       const currentTimeline = gameTimelineRef.current;
       const canonical = canonicalDelayedResolutionContext(currentTimeline);
       if (!canonical || canonical.request.entryId !== entryId) {
-        multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "stale timeline or missing canonical request", { traceId, entryId, canonicalEntryId: canonical?.request?.entryId || "" });
+        const diagnosis = diagnoseCanonicalDelayedResolution(currentTimeline, entryId);
+        multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "stale timeline or missing canonical request", {
+          traceId,
+          entryId,
+          canonicalEntryId: canonical?.request?.entryId || "",
+          diagnosis,
+        });
         delayedResolutionEntryIdRef.current = "";
         setLiveDelayedResolutionEntryId("");
         return;

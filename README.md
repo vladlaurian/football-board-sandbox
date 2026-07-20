@@ -1,5 +1,13 @@
 # Football Board Sandbox
 
+## v19.20 — Surgical canonical-resolution diagnostics
+
+- Diagnostic-only build: no Pass, Undo/Redo, Natural 20, Bonus Action or multiplayer gameplay rules changed.
+- Expanded the existing Multiplayer Tracer specifically at `stale timeline or missing canonical request`.
+- The abort now reports the precise failed invariant: live-edge cursor, cursor entry type, missing `after` state, missing/mismatched `actionResolution`, delayed-resolution metadata, or expected-entry mismatch.
+- Includes Timeline revision/cursor/count, expected and cursor entry identities, request/action/trace IDs, and a compact list of recent delayed roll entries.
+- Added regression tests proving the diagnostic is observational and classifies canonical-context failures.
+
 ## v19.19 — Canonical Timeline state for delayed multiplayer resolution
 
 - Fixed delayed Host resolution using stale React `gameMode` captured by Firebase listener closures.

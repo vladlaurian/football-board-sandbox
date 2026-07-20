@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   canonicalDelayedResolutionContext,
   createDelayedResolution,
+  diagnoseCanonicalDelayedResolution,
   delayedResolutionAtCursor,
   delayedResolutionRemaining,
   shouldScheduleCanonicalDelayedResolution,
@@ -65,4 +66,37 @@ test("host resolution context is derived from the canonical cursor state", () =>
   assert.equal(context?.actionResolution?.id, "pass-1");
   assert.equal(canonicalDelayedResolutionContext({ cursor: 0, entries: [rollEntry] }), null);
   assert.equal(canonicalDelayedResolutionContext({ cursor: 1, entries: [rollEntry, { id: "later" }] }), null);
+});
+
+
+test("diagnoses the exact canonical-request rejection without mutating gameplay", () => {
+  const rollEntry = {
+    id: "roll-1",
+    type: "DICE_ROLLED",
+    metadata: { delayedResolution: request },
+    after: { actionResolution: pendingPass },
+  };
+  const live = diagnoseCanonicalDelayedResolution({ revision: 7, cursor: 1, entries: [rollEntry] }, "roll-1");
+  assert.equal(live.reason, "canonical-context-found");
+  assert.equal(live.canonicalFound, true);
+  assert.equal(live.cursorEntryRequestId, "");
+
+  const undone = diagnoseCanonicalDelayedResolution({ revision: 8, cursor: 0, entries: [rollEntry] }, "roll-1");
+  assert.equal(undone.reason, "cursor-is-zero");
+  assert.equal(undone.expectedEntryApplied, false);
+
+  const laterEntry = { id: "later", type: "PLAYER_MOVED", after: { actionResolution: pendingPass } };
+  const stale = diagnoseCanonicalDelayedResolution({ revision: 9, cursor: 2, entries: [rollEntry, laterEntry] }, "roll-1");
+  assert.equal(stale.reason, "cursor-entry-is-not-dice-roll");
+  assert.equal(stale.expectedEntryIndex, 0);
+  assert.equal(stale.cursorEntryId, "later");
+
+  const mismatchEntry = {
+    ...rollEntry,
+    after: { actionResolution: { ...pendingPass, id: "pass-2" } },
+  };
+  const mismatch = diagnoseCanonicalDelayedResolution({ cursor: 1, entries: [mismatchEntry] }, "roll-1");
+  assert.equal(mismatch.reason, "action-id-mismatch");
+  assert.equal(mismatch.cursorEntryActionId, "pass-1");
+  assert.equal(mismatch.actionResolutionId, "pass-2");
 });
