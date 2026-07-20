@@ -92,35 +92,3 @@ This plan is complete only after the new architecture is implemented, the legacy
 # DELETE THIS DOCUMENT WHEN RESOLVED
 
 When every requirement in this plan has been implemented and validated, **delete this file from the repository**. It is a temporary migration plan and must not remain as an apparently unresolved architecture problem.
-
-## v19.16 investigation — Multiplayer Debug Tracer and failed optimistic commits
-
-### Validated failure path
-
-1. In v19.15 every multiplayer dice roll first called `reserveDiceRoll()`.
-2. That function required a transaction against `sessions/{code}/runtime/dice`.
-3. Any `permission-denied` / “Missing or insufficient permissions” response returned `false`.
-4. `rollTeamDie()` therefore exited before creating `DICE_ROLLED`; the guest had no roll button outcome and the host had no canonical event to resolve.
-5. Separately, Timeline publication errors were caught by the queue and only logged. The client retained the optimistic local revision. Because reconciliation rejects older remote revisions, that client could remain indefinitely on `Resolving interception…` after the failed publication.
-
-### Implemented development instrumentation
-
-A permanent centralized tracer now lives in `src/multiplayer/debugTracer.mjs`.
-
-Activation:
-
-- `window.DEBUG_MULTIPLAYER = true`, or
-- `window.__DEBUG_MULTIPLAYER__ = true`, or
-- `localStorage.setItem("DEBUG_MULTIPLAYER", "true")` followed by reload.
-
-The tracer emits structured events under `[MultiplayerTrace]` and carries a Trace ID through roll creation, Timeline queueing, Firebase commit, host resolution, guards, rollback, retry and commit confirmation. Guard exits include an explicit reason; no gameplay result is changed by the tracer.
-
-### v19.16 correction
-
-- The runtime dice lock is explicitly treated as advisory coordination, not gameplay authority. When that separate runtime document is unavailable because of permissions or transient service availability, the client uses the existing local cooldown and proceeds to canonical Timeline revision validation.
-- A failed optimistic Timeline publication now rolls the local client back to the exact previous canonical Timeline only when the failed revision is still current. A newer local revision is never overwritten.
-- The Timeline remains the canonical multiplayer authority; Pass rules and the Generic Action Resolution Engine are unchanged.
-
-### Regression evidence
-
-Automated coverage includes tracer activation/guard output, rollback eligibility, Action Resolution, Pass, multiple interceptors, identical consecutive rolls, Undo/Redo transaction behavior, Bonus Action continuation and AI export. Browser/Firebase two-client verification remains required against the deployed project rules to validate Host, Guest and Reconnect end to end.

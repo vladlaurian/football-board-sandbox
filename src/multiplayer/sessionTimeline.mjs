@@ -89,10 +89,3 @@ export function canAccessPrimaryToolbar({ sessionActive = false, isSessionHost =
 export function normalizeSessionStatusLabel(value, fallback = "Offline") {
   return typeof value === "string" && value.trim() ? value : fallback;
 }
-
-export function shouldRollbackFailedTimelineCommit(currentTimeline, failedTimeline) {
-  if (!currentTimeline || !failedTimeline) return false;
-  const current = normalizeTimeline(currentTimeline, {});
-  const failed = normalizeTimeline(failedTimeline, {});
-  return current.recordingId === failed.recordingId && current.revision === failed.revision;
-}

@@ -1,13 +1,5 @@
 # Football Board Sandbox
 
-## v19.16 — Multiplayer Debug Tracer and durable failed-commit recovery
-
-- Added a centralized, opt-in Multiplayer Debug Tracer with action Trace IDs and structured diagnostics for Session, Timeline, Firebase, Roll, Resolution, UI, Heartbeat, Ownership, Retry, Commit, Undo and Redo paths.
-- Demonstrated the guest-roll failure path: v19.15 made the advisory `runtime/dice` document a hard prerequisite, so Firestore permission errors aborted the roll before `DICE_ROLLED` existed.
-- Runtime dice-lock permission/transient failures now degrade to the existing local cooldown; canonical Timeline revision validation remains the gameplay concurrency authority.
-- Failed optimistic Timeline publications now restore the previous canonical revision when the failed revision is still current, preventing a client from remaining indefinitely on `Resolving interception…`.
-- Pass gameplay rules and the Generic Action Resolution Engine are unchanged.
-
 ## v19.15 — Firestore contention audit and durable interception commit
 
 - Confirmed fixes retained: teammate-target passes still execute eligible interceptions; modifier totals remain visible; identical consecutive rolls and Bonus Action decline remain intact.

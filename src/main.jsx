@@ -107,9 +107,7 @@ import {
   shouldApplySessionBoardProjection,
   timelineReconciliationMode,
   timelineDiceRollId,
-  shouldRollbackFailedTimelineCommit,
 } from "./multiplayer/sessionTimeline.mjs";
-import { createMultiplayerTraceId, createMultiplayerTracer } from "./multiplayer/debugTracer.mjs";
 import {
   normalizeMatchActionState,
   normalizeTrackerSnapshot,
@@ -154,7 +152,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.16";
+const APP_VERSION = "v19.15";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2120,8 +2118,6 @@ function App() {
   const measureInteractionRef = useRef(null);
   const beforeLockViewRef = useRef(null);
   const clientIdRef = useRef(`client_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
-  const multiplayerTracerRef = useRef(createMultiplayerTracer());
-  const actionTraceIdsRef = useRef(new Map());
   const historyDragRef = useRef(null);
   const historyResizeRef = useRef(null);
   const historyListRef = useRef(null);
@@ -2717,40 +2713,11 @@ function App() {
   }
 
   function enqueueTimelineSync(previousTimeline, nextTimeline, state, entry = null, options = {}) {
-    const traceId = String(entry?.metadata?.traceId || entry?.metadata?.rollEvent?.traceId || createMultiplayerTraceId(entry?.type || "timeline"));
     pendingTimelineSyncCountRef.current += 1;
-    multiplayerTracerRef.current.multiplayer("TIMELINE_SYNC_QUEUED", {
-      traceId,
-      type: entry?.type || "BASELINE",
-      previousRevision: previousTimeline?.revision ?? null,
-      nextRevision: nextTimeline?.revision ?? null,
-      pendingCount: pendingTimelineSyncCountRef.current,
-    });
     timelineSyncQueueRef.current = timelineSyncQueueRef.current
-      .then(() => syncTimelineStateToSession(previousTimeline, nextTimeline, state, entry, { ...options, traceId }))
+      .then(() => syncTimelineStateToSession(previousTimeline, nextTimeline, state, entry, options))
       .catch(error => {
-        multiplayerTracerRef.current.error("TIMELINE_SYNC_FAILED", error, {
-          traceId,
-          type: entry?.type || "BASELINE",
-          failedRevision: nextTimeline?.revision ?? null,
-        });
         console.error("Timeline sync queue failed", error);
-        if (previousTimeline && shouldRollbackFailedTimelineCommit(gameTimelineRef.current, nextTimeline)) {
-          multiplayerTracerRef.current.multiplayer("TIMELINE_OPTIMISTIC_ROLLBACK", {
-            traceId,
-            fromRevision: nextTimeline?.revision ?? null,
-            toRevision: previousTimeline?.revision ?? null,
-          });
-          replaceGameTimeline(previousTimeline);
-          applyTimelineGameState(timelineStateAt(previousTimeline, previousTimeline.cursor), { preserveLocalSelection: true });
-          cancelDelayedResolutionTimer();
-        } else {
-          multiplayerTracerRef.current.guard("TIMELINE_ROLLBACK_SKIPPED", "failed commit is no longer the current optimistic revision", {
-            traceId,
-            currentRevision: gameTimelineRef.current?.revision ?? null,
-            failedRevision: nextTimeline?.revision ?? null,
-          });
-        }
       })
       .finally(() => {
         pendingTimelineSyncCountRef.current = Math.max(0, pendingTimelineSyncCountRef.current - 1);
@@ -2758,7 +2725,7 @@ function App() {
     return timelineSyncQueueRef.current;
   }
 
-  async function syncTimelineStateToSession(previousTimeline, nextTimeline, state, entry = null, { baseline = false, traceId = "" } = {}) {
+  async function syncTimelineStateToSession(previousTimeline, nextTimeline, state, entry = null, { baseline = false } = {}) {
     if (!sessionCode || sessionEndingRef.current || isApplyingSessionRef.current) return true;
     const code = sessionCode.toUpperCase();
     const previous = previousTimeline ? normalizeTimeline(previousTimeline, state) : null;
@@ -2841,17 +2808,14 @@ function App() {
           }, { merge: false });
         }
 
-        multiplayerTracerRef.current.multiplayer("HOST_COMMIT_STARTED", { traceId, type: entry?.type || "BASELINE", revision: next.revision, attempt, isHost: isSessionHost });
         console.info("[TimelineSync] COMMIT_STARTED", { type: entry?.type || "BASELINE", revision: next.revision, attempt });
         await batch.commit();
-        multiplayerTracerRef.current.multiplayer("HOST_COMMIT_CONFIRMED", { traceId, type: entry?.type || "BASELINE", revision: next.revision, attempt, isHost: isSessionHost });
         console.info("[TimelineSync] COMMIT_CONFIRMED", { type: entry?.type || "BASELINE", revision: next.revision, attempt });
         sessionLastSaveAtRef.current = Date.now();
         if (!sessionEndingRef.current) setSessionStatus("Online saved");
         return true;
       } catch (error) {
         const retryable = ["aborted", "failed-precondition", "unavailable", "deadline-exceeded", "resource-exhausted"].includes(error?.code);
-        multiplayerTracerRef.current.error("HOST_COMMIT_FAILED", error, { traceId, type: entry?.type || "BASELINE", revision: next.revision, attempt, isHost: isSessionHost });
         console.error("[TimelineSync] COMMIT_FAILED", { type: entry?.type || "BASELINE", revision: next.revision, attempt, code: error?.code, error });
         if (error?.code === "timeline-conflict") {
           if (!sessionEndingRef.current) setSessionStatus("Timeline conflict — refreshing");
@@ -2877,46 +2841,26 @@ function App() {
   }
 
   function scheduleDelayedResolution(request) {
-    const traceId = String(request?.payload?.traceId || request?.payload?.rollEvent?.traceId || request?.traceId || actionTraceIdsRef.current.get(request?.actionId) || "");
-    if (!request) {
-      multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "missing delayed-resolution request", { traceId });
-      return;
-    }
-    if (replayModeRef.current) {
-      multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "replay mode", { traceId, actionId: request.actionId });
-      return;
-    }
+    if (!request || replayModeRef.current) return;
     const entryId = String(request.entryId || "");
-    if (!entryId) {
-      multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "missing timeline entry id", { traceId, actionId: request.actionId });
-      return;
-    }
+    if (!entryId) return;
     // Repeated Firestore snapshots must not restart the same suspense timer.
-    if (delayedResolutionEntryIdRef.current === entryId && delayedResolutionTimerRef.current) {
-      multiplayerTracerRef.current.guard("RESOLUTION_SCHEDULE_SKIPPED", "already scheduled", { traceId, entryId });
-      return;
-    }
+    if (delayedResolutionEntryIdRef.current === entryId && delayedResolutionTimerRef.current) return;
     cancelDelayedResolutionTimer();
     delayedResolutionEntryIdRef.current = entryId;
     setLiveDelayedResolutionEntryId(entryId);
-    if (sessionCode && !isSessionHost) {
-      multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "not host", { traceId, entryId, actionId: request.actionId });
-      return;
-    }
-    multiplayerTracerRef.current.multiplayer("HOST_RESOLUTION_SCHEDULED", { traceId, entryId, actionId: request.actionId, resolveAt: request.resolveAt });
+    if (sessionCode && !isSessionHost) return;
     delayedResolutionTimerRef.current = window.setTimeout(() => {
       delayedResolutionTimerRef.current = null;
       const currentTimeline = gameTimelineRef.current;
       const canonical = canonicalDelayedResolutionContext(currentTimeline);
       if (!canonical || canonical.request.entryId !== entryId) {
-        multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "stale timeline or missing canonical request", { traceId, entryId, canonicalEntryId: canonical?.request?.entryId || "" });
         delayedResolutionEntryIdRef.current = "";
         setLiveDelayedResolutionEntryId("");
         return;
       }
       // The host resolves from the canonical Timeline cursor state. React refs
       // may lag behind a Firestore hydration and must never veto authority.
-      multiplayerTracerRef.current.multiplayer("HOST_RESOLUTION_STARTED", { traceId, entryId, actionId: canonical.request.actionId });
       applyDelayedActionResolution(canonical.request, canonical.actionResolution);
     }, delayedResolutionRemaining(request));
   }
@@ -4861,30 +4805,10 @@ function App() {
       applyDiceCooldown(until);
       return true;
     } catch (error) {
-      if (error?.code === "dice-cooldown") {
-        multiplayerTracerRef.current.guard("ROLL_RESERVATION_ABORTED", "active shared cooldown", { sessionCode, clientId: clientIdRef.current });
-        return false;
+      if (error?.code !== "dice-cooldown") {
+        console.error("Dice reservation failed", error);
+        setSessionStatus("Dice sync error");
       }
-      const advisoryLockUnavailable = ["permission-denied", "missing-or-insufficient-permissions", "unavailable"].includes(error?.code);
-      multiplayerTracerRef.current.error("ROLL_RESERVATION_FAILED", error, {
-        sessionCode,
-        clientId: clientIdRef.current,
-        fallback: advisoryLockUnavailable ? "local cooldown" : "none",
-      });
-      console.error("Dice reservation failed", error);
-      if (advisoryLockUnavailable) {
-        // The runtime cooldown is advisory coordination, never gameplay authority.
-        // Timeline revision validation remains the canonical concurrency guard.
-        applyDiceCooldown(until);
-        setSessionStatus("Online — local dice lock");
-        multiplayerTracerRef.current.multiplayer("ROLL_RESERVATION_FALLBACK", {
-          sessionCode,
-          clientId: clientIdRef.current,
-          reason: error?.code || "runtime lock unavailable",
-        });
-        return true;
-      }
-      setSessionStatus("Dice sync error");
       return false;
     }
   }
@@ -4938,11 +4862,6 @@ function App() {
       setRolling(false);
       showDiceNotice(team, result, rollingDieType);
       const preparedPassRoll = preparePassInterceptionRoll(team, result);
-      const traceId = preparedPassRoll
-        ? (actionTraceIdsRef.current.get(preparedPassRoll.actionId) || createMultiplayerTraceId("pass"))
-        : createMultiplayerTraceId("roll");
-      if (preparedPassRoll) actionTraceIdsRef.current.set(preparedPassRoll.actionId, traceId);
-      multiplayerTracerRef.current.multiplayer("ROLL_BUTTON_PRESSED", { traceId, team, dieType: rollingDieType, chosen: hasChosenResult });
       const rollEvent = preparedPassRoll ? createRollEvent({
         id: createActionEventId(`roll_${preparedPassRoll.actionId}`),
         requestId: preparedPassRoll.requestId,
@@ -4953,7 +4872,6 @@ function App() {
         source: rollSource,
         subjectId: preparedPassRoll.defenderId,
         reactionIndex: preparedPassRoll.interceptorIndex,
-        traceId,
       }) : null;
       const resolutionTransaction = preparedPassRoll
         ? {
@@ -4970,7 +4888,6 @@ function App() {
             value: result,
             delayMs: Math.max(2000, Number(activeRuleSetRef.current.actions?.pass?.resolutionDelayMs) || 2000),
             payload: {
-              traceId,
               defenderId: preparedPassRoll.defenderId,
               interceptorIndex: preparedPassRoll.interceptorIndex,
               rollEvent,
@@ -4980,13 +4897,6 @@ function App() {
           })
         : null;
       const wasPassRoll = Boolean(delayedResolution);
-      multiplayerTracerRef.current.multiplayer("ROLL_SENT", {
-        traceId,
-        team,
-        result,
-        actionId: preparedPassRoll?.actionId || null,
-        requestId: preparedPassRoll?.requestId || null,
-      });
       const nextTimeline = recordTimelineTransition({
         type: "DICE_ROLLED",
         label: `${team === "blue" ? "Blue" : "Red"} D${rollingDieType}: ${result}${wasPassRoll ? " (interception)" : ""}${hasChosenResult ? " (chosen)" : ""}`,
@@ -4995,7 +4905,6 @@ function App() {
           ? activeActionTransaction.id
           : null,
         metadata: {
-          traceId,
           rollSource,
           rollEvent,
           chosenResult: hasChosenResult ? result : null,
@@ -9439,11 +9348,7 @@ function App() {
   }
 
   function applyDelayedActionResolution(request, canonicalActionResolution = null) {
-    const traceId = String(request?.payload?.traceId || request?.payload?.rollEvent?.traceId || request?.traceId || actionTraceIdsRef.current.get(request?.actionId) || "");
-    if (request?.kind !== "pass-interception") {
-      multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "unsupported delayed-resolution kind", { traceId, kind: request?.kind || null });
-      return;
-    }
+    if (request?.kind !== "pass-interception") return;
     const pending = canonicalActionResolution || actionResolutionRef.current;
     const interceptor = pending?.plan?.interceptors?.[pending.interceptorIndex];
     if (
@@ -9453,32 +9358,17 @@ function App() {
       || Number(pending.interceptorIndex) !== Number(request.payload?.interceptorIndex)
       || String(interceptor?.defender?.id || "") !== String(request.payload?.defenderId || "")
       || teamKeyForPiece(interceptor?.defender) !== request.team
-    ) {
-      multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "canonical action does not match roll request", {
-        traceId,
-        actionId: request.actionId,
-        pendingActionId: pending?.id || null,
-        pendingStatus: pending?.status || null,
-      });
-      return;
-    }
+    ) return;
     const defender = (piecesRef.current || pieces).find(piece => piece.id === interceptor?.defender?.id);
     const rollEvent = request.payload?.rollEvent;
-    if (!defender || !Number.isFinite(Number(request.value)) || !rollEvent) {
-      multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "missing defender, roll value, or roll event", { traceId, hasDefender: Boolean(defender), value: request.value, hasRollEvent: Boolean(rollEvent) });
-      return;
-    }
+    if (!defender || !Number.isFinite(Number(request.value)) || !rollEvent) return;
     const consumed = consumeActionEvent(pending, rollEvent);
-    if (!consumed) {
-      multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "roll event does not match pending roll or was already consumed", { traceId, requestId: rollEvent.requestId, eventId: rollEvent.id });
-      return;
-    }
+    if (!consumed) return;
     // Validation succeeded. Clear the cosmetic wait only now; an invalid or
     // stale local ref must not permanently suppress a canonical retry.
     cancelDelayedResolutionTimer();
     const recordedResolution = request.payload?.interceptionResolution
       || buildInterceptionRollDetails({ pending, defender, interceptor, natural: request.value });
-    multiplayerTracerRef.current.multiplayer("ROLL_RECEIVED", { traceId, actionId: request.actionId, requestId: rollEvent.requestId, eventId: rollEvent.id, value: request.value });
     resolveRecordedPassInterception({
       ...consumed,
       lastRoll: { team: request.team, value: Number(request.value), eventId: rollEvent.id, requestId: rollEvent.requestId },

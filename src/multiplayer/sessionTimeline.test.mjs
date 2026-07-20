@@ -12,7 +12,6 @@ import {
   shouldRestoreTimelineState,
   timelineReconciliationMode,
   timelineDiceRollId,
-  shouldRollbackFailedTimelineCommit,
 } from "./sessionTimeline.mjs";
 
 const initial = { gameMode: "match", pieces: [], movementStateByPieceId: {} };
@@ -93,12 +92,4 @@ test("only the host retains primary toolbar controls during a session", () => {
   assert.equal(canAccessPrimaryToolbar({ sessionActive: true, isSessionHost: false }), false);
   assert.equal(normalizeSessionStatusLabel({ type: "click" }), "Offline");
   assert.equal(normalizeSessionStatusLabel("Session ended"), "Session ended");
-});
-
-test("failed optimistic commits roll back only while still current", () => {
-  const base = createTimeline(initial, { recordingId: "rollback" });
-  const failed = commitTimelineEntry(base, { type: "DICE_ROLLED", label: "roll", before: initial, after: initial }, { allowNoop: true });
-  const later = commitTimelineEntry(failed, { type: "PASS_COMPLETED", label: "done", before: initial, after: initial }, { allowNoop: true });
-  assert.equal(shouldRollbackFailedTimelineCommit(failed, failed), true);
-  assert.equal(shouldRollbackFailedTimelineCommit(later, failed), false);
 });
