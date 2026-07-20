@@ -2,11 +2,22 @@
 
 ## Purpose and availability
 
-The Rule Sets Editor is the visual configuration surface for gameplay rules that are already represented by the Rule Set model. It is available from **Rules → Rule Sets** and can be edited only in **Editor Mode**. Match Mode reads the active saved Rule Set; it does not expose live rule editing.
+The Rule Sets Editor is the visual configuration surface for gameplay rules represented by the Rule Set model. It is available from **Rules → Rule Sets** and can be edited only in **Editor Mode**. Match Mode reads the active saved Rule Set and does not expose live rule editing.
 
-A Rule Set is normalized before use, persisted with the project state, and used by the Pass and interception flow. Dice remain manual: Rule Sets may configure resolution rules, but they never roll automatically for a player.
+A Rule Set is normalized before use, persisted with project and match state, and locked into the Match Timeline at Match Mode start. Dice remain manual: Rule Sets configure resolution but never roll automatically.
 
-The Rule Set defines resolution parameters; it does not own player stat definitions or values. Since v19.24, Pass and Interception obtain player stats through stable IDs in the global back-card stat schema and then read the relevant card's individual numeric value. The Show flag affects card rendering only and never suppresses a gameplay value. See [`GLOBAL_BACK_STATS_V19_24.md`](GLOBAL_BACK_STATS_V19_24.md).
+Player stat definitions and values are not owned by Rule Sets. Stats are selected by stable global IDs from the global back-card schema; each card supplies its individual numeric value. `Show` affects rendering only.
+
+## v20 action separation
+
+Rule Set schema version 3 separates:
+
+```text
+Pass → geometry and pass classification
+Interception → roll statistic and mathematical resolution
+```
+
+This separation is documented in [`INTERCEPTION_ENGINE_V20.md`](INTERCEPTION_ENGINE_V20.md).
 
 ## Pass settings
 
@@ -17,43 +28,102 @@ Options:
 - **Corner → Center**
 - **Center → Center**
 
-This setting changes the real pass geometry. It determines the pass origin, route, traversed cells, defensive-area intersections, eligible interceptors, and the corner-selection flow.
+This setting determines pass origin, route, traversed cells, defensive-area intersections, eligible interceptors, and corner-selection flow.
 
 ### Long Pass Threshold
 
-The pass is classified as Long Pass only when its measured distance is **strictly greater than** the configured threshold.
+The pass is classified as Long Pass only when measured distance is strictly greater than the configured threshold.
 
-This classification is exported to preview, Timeline, and AI Analysis. A separate Long Pass gameplay engine is not implemented yet, so a classified Long Pass currently resolves through the normal Passing engine.
-
-### Maximum Total Modifier
-
-The editor displays this setting as a symmetric value, for example **±4**.
-
-The configured number has two connected effects:
-
-1. The progressive interceptor-order bonus is capped at the positive value:
-   - `+0, +1, +2, ... +X, +X ...`
-2. After all positive and negative modifier sources are summed, the final total modifier is clamped symmetrically to:
-   - `-X ... +X`
-
-For a setting of **±4**:
-
-- raw `+7` becomes `+4`
-- raw `+3` remains `+3`
-- raw `-2` remains `-2`
-- raw `-6` becomes `-4`
-
-A configured value of `0` is valid. It produces a progressive order bonus of `+0` and clamps the final total modifier to `0`; it must not fall back to the default value `4`.
+A separate Long Pass gameplay rule is not implemented in v20. Classified Long Passes still use the current normal route and Passing target while the profile architecture is built in the next stage.
 
 ### Resolution Delay
 
-This value controls the delay, in milliseconds, between a manual die result and the visible resolution of the action. The current delayed-resolution execution path enforces a minimum effective delay of 2000 ms; values above 2000 ms are applied as configured.
+Controls the delay between a manual die result and visible deterministic resolution. The current delayed-resolution execution path enforces a minimum effective delay of 2000 ms; values above 2000 ms apply as configured.
 
-## v19.23 changes
+## Interception settings
 
-- Renamed **Maximum stacked modifier** to **Maximum total modifier**.
-- Added the visible `±` prefix so the symmetric cap is explicit in the editor.
-- Preserved `0` consistently through Rule Set normalization, pass-plan construction, interceptor reordering, and interception resolution.
-- Confirmed that the final modifier is clamped symmetrically to `-X ... +X`.
-- Kept the progressive interceptor-order bonus positive and capped at `+X`.
-- Added regression coverage for zero-cap behavior and negative clamping.
+### Defender Roll Statistic
+
+Selects the defender statistic read for every eligible interception attempt. The selector is populated from the global back-card Attributes and Bonuses schema.
+
+Default:
+
+```text
+Interception (`stat:interception`)
+```
+
+The stable ID remains authoritative if the display name is changed.
+
+### Use Standard Modifiers
+
+When enabled, the current standard contextual modifiers participate in the roll:
+
+- the current preferred-foot modifier;
+- the carried penalty created by a previous Natural 1 in the same interception sequence.
+
+When disabled, those sources contribute zero. The defender statistic, Natural 1, and Natural 20 remain active.
+
+### Use Progressive Interceptor Bonus
+
+When enabled, ordered interceptors receive the existing progressive bonus:
+
+```text
++0, +1, +2, ... up to the configured cap
+```
+
+When disabled, every interceptor receives `+0` from order. Eligibility and defender-choice ordering remain unchanged.
+
+### Maximum Total Modifier
+
+Displayed as a symmetric value such as **±4**.
+
+After all enabled positive and negative sources are summed, the combined modifier is clamped to:
+
+```text
+-X ... +X
+```
+
+A configured value of `0` is valid and disables all numerical modifier contribution without disabling the interception roll itself.
+
+### Equal Total Outcome
+
+Controls the result when:
+
+```text
+D20 + final modifier == attacker target value
+```
+
+Options:
+
+- **Pass continues** — preserves the historical strict-greater-than rule.
+- **Interception succeeds** — equality is sufficient for interception.
+
+Natural 1 and Natural 20 override this setting.
+
+## Migration from earlier Rule Sets
+
+Rule Set schema version 2 stored `modifierCap` and `equalRollOutcome` under Pass. Schema version 3 migrates those values into the Interception action automatically.
+
+Migration defaults preserve v19.x behavior:
+
+- Defender statistic: Interception.
+- Standard modifiers: On.
+- Progressive bonus: On.
+- Equal total: Pass continues.
+- Existing modifier cap retained.
+
+## Saving, loading, and duplication
+
+New, Duplicate, Load, and Save Rule Set operate on both Pass and Interception sections. The normalized schema is stored in project state, multiplayer Match state, recordings, replay state, and AI Analysis Rule Set snapshots.
+
+## v20 testing contract
+
+Manual verification must cover:
+
+- an old Rule Set opens with the same effective settings;
+- Interception settings save, load, and duplicate;
+- selecting a different defender statistic changes the value used in the roll;
+- standard modifiers and progressive bonus can be disabled independently;
+- equality follows the selected outcome;
+- Natural 1 and Natural 20 remain unchanged;
+- Pass geometry and Long Pass classification remain unchanged.

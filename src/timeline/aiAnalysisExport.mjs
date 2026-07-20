@@ -5,7 +5,7 @@ import { normalizeRuleSet } from "../rules/ruleSets.mjs";
 import { normalizeTimeline, timelineStateAt } from "./timelineEngine.mjs";
 
 export const AI_ANALYSIS_EXPORT_TYPE = "football-board-ai-analysis";
-export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 8;
+export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 9;
 
 export function analysisCoord(piece) {
   if (!piece || !Number.isFinite(Number(piece.x)) || !Number.isFinite(Number(piece.y))) return null;
@@ -127,8 +127,16 @@ function compactRuleSet(ruleSet) {
         rollMode: "manual",
         pathMode: normalized.actions.pass.pathMode,
         longPassThreshold: normalized.actions.pass.longPassThreshold,
-        modifierCap: normalized.actions.pass.modifierCap,
-        equalRollOutcome: normalized.actions.pass.equalRollOutcome,
+        resolutionDelayMs: normalized.actions.pass.resolutionDelayMs,
+      },
+      interception: {
+        status: normalized.actions.interception.status,
+        rollMode: "manual",
+        defenderRollStatId: normalized.actions.interception.defenderRollStatId,
+        useStandardModifiers: normalized.actions.interception.useStandardModifiers,
+        useProgressiveBonus: normalized.actions.interception.useProgressiveBonus,
+        modifierCap: normalized.actions.interception.modifierCap,
+        equalRollOutcome: normalized.actions.interception.equalRollOutcome,
       },
     },
   };
@@ -321,6 +329,8 @@ function semanticEvent(entry, sequence, cardsById) {
         classification: passPlan.isLong ? "LONG_PASS" : "NORMAL_PASS",
         foot: passPlan.foot,
         passerPass: passPlan.passerPass,
+        attackerTargetStatId: passPlan.attackerTargetStatId || "stat:passing",
+        attackerTargetValue: passPlan.attackerTargetValue ?? passPlan.passerPass,
         directHit: passPlan.directHit,
         interceptorPriority: passPlan.interceptorPriority ? {
           method: passPlan.interceptorPriority.method || "passer-square-center-to-defender-square-center",
@@ -351,6 +361,10 @@ function semanticEvent(entry, sequence, cardsById) {
         total: interceptionResolution.total,
         outcome: interceptionResolution.outcome,
         passerPass: interceptionResolution.passerPass,
+        attackerTargetStatId: interceptionResolution.attackerTargetStatId || "stat:passing",
+        attackerTargetValue: interceptionResolution.attackerTargetValue ?? interceptionResolution.passerPass,
+        defenderRollStatId: interceptionResolution.defenderRollStatId || "stat:interception",
+        defenderStatValue: interceptionResolution.interception,
         rawModifier: interceptionResolution.rawModifier,
         appliedModifier: interceptionResolution.modifier,
         modifierCap: interceptionResolution.modifierCap,

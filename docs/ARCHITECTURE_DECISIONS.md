@@ -147,3 +147,23 @@ Gameplay systems request stat values through stable IDs resolved from the global
 
 **Reference:** `docs/GLOBAL_BACK_STATS_V19_24.md`.
 
+
+## ADR-014 — Interception resolution is independent from Pass geometry
+
+**Status:** Active
+
+**Decision:** Interception roll resolution is a generic action service owned by `src/rules/interceptionEngine.mjs`. Pass and future actions determine eligibility and provide defender/attacker values; they do not own the mathematical resolver. Rule Sets store Interception configuration under `actions.interception`, separately from `actions.pass`.
+
+The Interception configuration owns the defender roll stat ID, standard-modifier toggle, progressive-bonus toggle, symmetric modifier cap, and equal-total outcome. Natural 1, Natural 20, and manual dice remain global invariants.
+
+**Reason:** Long Pass and future action types must reuse one interception formula while being free to use different attacker target statistics and different eligibility geometry. Keeping resolution inside Pass would create parallel engines and duplicate editor settings.
+
+**Consequences:**
+
+- Pass remains responsible for route geometry and eligible-interceptor discovery.
+- Rule Set schema version 3 migrates legacy Pass interception settings into `actions.interception`.
+- Gameplay looks up the configured defender statistic through a stable global stat ID.
+- AI Analysis exports Pass and Interception configuration separately.
+- Future Long Pass work must call the same Interception resolver rather than create a Long Pass roll engine.
+
+**Reference:** `docs/INTERCEPTION_ENGINE_V20.md`.

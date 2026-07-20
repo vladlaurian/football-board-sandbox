@@ -221,7 +221,7 @@ test("AI export retains a pending bonus-action continuation without adding Track
     after,
   });
   const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
-  assert.equal(exported.schemaVersion, 8);
+  assert.equal(exported.schemaVersion, 9);
   assert.equal(exported.semanticTimeline[0].continuation.kind, "bonus-card-action");
   assert.equal(exported.semanticTimeline[0].continuation.resumePolicy.nextTurn, 2);
   assert.equal(exported.semanticTimeline[0].continuation.resumePolicy.type, "advance-turn");

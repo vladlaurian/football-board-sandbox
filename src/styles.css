@@ -7422,3 +7422,14 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .pending-decision-history-controls{display:flex;gap:6px;align-items:center}.pending-decision-history-controls button{display:flex;align-items:center;justify-content:center;padding:6px;border-radius:8px;border:1px solid rgba(255,255,255,.22);background:#252525;color:white;cursor:pointer}.pending-decision-history-controls button:disabled{opacity:.35;cursor:not-allowed}
 
 .rule-signed-number{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:7px}.rule-signed-number>span{font-size:18px;font-weight:900;line-height:1}.rule-signed-number input{min-width:0}
+
+.rule-checkbox-label {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+}
+.rule-checkbox-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}

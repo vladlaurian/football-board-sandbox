@@ -7,11 +7,11 @@ import {
   interceptorChoiceCandidates,
   interceptorPriorityDistanceSquared,
   opponentBlockingPassOrigin,
-  resolveInterceptionRoll,
   passRequiresInterceptionSequence,
   segmentIntersectsOpenRect,
   traversedCells,
 } from "./passEngine.mjs";
+import { resolveInterceptionRoll } from "./interceptionEngine.mjs";
 
 test("interceptor priority uses passer-square to defender-square distance for all four pass origins", () => {
   const passer = { id: "passer", team: "A", x: 5, y: 5, cardId: "pass-card" };

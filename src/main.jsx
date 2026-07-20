@@ -40,9 +40,9 @@ import {
   cardStat,
   interceptorChoiceCandidates,
   passRequiresInterceptionSequence,
-  resolveInterceptionRoll,
   teamKeyForPiece,
 } from "./rules/passEngine.mjs";
+import { resolveInterception } from "./rules/interceptionEngine.mjs";
 import { BoardCanvas } from "./board/BoardCanvas.jsx";
 import { MatchBallIcon } from "./board/MatchBallIcon.jsx";
 import { clamp } from "./game/numberUtils.mjs";
@@ -8859,7 +8859,9 @@ function App() {
       pending.plan.interceptors,
       pending.interceptorIndex,
       pieceId,
-      activeRuleSetRef.current.actions?.pass?.modifierCap ?? 4,
+      activeRuleSetRef.current.actions?.interception?.useProgressiveBonus === false
+        ? 0
+        : (activeRuleSetRef.current.actions?.interception?.modifierCap ?? 4),
     );
     if (!applied) return false;
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
@@ -8949,19 +8951,23 @@ function App() {
 
   function buildInterceptionRollDetails({ pending, defender, interceptor, natural }) {
     const plan = pending.plan;
-    const interception = cardStat(cardById[defender.cardId], "stat:interception");
-    const orderModifier = Number(interceptor?.orderModifier) || 0;
-    const nonDominantPenalty = plan.foot?.dominant ? 0 : 1;
-    const previousNaturalOnePenalty = Number(pending.naturalOnePenalty) || 0;
-    const modifierCap = activeRuleSetRef.current.actions?.pass?.modifierCap ?? 4;
-    const roll = resolveInterceptionRoll({
+    const interceptionRules = activeRuleSetRef.current.actions?.interception || {};
+    const defenderRollStatId = interceptionRules.defenderRollStatId || "stat:interception";
+    const interception = cardStat(cardById[defender.cardId], defenderRollStatId);
+    const orderModifier = interceptionRules.useProgressiveBonus === false ? 0 : (Number(interceptor?.orderModifier) || 0);
+    const nonDominantPenalty = interceptionRules.useStandardModifiers === false || plan.foot?.dominant ? 0 : 1;
+    const previousNaturalOnePenalty = interceptionRules.useStandardModifiers === false ? 0 : (Number(pending.naturalOnePenalty) || 0);
+    const modifierCap = interceptionRules.modifierCap ?? 4;
+    const attackerTargetValue = plan.attackerTargetValue ?? plan.passerPass;
+    const roll = resolveInterception({
       natural: Number(natural),
-      interception,
-      orderModifier,
-      nonDominantPenalty,
+      defenderStatValue: interception,
+      attackerTargetValue,
+      progressiveBonus: orderModifier,
+      standardModifier: nonDominantPenalty,
       previousNaturalOnePenalty,
-      passerPass: plan.passerPass,
       modifierCap,
+      equalRollOutcome: interceptionRules.equalRollOutcome || "pass-succeeds",
     });
     const sources = [
       { label: "Interception", value: interception, source: "card" },
@@ -8988,7 +8994,10 @@ function App() {
         })();
     return {
       ...roll,
-      passerPass: plan.passerPass,
+      passerPass: attackerTargetValue,
+      attackerTargetValue,
+      attackerTargetStatId: plan.attackerTargetStatId || "stat:passing",
+      defenderRollStatId,
       interception,
       orderModifier,
       nonDominantPenalty,
@@ -9030,7 +9039,7 @@ function App() {
       lines: [
         `${getPieceIdentity(defender)} (${team === "blue" ? "Blue" : "Red"}) rolled ${roll.natural} on D20.`,
         isNaturalOne || isNaturalTwenty ? "Natural result: no normal comparison is needed." : formatInterceptionModifiers(roll),
-        isNaturalOne || isNaturalTwenty ? `Pass target: ${plan.passerPass}.` : `Total ${roll.total} vs Pass ${plan.passerPass}.`,
+        isNaturalOne || isNaturalTwenty ? `Pass target: ${plan.attackerTargetValue ?? plan.passerPass}.` : `Total ${roll.total} vs Pass ${plan.attackerTargetValue ?? plan.passerPass}.`,
         continuation,
       ],
     };
@@ -10820,14 +10829,38 @@ function App() {
               <label>Long pass threshold (squares; strictly greater than)
                 <input disabled={ruleSetEditingLocked} type="number" min="0.01" step="0.01" value={ruleSetDraft.actions?.pass?.longPassThreshold ?? 15} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, longPassThreshold: Math.max(0.01, Number(e.target.value) || 15) } } }))} />
               </label>
+              <label>Resolution delay (ms)
+                <input disabled={ruleSetEditingLocked} type="number" min="0" max="5000" step="100" value={ruleSetDraft.actions?.pass?.resolutionDelayMs ?? 1500} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, resolutionDelayMs: clamp(Math.floor(Number(e.target.value) || 0), 0, 5000) } } }))} />
+              </label>
+              <span className="rule-manual-pill">Dice: manual roll only</span>
+            </section>
+            <section className="rule-action-card">
+              <div><strong>Interception</strong><span>Shared resolution engine — manual dice only</span></div>
+              <p>Configure how every eligible interception roll is resolved. Pass geometry only decides who is eligible; this section owns the defensive statistic and modifier rules.</p>
+              <label>Defender roll statistic
+                <select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.interception?.defenderRollStatId || "stat:interception"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, interception: { ...draft.actions?.interception, defenderRollStatId: e.target.value } } }))}>
+                  {[...(cardState?.backStatsSchema?.passiveAttributes || []), ...(cardState?.backStatsSchema?.bonuses || [])].map(stat => <option key={stat.id} value={stat.id}>{stat.name}</option>)}
+                </select>
+              </label>
+              <label className="rule-checkbox-label">
+                <input disabled={ruleSetEditingLocked} type="checkbox" checked={ruleSetDraft.actions?.interception?.useStandardModifiers !== false} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, interception: { ...draft.actions?.interception, useStandardModifiers: e.target.checked } } }))} />
+                Use standard modifiers
+              </label>
+              <label className="rule-checkbox-label">
+                <input disabled={ruleSetEditingLocked} type="checkbox" checked={ruleSetDraft.actions?.interception?.useProgressiveBonus !== false} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, interception: { ...draft.actions?.interception, useProgressiveBonus: e.target.checked } } }))} />
+                Use progressive interceptor bonus
+              </label>
               <label>Maximum total modifier
                 <span className="rule-signed-number">
                   <span aria-hidden="true">±</span>
-                  <input aria-label="Maximum total modifier" disabled={ruleSetEditingLocked} type="number" min="0" max="20" step="1" value={ruleSetDraft.actions?.pass?.modifierCap ?? 4} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, modifierCap: clamp(Math.floor(Number(e.target.value) || 0), 0, 20) } } }))} />
+                  <input aria-label="Maximum total modifier" disabled={ruleSetEditingLocked} type="number" min="0" max="20" step="1" value={ruleSetDraft.actions?.interception?.modifierCap ?? 4} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, interception: { ...draft.actions?.interception, modifierCap: clamp(Math.floor(Number(e.target.value) || 0), 0, 20) } } }))} />
                 </span>
               </label>
-              <label>Resolution delay (ms)
-                <input disabled={ruleSetEditingLocked} type="number" min="0" max="5000" step="100" value={ruleSetDraft.actions?.pass?.resolutionDelayMs ?? 1500} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, resolutionDelayMs: clamp(Math.floor(Number(e.target.value) || 0), 0, 5000) } } }))} />
+              <label>Equal total outcome
+                <select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.interception?.equalRollOutcome || "pass-succeeds"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, interception: { ...draft.actions?.interception, equalRollOutcome: e.target.value } } }))}>
+                  <option value="pass-succeeds">Pass continues</option>
+                  <option value="interception">Interception succeeds</option>
+                </select>
               </label>
               <span className="rule-manual-pill">Dice: manual roll only</span>
             </section>

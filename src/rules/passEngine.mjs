@@ -239,6 +239,7 @@ export function applyInterceptorChoice(interceptors, index, selectedPieceId, mod
 
 export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, target, cornerId, rules }) {
   const passRules = rules?.actions?.pass || rules || {};
+  const interceptionRules = rules?.actions?.interception || {};
   const pathMode = passRules.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center";
   const origin = pointForPassOrigin(passer, pathMode, cornerId);
   const originBlocker = opponentBlockingPassOrigin(origin, passer, pieces);
@@ -275,7 +276,7 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     })
     .filter(item => item.visibleCells.length)
     .sort((left, right) => left.priorityDistanceSquared - right.priorityDistanceSquared || String(left.defender.id).localeCompare(String(right.defender.id)))
-    .map((item, index) => ({ ...item, orderModifier: Math.min(Math.max(0, Number.isFinite(Number(passRules.modifierCap)) ? Number(passRules.modifierCap) : 4), index) }));
+    .map((item, index) => ({ ...item, orderModifier: interceptionRules.useProgressiveBonus === false ? 0 : Math.min(Math.max(0, Number.isFinite(Number(interceptionRules.modifierCap)) ? Number(interceptionRules.modifierCap) : (Number.isFinite(Number(passRules.modifierCap)) ? Number(passRules.modifierCap) : 4)), index) }));
   return {
     kind: "pass-plan",
     pathMode,
@@ -288,7 +289,9 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     distance,
     isLong: distance > (Number(passRules.longPassThreshold) || 15),
     foot,
-    passerPass: cardStat(passerCard, "stat:passing"),
+    attackerTargetStatId: "stat:passing",
+    attackerTargetValue: cardStat(passerCard, "stat:passing"),
+    passerPass: cardStat(passerCard, "stat:passing"), // legacy projection
     directHit: hit ? { pieceId: hit.piece.id, team: teamKeyForPiece(hit.piece), entryT: hit.entryT } : null,
     passCells,
     defensiveAreaCrossings,
@@ -309,14 +312,4 @@ export function passRequiresInterceptionSequence(plan, passingTeam) {
   // A direct opponent hit transfers possession immediately. A teammate hit
   // only shortens the pass endpoint; eligible reactions still resolve first.
   return !directHitTeam || directHitTeam === passingTeam;
-}
-
-export function resolveInterceptionRoll({ natural, interception, orderModifier, nonDominantPenalty = 0, previousNaturalOnePenalty = 0, passerPass, modifierCap = 4 }) {
-  const rawModifier = Number(interception) + Number(orderModifier) + Number(nonDominantPenalty) + Number(previousNaturalOnePenalty);
-  if (natural === 1) return { outcome: "pass-continues", natural: 1, total: 1, modifier: 0, rawModifier, modifierCap: Math.max(0, Number.isFinite(Number(modifierCap)) ? Number(modifierCap) : 4), capped: false };
-  if (natural === 20) return { outcome: "natural-20-interception", natural: 20, total: 20, modifier: 0, rawModifier, modifierCap: Math.max(0, Number.isFinite(Number(modifierCap)) ? Number(modifierCap) : 4), capped: false };
-  const cap = Math.max(0, Number.isFinite(Number(modifierCap)) ? Number(modifierCap) : 4);
-  const modifier = clampModifier(rawModifier, cap);
-  const total = Number(natural) + modifier;
-  return { outcome: total > Number(passerPass) ? "interception" : "pass-continues", natural: Number(natural), total, modifier, rawModifier, modifierCap: cap, capped: modifier !== rawModifier };
 }

@@ -2,14 +2,26 @@
 
 ## Current project status
 
-- **Current build:** v19.24
+- **Current build:** v20
 - **Application:** Football Board Sandbox
 - **Modes:** Editor Mode and Match Mode
 - **Primary project objective:** Match Mode must produce a semantically complete AI Analysis Export that allows an AI to reconstruct and analyze the match, including the reason behind relevant actions and interventions.
-- **Last completed work:** Back-card Attributes and Bonuses now use one global schema while each card keeps only its own numeric values and Show states. Legacy front-stat and duplicated-content systems were removed without affecting Stars, Inspector, PNG export, Layout Zones, Pass, or Interception.
+- **Last completed work:** Interception resolution is now a separate generic engine and a dedicated Interception section exists in the in-game Rule Sets Editor. Existing Rule Sets migrate without changing their current gameplay behavior.
 - **Known unresolved work:** Long Pass is detected and classified, but still uses normal Passing resolution; its separate gameplay rule is not implemented.
-- **Next planned feature:** define and implement Long Pass after analysis and approval.
+- **Next planned feature:** introduce fixed Normal Pass / Long Pass profiles and their editor settings before changing Long Pass geometry.
 - **Mandatory onboarding:** before any work, read this README and every document in `/docs`, especially [`docs/DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md).
+
+
+## v20 — Separate Interception Engine and in-game editor
+
+- Extracted generic interception resolution into `src/rules/interceptionEngine.mjs`. The resolver receives defender stat value, attacker target value, enabled modifiers, modifier cap, and equal-total outcome; it does not own Pass geometry or Long Pass classification.
+- Added a dedicated **Interception** section to **Rules → Rule Sets**. It configures the defender roll statistic, standard modifiers, progressive interceptor bonus, symmetric maximum total modifier, and the result of an equal total.
+- Pass remains responsible only for pass geometry, Long Pass classification, target creation, and eligible-interceptor discovery. Current Pass gameplay remains otherwise unchanged in this infrastructure build.
+- Rule Set schema advanced to version 3. Existing v19.x Rule Sets automatically migrate their former Pass `modifierCap` and `equalRollOutcome` settings into `actions.interception`.
+- The default defender statistic is the stable global stat ID `stat:interception`; the selector is populated from the global back-card stat schema.
+- Natural 1 and Natural 20 remain fixed interception invariants. Dice remain manual.
+- AI Analysis Rule Set snapshots now export Pass and Interception as separate action configurations; the AI Analysis export schema advances to version 9.
+- Added generic Interception engine tests, Rule Set migration tests, and documentation in [`docs/INTERCEPTION_ENGINE_V20.md`](docs/INTERCEPTION_ENGINE_V20.md).
 
 ## v19.24 — Global Back-Card Stats and legacy card-editor cleanup
 
@@ -108,6 +120,7 @@
 - [`docs/ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md): permanent integration contract for automated Match actions.
 - [`docs/RULE_SETS_EDITOR.md`](docs/RULE_SETS_EDITOR.md): Rule Sets Editor availability, settings, engine effects, and current limitations.
 - [`docs/GLOBAL_BACK_STATS_V19_24.md`](docs/GLOBAL_BACK_STATS_V19_24.md): authoritative global back-stat schema, migration, editor behavior, removals, gameplay lookup, Inspector, and export compatibility.
+- [`docs/INTERCEPTION_ENGINE_V20.md`](docs/INTERCEPTION_ENGINE_V20.md): generic Interception resolver, Rule Set ownership, migration, runtime integration, and testing contract.
 - [`docs/ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md): permanent Architecture Decision Log. **Every major architectural change must update it in the same build.**
 - [`docs/MULTIPLAYER_ARCHITECTURE_REFACTOR_PLAN.md`](docs/MULTIPLAYER_ARCHITECTURE_REFACTOR_PLAN.md): temporary OPEN migration plan. Delete it after the multiplayer storage refactor is fully implemented and validated.
 
