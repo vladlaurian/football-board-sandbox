@@ -167,7 +167,3 @@ The Interception configuration owns the defender roll stat ID, standard-modifier
 - Future Long Pass work must call the same Interception resolver rather than create a Long Pass roll engine.
 
 **Reference:** `docs/INTERCEPTION_ENGINE_V20.md`.
-
-## v20.4 — Generic multiplayer authority gateway
-
-All guest-accessible gameplay Timeline transitions are intercepted by a common intent gateway. The host is the sole canonical Timeline writer. Future actions must use `recordTimelineTransition()` so they inherit revision validation, ownership validation, pending interaction lock, and centralized transient UI recovery.

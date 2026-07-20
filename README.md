@@ -31,7 +31,7 @@
 
 ## Current project status
 
-- **Current build:** v20.4
+- **Current build:** v20
 - **Application:** Football Board Sandbox
 - **Modes:** Editor Mode and Match Mode
 - **Primary project objective:** Match Mode must produce a semantically complete AI Analysis Export that allows an AI to reconstruct and analyze the match, including the reason behind relevant actions and interventions.
@@ -1810,8 +1810,3 @@ The 3/2 possession rule is active only in Match Mode.
 - Rule Sets modal is height-limited and vertically scrollable; title and Save controls remain reachable.
 - Interception resolution in multiplayer is host-authoritative. The pass plan freezes the active Interception configuration, and the host recomputes the result from the canonical Timeline state after receiving the dice event.
 - Client-precomputed Interception outcomes are no longer trusted as the multiplayer source of truth.
-
-
-## v20.4 — Multiplayer authority gateway
-
-Introduces a generic host-authoritative gameplay command gateway, global pending interaction lock, centralized transient UI reset, and routes remaining guest Timeline transitions through host validation. Existing Pass Target, Pass Cancel, and Bonus Action authority fixes remain in place.
