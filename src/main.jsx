@@ -113,6 +113,7 @@ import {
 } from "./multiplayer/sessionTimeline.mjs";
 import { createMultiplayerTraceId, createMultiplayerTracer } from "./multiplayer/debugTracer.mjs";
 import { canControlBonusAction, validateBonusActionEndIntent } from "./multiplayer/bonusActionAuthority.mjs";
+import { gameplayCommandLockState, validateGameplayIntent } from "./multiplayer/gameplayAuthority.mjs";
 import {
   normalizeMatchActionState,
   normalizeTrackerSnapshot,
@@ -157,7 +158,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.3";
+const APP_VERSION = "v20.4";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2009,6 +2010,7 @@ function App() {
   const [passTargetIntentPending, setPassTargetIntentPending] = useState(false);
   const [passCancelIntentPending, setPassCancelIntentPending] = useState(false);
   const [bonusActionEndIntentPending, setBonusActionEndIntentPending] = useState(false);
+  const [gameplayIntentPending, setGameplayIntentPending] = useState(false);
   const [actionContinuation, setActionContinuation] = useState(null);
   const [passResultNotice, setPassResultNotice] = useState(null);
   const [liveDelayedResolutionEntryId, setLiveDelayedResolutionEntryId] = useState("");
@@ -2093,6 +2095,8 @@ function App() {
   const passTargetIntentPendingRef = useRef(false);
   const passCancelIntentPendingRef = useRef(false);
   const bonusActionEndIntentPendingRef = useRef(false);
+  const gameplayIntentPendingRef = useRef(false);
+  const processedGameplayIntentIdsRef = useRef(new Set());
   const processedBonusActionEndIntentIdsRef = useRef(new Set());
   const processedPassTargetIntentIdsRef = useRef(new Set());
   const processedPassCancelIntentIdsRef = useRef(new Set());
@@ -2125,6 +2129,7 @@ function App() {
   useEffect(() => { passTargetIntentPendingRef.current = passTargetIntentPending; }, [passTargetIntentPending]);
   useEffect(() => { passCancelIntentPendingRef.current = passCancelIntentPending; }, [passCancelIntentPending]);
   useEffect(() => { bonusActionEndIntentPendingRef.current = bonusActionEndIntentPending; }, [bonusActionEndIntentPending]);
+  useEffect(() => { gameplayIntentPendingRef.current = gameplayIntentPending; }, [gameplayIntentPending]);
   useEffect(() => {
     if (actionResolution?.kind !== "pass" || actionResolution.status !== "targeting") {
       setPassTargetIntentPending(false);
@@ -2208,6 +2213,7 @@ function App() {
     isSessionHost,
   });
   const trackerReadOnly = isReplayView || (!!sessionCode && !isSessionHost);
+  const multiplayerInteractionLocked = gameplayCommandLockState({ sessionActive: Boolean(sessionCode), intentPending: gameplayIntentPending, syncPending: pendingTimelineSyncCountRef.current > 0, applyingSnapshot: isApplyingSessionRef.current });
 
   const pitchStyle = useMemo(() => ({
     "--cols": settings.cols,
@@ -2498,6 +2504,7 @@ function App() {
   function canControlPieceStatus(piece) {
     if (replayModeRef.current) return false;
     if (!piece || piece.team === "BALL") return false;
+    if (multiplayerInteractionLocked) return false;
     if (!sessionCode) return true;
     return myTeam !== "spectator" && pieceTeamKey(piece) === myTeam;
   }
@@ -2506,6 +2513,7 @@ function App() {
     if (replayModeRef.current) return false;
     if (!piece) return false;
     if (piece.inactive) return false;
+    if (multiplayerInteractionLocked) return false;
     if (!sessionCode) return true;
     if (piece.team === "BALL") return true;
     return myTeam !== "spectator" && pieceTeamKey(piece) === myTeam;
@@ -2719,6 +2727,7 @@ function App() {
           setPassCancelIntentPending(false);
           passCancelIntentPendingRef.current = false;
           cancelDelayedResolutionTimer();
+          resetTransientGameplayUI("timeline-conflict");
         } else {
           multiplayerTracerRef.current.guard("TIMELINE_ROLLBACK_SKIPPED", "failed commit is no longer the current optimistic revision", {
             traceId,
@@ -3864,6 +3873,45 @@ function App() {
   useEffect(() => {
     if (!user || !sessionCode) return;
     const code = sessionCode.toUpperCase();
+    const unsub = onSnapshot(sessionRuntimeRef(code, "gameplayIntent"), snapshot => {
+      if (!snapshot.exists() || sessionEndingRef.current) return;
+      const intent = decodeFromFirestore(snapshot.data() || {});
+      const requestId = String(intent.requestId || "");
+      if (!requestId) return;
+      const authority = sessionAuthorityRef.current;
+      if (!authority.isHost) {
+        if (String(intent.requestedByClient || "") === clientIdRef.current && intent.status !== "pending") {
+          resetTransientGameplayUI(intent.status === "accepted" ? "gameplay-intent-accepted" : "gameplay-intent-rejected");
+          if (intent.status === "rejected") {
+            applyTimelineGameState(timelineStateAt(gameTimelineRef.current, gameTimelineRef.current?.cursor), { preserveLocalSelection: false });
+            setSessionStatus(`Command rejected: ${intent.rejectionReason || "stale gameplay state"}`);
+          }
+        }
+        return;
+      }
+      if (intent.status !== "pending" || processedGameplayIntentIdsRef.current.has(requestId)) return;
+      processedGameplayIntentIdsRef.current.add(requestId);
+      const command = intent.command || {};
+      const canonicalRevision = Math.max(0, Number(gameTimelineRef.current?.revision) || 0);
+      const validation = validateGameplayIntent({ intent, canonicalRevision, teamOwners });
+      if (validation.valid) {
+        recordTimelineTransition({ ...command, hostAuthoritative: true });
+      }
+      updateDoc(sessionRuntimeRef(code, "gameplayIntent"), {
+        status: validation.valid ? "accepted" : "rejected",
+        rejectionReason: validation.rejectionReason,
+        canonicalRevision: Math.max(0, Number(gameTimelineRef.current?.revision) || 0),
+        handledAt: serverTimestamp(),
+        handledBy: clientIdRef.current,
+      }).catch(error => console.error("Gameplay intent acknowledgement failed", error));
+      multiplayerTracerRef.current.multiplayer("GAMEPLAY_INTENT_HANDLED", { requestId, type: command.type, valid: validation.valid, baseRevision: intent.baseRevision, canonicalRevision, rejectionReason: validation.rejectionReason });
+    }, error => console.error("Gameplay intent listener failed", error));
+    return () => unsub();
+  }, [user, sessionCode, teamOwners]);
+
+  useEffect(() => {
+    if (!user || !sessionCode) return;
+    const code = sessionCode.toUpperCase();
     const unsub = onSnapshot(sessionTimelineEntriesCollectionRef(code), (snapshot) => {
       if (sessionEndingRef.current) return;
       sessionTimelineEntriesRef.current = snapshot.docs.map(entryDoc => {
@@ -4080,6 +4128,53 @@ function App() {
     return next;
   }
 
+  function resetTransientGameplayUI(reason = "canonical-resync") {
+    setSelectedId(null);
+    setHoveredCell(null);
+    setPendingEndTurn(null);
+    setPendingAutoMove(null);
+    setPendingTurnChange(null);
+    setPendingThreeTwoMove(null);
+    setPassTargetIntentPending(false);
+    passTargetIntentPendingRef.current = false;
+    setPassCancelIntentPending(false);
+    passCancelIntentPendingRef.current = false;
+    setBonusActionEndIntentPending(false);
+    bonusActionEndIntentPendingRef.current = false;
+    setGameplayIntentPending(false);
+    gameplayIntentPendingRef.current = false;
+    cancelDelayedResolutionTimer();
+    multiplayerTracerRef.current.multiplayer("TRANSIENT_GAMEPLAY_UI_RESET", { reason });
+  }
+
+  async function requestHostGameplayTransition(command) {
+    if (!sessionCode || !isSessionGuest || gameplayIntentPendingRef.current) return false;
+    const requestId = createActionEventId(`gameplay_${command.type || "transition"}`);
+    gameplayIntentPendingRef.current = true;
+    setGameplayIntentPending(true);
+    try {
+      await setDoc(sessionRuntimeRef(sessionCode.toUpperCase(), "gameplayIntent"), {
+        ...encodeForFirestore({
+          requestId,
+          status: "pending",
+          requestedByUid: user?.uid || "",
+          requestedByClient: clientIdRef.current,
+          requestedTeam: command.team || myTeam || null,
+          baseRevision: Math.max(0, Number(gameTimelineRef.current?.revision) || 0),
+          command,
+        }),
+        requestedAt: serverTimestamp(),
+      }, { merge: false });
+      multiplayerTracerRef.current.multiplayer("GAMEPLAY_INTENT_SENT", { requestId, type: command.type, baseRevision: gameTimelineRef.current?.revision ?? null });
+      return true;
+    } catch (error) {
+      resetTransientGameplayUI("gameplay-intent-send-failed");
+      multiplayerTracerRef.current.error("GAMEPLAY_INTENT_FAILED", error, { requestId, type: command.type });
+      setSessionStatus("Gameplay sync error");
+      return false;
+    }
+  }
+
   function recordTimelineTransition({
     type = "GAME_STATE_CHANGED",
     label = "Game state changed",
@@ -4090,12 +4185,22 @@ function App() {
     metadata = null,
     id = null,
     allowNoop = false,
+    hostAuthoritative = false,
   }) {
     if (replayModeRef.current) return gameTimelineRef.current;
     const safeBefore = before || captureTimelineGameState();
     const safeAfter = after || captureTimelineGameState();
     if (safeAfter.gameMode !== "match") return gameTimelineRef.current;
     const current = gameTimelineRef.current || createTimeline(safeBefore);
+    if (sessionCode && isSessionGuest && !hostAuthoritative) {
+      if (gameplayIntentPendingRef.current) {
+        multiplayerTracerRef.current.guard("GAMEPLAY_INTENT_BLOCKED", "another gameplay command is awaiting host confirmation", { type, revision: current?.revision ?? null });
+        resetTransientGameplayUI("duplicate-gameplay-intent");
+        return current;
+      }
+      void requestHostGameplayTransition({ type, label, before: safeBefore, after: safeAfter, team, groupId, metadata, id, allowNoop });
+      return current;
+    }
     const actionTransaction = atomicTransactionForTransition(groupId, safeBefore, safeAfter);
     const entryMetadata = {
       ...(metadata && typeof metadata === "object" ? metadata : {}),
@@ -11035,6 +11140,12 @@ function App() {
         <div className="pass-action-prompt waiting"><strong>Resolving interception…</strong><span>Please wait.</span></div>
       )}
 
+      {gameplayIntentPending && (
+        <div className="pass-target-sync-notice">
+          <strong>Applying action…</strong>
+          <span>Waiting for host confirmation.</span>
+        </div>
+      )}
       {bonusActionEndIntentPending && (
         <div className="pass-action-prompt"><strong>Ending Bonus Action…</strong><span>Waiting for host confirmation.</span></div>
       )}
