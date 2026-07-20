@@ -154,7 +154,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.16";
+const APP_VERSION = "v19.17";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2164,6 +2164,9 @@ function App() {
   const sessionAssignmentsRef = useRef({});
   const sharedTimelineMetaRef = useRef(null);
   const sessionTimelineEntriesRef = useRef([]);
+  // Firebase listeners and delayed timers are intentionally long-lived. They
+  // must read current ownership from a ref instead of a render-time closure.
+  const sessionAuthorityRef = useRef({ sessionCode: "", userUid: "", ownerUid: "", isHost: false });
 
   const SESSION_LIVE_SAVE_INTERVAL_MS = 250;
   const CLOUD_AUTOSAVE_INTERVAL_MS = 3 * 60 * 1000;
@@ -2237,6 +2240,12 @@ function App() {
   const canUseSharedRuler = !sessionCode || myTeam === "blue" || myTeam === "red";
   const isSessionHost = !!sessionCode && !!user?.uid && user.uid === sessionOwnerUid;
   const isSessionGuest = Boolean(sessionCode && !isSessionHost);
+  sessionAuthorityRef.current = {
+    sessionCode: String(sessionCode || ""),
+    userUid: String(user?.uid || ""),
+    ownerUid: String(sessionOwnerUid || ""),
+    isHost: Boolean(isSessionHost),
+  };
   const canAccessPrimaryToolbarControls = canAccessPrimaryToolbar({
     sessionActive: Boolean(sessionCode),
     isSessionHost,
@@ -2899,13 +2908,19 @@ function App() {
     cancelDelayedResolutionTimer();
     delayedResolutionEntryIdRef.current = entryId;
     setLiveDelayedResolutionEntryId(entryId);
-    if (sessionCode && !isSessionHost) {
-      multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "not host", { traceId, entryId, actionId: request.actionId });
+    if (sessionCode && !sessionAuthorityRef.current.isHost) {
+      multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "not host", { traceId, entryId, actionId: request.actionId, ownerUid: sessionAuthorityRef.current.ownerUid, userUid: sessionAuthorityRef.current.userUid });
       return;
     }
     multiplayerTracerRef.current.multiplayer("HOST_RESOLUTION_SCHEDULED", { traceId, entryId, actionId: request.actionId, resolveAt: request.resolveAt });
     delayedResolutionTimerRef.current = window.setTimeout(() => {
       delayedResolutionTimerRef.current = null;
+      if (sessionCode && !sessionAuthorityRef.current.isHost) {
+        multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "host authority lost before timer fired", { traceId, entryId, actionId: request.actionId, ownerUid: sessionAuthorityRef.current.ownerUid, userUid: sessionAuthorityRef.current.userUid });
+        delayedResolutionEntryIdRef.current = "";
+        setLiveDelayedResolutionEntryId("");
+        return;
+      }
       const currentTimeline = gameTimelineRef.current;
       const canonical = canonicalDelayedResolutionContext(currentTimeline);
       if (!canonical || canonical.request.entryId !== entryId) {
@@ -2950,7 +2965,7 @@ function App() {
     const request = delayedResolutionAtCursor(timeline, state?.actionResolution);
     if (shouldScheduleCanonicalDelayedResolution({
       sessionActive: Boolean(sessionCode),
-      isHost: isSessionHost,
+      isHost: sessionAuthorityRef.current.isHost,
       replayMode: replayModeRef.current,
       sessionEnding: sessionEndingRef.current,
       timeline,
@@ -3513,6 +3528,13 @@ function App() {
       }
 
       const data = snapshot.data();
+      const incomingOwnerUid = String(data.ownerUid || "");
+      sessionAuthorityRef.current = {
+        sessionCode: code,
+        userUid: String(user?.uid || ""),
+        ownerUid: incomingOwnerUid,
+        isHost: Boolean(user?.uid && user.uid === incomingOwnerUid),
+      };
       const incomingChooseRollEnabled = Boolean(data.chooseRollEnabled);
       setChooseRollEnabled(incomingChooseRollEnabled);
       if (!incomingChooseRollEnabled) setChooseRollForTeam(null);
@@ -3526,7 +3548,7 @@ function App() {
       }
       const participants = data.participants || {};
       setSessionParticipants(participants);
-      setSessionOwnerUid(data.ownerUid || "");
+      setSessionOwnerUid(incomingOwnerUid);
       setTeamOwners({ blue: data.teamOwners?.blue || "", red: data.teamOwners?.red || "" });
       setCardVisibilityMode(data.cardVisibilityMode || "");
       setCardRevealPermissions(data.cardRevealPermissions || {});

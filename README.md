@@ -1,5 +1,12 @@
 # Football Board Sandbox
 
+## v19.17 — Durable multiplayer host authority during Firebase hydration
+
+- Fixed the interception-resolution deadlock caused by Firebase listeners retaining the pre-hydration `isSessionHost = false` closure.
+- Long-lived listeners and delayed-resolution timers now read current session ownership from one authoritative ref.
+- Ownership is updated immediately from the session snapshot before Timeline hydration and scheduling.
+- Pass rules and the generic Action Resolution/Timeline engines are unchanged.
+
 ## v19.16 — Multiplayer Debug Tracer and durable failed-commit recovery
 
 - Added a centralized, opt-in Multiplayer Debug Tracer with action Trace IDs and structured diagnostics for Session, Timeline, Firebase, Roll, Resolution, UI, Heartbeat, Ownership, Retry, Commit, Undo and Redo paths.

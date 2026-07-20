@@ -124,3 +124,22 @@ The tracer emits structured events under `[MultiplayerTrace]` and carries a Trac
 ### Regression evidence
 
 Automated coverage includes tracer activation/guard output, rollback eligibility, Action Resolution, Pass, multiple interceptors, identical consecutive rolls, Undo/Redo transaction behavior, Bonus Action continuation and AI export. Browser/Firebase two-client verification remains required against the deployed project rules to validate Host, Guest and Reconnect end to end.
+
+
+## v19.17 validated bugfix — stale host ownership closure
+
+### Reproduction evidence
+
+- The guest successfully recorded `DICE_ROLLED`; Timeline commits were confirmed.
+- Both clients remained on `Resolving interception...`.
+- The session snapshot and Timeline-entry listeners were mounted with dependencies `[user, sessionCode]`.
+- At mount time `sessionOwnerUid` had not yet been hydrated, therefore `isSessionHost` was `false`.
+- The listener callbacks retained that render-time value and every later call to `scheduleDelayedResolution()` on the actual host aborted as `not host`.
+
+### Validated correction
+
+- Added one authoritative `sessionAuthorityRef` for code, user UID, owner UID, and current host status.
+- The session snapshot updates this authority synchronously before Timeline hydration.
+- Long-lived Firebase callbacks and delayed timers read the ref rather than a stale React closure.
+- The timer revalidates ownership when it fires, so a client that lost host authority cannot commit a resolution.
+- No Pass rule, outcome calculation, Timeline schema, Undo/Redo behavior, or AI export format changed.
