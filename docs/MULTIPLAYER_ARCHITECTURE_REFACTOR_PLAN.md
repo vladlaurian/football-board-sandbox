@@ -156,33 +156,3 @@ Automated coverage includes tracer activation/guard output, rollback eligibility
 ## v19.19 validated investigation result
 
 Tracer evidence showed `ROLL_RECEIVED` followed by `HOST_RESOLUTION_COMPLETED` with no Timeline commit, repeatedly for the same entry. The delayed resolver was executing from a Firebase listener closure whose React `gameMode` value could remain `editor`. `currentTimelineGameStateSnapshot()` therefore returned null; fallback snapshots were normalized as editor state and `recordTimelineTransition()` correctly rejected them. The fix derives mode and state from the canonical Timeline cursor. This is a generic Timeline/remote-resolution fix, not a Pass-specific rule change.
-
-
-## Deferred issue discovered after v19.20 — Undo after asynchronous multiplayer resolution
-
-**Status: OPEN, intentionally deferred.**
-
-Normal multiplayer Pass, interception and Natural 20 Bonus Action flow is stable after the Firestore `sessions/{sessionId}/runtime/{documentId}` permission was added. A separate reproducible problem remains when Undo/Redo travels across an already-created asynchronous dice resolution.
-
-Observed behavior:
-
-- the Host schedules the historical delayed resolution again;
-- canonical validation subsequently aborts it as stale or missing its request;
-- the Guest may remain on the waiting overlay;
-- the same historical `traceId`, `entryId` and `actionId` can be scheduled repeatedly.
-
-Rejected experiments:
-
-- **v19.21:** local invalidation, timer cancellation, temporary-state cleanup and runtime-lock cleanup. Firestore snapshots still reintroduced the historical dice entry.
-- **v19.22:** canonical validation before scheduling plus explicit Guest cleanup. The old entry was still scheduled and aborted repeatedly.
-
-Neither experimental patch is part of the continuing codebase. Do not recreate them as local action-specific fixes.
-
-Preferred future direction after the core actions are complete:
-
-- session-level resolution generation/epoch IDs;
-- explicit canonical terminal states such as `completed` and `cancelled`;
-- Timeline travel invalidating the active generation in shared session state;
-- idempotent Host consumption keyed by generation + event identity;
-- Guest UI following shared terminal state rather than independently inferring completion;
-- one generic mechanism used by Pass, Dribble, Shot and every future asynchronous action.

@@ -251,19 +251,6 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     .flatMap(defender => defensiveCellsForPiece(defender, cardById?.[defender.cardId], settings)
       .map(cell => ({ defenderId: defender.id, ...cell, entryT: segmentEntryT(origin, effectiveTargetPoint, cell) }))
       .filter(cell => cell.entryT !== null));
-  const targetIsEmpty = !(pieces || []).some(piece =>
-    piece && piece.team !== "BALL" && !piece.inactive
-    && Number(piece.x) === Number(target.x)
-    && Number(piece.y) === Number(target.y)
-  );
-  const automaticTargetInterceptors = targetIsEmpty
-    ? (pieces || [])
-        .filter(piece => teamKeyForPiece(piece) === defenseTeam && !piece.inactive)
-        .filter(defender => defensiveCellsForPiece(defender, cardById?.[defender.cardId], settings)
-          .some(cell => Number(cell.x) === Number(target.x) && Number(cell.y) === Number(target.y)))
-        .map(defender => ({ defender }))
-        .sort((left, right) => String(left.defender.id).localeCompare(String(right.defender.id)))
-    : [];
   const interceptors = (pieces || [])
     .filter(piece => teamKeyForPiece(piece) === defenseTeam && !piece.inactive)
     .map(defender => {
@@ -299,8 +286,6 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     foot,
     passerPass: cardStat(passerCard, "Pass"),
     directHit: hit ? { pieceId: hit.piece.id, team: teamKeyForPiece(hit.piece), entryT: hit.entryT } : null,
-    targetIsEmpty,
-    automaticTargetInterceptors,
     passCells,
     defensiveAreaCrossings,
     interceptorPriority: {
