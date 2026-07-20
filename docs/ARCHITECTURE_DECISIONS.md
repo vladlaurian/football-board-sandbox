@@ -124,4 +124,26 @@ README records release changes. This file records durable architectural decision
 - Export schema changes require tests and a schema-version review.
 
 **Reference:** `docs/DEVELOPMENT_WORKFLOW.md`.
+## ADR-013 — Back-card stat definitions are global; card values remain local
+
+**Status:** Active
+
+**Decision:** Attributes and Bonuses on the back of player cards have one authoritative global schema for existence, stable ID, name, section, order, shared visual styling, and shared zone layout. Each card owns only the numeric value and `showOnCard` state for each stat. Adding, renaming, reordering, or deleting a stat is a global operation. A newly added stat is initialized on every card with `Value = 10` and `Show = On`.
+
+Gameplay systems request stat values through stable IDs resolved from the global schema and the card's local value. `showOnCard` affects rendering only. Materialized legacy card lists may exist only as compatibility projections and must not become a parallel authoring source of truth.
+
+**Reason:** Per-card structural ownership allowed card definitions, order, names, and presentation to drift and made every new stat require repetitive manual edits. Display-name-only gameplay lookup was also fragile under renaming.
+
+**Consequences:**
+
+- Every card always shares the same Attribute/Bonus structure and order.
+- Per-player differentiation is preserved through Value and Show only.
+- Pass and Interception use stable global IDs, with legacy name lookup limited to old imports and recordings.
+- Attributes Front, Bonuses Front, Duplicate Content, duplicate blocks, and Duplicate buttons are removed.
+- Stars remain an independent front-card system; the historical front `attributes` layout key is retained internally to preserve saved Stars placement.
+- Preferred Foot, Defensive Area, and Special Ability remain individual per card.
+- Editor, Inspector, and PNG export continue to share `CardPreview` as required by ADR-001.
+- Migration must create a pre-migration backup, validate common structure/presentation, and preserve every existing Value and Show state.
+
+**Reference:** `docs/GLOBAL_BACK_STATS_V19_24.md`.
 

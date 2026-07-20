@@ -2,14 +2,28 @@
 
 ## Current project status
 
-- **Current build:** v19.23
+- **Current build:** v19.24
 - **Application:** Football Board Sandbox
 - **Modes:** Editor Mode and Match Mode
 - **Primary project objective:** Match Mode must produce a semantically complete AI Analysis Export that allows an AI to reconstruct and analyze the match, including the reason behind relevant actions and interventions.
-- **Last completed work:** Rule Sets Editor modifier semantics are explicit and consistent: Maximum Total Modifier is displayed as ±X, zero is preserved, and final modifiers clamp symmetrically.
+- **Last completed work:** Back-card Attributes and Bonuses now use one global schema while each card keeps only its own numeric values and Show states. Legacy front-stat and duplicated-content systems were removed without affecting Stars, Inspector, PNG export, Layout Zones, Pass, or Interception.
 - **Known unresolved work:** Long Pass is detected and classified, but still uses normal Passing resolution; its separate gameplay rule is not implemented.
 - **Next planned feature:** define and implement Long Pass after analysis and approval.
 - **Mandatory onboarding:** before any work, read this README and every document in `/docs`, especially [`docs/DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md).
+
+## v19.24 — Global Back-Card Stats and legacy card-editor cleanup
+
+- Attributes and Bonuses on the back of every card now use one authoritative global schema for existence, stable ID, name, section, order, and visual presentation.
+- Each card keeps only its own numeric `value` and `showOnCard` state for every global stat. `Show` affects rendering only and never changes gameplay values.
+- Adding a new Attribute or Bonus creates it automatically on every existing card with `Value = 10` and `Show = On`. Newly created cards use the same complete global schema and the same defaults.
+- Rename, reorder, and delete are global operations. Delete requires explicit confirmation and removes the stat and its per-card value/Show entry from every card.
+- Back Attributes/Bonuses layout, titles, colors, fonts, text sizing, alignment, and spacing are global. Preferred Foot, Defensive Area, Special Ability, stat values, and Show remain individual per card.
+- Pass and Interception now request stats through stable global IDs (`stat:passing`, `stat:interception`) instead of relying only on display-name lookup. Legacy name lookup remains for old imports and recordings.
+- Before first migration, the old card library is backed up to `football-board-player-cards-v1-pre-global-stats-v1`. Migration validates common stat structure/order and common back-stat presentation before applying changes, preserving all existing values and Show states.
+- Removed Attributes Front, Bonuses Front, Duplicate Content, duplicate blocks, all Duplicate buttons, and duplicate-content attachment to Custom Layout Zones.
+- The Stars system remains independent and unchanged. Its existing internal front-layout key is retained for compatibility, so Editor, Inspector, PNG export, and saved card layout remain aligned.
+- Custom Layout Zones remain available as empty movable/resizable containers. Existing shared CardPreview rendering keeps Editor, Inspector, and PNG export consistent.
+- Added [`docs/GLOBAL_BACK_STATS_V19_24.md`](docs/GLOBAL_BACK_STATS_V19_24.md) and recorded the permanent architecture in [`docs/ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md).
 
 ## v19.23 — Rule Sets Editor modifier semantics and documentation
 
@@ -93,6 +107,7 @@
 
 - [`docs/ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md): permanent integration contract for automated Match actions.
 - [`docs/RULE_SETS_EDITOR.md`](docs/RULE_SETS_EDITOR.md): Rule Sets Editor availability, settings, engine effects, and current limitations.
+- [`docs/GLOBAL_BACK_STATS_V19_24.md`](docs/GLOBAL_BACK_STATS_V19_24.md): authoritative global back-stat schema, migration, editor behavior, removals, gameplay lookup, Inspector, and export compatibility.
 - [`docs/ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md): permanent Architecture Decision Log. **Every major architectural change must update it in the same build.**
 - [`docs/MULTIPLAYER_ARCHITECTURE_REFACTOR_PLAN.md`](docs/MULTIPLAYER_ARCHITECTURE_REFACTOR_PLAN.md): temporary OPEN migration plan. Delete it after the multiplayer storage refactor is fully implemented and validated.
 
@@ -1746,6 +1761,3 @@ The 3/2 possession rule is active only in Match Mode.
 - Compact team-colored action controls remove the Inspector horizontal scrollbar.
 - Turn phase is included in local saves and shared tracker state for multiplayer compatibility.
 
-## v19.24 Global Back Stats
-
-Attributes and Bonuses on the card back now use one global schema. Their values and Show flags remain individual per card. Legacy front-stat and duplicated-content systems were removed; the Stars renderer, Inspector, PNG export and Layout Zones remain supported.

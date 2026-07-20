@@ -6,6 +6,8 @@ The Rule Sets Editor is the visual configuration surface for gameplay rules that
 
 A Rule Set is normalized before use, persisted with the project state, and used by the Pass and interception flow. Dice remain manual: Rule Sets may configure resolution rules, but they never roll automatically for a player.
 
+The Rule Set defines resolution parameters; it does not own player stat definitions or values. Since v19.24, Pass and Interception obtain player stats through stable IDs in the global back-card stat schema and then read the relevant card's individual numeric value. The Show flag affects card rendering only and never suppresses a gameplay value. See [`GLOBAL_BACK_STATS_V19_24.md`](GLOBAL_BACK_STATS_V19_24.md).
+
 ## Pass settings
 
 ### Path Geometry
