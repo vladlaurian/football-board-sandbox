@@ -1817,3 +1817,22 @@ The 3/2 possession rule is active only in Match Mode.
 - Pass targeting, route selection and cancellation are owner-only in multiplayer.
 - Added defensive handler guards and reusable `resolutionAuthority` helpers.
 - Added `docs/MULTIPLAYER_RESOLUTION_UI_AUTHORITY_V20_5.md`.
+
+## v20.6 — Canonical multiplayer dice, turn progression and atomic Bonus Move
+
+- Guest Match rolls now use a semantic `diceRollIntent`; only the host records `DICE_ROLLED`.
+- Pass possession changes derive the next turn from the canonical Timeline `before.tracker` snapshot.
+- Bonus Move now commits the physical move and `awaiting-end-bonus-action` continuation state atomically.
+- Undo, Redo and optimistic rollback share a complete transient gameplay UI reset.
+- Added `docs/MULTIPLAYER_CANONICAL_DICE_AND_BONUS_ATOMICITY_V20_6.md`.
+
+## v20.7 — Host-authoritative action starts and atomic Bonus Pass targeting
+
+- Guest `BONUS_CARD_ACTION_STARTED` is replaced by a semantic `actionStartIntent`.
+- Guest `PASS_TARGETING_STARTED` is replaced by the same host-authoritative start gateway.
+- Bonus Action Pass now starts the continuation and Pass targeting in one canonical host commit: `BONUS_PASS_TARGETING_STARTED`.
+- Action-start intents are checked against team ownership, continuation identity and canonical Timeline revision.
+- Rejected or stale requests clear pending UI and restore the canonical state.
+- Removed two undefined `before.tracker` references from Pass interception branches.
+- Sandbox version: `v20.7`.
+- Repository/package version: `20.7.0`.

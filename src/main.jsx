@@ -158,7 +158,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.5";
+const APP_VERSION = "v20.7";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2010,6 +2010,8 @@ function App() {
   const [passTargetIntentPending, setPassTargetIntentPending] = useState(false);
   const [passCancelIntentPending, setPassCancelIntentPending] = useState(false);
   const [bonusActionEndIntentPending, setBonusActionEndIntentPending] = useState(false);
+  const [diceRollIntentPending, setDiceRollIntentPending] = useState(false);
+  const [actionStartIntentPending, setActionStartIntentPending] = useState(false);
   const [actionContinuation, setActionContinuation] = useState(null);
   const [passResultNotice, setPassResultNotice] = useState(null);
   const [liveDelayedResolutionEntryId, setLiveDelayedResolutionEntryId] = useState("");
@@ -2094,9 +2096,13 @@ function App() {
   const passTargetIntentPendingRef = useRef(false);
   const passCancelIntentPendingRef = useRef(false);
   const bonusActionEndIntentPendingRef = useRef(false);
+  const diceRollIntentPendingRef = useRef(false);
+  const actionStartIntentPendingRef = useRef(false);
   const processedBonusActionEndIntentIdsRef = useRef(new Set());
   const processedPassTargetIntentIdsRef = useRef(new Set());
   const processedPassCancelIntentIdsRef = useRef(new Set());
+  const processedDiceRollIntentIdsRef = useRef(new Set());
+  const processedActionStartIntentIdsRef = useRef(new Set());
   const actionContinuationRef = useRef(actionContinuation);
   const delayedResolutionTimerRef = useRef(null);
   const delayedResolutionEntryIdRef = useRef("");
@@ -2126,6 +2132,8 @@ function App() {
   useEffect(() => { passTargetIntentPendingRef.current = passTargetIntentPending; }, [passTargetIntentPending]);
   useEffect(() => { passCancelIntentPendingRef.current = passCancelIntentPending; }, [passCancelIntentPending]);
   useEffect(() => { bonusActionEndIntentPendingRef.current = bonusActionEndIntentPending; }, [bonusActionEndIntentPending]);
+  useEffect(() => { diceRollIntentPendingRef.current = diceRollIntentPending; }, [diceRollIntentPending]);
+  useEffect(() => { actionStartIntentPendingRef.current = actionStartIntentPending; }, [actionStartIntentPending]);
   useEffect(() => {
     if (actionResolution?.kind !== "pass" || actionResolution.status !== "targeting") {
       setPassTargetIntentPending(false);
@@ -2683,6 +2691,29 @@ function App() {
     };
   }
 
+  function resetTransientGameplayUI({ restoreCanonical = false } = {}) {
+    cancelDelayedResolutionTimer();
+    setSelectedId(null);
+    setHoveredCell(null);
+    setPassTargetIntentPending(false);
+    passTargetIntentPendingRef.current = false;
+    setPassCancelIntentPending(false);
+    passCancelIntentPendingRef.current = false;
+    setBonusActionEndIntentPending(false);
+    bonusActionEndIntentPendingRef.current = false;
+    setDiceRollIntentPending(false);
+    diceRollIntentPendingRef.current = false;
+    setActionStartIntentPending(false);
+    actionStartIntentPendingRef.current = false;
+    setPendingAutoMove(null);
+    setPendingThreeTwoMove(null);
+    if (restoreCanonical) {
+      const timeline = gameTimelineRef.current;
+      const state = timeline && timelineStateAt(timeline, timeline.cursor);
+      if (state) applyTimelineGameState(state, { preserveLocalSelection: false });
+    }
+  }
+
   function enqueueTimelineSync(previousTimeline, nextTimeline, state, entry = null, options = {}) {
     const traceId = String(entry?.metadata?.traceId || entry?.metadata?.rollEvent?.traceId || createMultiplayerTraceId(entry?.type || "timeline"));
     pendingTimelineSyncCountRef.current += 1;
@@ -2713,13 +2744,7 @@ function App() {
           // interaction derived from that rejected revision. Keeping selection
           // here creates a ghost targeting cursor over canonical gameplay.
           applyTimelineGameState(timelineStateAt(previousTimeline, previousTimeline.cursor), { preserveLocalSelection: false });
-          setHoveredCell(null);
-          setSelectedId(null);
-          setPassTargetIntentPending(false);
-          passTargetIntentPendingRef.current = false;
-          setPassCancelIntentPending(false);
-          passCancelIntentPendingRef.current = false;
-          cancelDelayedResolutionTimer();
+          resetTransientGameplayUI();
         } else {
           multiplayerTracerRef.current.guard("TIMELINE_ROLLBACK_SKIPPED", "failed commit is no longer the current optimistic revision", {
             traceId,
@@ -3707,6 +3732,109 @@ function App() {
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, sessionCode]);
+
+  useEffect(() => {
+    if (!user || !sessionCode) return undefined;
+    const code = sessionCode.toUpperCase();
+    const unsub = onSnapshot(sessionRuntimeRef(code, "actionStartIntent"), snapshot => {
+      if (!snapshot.exists()) return;
+      const intent = snapshot.data() || {};
+      const requestId = String(intent.requestId || "");
+      if (!requestId) return;
+
+      if (!sessionAuthorityRef.current.isHost) {
+        if (["accepted", "rejected"].includes(String(intent.status || "")) && intent.requestedByClient === clientIdRef.current) {
+          setActionStartIntentPending(false);
+          actionStartIntentPendingRef.current = false;
+          if (intent.status === "rejected") resetTransientGameplayUI({ restoreCanonical: true });
+        }
+        return;
+      }
+      if (processedActionStartIntentIdsRef.current.has(requestId) || intent.status !== "pending") return;
+      processedActionStartIntentIdsRef.current.add(requestId);
+
+      const piece = (piecesRef.current || []).find(item => String(item.id) === String(intent.pieceId));
+      const team = piece ? pieceTeamKey(piece) : "";
+      const ownerValid = piece && ["blue", "red"].includes(team) && String(teamOwners?.[team] || "") === String(intent.requestedByUid || "");
+      const baseRevisionValid = Number(intent.baseRevision) === Math.max(0, Number(gameTimelineRef.current?.revision) || 0);
+      let committed = false;
+
+      if (ownerValid && baseRevisionValid && intent.mode === "normal-pass") {
+        const noActiveFlow = !actionResolutionRef.current && !actionContinuationRef.current;
+        if (noActiveFlow && playerHasBall(piece)) committed = Boolean(beginPassTargeting(piece, { fromHostIntent: true }));
+      } else if (ownerValid && baseRevisionValid && intent.mode === "bonus-action") {
+        const continuation = actionContinuationRef.current;
+        const actionType = String(intent.actionType || "");
+        const continuationValid = continuation?.kind === "bonus-card-action"
+          && continuation.status === CONTINUATION_STATUS.READY
+          && continuation.team === team
+          && String(continuation.id) === String(intent.continuationId || "")
+          && !actionResolutionRef.current;
+        if (continuationValid && !["GROUP_MOVE", "FREE"].includes(actionType)) {
+          committed = Boolean(beginBonusCardAction(actionType, piece, { fromHostIntent: true, startPassAtomically: actionType === "PASS" }));
+        }
+      }
+
+      updateDoc(sessionRuntimeRef(code, "actionStartIntent"), {
+        status: committed ? "accepted" : "rejected",
+        rejectionReason: committed ? null : "unauthorized-stale-or-invalid-action-start",
+        handledAt: serverTimestamp(),
+        handledBy: clientIdRef.current,
+        canonicalRevision: Math.max(0, Number(gameTimelineRef.current?.revision) || 0),
+      }).catch(error => console.error("Action start intent acknowledgement failed", error));
+      multiplayerTracerRef.current.multiplayer("ACTION_START_INTENT_HANDLED", { requestId, mode: intent.mode, actionType: intent.actionType || null, committed });
+    }, error => console.error("Action start intent listener failed", error));
+    return () => unsub();
+  }, [user, sessionCode, teamOwners]);
+
+  useEffect(() => {
+    if (!user || !sessionCode) return undefined;
+    const code = sessionCode.toUpperCase();
+    const unsub = onSnapshot(sessionRuntimeRef(code, "diceRollIntent"), snapshot => {
+      if (!snapshot.exists()) return;
+      const intent = snapshot.data() || {};
+      const requestId = String(intent.requestId || "");
+      if (!requestId) return;
+
+      if (!sessionAuthorityRef.current.isHost) {
+        if (["accepted", "rejected"].includes(String(intent.status || "")) && intent.requestedByClient === clientIdRef.current) {
+          diceRollIntentPendingRef.current = false;
+          setDiceRollIntentPending(false);
+          if (intent.status === "rejected") resetTransientGameplayUI({ restoreCanonical: true });
+        }
+        return;
+      }
+      if (processedDiceRollIntentIdsRef.current.has(requestId) || intent.status !== "pending") return;
+      processedDiceRollIntentIdsRef.current.add(requestId);
+      const team = String(intent.team || "");
+      const pending = actionResolutionRef.current;
+      const ownerValid = ["blue", "red"].includes(team) && String(teamOwners?.[team] || "") === String(intent.requestedByUid || "");
+      const actionValid = !intent.actionId || (pending?.kind === "pass"
+        && pending.status === "awaiting-interception-roll"
+        && String(pending.id) === String(intent.actionId)
+        && String(pending.pendingRoll?.requestId || "") === String(intent.pendingRollRequestId || ""));
+      const chosen = intent.chosenResult === null || intent.chosenResult === undefined ? null : Number(intent.chosenResult);
+      const chosenValid = chosen === null || (chooseRollEnabled && Number.isInteger(chosen) && chosen >= 1 && chosen <= (pending?.kind === "pass" ? 20 : dieType));
+      const valid = ownerValid && actionValid && chosenValid && canRollTeamDie(team, { hostIntent: true });
+      if (!valid) {
+        updateDoc(sessionRuntimeRef(code, "diceRollIntent"), {
+          status: "rejected", rejectionReason: "unauthorized-or-stale-dice-roll", handledAt: serverTimestamp(), handledBy: clientIdRef.current,
+        }).catch(error => console.error("Dice roll intent rejection failed", error));
+        multiplayerTracerRef.current.guard("DICE_ROLL_INTENT_REJECTED", "unauthorized or stale dice roll", { requestId, team, actionId: intent.actionId || null });
+        return;
+      }
+      void rollTeamDie(team, chosen, { fromHostIntent: true }).then(started => {
+        updateDoc(sessionRuntimeRef(code, "diceRollIntent"), {
+          status: started ? "accepted" : "rejected",
+          rejectionReason: started ? null : "host-roll-not-started",
+          handledAt: serverTimestamp(), handledBy: clientIdRef.current,
+          canonicalRevision: Math.max(0, Number(gameTimelineRef.current?.revision) || 0),
+        }).catch(error => console.error("Dice roll intent acknowledgement failed", error));
+        multiplayerTracerRef.current.multiplayer("DICE_ROLL_INTENT_HANDLED", { requestId, team, started });
+      });
+    }, error => console.error("Dice roll intent listener failed", error));
+    return () => unsub();
+  }, [user, sessionCode, teamOwners, chooseRollEnabled, dieType]);
 
   useEffect(() => {
     if (!user || !sessionCode) return undefined;
@@ -4947,7 +5075,7 @@ function App() {
     if (!replayModeRef.current && sessionCode && !isSessionHost) return;
     const current = gameTimelineRef.current;
     if (!current) return;
-    cancelDelayedResolutionTimer();
+    resetTransientGameplayUI();
     setPassResultNotice(null);
     const moved = moveTimelineCursor(current, cursor);
     replaceGameTimeline(moved.timeline);
@@ -4986,7 +5114,7 @@ function App() {
     }
   }
 
-  function canRollTeamDie(team) {
+  function canRollTeamDie(team, { hostIntent = false } = {}) {
     if (replayModeRef.current) return false;
     if (Date.now() < diceCooldownUntilRef.current) return false;
     if (diceRollingRef.current.blue || diceRollingRef.current.red) return false;
@@ -4998,6 +5126,7 @@ function App() {
       if (teamKeyForPiece(interceptor?.defender) !== team) return false;
     }
     if (!sessionCode) return true;
+    if (hostIntent && sessionAuthorityRef.current.isHost) return true;
     return myTeam === team;
   }
 
@@ -5057,8 +5186,37 @@ function App() {
     }
   }
 
+  async function requestDiceRollIntent(team, chosenResult = null) {
+    if (!sessionCode || sessionAuthorityRef.current.isHost || diceRollIntentPendingRef.current) return false;
+    const pending = actionResolutionRef.current;
+    const requestId = `dice_roll_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    diceRollIntentPendingRef.current = true;
+    setDiceRollIntentPending(true);
+    try {
+      await setDoc(sessionRuntimeRef(sessionCode.toUpperCase(), "diceRollIntent"), {
+        requestId,
+        team,
+        chosenResult: chosenResult === null || chosenResult === undefined ? null : Number(chosenResult),
+        actionId: pending?.kind === "pass" ? pending.id : null,
+        pendingRollRequestId: pending?.pendingRoll?.requestId || null,
+        requestedByUid: user?.uid || "",
+        requestedByClient: clientIdRef.current,
+        baseRevision: Math.max(0, Number(gameTimelineRef.current?.revision) || 0),
+        status: "pending",
+        requestedAt: serverTimestamp(),
+      });
+      multiplayerTracerRef.current.multiplayer("DICE_ROLL_INTENT_SENT", { requestId, team, actionId: pending?.id || null });
+      return true;
+    } catch (error) {
+      diceRollIntentPendingRef.current = false;
+      setDiceRollIntentPending(false);
+      multiplayerTracerRef.current.error("DICE_ROLL_INTENT_FAILED", error, { requestId, team });
+      return false;
+    }
+  }
+
   function requestTeamDieRoll(team) {
-    if (!canRollTeamDie(team)) return;
+    if (!canRollTeamDie(team) || diceRollIntentPendingRef.current) return;
     if (chooseRollEnabled) {
       setChooseRollForTeam(team);
       return;
@@ -5066,8 +5224,11 @@ function App() {
     void rollTeamDie(team);
   }
 
-  async function rollTeamDie(team, chosenResult = null) {
-    if (!canRollTeamDie(team)) return;
+  async function rollTeamDie(team, chosenResult = null, { fromHostIntent = false } = {}) {
+    if (!canRollTeamDie(team, { hostIntent: fromHostIntent })) return false;
+    if (sessionCode && gameMode === "match" && !sessionAuthorityRef.current.isHost && !fromHostIntent) {
+      return requestDiceRollIntent(team, chosenResult);
+    }
     const forcedPassDie = actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "awaiting-interception-roll";
     const rollingDieType = forcedPassDie ? 20 : dieType;
     const hasChosenResult = chosenResult !== null && chosenResult !== undefined;
@@ -5213,6 +5374,7 @@ function App() {
         }
       }
     }, 800);
+    return true;
   }
 
   function undo() {
@@ -5220,7 +5382,7 @@ function App() {
     if (!replayModeRef.current && sessionCode && !isSessionHost) return;
     const current = gameTimelineRef.current;
     if (!current) return;
-    cancelDelayedResolutionTimer();
+    resetTransientGameplayUI();
     setPassResultNotice(null);
     const lastEntry = current.entries?.[(current.cursor || 0) - 1];
     const result = atomicTimelineTransactionId(lastEntry)
@@ -5490,7 +5652,7 @@ function App() {
     completeGameModeChange("editor");
   }
 
-  function commitPieceMove(piece, x, y, evaluation, { useThreeTwo = false, authorizationOverride = null } = {}) {
+  function commitPieceMove(piece, x, y, evaluation, { useThreeTwo = false, authorizationOverride = null, completeBonus = false } = {}) {
     pushHistory(piecesRef.current || pieces, movementStateRef.current);
     const authorization = authorizationOverride || movementAuthorization(piece);
     const isFreePlacement = authorization.mode === "free";
@@ -5555,6 +5717,10 @@ function App() {
     }
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
+    if (completeBonus) {
+      const completedContinuation = completeContinuationAction(actionContinuationRef.current);
+      if (completedContinuation) setLiveActionContinuation(completedContinuation);
+    }
     if (sessionCode && gameMode !== "match") syncSessionMove(nextPieces, nextMovement);
     logSnapshot(`${piece.team === "A" ? "Blue" : piece.team === "B" ? "Red" : "Ball"} ${piece.label} → ${toCoord(x, y)}${useThreeTwo ? " (3/2)" : ""}`, nextPieces, {
       type: useThreeTwo ? "THREE_TWO_MOVE" : isFreePlacement ? "FREE_MOVE" : isGroupPlacement ? "GROUP_MOVE_PIECE" : piece.team === "BALL" ? "BALL_MOVED" : "PIECE_MOVED",
@@ -5582,9 +5748,10 @@ function App() {
         if (evaluation.reason !== "same") setIllegalMoveNotice(evaluation);
         return false;
       }
-      const moved = commitPieceMove(piece, x, y, evaluation, { authorizationOverride: { allowed: true, mode: "bonus" } });
-      if (moved) completeBonusCardAction({ actionType: "MOVE", pieceId: piece.id });
-      return moved;
+      return commitPieceMove(piece, x, y, evaluation, {
+        authorizationOverride: { allowed: true, mode: "bonus" },
+        completeBonus: true,
+      });
     }
 
     const phaseTeam = piece.team === "BALL" ? null : pieceTeamKey(piece);
@@ -8812,20 +8979,75 @@ function App() {
     return pending?.kind === "pass" && ["targeting", "route-selection"].includes(pending.status);
   }
 
-  function beginBonusCardAction(type, piece) {
+  async function requestHostActionStart({ mode, actionType = null, piece, continuationId = null }) {
+    if (!sessionCode || !isSessionGuest || actionStartIntentPendingRef.current || !piece) return false;
+    const requestId = createActionEventId(`action_start_${mode}_${piece.id}`);
+    setActionStartIntentPending(true);
+    actionStartIntentPendingRef.current = true;
+    try {
+      await setDoc(sessionRuntimeRef(sessionCode.toUpperCase(), "actionStartIntent"), {
+        requestId,
+        status: "pending",
+        mode,
+        actionType,
+        pieceId: piece.id,
+        team: pieceTeamKey(piece),
+        continuationId,
+        baseRevision: Math.max(0, Number(gameTimelineRef.current?.revision) || 0),
+        requestedByUid: user?.uid || "",
+        requestedByClient: clientIdRef.current,
+        requestedAt: serverTimestamp(),
+      });
+      multiplayerTracerRef.current.multiplayer("ACTION_START_INTENT_SENT", { requestId, mode, actionType, pieceId: piece.id, continuationId });
+      return true;
+    } catch (error) {
+      setActionStartIntentPending(false);
+      actionStartIntentPendingRef.current = false;
+      console.error("Action start intent failed", error);
+      return false;
+    }
+  }
+
+  function buildPassTargetingResolution(piece, { continuationId = null } = {}) {
+    const team = pieceTeamKey(piece);
+    const continuationTransaction = continuationId && actionContinuationRef.current?.id === continuationId
+      ? transactionForActionState(actionContinuationRef.current)
+      : null;
+    const id = `pass_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    return {
+      id, kind: "pass", status: "targeting", passerId: piece.id, team, target: null, cornerId: null,
+      naturalOnePenalty: 0, interceptorIndex: 0, pendingDecision: null, pendingRoll: null,
+      consumedEventIds: [], lastRollEvent: null, continuationId,
+      transaction: continuationTransaction || createActionTransaction({
+        id, actionType: "PASS", team, source: "pass", undoMode: ACTION_TRANSACTION_UNDO_MODE.STEP,
+      }),
+    };
+  }
+
+  function beginBonusCardAction(type, piece, { fromHostIntent = false, startPassAtomically = false } = {}) {
     const team = pieceTeamKey(piece);
     const current = currentBonusContinuationForTeam(team);
+    if (sessionCode && isSessionGuest && !fromHostIntent) {
+      void requestHostActionStart({ mode: "bonus-action", actionType: type, piece, continuationId: current?.id || null });
+      return null;
+    }
     const next = beginContinuationAction(current, { type, pieceId: piece.id });
     if (!next || type === "GROUP_MOVE" || type === "FREE") return null;
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const pending = startPassAtomically ? buildPassTargetingResolution(piece, { continuationId: next.id }) : null;
     setLiveActionContinuation(next);
+    if (pending) {
+      setLiveActionResolution(pending);
+      setSelectedId(piece.id);
+      setHoveredCell(null);
+    }
     recordTimelineTransition({
-      type: "BONUS_CARD_ACTION_STARTED",
-      label: `${team === "blue" ? "Blue" : "Red"} bonus ${type.replace("_", " ")}: ${getPieceDisplayLabel(piece)}`,
-      team,
-      groupId: current.id,
-      before,
-      after: mergeTimelineGameState(before, { actionContinuation: next }),
+      type: pending ? "BONUS_PASS_TARGETING_STARTED" : "BONUS_CARD_ACTION_STARTED",
+      label: pending
+        ? `${team === "blue" ? "Blue" : "Red"} bonus PASS: choose target for ${getPieceDisplayLabel(piece)}`
+        : `${team === "blue" ? "Blue" : "Red"} bonus ${type.replace("_", " ")}: ${getPieceDisplayLabel(piece)}`,
+      team, groupId: current.id, before,
+      after: mergeTimelineGameState(before, { actionContinuation: next, ...(pending ? { actionResolution: pending } : {}) }),
       allowNoop: true,
     });
     return next;
@@ -8842,20 +9064,15 @@ function App() {
     recordTimelineTransition({
       type: "BONUS_CARD_ACTION_COMPLETED",
       label: `${next.team === "blue" ? "Blue" : "Red"} bonus ${(actionType || next.actionType || "card action").replace("_", " ")} complete — END B.A. to continue`,
-      team: next.team,
-      groupId: next.id,
-      before,
-      after: mergeTimelineGameState(before, { actionContinuation: next }),
-      allowNoop: true,
+      team: next.team, groupId: next.id, before,
+      after: mergeTimelineGameState(before, { actionContinuation: next }), allowNoop: true,
     });
     return true;
   }
 
   function passTimelineGroupId(pending) {
     const continuationId = pending?.bonusContinuationId || pending?.continuationId;
-    const continuation = continuationId && actionContinuationRef.current?.id === continuationId
-      ? actionContinuationRef.current
-      : null;
+    const continuation = continuationId && actionContinuationRef.current?.id === continuationId ? actionContinuationRef.current : null;
     return continuation?.id || pending?.entryId || null;
   }
 
@@ -8864,9 +9081,7 @@ function App() {
     if (candidates.length < 2) return null;
     const team = teamKeyForPiece(candidates[0]?.defender);
     return createPendingDecision({
-      id: createActionEventId(`decision_${pending.id}_${interceptorIndex}`),
-      type: "CHOOSE_INTERCEPTOR",
-      team,
+      id: createActionEventId(`decision_${pending.id}_${interceptorIndex}`), type: "CHOOSE_INTERCEPTOR", team,
       options: candidates.map(item => ({ id: String(item?.defender?.id || ""), defenderId: String(item?.defender?.id || "") })),
       context: { actionId: pending.id, interceptorIndex },
     });
@@ -8877,52 +9092,23 @@ function App() {
     const team = teamKeyForPiece(interceptor?.defender);
     if (!interceptor || !team) return null;
     return createPendingRoll({
-      requestId: createActionEventId(`roll_request_${pending.id}_${interceptorIndex}`),
-      actionId: pending.id,
-      team,
-      dieType: 20,
-      subjectId: interceptor?.defender?.id,
-      reactionIndex: interceptorIndex,
-      context: { actionType: "PASS", reactionType: "INTERCEPTION" },
+      requestId: createActionEventId(`roll_request_${pending.id}_${interceptorIndex}`), actionId: pending.id, team, dieType: 20,
+      subjectId: interceptor?.defender?.id, reactionIndex: interceptorIndex, context: { actionType: "PASS", reactionType: "INTERCEPTION" },
     });
   }
 
   function passWithNextInput(pending, interceptorIndex = pending?.interceptorIndex || 0) {
     const decision = passPendingDecision(pending, interceptorIndex);
-    return decision
-      ? withPendingDecision({ ...pending, interceptorIndex }, decision)
-      : withPendingRoll({ ...pending, interceptorIndex }, passPendingRoll(pending, interceptorIndex));
+    return decision ? withPendingDecision({ ...pending, interceptorIndex }, decision) : withPendingRoll({ ...pending, interceptorIndex }, passPendingRoll(pending, interceptorIndex));
   }
 
-  function beginPassTargeting(piece, { continuationId = null } = {}) {
+  function beginPassTargeting(piece, { continuationId = null, fromHostIntent = false } = {}) {
+    if (sessionCode && isSessionGuest && !fromHostIntent) {
+      void requestHostActionStart({ mode: "normal-pass", actionType: "PASS", piece, continuationId: null });
+      return null;
+    }
+    const pending = buildPassTargetingResolution(piece, { continuationId });
     const team = pieceTeamKey(piece);
-    const continuationTransaction = continuationId && actionContinuationRef.current?.id === continuationId
-      ? transactionForActionState(actionContinuationRef.current)
-      : null;
-    const id = `pass_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const pending = {
-      id,
-      kind: "pass",
-      status: "targeting",
-      passerId: piece.id,
-      team,
-      target: null,
-      cornerId: null,
-      naturalOnePenalty: 0,
-      interceptorIndex: 0,
-      pendingDecision: null,
-      pendingRoll: null,
-      consumedEventIds: [],
-      lastRollEvent: null,
-      continuationId,
-      transaction: continuationTransaction || createActionTransaction({
-        id,
-        actionType: "PASS",
-        team,
-        source: "pass",
-        undoMode: ACTION_TRANSACTION_UNDO_MODE.STEP,
-      }),
-    };
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
     setLiveActionResolution(pending);
     setSelectedId(piece.id);
@@ -8930,12 +9116,10 @@ function App() {
     recordTimelineTransition({
       type: "PASS_TARGETING_STARTED",
       label: `${team === "blue" ? "Blue" : "Red"} PASS: choose target for ${getPieceDisplayLabel(piece)}`,
-      team,
-      groupId: passTimelineGroupId(pending),
-      before,
-      after: mergeTimelineGameState(before, { actionResolution: pending }),
-      allowNoop: true,
+      team, groupId: passTimelineGroupId(pending), before,
+      after: mergeTimelineGameState(before, { actionResolution: pending }), allowNoop: true,
     });
+    return pending;
   }
 
   function commitPassCancellation(pending = actionResolutionRef.current) {
@@ -9373,7 +9557,7 @@ function App() {
     const nextPieces = moveBallTo(interceptor.x, interceptor.y);
     if (naturalTwenty) {
       const bonusTeam = teamKeyForPiece(interceptor);
-      const nextTurn = Math.min(trackerSettings.turns, Math.max(1, trackerCurrentTurn + 1));
+      const nextTurn = Math.min(trackerSettings.turns, Math.max(1, normalizeTrackerSnapshot(before.tracker).currentTurn + 1));
       const continuation = createBonusCardActionContinuation({ team: bonusTeam, nextTurn, sourceEntryId: pending.entryId });
       piecesRef.current = nextPieces; setPieces(nextPieces); setLiveActionResolution(null); setLiveActionContinuation(continuation);
       const timeline = recordTimelineTransition({ type: "PASS_NATURAL_20", label: `Natural 20 interception: ${getPieceDisplayLabel(interceptor)} earns one bonus action`, team: bonusTeam, groupId: passTimelineGroupId(pending), metadata: passInterceptionTimelineMetadata(pending), before, after: mergeTimelineGameState(before, { pieces: nextPieces, actionResolution: null, actionContinuation: continuation }), allowNoop: true });
@@ -9382,7 +9566,7 @@ function App() {
     }
     const nextTeam = teamKeyForPiece(interceptor);
     const emptyTurn = createEmptyTrackerTurnState();
-    const nextTurn = Math.min(trackerSettings.turns, Math.max(1, trackerCurrentTurn + 1));
+    const nextTurn = Math.min(trackerSettings.turns, Math.max(1, normalizeTrackerSnapshot(before.tracker).currentTurn + 1));
     piecesRef.current = nextPieces; setPieces(nextPieces);
     setTrackerStartingTeam(nextTeam); setTrackerCurrentTurn(nextTurn); setTurnPhase("attack");
     setTrackerUsedActions(emptyTurn.usedActions); setTrackerActionLog(emptyTurn.actionLog); setMatchActionState(emptyTurn.matchActionState);
@@ -9414,7 +9598,8 @@ function App() {
       const hitPiece = (piecesRef.current || pieces).find(piece => piece.id === plan.directHit.pieceId);
       if (hitPiece && teamKeyForPiece(hitPiece) !== pending.team) {
         const nextTeam = teamKeyForPiece(hitPiece);
-        const nextTurn = Math.min(trackerSettings.turns, Math.max(1, trackerCurrentTurn + 1));
+        const canonicalBefore = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+        const nextTurn = Math.min(trackerSettings.turns, Math.max(1, normalizeTrackerSnapshot(canonicalBefore.tracker).currentTurn + 1));
         finishPassWithPossession(pending, hitPiece, false, {
           title: "Pass intercepted",
           team: nextTeam,
@@ -9445,7 +9630,6 @@ function App() {
     }
     if (roll.outcome === "interception") {
       const nextTeam = teamKeyForPiece(defender);
-      const nextTurn = Math.min(trackerSettings.turns, Math.max(1, trackerCurrentTurn + 1));
       finishPassWithPossession(pending, defender, false);
       return;
     }
@@ -9558,10 +9742,10 @@ function App() {
     if (continuation) {
       if (!canControlBonusContinuation(continuation)) return;
       if (continuation.status !== CONTINUATION_STATUS.READY || type === "GROUP_MOVE" || type === "FREE" || !canControlPieceStatus(piece)) return;
-      const started = beginBonusCardAction(type, piece);
+      const started = beginBonusCardAction(type, piece, { startPassAtomically: type === "PASS" });
       if (!started) return;
       if (type === "PASS") {
-        beginPassTargeting(piece, { continuationId: started.id });
+        // Bonus PASS start and targeting are one canonical host commit.
       } else if (type === "MOVE") {
         setSelectedId(piece.id);
         setHoveredCell(null);

@@ -171,3 +171,15 @@ The Interception configuration owns the defender roll stat ID, standard-modifier
 ## ADR — Shared resolution state does not imply shared UI control (v20.5)
 
 In multiplayer, action resolution state is canonical and visible to every client. Interactive controls are local and require ownership of the resolution team. UI components receive explicit interactivity flags, and action handlers repeat the same authority check defensively. Future Shot, Dribble, Cross and other resolution interfaces must follow this rule.
+
+## ADR — v20.6 guest dice and canonical resolution state
+
+In Match multiplayer, dice input is a semantic request, not a guest Timeline transition. The host validates team ownership and the canonical pending-roll request, generates or accepts the permitted test result, and commits `DICE_ROLLED`.
+
+Turn progression must be derived from the transition's canonical `before.tracker` snapshot. Render-local Tracker state must not participate in possession-change calculations.
+
+A Bonus Move is one logical transition: physical movement and continuation completion are committed together. No UI may depend on a second optimistic guest commit to unlock `END B.A.`.
+
+## v20.7 — Action-start authority boundary
+
+A multiplayer guest may choose an action locally, but may not publish the transition that starts gameplay state. Normal Pass and Bonus Action starts are semantic runtime intents. The host validates ownership and canonical revision, executes the transition, and publishes Timeline. Bonus Pass activation and targeting are one atomic canonical transition so repeated Natural 20 chains cannot expose an intermediate continuation-only state.
