@@ -5,7 +5,7 @@ import { normalizeRuleSet } from "../rules/ruleSets.mjs";
 import { normalizeTimeline, timelineStateAt } from "./timelineEngine.mjs";
 
 export const AI_ANALYSIS_EXPORT_TYPE = "football-board-ai-analysis";
-export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 7;
+export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 8;
 
 export function analysisCoord(piece) {
   if (!piece || !Number.isFinite(Number(piece.x)) || !Number.isFinite(Number(piece.y))) return null;
@@ -209,6 +209,7 @@ function movementReason(entry, movements) {
   if (entry.type === "THREE_TWO_MOVE") return "THREE_TWO";
   if (entry.type === "GROUP_MOVE_PIECE") return "GROUP_MOVE";
   if (entry.type === "FREE_MOVE") return "FREE_MODE";
+  if (entry.metadata?.movementReason === "FREE_BALL" || entry.type === "BALL_MOVED") return "FREE_BALL";
   if (entry.type === "PIECE_MOVED" && entry.groupId) return "NORMAL_MOVE";
   return "MANUAL_MOVE";
 }

@@ -156,7 +156,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.21";
+const APP_VERSION = "v19.22";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4752,6 +4752,7 @@ function App() {
       team: options.team || null,
       groupId: options.groupId || null,
       id: options.id || null,
+      metadata: options.metadata || {},
       allowNoop: Boolean(options.allowNoop),
     });
   }
@@ -5209,6 +5210,7 @@ function App() {
       type: "BALL_MOVED",
       team: null,
       groupId: null,
+      metadata: { movementReason: "FREE_BALL" },
       stateOverrides: { movementStateByPieceId: movementStateRef.current },
     });
     cancelFreeBall();

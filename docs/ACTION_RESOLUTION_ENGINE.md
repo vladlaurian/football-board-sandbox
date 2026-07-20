@@ -169,3 +169,10 @@ consumption succeed.
 - Free Move is the visible name of the existing player free-placement authorization. Its internal `freeMode` state is retained for compatibility.
 - Free Ball is intentionally outside the Generic Action Resolution Engine. It is a one-click administrative ball placement that consumes no Tracker action and does not create an action request, decision, roll, continuation, or player movement authorization.
 - The final ball position is nevertheless recorded as a canonical `BALL_MOVED` Timeline transition, preserving Undo/Redo, replay, export, and multiplayer state parity.
+
+## AI Analysis Export completion rule added in v19.22
+
+Every Match Mode action integrated with this engine must also be reviewed in `src/timeline/aiAnalysisExport.mjs`. A feature is not complete merely because its canonical Timeline state is correct: the semantic export must preserve action type, relevant choices, roll/resolution identity, movement reason, possession effects and action-economy effects needed for later AI analysis. Add or update regression tests for the exported semantics.
+
+Free Ball remains outside this engine, but its canonical `BALL_MOVED` transition is exported explicitly with `movementReason: "FREE_BALL"` so AI analysis can distinguish administrative ball placement from an ambiguous manual move.
+

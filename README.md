@@ -1,5 +1,27 @@
 # Football Board Sandbox
 
+## Current project status
+
+- **Current build:** v19.22
+- **Application:** Football Board Sandbox
+- **Modes:** Editor Mode and Match Mode
+- **Primary project objective:** Match Mode must produce a semantically complete AI Analysis Export that allows an AI to reconstruct and analyze the match, including the reason behind relevant actions and interventions.
+- **Last completed work:** Free Ball is now explicitly exported with `movementReason: "FREE_BALL"`; the mandatory development/onboarding workflow is documented.
+- **Known unresolved work:** Long Pass is detected and classified, but still uses normal Passing resolution; its separate gameplay rule is not implemented.
+- **Next planned feature:** define and implement Long Pass after analysis and approval.
+- **Mandatory onboarding:** before any work, read this README and every document in `/docs`, especially [`docs/DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md).
+
+## v19.22 — Explicit Free Ball AI semantics and development contract
+
+- AI Analysis Export schema is now version 8.
+- Canonical `BALL_MOVED` events created by Free Ball are exported as `type: "MOVE"` with `movementReason: "FREE_BALL"`, rather than the ambiguous `MANUAL_MOVE`.
+- Added a regression test proving that Free Ball remains a ball movement and is explicitly identifiable by AI analysis.
+- Added [`docs/DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md) as the mandatory onboarding and implementation contract for every future chat or engineer.
+- Documented that every Match Mode feature must be reviewed for semantic AI export and tested whenever it represents gameplay, a relevant decision, movement reason, possession/economy change, roll, resolution, or administrative intervention.
+- Documented the approval rule: after the user says `Aprob`, execute immediately without repeating the plan or replying only with an acknowledgement.
+- Documented the no-workaround/no-patch-stacking rule: failed implementations must be removed cleanly; do not leave dead code, parallel engines, or obsolete branches.
+- No movement, Pass, interception, 3/2, Tracker, Timeline, Replay, or multiplayer gameplay rule changed in this build.
+
 ## v19.21 — Match-only PASS ownership, Free Move and isolated Free Ball
 
 - PASS can be started in Match Mode only by the player occupying the ball cell; Editor/Sandbox behavior is unchanged.

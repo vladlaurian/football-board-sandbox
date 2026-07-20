@@ -109,6 +109,25 @@ test("unlinked physical moves are explicitly exported as Manual Move", () => {
   assert.equal(exported.semanticTimeline[0].resolution.status, "NOT_AUTOMATED");
 });
 
+test("Free Ball is explicitly identified in AI export", () => {
+  const before = state();
+  const after = state({ pieces: [before.pieces[0], before.pieces[1], { ...before.pieces[2], x: 14, y: 9 }] });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, {
+    id: "free_ball_1",
+    type: "BALL_MOVED",
+    label: "Free Ball → L15",
+    team: null,
+    metadata: { movementReason: "FREE_BALL" },
+    before,
+    after,
+  });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  assert.equal(exported.semanticTimeline[0].type, "MOVE");
+  assert.equal(exported.semanticTimeline[0].movementReason, "FREE_BALL");
+  assert.equal(exported.semanticTimeline[0].movements[0].isBall, true);
+});
+
 test("AI export distinguishes a deliberately chosen test roll from a random roll", () => {
   const before = state();
   const after = state({ dice: { ...before.dice, blueResult: 20 } });
@@ -202,7 +221,7 @@ test("AI export retains a pending bonus-action continuation without adding Track
     after,
   });
   const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
-  assert.equal(exported.schemaVersion, 7);
+  assert.equal(exported.schemaVersion, 8);
   assert.equal(exported.semanticTimeline[0].continuation.kind, "bonus-card-action");
   assert.equal(exported.semanticTimeline[0].continuation.resumePolicy.nextTurn, 2);
   assert.equal(exported.semanticTimeline[0].continuation.resumePolicy.type, "advance-turn");

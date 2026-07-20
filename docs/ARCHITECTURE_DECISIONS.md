@@ -106,3 +106,22 @@ README records release changes. This file records durable architectural decision
 - Temporary selection, hover and pending movement prompts are cleared when Free Ball is activated, cancelled, consumed, or Match Mode is exited.
 - The resulting position is still recorded as canonical `BALL_MOVED` Timeline state for Undo/Redo, replay and multiplayer parity.
 - The internal Tracker property remains named `freeMode` for backward compatibility; only the visible feature name is Free Move.
+
+## ADR-012 — AI Analysis Export is a required semantic integration surface
+
+**Status:** Active
+
+**Decision:** Every new or modified Match Mode feature must be reviewed for AI Analysis Export in the same build. Gameplay actions, relevant player decisions, movement reasons, possession/action-economy changes, rolls, resolutions, and meaningful administrative interventions must be represented semantically and covered by regression tests. Pure presentation state is excluded.
+
+**Reason:** A primary purpose of the Football Board Sandbox is to generate a match record that an AI can reconstruct and analyze. A board-state change alone may be insufficient when identical outcomes can result from different user decisions.
+
+**Consequences:**
+
+- AI export is part of feature completeness, not an optional follow-up.
+- New Match events must be checked against Timeline recording and semantic export mapping.
+- Distinct relevant causes must remain distinct in export, such as `FREE_BALL` versus a generic manual movement.
+- If a feature cannot yet be exported accurately, the release must document that limitation as unresolved work.
+- Export schema changes require tests and a schema-version review.
+
+**Reference:** `docs/DEVELOPMENT_WORKFLOW.md`.
+
