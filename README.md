@@ -1,15 +1,14 @@
 # Football Board Sandbox
 
-## v19.23.3 — Match-only Pass possession and one-shot Free Ball
+## v19.21 — Match-only PASS ownership, Free Move and isolated Free Ball
 
-- Rebuilt strictly from v19.20; the Pass Engine, interception rolls, and the 3/2 rule are unchanged.
-- In Match Mode only, PASS is available only on the card of the player currently sharing the ball's square. No new possession restriction is applied outside Match Mode.
-- Renamed the existing player-placement control from `Free Mode` to `Free Move`; it remains available only in Match Mode.
-- Added `Free Ball` in Match Mode. It selects only the ball, permits one free relocation, then automatically deselects the ball and exits the mode. A second relocation requires pressing `Free Ball` again.
-- `Free Ball` is isolated UI interaction state, not a Tracker/action-engine lock. It does not disable MOVE, GROUP MOVE, the 3/2 rule, or any other player-card action.
-- Leaving Match Mode, cancelling Free Ball, or selecting a player clears the temporary Free Ball state.
-- Build identity is synchronized as v19.23.3 in the sandbox UI, package metadata, README, and ZIP filename.
-- Delivery rule: release archives exclude `package-lock.json`, `node_modules`, and generated `dist` output.
+- PASS can be started in Match Mode only by the player occupying the ball cell; Editor/Sandbox behavior is unchanged.
+- Renamed the visible Free Mode control to Free Move while preserving the existing internal `freeMode` state for Timeline and multiplayer compatibility.
+- Free Move is shown only in Match Mode.
+- Added a Match-only Free Ball control between End Turn and Free Move. It arms one direct ball placement, exits automatically after the next board click, and clears temporary selection/movement UI state.
+- Free Ball is architecturally isolated from `selectedId`, `moveSelectedPieceTo()`, `movementAuthorization()`, the 3/2 rule, Pass resolution, and Tracker action consumption.
+- Free Ball position changes are still committed as canonical `BALL_MOVED` Timeline events so Undo/Redo, replay and multiplayer remain consistent.
+- Added mouse, occupied-cell and touch handling for the independent Free Ball flow.
 
 ## v19.20 — Surgical canonical-resolution diagnostics
 

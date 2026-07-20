@@ -91,3 +91,18 @@ README records release changes. This file records durable architectural decision
 - Timeline entry and metadata remain atomically visible in one batch.
 - Semantic revision conflicts remain explicit and are not silently overwritten.
 - Runtime subcollection documents must be deleted when ending a session.
+
+
+## ADR — v19.21: Free Ball is an administrative ball-placement flow
+
+**Decision:** Match Mode Free Ball is implemented as independent transient UI state and a dedicated direct ball-placement function. It must not use player selection, player movement authorization, movement accounting, Free Move authorization, the 3/2 rule, Pass resolution, or Tracker action consumption.
+
+**Reason:** The ball is not a player and administrative repositioning has different semantics from an authorized player move. Reusing the player movement pipeline previously coupled unrelated rules and created invalid locks and state transitions.
+
+**Consequences:**
+
+- The next valid board click while Free Ball is armed changes only the `BALL` piece position and then automatically disarms the mode.
+- PASS targeting retains higher click priority than Free Ball.
+- Temporary selection, hover and pending movement prompts are cleared when Free Ball is activated, cancelled, consumed, or Match Mode is exited.
+- The resulting position is still recorded as canonical `BALL_MOVED` Timeline state for Undo/Redo, replay and multiplayer parity.
+- The internal Tracker property remains named `freeMode` for backward compatibility; only the visible feature name is Free Move.

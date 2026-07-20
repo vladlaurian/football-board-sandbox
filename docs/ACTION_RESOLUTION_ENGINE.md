@@ -162,10 +162,10 @@ behind Firestore hydration and must not be allowed to veto the canonical roll.
 The cosmetic resolving state is cleared only after validation and event
 consumption succeed.
 
-## v19.23.3 UI-state boundary: Free Ball and Pass availability
 
-- `Free Ball` is a one-shot Match Mode interaction state owned by the UI. It is not an action transaction, Tracker authorization, Action Resolution state, or global action lock.
-- Activating `Free Ball` selects only the ball. A successful relocation clears the selection and exits the state immediately; another relocation requires a new activation.
-- Cancelling the state, selecting a player, or leaving Match Mode clears it without changing action economy.
-- `Free Ball` must never disable MOVE, GROUP MOVE, the 3/2 rule, PASS, or another card action.
-- PASS possession gating is a Match Mode UI/entry guard: only the player sharing the ball's square may begin PASS. It does not alter the Pass Engine, interception sequencing, dice rules, or the 3/2 movement rule.
+## v19.21 integration boundary: PASS ownership and Free Ball
+
+- PASS eligibility in Match Mode is gated by the initiating player's current co-location with the `BALL` piece before the existing Pass Action Resolution flow begins. This gate does not alter Pass geometry, interception order, rolls, outcomes, or cancellation behavior. Editor/Sandbox PASS remains unrestricted.
+- Free Move is the visible name of the existing player free-placement authorization. Its internal `freeMode` state is retained for compatibility.
+- Free Ball is intentionally outside the Generic Action Resolution Engine. It is a one-click administrative ball placement that consumes no Tracker action and does not create an action request, decision, roll, continuation, or player movement authorization.
+- The final ball position is nevertheless recorded as a canonical `BALL_MOVED` Timeline transition, preserving Undo/Redo, replay, export, and multiplayer state parity.
