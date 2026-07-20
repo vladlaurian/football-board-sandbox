@@ -156,7 +156,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.22";
+const APP_VERSION = "v19.23";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -419,11 +419,6 @@ const CARD_TEXT_COLOR_DEFAULTS = {
   positionFront: "#ffffff",
   headerBack: "#ffffff",
   positionBack: "#ffffff",
-  frontFields: "#ffffff",
-  attributesFront: "#ffffff",
-  bonusesFront: "#ffffff",
-  attributesFrontValue: "#ffffff",
-  bonusesFrontValue: "#ffffff",
   preferredFoot: "#ffffff",
   attributes: "#ffffff",
   bonuses: "#ffffff",
@@ -443,10 +438,6 @@ const CARD_TEXT_STYLE_DEFAULTS = {
   positionFront: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   headerBack: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   positionBack: { align: "center", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
-  attributesFront: { align: "left", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
-  attributesFrontValue: { align: "right", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
-  bonusesFront: { align: "left", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
-  bonusesFrontValue: { align: "right", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   preferredFoot: { align: "left", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   attributes: { align: "left", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
   attributesValue: { align: "right", bold: true, font: "Inter", fontSize: 100, lineHeight: 100, verticalOffset: 0, statGap: 100 },
@@ -1238,7 +1229,6 @@ function normalizeCustomZone(raw, index = 0) {
     id: String(source.id || fallback.id),
     side,
     name: String(source.name ?? source.title ?? fallback.name),
-    contentBlockId: source.contentBlockId ? String(source.contentBlockId) : "",
     box,
   };
 }
@@ -1247,153 +1237,6 @@ function normalizeCustomZones(card) {
   return Array.isArray(card?.customZones) ? card.customZones.map((zone, index) => normalizeCustomZone(zone, index)) : [];
 }
 
-
-const DUPLICABLE_BLOCK_TYPES = {
-  attributesFront: { label: "Attributes Front", side: "front", kind: "frontPair", sourceSection: "passiveAttributes", colorKey: "attributesFront" },
-  bonusesFront: { label: "Bonuses Front", side: "front", kind: "frontPair", sourceSection: "bonuses", colorKey: "bonusesFront" },
-  attributesBack: { label: "Attributes Back", side: "back", kind: "list", sourceSection: "passiveAttributes", colorKey: "attributes" },
-  bonusesBack: { label: "Bonuses Back", side: "back", kind: "list", sourceSection: "bonuses", colorKey: "bonuses" },
-  specialAbility: { label: "Special Ability", side: "back", kind: "special", colorKey: "specialAbility" },
-};
-
-function baseDuplicateStyle(style = {}) {
-  const s = style && typeof style === "object" ? style : {};
-  return {
-    align: ["left", "center", "right"].includes(s.align) ? s.align : "left",
-    bold: typeof s.bold === "boolean" ? s.bold : true,
-    font: CARD_FONT_OPTIONS.includes(s.font) ? s.font : "Inter",
-    fontSize: clamp(Number(s.fontSize ?? 100), 50, 260),
-    lineHeight: clamp(Number(s.lineHeight ?? 100), 70, 180),
-    verticalOffset: clamp(Number(s.verticalOffset ?? 0), -100, 100),
-    statGap: clamp(Number(s.statGap ?? 300), 0, 300),
-  };
-}
-
-function baseDuplicateTitleStyle(style = {}) {
-  const s = baseDuplicateStyle(style);
-  return { ...s, align: ["left", "center", "right"].includes(style?.align) ? style.align : "center", lineHeight: 100, verticalOffset: 0 };
-}
-
-function duplicateStyleVars(style = {}) {
-  const s = baseDuplicateStyle(style);
-  return {
-    "--zone-align": s.align,
-    "--zone-justify": s.align === "left" ? "flex-start" : s.align === "right" ? "flex-end" : "center",
-    "--zone-grid-justify": s.align === "left" ? "start" : s.align === "right" ? "end" : "center",
-    "--zone-font-family": s.font,
-    "--zone-font-weight": s.bold ? 950 : 650,
-    "--zone-font-scale": s.fontSize / 100,
-    "--zone-line-height": s.lineHeight / 100,
-    "--zone-y-offset": `${s.verticalOffset * 0.4}cqh`,
-  };
-}
-
-function duplicateNumberStyleVars(textStyle = {}, numberStyle = {}) {
-  const base = baseDuplicateStyle(textStyle);
-  const num = baseDuplicateStyle(numberStyle);
-  const font = num.font || base.font;
-  const fontScale = (base.fontSize / 100) * (num.fontSize / 100);
-  return {
-    "--zone-font-family": font,
-    "--zone-font-weight": num.bold ? 950 : 650,
-    "--zone-font-scale": fontScale,
-    "--zone-number-font-scale": fontScale,
-    "--zone-line-height": base.lineHeight / 100,
-    "--zone-y-offset": `${base.verticalOffset * 0.4}cqh`,
-  };
-}
-
-function duplicateDistanceVars(style = {}, items = []) {
-  const s = baseDuplicateStyle(style);
-  const normalizedDistance = clamp(Number(s.statGap ?? 300), 0, 300);
-  const shiftPercent = Math.max(0, Math.min(1, (300 - normalizedDistance) / 300));
-  return {
-    "--zone-stat-gap": "0px",
-    "--zone-stat-gap-wide": "0px",
-    "--zone-distance-shift-raw": `${(shiftPercent * 28).toFixed(2)}cqw`,
-    "--zone-longest-label-ch": Math.max(0, ...items.map(item => String(item?.name || item?.label || "").length)),
-    "--zone-number-ch": Math.max(1, ...items.map(item => String(normalizeStatValue(item?.value ?? 0)).length)),
-  };
-}
-
-function cloneStatItemsForDuplicate(items = []) {
-  return normalizeStatItems(items).map((item, index) => ({
-    ...item,
-    id: `dup_item_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`,
-  }));
-}
-
-function makeDuplicateBlockFromCard(card, type) {
-  const meta = DUPLICABLE_BLOCK_TYPES[type] || DUPLICABLE_BLOCK_TYPES.attributesBack;
-  const styles = cardTextStyles(card);
-  const colors = normalizeTextColors(card?.textColors);
-  const id = `dup_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  if (meta.kind === "frontPair") {
-    const storageKey = type === "attributesFront" ? "frontAttributeFields" : "frontBonusFields";
-    const fallback = storageKey === "frontAttributeFields" ? (card.frontAttributeFields || card.frontFields || card.frontSummary) : card[storageKey];
-    const field = normalizeFrontFields(fallback)[0] || makeFrontField(type === "attributesFront" ? "Attributes" : "Bonuses", 0);
-    return {
-      id, type, kind: meta.kind, side: meta.side, name: `${meta.label} Copy`,
-      title: field.label || meta.label.replace(/ Front$/, ""),
-      value: computeFrontFieldValue(card, field),
-      textColor: safeColor(colors[meta.colorKey]),
-      numberColor: safeColor(colors[`${meta.colorKey}Value`], colors[meta.colorKey]),
-      textStyle: baseDuplicateStyle(styles[meta.colorKey]),
-      numberStyle: baseDuplicateStyle(styles[`${meta.colorKey}Value`]),
-    };
-  }
-  if (meta.kind === "special") {
-    return {
-      id, type, kind: meta.kind, side: meta.side, name: `${meta.label} Copy`,
-      title: cardLayoutTitle(card, "specialAbility"),
-      text: String(card?.specialAbility || ""),
-      titleColor: safeColor(colors.specialAbilityTitle),
-      textColor: safeColor(colors.specialAbility),
-      titleStyle: baseDuplicateTitleStyle(styles.specialAbilityTitle),
-      textStyle: baseDuplicateStyle(styles.specialAbility),
-    };
-  }
-  const sourceItems = meta.sourceSection === "bonuses" ? (card.bonuses || []) : (card.passiveAttributes || []);
-  return {
-    id, type, kind: meta.kind, side: meta.side, name: `${meta.label} Copy`,
-    title: cardLayoutTitle(card, meta.sourceSection === "bonuses" ? "bonuses" : "attributes"),
-    items: cloneStatItemsForDuplicate(sourceItems),
-    titleColor: safeColor(colors[`${meta.colorKey}Title`]),
-    textColor: safeColor(colors[meta.colorKey]),
-    numberColor: safeColor(colors[`${meta.colorKey}Value`], colors[meta.colorKey]),
-    titleStyle: baseDuplicateTitleStyle(styles[`${meta.colorKey}Title`]),
-    textStyle: baseDuplicateStyle(styles[meta.colorKey]),
-    numberStyle: baseDuplicateStyle(styles[`${meta.colorKey}Value`]),
-  };
-}
-
-function normalizeDuplicateBlock(raw, index = 0) {
-  const source = raw && typeof raw === "object" ? raw : {};
-  const type = Object.prototype.hasOwnProperty.call(DUPLICABLE_BLOCK_TYPES, source.type) ? source.type : "attributesBack";
-  const meta = DUPLICABLE_BLOCK_TYPES[type];
-  const id = String(source.id || `dup_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`);
-  const common = {
-    id,
-    type,
-    kind: meta.kind,
-    side: source.side === "front" || source.side === "back" ? source.side : meta.side,
-    name: String(source.name || `${meta.label} Copy`),
-    title: String(source.title || meta.label.replace(/ (Front|Back)$/, "")),
-    textColor: safeColor(source.textColor || "#ffffff"),
-    numberColor: safeColor(source.numberColor || source.textColor || "#ffffff"),
-    titleColor: safeColor(source.titleColor || "#ffffff"),
-    textStyle: baseDuplicateStyle(source.textStyle),
-    numberStyle: baseDuplicateStyle(source.numberStyle),
-    titleStyle: baseDuplicateTitleStyle(source.titleStyle),
-  };
-  if (meta.kind === "frontPair") return { ...common, value: cleanTwoDigitValue(source.value ?? 0) };
-  if (meta.kind === "special") return { ...common, text: String(source.text || "") };
-  return { ...common, items: normalizeStatItems(source.items || []) };
-}
-
-function normalizeDuplicateBlocks(card) {
-  return Array.isArray(card?.duplicateBlocks) ? card.duplicateBlocks.map((block, index) => normalizeDuplicateBlock(block, index)) : [];
-}
 
 const COLOR_SWATCHES = ["#ffffff", "#f8fafc", "#111827", "#ef4444", "#f97316", "#facc15", "#22c55e", "#14b8a6", "#38bdf8", "#3b82f6", "#8b5cf6", "#ec4899"];
 const CARD_FRONT_FIELDS = ["DEF", "ATT"];
@@ -1420,7 +1263,7 @@ function defaultAttributesForPosition(position, section) {
   const names = section === "passive"
     ? (isGk ? ["Reflexes", "Diving Saves", "GK Penalty"] : ["Speed", "1vs1 Defending", "Aerial", "Passing", "Ball Control"])
     : (isGk ? ["Long Pass", "Cross Claiming", "Penalty"] : ["Tackling", "Interception", "Long Pass", "Crossing", "Dribbling", "Accuracy", "Long Shot", "Finishing", "Heading", "Penalty"]);
-  return names.map((name, index) => ({ id: `${section}_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`, name, value: 0, showOnCard: true }));
+  return names.map((name, index) => ({ id: `${section}_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`, name, value: 10, showOnCard: true }));
 }
 
 function emptyDefensiveArea() {
@@ -1438,42 +1281,6 @@ function normalizeDefensiveGridAdjust(raw = {}) {
     offsetY: clamp(Number(source.offsetY ?? DEFENSIVE_GRID_ADJUST_DEFAULTS.offsetY) || 0, -80, 80),
   };
 }
-
-function makeFrontField(label, index = 0, extra = {}) {
-  return {
-    id: extra.id || `front_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`,
-    label: String(extra.label ?? label ?? "New").slice(0, 12),
-    sources: Array.isArray(extra.sources) ? extra.sources.filter(src => src && src.section && src.id) : [],
-    manualValue: cleanTwoDigitValue(extra.manualValue ?? extra.value ?? 0),
-  };
-}
-
-function defaultFrontFields() {
-  return CARD_FRONT_FIELDS.map((label, index) => makeFrontField(label, index));
-}
-
-function normalizeFrontFields(raw) {
-  if (Array.isArray(raw)) {
-    const fields = raw.map((field, index) => makeFrontField(field?.label ?? field?.name ?? CARD_FRONT_FIELDS[index] ?? "New", index, field));
-    return fields.length ? fields : defaultFrontFields();
-  }
-  const source = raw && typeof raw === "object" ? raw : {};
-  const fields = CARD_FRONT_FIELDS.map((key, index) => makeFrontField(key, index, { manualValue: source[key] ?? source[key.toLowerCase()] ?? 0 }));
-  return fields;
-}
-
-function computeFrontFieldValue(card, field) {
-  const attrs = Array.isArray(card?.passiveAttributes) ? card.passiveAttributes : [];
-  const bonuses = Array.isArray(card?.bonuses) ? card.bonuses : [];
-  const values = (field?.sources || []).map(src => {
-    const list = src.section === "bonuses" ? bonuses : attrs;
-    const item = list.find(x => x.id === src.id);
-    return item ? Number(item.value) || 0 : null;
-  }).filter(value => value !== null);
-  if (!values.length) return cleanTwoDigitValue(field?.manualValue ?? field?.value ?? 0);
-  return cleanTwoDigitValue(Math.round(values.reduce((sum, value) => sum + value, 0) / values.length));
-}
-
 
 function hasCustomGraphics(card) {
   return Boolean(card?.graphics?.frontDataUrl || card?.graphics?.backDataUrl);
@@ -1543,6 +1350,127 @@ function normalizeFrontStars(source = {}) {
 }
 
 
+
+const GLOBAL_BACK_STAT_SECTIONS = ["passiveAttributes", "bonuses"];
+const GLOBAL_BACK_STYLE_KEYS = new Set(["attributes", "attributesValue", "attributesTitle", "bonuses", "bonusesValue", "bonusesTitle"]);
+const GLOBAL_BACK_TITLE_KEYS = new Set(["attributes", "bonuses"]);
+
+function normalizedStatName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function makeGlobalStatId(section, name, index = 0) {
+  const slug = normalizedStatName(name).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `stat-${index + 1}`;
+  return `stat:${slug}`;
+}
+
+function statDefinitionsFromCard(card, section) {
+  return normalizeStatItems(card?.[section] || []).map((item, index) => ({
+    id: makeGlobalStatId(section, item.name, index),
+    name: String(item.name || "New"),
+  }));
+}
+
+function sameStatStructure(card, definitions, section) {
+  const list = normalizeStatItems(card?.[section] || []);
+  return list.length === definitions.length && list.every((item, index) => normalizedStatName(item.name) === normalizedStatName(definitions[index]?.name));
+}
+
+
+function extractGlobalBackPresentation(card) {
+  const colors = normalizeTextColors(card?.textColors);
+  const styles = normalizeTextStyles(card?.textStyles);
+  const layout = normalizeCardVisualLayout(card?.visualLayout || card?.layout);
+  const titles = { ...CARD_LAYOUT_TITLE_DEFAULTS, ...(card?.layoutTitles || {}) };
+  return {
+    textColors: Object.fromEntries([...GLOBAL_BACK_STYLE_KEYS].map(key => [key, colors[key]])),
+    textStyles: Object.fromEntries([...GLOBAL_BACK_STYLE_KEYS].map(key => [key, styles[key]])),
+    layoutTitles: Object.fromEntries([...GLOBAL_BACK_TITLE_KEYS].map(key => [key, titles[key]])),
+    visualLayout: {
+      attributes: clonePlain(layout.back.attributes),
+      bonuses: clonePlain(layout.back.bonuses),
+    },
+  };
+}
+
+function sameGlobalBackPresentation(card, presentation) {
+  return JSON.stringify(extractGlobalBackPresentation(card)) === JSON.stringify(presentation);
+}
+
+function applyGlobalBackPresentation(card, presentation) {
+  if (!presentation) return card;
+  const currentLayout = normalizeCardVisualLayout(card?.visualLayout || card?.layout);
+  return {
+    ...card,
+    textColors: { ...normalizeTextColors(card?.textColors), ...(presentation.textColors || {}) },
+    textStyles: { ...normalizeTextStyles(card?.textStyles), ...(presentation.textStyles || {}) },
+    layoutTitles: { ...CARD_LAYOUT_TITLE_DEFAULTS, ...(card?.layoutTitles || {}), ...(presentation.layoutTitles || {}) },
+    visualLayout: {
+      ...currentLayout,
+      back: {
+        ...currentLayout.back,
+        attributes: clonePlain(presentation.visualLayout?.attributes || currentLayout.back.attributes),
+        bonuses: clonePlain(presentation.visualLayout?.bonuses || currentLayout.back.bonuses),
+      },
+    },
+  };
+}
+
+function deriveBackStatsSchema(cards = [], rawSchema = null) {
+  if (rawSchema && rawSchema.version === 1 && ((rawSchema.passiveAttributes || []).length || (rawSchema.bonuses || []).length || cards.length === 0)) {
+    return {
+      version: 1,
+      passiveAttributes: (rawSchema.passiveAttributes || []).map((item, index) => ({ id: String(item.id || makeGlobalStatId("passiveAttributes", item.name, index)), name: String(item.name || "New") })),
+      bonuses: (rawSchema.bonuses || []).map((item, index) => ({ id: String(item.id || makeGlobalStatId("bonuses", item.name, index)), name: String(item.name || "New") })),
+      presentation: cards[0] ? extractGlobalBackPresentation(cards[0]) : (rawSchema.presentation || null),
+      migrationError: String(rawSchema.migrationError || ""),
+    };
+  }
+  const reference = cards[0];
+  if (!reference) return { version: 1, passiveAttributes: [], bonuses: [], presentation: null, migrationError: "" };
+  const presentation = extractGlobalBackPresentation(reference);
+  const schema = {
+    version: 1,
+    passiveAttributes: statDefinitionsFromCard(reference, "passiveAttributes"),
+    bonuses: statDefinitionsFromCard(reference, "bonuses"),
+    presentation,
+  };
+  const mismatches = cards.flatMap(card => {
+    const issues = GLOBAL_BACK_STAT_SECTIONS.filter(section => !sameStatStructure(card, schema[section], section)).map(section => `${card.name || card.id}: ${section}`);
+    if (!sameGlobalBackPresentation(card, presentation)) issues.push(`${card.name || card.id}: Attributes/Bonuses layout or style`);
+    return issues;
+  });
+  return { ...schema, migrationError: mismatches.length ? `Global stats migration stopped. Different structures found: ${mismatches.join(", ")}` : "" };
+}
+
+function materializeCardStats(card, schema) {
+  const next = { ...card };
+  for (const section of GLOBAL_BACK_STAT_SECTIONS) {
+    const oldList = normalizeStatItems(card?.[section] || []);
+    const byId = new Map(oldList.map(item => [String(item.id || ""), item]));
+    const byName = new Map(oldList.map(item => [normalizedStatName(item.name), item]));
+    next[section] = (schema?.[section] || []).map((definition) => {
+      const existing = byId.get(String(definition.id)) || byName.get(normalizedStatName(definition.name));
+      return {
+        id: definition.id,
+        name: definition.name,
+        value: existing ? normalizeStatValue(existing.value) : 10,
+        showOnCard: existing ? existing.showOnCard !== false : true,
+      };
+    });
+  }
+  return applyGlobalBackPresentation(next, schema?.presentation);
+}
+
+function cardStatById(card, statId) {
+  const id = String(statId || "");
+  for (const section of GLOBAL_BACK_STAT_SECTIONS) {
+    const item = (card?.[section] || []).find(entry => String(entry?.id || "") === id);
+    if (item) return Number(item.value) || 0;
+  }
+  return 0;
+}
+
 function createPlayerCard(position = "ST") {
   const safePosition = CARD_POSITION_OPTIONS.includes(position) ? position : "ST";
   return {
@@ -1552,7 +1480,6 @@ function createPlayerCard(position = "ST") {
     passiveAttributes: defaultAttributesForPosition(safePosition, "passive"),
     bonuses: defaultAttributesForPosition(safePosition, "bonus"),
     preferredFoot: "Right",
-    frontFields: defaultFrontFields(),
     starsFront: { ...FRONT_STAR_DEFAULTS },
     theme: "Style 1",
     defensiveArea: emptyDefensiveArea(),
@@ -1561,7 +1488,6 @@ function createPlayerCard(position = "ST") {
     graphics: { frontDataUrl: "", backDataUrl: "", previousTheme: "Style 1" },
     specialAbility: "",
     customZones: [],
-    duplicateBlocks: [],
     deletedLayoutZones: [],
     textColors: { ...CARD_TEXT_COLOR_DEFAULTS },
     textStyles: normalizeTextStyles(),
@@ -1587,7 +1513,6 @@ function normalizeImportedCard(card) {
     passiveAttributes: normalizeStatItems(Array.isArray(card?.passiveAttributes) ? card.passiveAttributes : (Array.isArray(card?.attributes) ? card.attributes : [])),
     bonuses: normalizeStatItems(Array.isArray(card?.bonuses) ? card.bonuses : []),
     preferredFoot: PREFERRED_FOOT_OPTIONS.includes(card?.preferredFoot) ? card.preferredFoot : "Right",
-    frontFields: normalizeFrontFields(card?.frontFields || card?.frontSummary || card?.summary || card?.front || card?.ratings),
     starsFront: normalizeFrontStars(card?.starsFront || card?.frontStars || card?.stars),
     theme: (card?.theme === CUSTOM_CARD_THEME || card?.theme === "Custom") ? CUSTOM_CARD_THEME : (CARD_THEMES.includes(card?.theme) ? card.theme : (LEGACY_THEME_MAP[card?.theme] || base.theme || "Style 1")),
     defensiveArea: Array.isArray(card?.defensiveArea) ? card.defensiveArea : [],
@@ -1602,7 +1527,6 @@ function normalizeImportedCard(card) {
     },
     specialAbility: String(card?.specialAbility ?? card?.special_ability ?? card?.special ?? ""),
     customZones: normalizeCustomZones(card),
-    duplicateBlocks: normalizeDuplicateBlocks(card),
     deletedLayoutZones: Array.isArray(card?.deletedLayoutZones) ? card.deletedLayoutZones.map(String) : [],
     textColors: normalizeTextColors(card?.textColors || card?.colors || card?.text_colors),
     textStyles: normalizeTextStyles(card?.textStyles || card?.text_styles),
@@ -1618,6 +1542,7 @@ function createDefaultCardState() {
       red: TEAM_SLOT_POSITIONS.map((position, index) => ({ id: `red-${index + 1}`, position, cardId: null })),
     },
     assignments: {},
+    backStatsSchema: { version: 1, passiveAttributes: [], bonuses: [] },
     theme: "Style 1",
   };
 }
@@ -1625,7 +1550,9 @@ function createDefaultCardState() {
 function normalizeCardState(raw) {
   const base = createDefaultCardState();
   if (!raw || typeof raw !== "object") return base;
-  const cards = Array.isArray(raw.cards) ? raw.cards.map(card => normalizeImportedCard(card)) : [];
+  const importedCards = Array.isArray(raw.cards) ? raw.cards.map(card => normalizeImportedCard(card)) : [];
+  const backStatsSchema = deriveBackStatsSchema(importedCards, raw.backStatsSchema);
+  const cards = backStatsSchema.migrationError ? importedCards : importedCards.map(card => materializeCardStats(card, backStatsSchema));
 
   // New invariant: card-to-puck links live on pieces[].cardId only.
   // cardState is now only the card library + visual card settings.
@@ -1637,6 +1564,7 @@ function normalizeCardState(raw) {
       red: base.teams.red,
     },
     assignments: {},
+    backStatsSchema,
     theme: CARD_THEMES.includes(raw.theme) ? raw.theme : (LEGACY_THEME_MAP[raw.theme] || base.theme),
   };
 }
@@ -1952,6 +1880,9 @@ function App() {
   const [cardState, setCardState] = useState(() => {
     try {
       const raw = localStorage.getItem("football-board-player-cards-v1");
+      if (raw && !localStorage.getItem("football-board-player-cards-v1-pre-global-stats-v1")) {
+        localStorage.setItem("football-board-player-cards-v1-pre-global-stats-v1", raw);
+      }
       return raw ? normalizeCardState(JSON.parse(raw)) : normalizeCardState();
     } catch {
       return normalizeCardState();
@@ -2178,6 +2109,7 @@ function App() {
   useEffect(() => { piecesRef.current = pieces; }, [pieces]);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { cardStateRef.current = cardState; }, [cardState]);
+  useEffect(() => { if (cardState?.backStatsSchema?.migrationError) window.alert(cardState.backStatsSchema.migrationError); }, [cardState?.backStatsSchema?.migrationError]);
   useEffect(() => { activeRuleSetRef.current = activeRuleSet; }, [activeRuleSet]);
   useEffect(() => { actionResolutionRef.current = actionResolution; }, [actionResolution]);
   useEffect(() => { actionContinuationRef.current = actionContinuation; }, [actionContinuation]);
@@ -5160,8 +5092,7 @@ function App() {
   }
   function getPieceSpeed(piece) {
     const card = findCardForPiece(piece);
-    const attr = (card?.passiveAttributes || []).find(item => String(item?.name ?? item?.label ?? "").trim().toLowerCase() === "speed");
-    const value = Number(attr?.value);
+    const value = Number(cardStat(card, "stat:speed"));
     return Number.isFinite(value) ? Math.max(0, value) : null;
   }
   function playerHasBall(piece) {
@@ -6899,10 +6830,6 @@ function App() {
     const textStyles = effectiveTextStylesForCard(card);
     const visibleAttributes = (card?.passiveAttributes || []).filter(item => item.showOnCard !== false);
     const visibleBonuses = (card?.bonuses || []).filter(item => item.showOnCard !== false);
-    const frontAttributeFields = normalizeFrontFields(card?.frontAttributeFields || card?.frontFields || card?.frontSummary);
-    const frontBonusFields = normalizeFrontFields(card?.frontBonusFields);
-    const firstFrontAttribute = frontAttributeFields[0] || makeFrontField("Attributes", 0);
-    const firstFrontBonus = frontBonusFields[0] || makeFrontField("DEF", 0);
 
     const renderNameZone = colorKey => (
       <div className={`card-zone-text card-zone-name zone-color-bound ${colorKey === "headerFront" ? "card-zone-name-front" : ""}`} style={{ "--zone-text-color": safeColor(colors[colorKey]), color: safeColor(colors[colorKey]), ...zoneTextStyleVars(textStyles, colorKey) }} title={card?.name || "Player"}>
@@ -6915,18 +6842,6 @@ function App() {
         {String(card?.position || "").toUpperCase()}
       </div>
     );
-
-    const renderFrontFormulaZone = (field, colorKey) => {
-      const textColor = safeColor(colors[colorKey]);
-      const valueKey = `${colorKey}Value`;
-      const valueColor = safeColor(colors[valueKey], textColor);
-      return (
-        <div className="card-zone-text card-zone-formula zone-color-bound" style={{ "--zone-text-color": textColor, color: textColor, ...zonePairDistanceVars(textStyles, colorKey, { longestLabelChars: String(field.label || "").length, maxValueChars: String(computeFrontFieldValue(card, field)).length }) }}>
-          <span className="card-zone-label" style={{ color: textColor, ...zoneTextStyleVars(textStyles, colorKey) }}>{field.label}</span>
-          <strong className="card-zone-value" style={{ "--zone-number-color": valueColor, color: valueColor, ...zoneNumberStyleVars(textStyles, colorKey, valueKey) }}>{computeFrontFieldValue(card, field)}</strong>
-        </div>
-      );
-    };
 
     const renderFrontStars = () => {
       const stars = normalizeFrontStars(card?.starsFront);
@@ -7035,59 +6950,8 @@ function App() {
       );
     };
 
-    const duplicateBlocks = normalizeDuplicateBlocks(card);
-    const duplicateBlockById = Object.fromEntries(duplicateBlocks.map(block => [block.id, block]));
 
-    const renderDuplicateListBlock = block => {
-      const items = (block.items || []).filter(item => item.showOnCard !== false);
-      const textColor = safeColor(block.textColor);
-      const numberColor = safeColor(block.numberColor, textColor);
-      const titleColor = safeColor(block.titleColor, textColor);
-      return (
-        <div className="card-zone-text card-zone-list-with-title zone-color-bound duplicate-content-zone" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": Math.max(2, items.length + 1), color: textColor }}>
-          <div className="card-zone-section-title" style={{ color: titleColor, ...duplicateStyleVars(block.titleStyle) }}>{block.title}</div>
-          <div className="card-zone-list" style={{ color: textColor, "--zone-lines": Math.max(2, items.length + 1), ...duplicateStyleVars(block.textStyle), ...duplicateDistanceVars(block.textStyle, items) }}>
-            {items.length ? items.map(item => (
-              <div className="card-zone-list-row" key={item.id} style={{ color: textColor }}>
-                <span className="card-zone-label" style={{ color: textColor }}>{item.name}</span>
-                <strong className="card-zone-value" style={{ "--zone-number-color": numberColor, color: numberColor, ...duplicateNumberStyleVars(block.textStyle, block.numberStyle) }}>{normalizeStatValue(item.value)}</strong>
-              </div>
-            )) : <em style={{ color: textColor }}>—</em>}
-          </div>
-        </div>
-      );
-    };
-
-    const renderDuplicateFrontPairBlock = block => {
-      const textColor = safeColor(block.textColor);
-      const numberColor = safeColor(block.numberColor, textColor);
-      const item = { name: block.title, value: block.value };
-      return (
-        <div className="card-zone-text card-zone-formula zone-color-bound duplicate-content-zone" style={{ "--zone-text-color": textColor, color: textColor, ...duplicateDistanceVars(block.textStyle, [item]) }}>
-          <span className="card-zone-label" style={{ color: textColor, ...duplicateStyleVars(block.textStyle) }}>{block.title}</span>
-          <strong className="card-zone-value" style={{ "--zone-number-color": numberColor, color: numberColor, ...duplicateNumberStyleVars(block.textStyle, block.numberStyle) }}>{normalizeStatValue(block.value)}</strong>
-        </div>
-      );
-    };
-
-    const renderDuplicateSpecialBlock = block => {
-      const textColor = safeColor(block.textColor);
-      const titleColor = safeColor(block.titleColor, textColor);
-      return (
-        <div className="card-zone-text card-zone-special-with-title zone-color-bound duplicate-content-zone" style={{ "--zone-text-color": textColor, "--zone-title-color": titleColor, "--zone-lines": 3, color: textColor }}>
-          <div className="card-zone-section-title" style={{ color: titleColor, ...duplicateStyleVars(block.titleStyle) }}>{block.title}</div>
-          <AutoFitSpecialText style={{ color: textColor, ...duplicateStyleVars(block.textStyle) }}>{block.text || ""}</AutoFitSpecialText>
-        </div>
-      );
-    };
-
-    const renderCustomZoneContent = zone => {
-      const block = duplicateBlockById[zone.contentBlockId];
-      if (!block) return <div className="card-zone-text card-zone-custom-empty" aria-hidden="true" />;
-      if (block.kind === "frontPair") return renderDuplicateFrontPairBlock(block);
-      if (block.kind === "special") return renderDuplicateSpecialBlock(block);
-      return renderDuplicateListBlock(block);
-    };
+    const renderCustomZoneContent = () => <div className="card-zone-text card-zone-custom-empty" aria-hidden="true" />;
 
     const renderZoneContent = zoneKey => {
       if (side === "front") {
@@ -7339,14 +7203,27 @@ function App() {
 
   function AttributeListEditor({ card, section, title, hideHeader = false, toolbarLeft = null }) {
     const items = card[section] || [];
-    const moveItem = (index, dir) => updateCardList(card.id, section, list => { const next = [...list]; const to = index + dir; if (to < 0 || to >= next.length) return next; [next[index], next[to]] = [next[to], next[index]]; return next; });
+    const updateGlobalDefinitions = updater => updateCardState(prev => {
+      const schema = deriveBackStatsSchema(prev.cards || [], prev.backStatsSchema);
+      const nextDefinitions = updater([...(schema[section] || [])]);
+      const nextSchema = { ...schema, migrationError: "", [section]: nextDefinitions };
+      const now = new Date().toISOString();
+      const cards = (prev.cards || []).map(current => materializeCardStats({ ...current, updatedAt: now }, nextSchema));
+      return { ...prev, backStatsSchema: nextSchema, cards };
+    });
+    const moveItem = (index, dir) => updateGlobalDefinitions(list => { const next = [...list]; const to = index + dir; if (to < 0 || to >= next.length) return next; [next[index], next[to]] = [next[to], next[index]]; return next; });
     const changeValue = (itemId, delta) => updateCardList(card.id, section, list => list.map(x => x.id === itemId ? { ...x, value: clamp(normalizeStatValue(x.value) + delta, -99, 99) } : x));
+    const addGlobalStat = () => updateGlobalDefinitions(list => [...list, { id: `${section === "bonuses" ? "bonus" : "attribute"}:new-${Date.now()}-${Math.random().toString(36).slice(2,5)}`, name: "New" }]);
+    const deleteGlobalStat = item => {
+      if (!window.confirm(`Delete “${item.name}” from ALL cards? This permanently removes every value and Show setting for this statistic.`)) return;
+      updateGlobalDefinitions(list => list.filter(definition => definition.id !== item.id));
+    };
     return (
       <div className="card-edit-section">
-        {!hideHeader ? <div className="card-edit-section-title"><strong>{title}</strong>{renderColorPicker(card, section === "bonuses" ? "bonuses" : "attributes", "Color")}<button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }])}>+ Add</button></div> : <div className="card-edit-section-title sub-only attribute-toolbar-row"><div className="attribute-toolbar-left">{toolbarLeft}</div><button onClick={() => updateCardList(card.id, section, list => [...list, { id: `${section}_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }])}>+ Add</button></div>}
+        {!hideHeader ? <div className="card-edit-section-title"><strong>{title}</strong>{renderColorPicker(card, section === "bonuses" ? "bonuses" : "attributes", "Color")}<button onClick={addGlobalStat}>+ Add</button></div> : <div className="card-edit-section-title sub-only attribute-toolbar-row"><div className="attribute-toolbar-left">{toolbarLeft}</div><button onClick={addGlobalStat}>+ Add</button></div>}
         {items.map((item, index) => (
           <div className="attribute-row" key={item.id}>
-            <input value={item.name} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, name: e.target.value } : x))} />
+            <input value={item.name} onChange={e => updateGlobalDefinitions(list => list.map(x => x.id === item.id ? { ...x, name: e.target.value } : x))} />
             <div className="value-stepper" title="Edit value">
               <button className="value-step-btn" onClick={() => changeValue(item.id, -1)}>−</button>
               <input className="attr-value" inputMode="text" value={item.value} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, value: cleanTwoDigitValue(e.target.value) } : x))} onBlur={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, value: normalizeStatValue(e.target.value) } : x))} />
@@ -7354,7 +7231,7 @@ function App() {
             </div>
             <label className="show-on-card-toggle" title="Show on card"><input type="checkbox" checked={item.showOnCard !== false} onChange={e => updateCardList(card.id, section, list => list.map(x => x.id === item.id ? { ...x, showOnCard: e.target.checked } : x))} /><span>Show</span></label>
             <button className="order-btn" onClick={() => moveItem(index, -1)}>↑</button><button className="order-btn" onClick={() => moveItem(index, 1)}>↓</button>
-            <button onClick={() => updateCardList(card.id, section, list => list.filter(x => x.id !== item.id))}>×</button>
+            <button onClick={() => deleteGlobalStat(item)}>×</button>
           </div>
         ))}
       </div>
@@ -7370,42 +7247,6 @@ function App() {
         <div className="area-actions"><button onClick={() => setArea([])}>Clear Area</button><button onClick={() => setArea(Array.from({ length: 121 }, (_, i) => ({ dx: (i % 11) - 5, dy: Math.floor(i / 11) - 5 })).filter(c => !(c.dx === 0 && c.dy === 0)))}>Fill Area</button><button onClick={() => setArea(area.map(c => ({ dx: -Number(c.dx), dy: Number(c.dy) })))}>Mirror Left/Right</button><button onClick={() => setArea(area.map(c => ({ dx: Number(c.dx), dy: -Number(c.dy) })))}>Mirror Up/Down</button></div>
         <div className="def-area-editor-row">
           <div className="def-grid">{Array.from({ length: 121 }, (_, i) => { const dx = (i % 11) - 5; const dy = Math.floor(i / 11) - 5; const center = dx === 0 && dy === 0; return <button key={i} className={`${center ? "player" : ""} ${areaHasCell(area, dx, dy) ? "active" : ""}`} onClick={() => toggle(dx, dy)}>{center ? "P" : ""}</button>; })}</div>
-        </div>
-      </div>
-    );
-  }
-
-  function FrontZoneFieldsEditor({ card, storageKey, title, colorKey, sourceSection }) {
-    const fallback = storageKey === "frontAttributeFields" ? (card.frontAttributeFields || card.frontFields || card.frontSummary) : card[storageKey];
-    const defaultLabel = storageKey === "frontAttributeFields" ? "Attributes" : "DEF";
-    const allFields = normalizeFrontFields(fallback);
-    const firstField = allFields[0] ? { ...allFields[0], label: allFields[0].label || defaultLabel } : makeFrontField(defaultLabel, 0);
-    const fields = [firstField];
-    const sourceItems = (sourceSection === "bonuses" ? (card.bonuses || []) : (card.passiveAttributes || []))
-      .map(item => ({ ...item, section: sourceSection === "bonuses" ? "bonuses" : "passiveAttributes", group: sourceSection === "bonuses" ? "Bonuses" : "Attributes" }));
-    const updateSingleField = updater => updateCardField(card.id, storageKey, [updater(firstField)]);
-    const toggleSource = (section, sourceId) => updateSingleField(field => {
-      const exists = (field.sources || []).some(src => src.section === section && src.id === sourceId);
-      return { ...field, sources: exists ? field.sources.filter(src => !(src.section === section && src.id === sourceId)) : [...(field.sources || []), { section, id: sourceId }] };
-    });
-    return (
-      <div className="card-edit-section front-summary-editor">
-        <div className="card-edit-section-title front-pair-toolbar"><strong>{title}</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, storageKey === "frontAttributeFields" ? "attributesFront" : "bonusesFront")}>Duplicate</button>{renderColorPicker(card, colorKey, "Color")}{renderTextStyleControls(card, colorKey, false, { buttonLabel: "Text", panelAlign: "front" })}{renderColorPicker(card, `${colorKey}Value`, "Numbers Color")}{renderTextStyleControls(card, `${colorKey}Value`, false, { buttonLabel: "Numbers", panelAlign: "front", numbersMode: true })}</div>
-        <div className="front-formula-list">
-          {fields.map(field => (
-            <div className="front-formula-row" key={field.id}>
-              <div className="front-formula-top">
-                <input value={field.label} onChange={e => updateSingleField(current => ({ ...current, label: e.target.value.slice(0, 12) }))} />
-                <strong>{computeFrontFieldValue(card, field)}</strong>
-              </div>
-              <div className="front-source-picker">
-                {sourceItems.map(item => {
-                  const checked = (field.sources || []).some(src => src.section === item.section && src.id === item.id);
-                  return <label key={`${field.id}_${item.section}_${item.id}`} className={checked ? "source-on" : ""}><input type="checkbox" checked={checked} onChange={() => toggleSource(item.section, item.id)} /><span>{item.name}</span><em>{item.group}</em></label>;
-                })}
-              </div>
-            </div>
-          ))}
         </div>
       </div>
     );
@@ -7506,7 +7347,7 @@ function App() {
     updateCardState(prev => ({
       ...prev,
       cards: prev.cards.map(card => {
-        if (card.id !== cardId) return card;
+        if (card.id !== cardId && !GLOBAL_BACK_STYLE_KEYS.has(key)) return card;
         const current = normalizeTextStyles(card.textStyles);
         return {
           ...card,
@@ -7563,7 +7404,7 @@ function App() {
     if (!cardId) return;
     updateCardState(prev => ({
       ...prev,
-      cards: prev.cards.map(card => card.id === cardId ? {
+      cards: prev.cards.map(card => (card.id === cardId || GLOBAL_BACK_STYLE_KEYS.has(key)) ? {
         ...card,
         textColors: { ...CARD_TEXT_COLOR_DEFAULTS, ...(card.textColors || {}), [key]: safeColor(value) },
         updatedAt: new Date().toISOString(),
@@ -7587,21 +7428,6 @@ function App() {
     );
   }
 
-  function renderDuplicateColorPicker(card, block, field, label) {
-    if (!card || !block) return null;
-    const current = safeColor(block[field]);
-    const panelKey = `${card.id}:duplicate:${block.id}:${field}`;
-    return (
-      <StableColorPicker
-        current={current}
-        label={label}
-        isOpen={openColorPanelKey === panelKey}
-        onToggle={() => setOpenColorPanelKey(openColorPanelKey === panelKey ? null : panelKey)}
-        onKeepOpen={() => setOpenColorPanelKey(panelKey)}
-        onChange={value => updateDuplicateBlock(card.id, block.id, { [field]: value })}
-      />
-    );
-  }
 
   function setCardThemeSelection(cardId, value) {
     if (!cardId) return;
@@ -7696,7 +7522,8 @@ function App() {
     updateCardState(prev => ({
       ...prev,
       cards: prev.cards.map(card => {
-        if (card.id !== cardId) return card;
+        const isGlobalBackZone = selectedLayout.kind === "base" && selectedLayout.side === "back" && (selectedLayout.zoneKey === "attributes" || selectedLayout.zoneKey === "bonuses");
+        if (card.id !== cardId && !isGlobalBackZone) return card;
         if (selectedLayout.kind === "custom") {
           return {
             ...card,
@@ -7750,7 +7577,6 @@ function App() {
 
     const zone = normalizeCustomZones(card).find(item => item.id === selectedLayout.zoneKey);
     if (!zone) return;
-    const block = normalizeDuplicateBlocks(card).find(item => item.id === zone.contentBlockId);
     setLayoutStyleClipboard({
       kind: "custom",
       side: selectedLayout.side,
@@ -7758,15 +7584,6 @@ function App() {
       zoneName: zone.name,
       label: zone.name || "Custom layout",
       box: clonePlain(zone.box),
-      blockStyle: block ? {
-        kind: block.kind,
-        textColor: block.textColor,
-        numberColor: block.numberColor,
-        titleColor: block.titleColor,
-        textStyle: clonePlain(block.textStyle),
-        numberStyle: clonePlain(block.numberStyle),
-        titleStyle: clonePlain(block.titleStyle),
-      } : null,
     });
   }
 
@@ -7804,22 +7621,9 @@ function App() {
       const zones = normalizeCustomZones(card);
       const targetZone = zones.find(item => item.id === targetSelection.zoneKey);
       if (!targetZone || targetZone.side !== payload.side) return card;
-      let duplicateBlocks = normalizeDuplicateBlocks(card);
-      if (payload.blockStyle && targetZone.contentBlockId) {
-        duplicateBlocks = duplicateBlocks.map(block => block.id === targetZone.contentBlockId && block.kind === payload.blockStyle.kind ? normalizeDuplicateBlock({
-          ...block,
-          textColor: payload.blockStyle.textColor,
-          numberColor: payload.blockStyle.numberColor,
-          titleColor: payload.blockStyle.titleColor,
-          textStyle: clonePlain(payload.blockStyle.textStyle),
-          numberStyle: clonePlain(payload.blockStyle.numberStyle),
-          titleStyle: clonePlain(payload.blockStyle.titleStyle),
-        }) : block);
-      }
       return {
         ...card,
         customZones: zones.map(zone => zone.id === targetZone.id ? { ...zone, box: clonePlain(payload.box) } : zone),
-        duplicateBlocks,
         updatedAt: now,
       };
     }
@@ -7843,9 +7647,10 @@ function App() {
       window.alert("Select the equivalent layout on the destination card.");
       return;
     }
+    const isGlobalBackZone = layoutStyleClipboard.kind === "base" && layoutStyleClipboard.side === "back" && (layoutStyleClipboard.zoneKey === "attributes" || layoutStyleClipboard.zoneKey === "bonuses");
     updateCardState(prev => ({
       ...prev,
-      cards: prev.cards.map(card => card.id === cardId ? applyLayoutStylePayloadToCard(card, layoutStyleClipboard, selectedLayout) : card),
+      cards: prev.cards.map(card => (card.id === cardId || isGlobalBackZone) ? applyLayoutStylePayloadToCard(card, layoutStyleClipboard, selectedLayout) : card),
     }));
   }
 
@@ -7873,7 +7678,7 @@ function App() {
     updateCardState(prev => ({
       ...prev,
       cards: prev.cards.map(card => {
-        if (card.id !== cardId) return card;
+        if (card.id !== cardId && !(side === "back" && (zoneKey === "attributes" || zoneKey === "bonuses"))) return card;
         const current = normalizeCardVisualLayout(card.visualLayout || card.layout);
         const base = current[side][zoneKey] || DEFAULT_CARD_VISUAL_LAYOUT[side][zoneKey];
         const nextBox = {
@@ -7904,7 +7709,7 @@ function App() {
     if (!cardId || !Object.prototype.hasOwnProperty.call(CARD_LAYOUT_TITLE_DEFAULTS, key)) return;
     updateCardState(prev => ({
       ...prev,
-      cards: prev.cards.map(card => card.id === cardId ? {
+      cards: prev.cards.map(card => (card.id === cardId || GLOBAL_BACK_TITLE_KEYS.has(key)) ? {
         ...card,
         layoutTitles: { ...CARD_LAYOUT_TITLE_DEFAULTS, ...(card.layoutTitles || {}), [key]: value },
         updatedAt: new Date().toISOString(),
@@ -7912,153 +7717,6 @@ function App() {
     }));
   }
 
-
-  function addDuplicateBlock(cardId, type) {
-    if (!cardId || !DUPLICABLE_BLOCK_TYPES[type]) return;
-    updateCardState(prev => ({
-      ...prev,
-      cards: prev.cards.map(card => card.id === cardId ? {
-        ...card,
-        duplicateBlocks: [...normalizeDuplicateBlocks(card), makeDuplicateBlockFromCard(card, type)],
-        updatedAt: new Date().toISOString(),
-      } : card),
-    }));
-  }
-
-  function updateDuplicateBlock(cardId, blockId, patch) {
-    if (!cardId || !blockId) return;
-    updateCardState(prev => ({
-      ...prev,
-      cards: prev.cards.map(card => card.id === cardId ? {
-        ...card,
-        duplicateBlocks: normalizeDuplicateBlocks(card).map(block => block.id === blockId ? normalizeDuplicateBlock({ ...block, ...patch }) : block),
-        updatedAt: new Date().toISOString(),
-      } : card),
-    }));
-  }
-
-  function updateDuplicateBlockStyle(cardId, blockId, styleKey, patch) {
-    if (!cardId || !blockId) return;
-    updateCardState(prev => ({
-      ...prev,
-      cards: prev.cards.map(card => card.id === cardId ? {
-        ...card,
-        duplicateBlocks: normalizeDuplicateBlocks(card).map(block => block.id === blockId ? normalizeDuplicateBlock({ ...block, [styleKey]: { ...(block[styleKey] || {}), ...patch } }) : block),
-        updatedAt: new Date().toISOString(),
-      } : card),
-    }));
-  }
-
-  function updateDuplicateItem(cardId, blockId, itemId, patch) {
-    updateCardState(prev => ({
-      ...prev,
-      cards: prev.cards.map(card => card.id === cardId ? {
-        ...card,
-        duplicateBlocks: normalizeDuplicateBlocks(card).map(block => block.id === blockId ? normalizeDuplicateBlock({
-          ...block,
-          items: (block.items || []).map(item => item.id === itemId ? { ...item, ...patch } : item),
-        }) : block),
-        updatedAt: new Date().toISOString(),
-      } : card),
-    }));
-  }
-
-  function addDuplicateItem(cardId, blockId) {
-    updateCardState(prev => ({
-      ...prev,
-      cards: prev.cards.map(card => card.id === cardId ? {
-        ...card,
-        duplicateBlocks: normalizeDuplicateBlocks(card).map(block => block.id === blockId ? normalizeDuplicateBlock({
-          ...block,
-          items: [...(block.items || []), { id: `dup_item_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: "New", value: 0, showOnCard: true }],
-        }) : block),
-        updatedAt: new Date().toISOString(),
-      } : card),
-    }));
-  }
-
-  function deleteDuplicateBlock(cardId, blockId) {
-    if (!cardId || !blockId) return;
-    updateCardState(prev => ({
-      ...prev,
-      cards: prev.cards.map(card => card.id === cardId ? {
-        ...card,
-        duplicateBlocks: normalizeDuplicateBlocks(card).filter(block => block.id !== blockId),
-        customZones: normalizeCustomZones(card).map(zone => zone.contentBlockId === blockId ? { ...zone, contentBlockId: "" } : zone),
-        updatedAt: new Date().toISOString(),
-      } : card),
-    }));
-  }
-
-  function assignContentToCustomZone(cardId, zoneId, blockId) {
-    updateCardCustomZone(cardId, zoneId, { contentBlockId: blockId || "" });
-  }
-
-  function DuplicateStyleMiniControls({ card, block, styleKey, titleMode = false, numbersMode = false }) {
-    const style = titleMode ? baseDuplicateTitleStyle(block[styleKey]) : baseDuplicateStyle(block[styleKey]);
-    const patch = next => updateDuplicateBlockStyle(card.id, block.id, styleKey, next);
-    return (
-      <div className="duplicate-style-mini">
-        {!numbersMode ? <button type="button" className={style.align === "left" ? "selected" : ""} onClick={() => patch({ align: "left" })}>L</button> : null}
-        {!numbersMode ? <button type="button" className={style.align === "center" ? "selected" : ""} onClick={() => patch({ align: "center" })}>C</button> : null}
-        {!numbersMode ? <button type="button" className={style.align === "right" ? "selected" : ""} onClick={() => patch({ align: "right" })}>R</button> : null}
-        <button type="button" className={style.bold ? "selected" : ""} onClick={() => patch({ bold: !style.bold })}>B</button>
-        {!titleMode ? <select value={style.font} onChange={e => patch({ font: e.target.value })}>{CARD_FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}</select> : null}
-        <label>Size<input type="range" min="50" max="260" value={style.fontSize} onChange={e => patch({ fontSize: Number(e.currentTarget.value) })} /></label>
-        {!titleMode && !numbersMode ? <label>Line<input type="range" min="70" max="180" value={style.lineHeight} onChange={e => patch({ lineHeight: Number(e.currentTarget.value) })} /></label> : null}
-        {!titleMode && !numbersMode ? <label>Y<input type="range" min="-100" max="100" value={style.verticalOffset} onChange={e => patch({ verticalOffset: Number(e.currentTarget.value) })} /></label> : null}
-      </div>
-    );
-  }
-
-  function DuplicateBlocksEditor({ card }) {
-    const blocks = normalizeDuplicateBlocks(card);
-    return (
-      <div className="card-edit-section duplicate-blocks-editor">
-        <div className="card-edit-section-title"><strong>Duplicated content</strong></div>
-        <div className="duplicate-source-actions">
-          {Object.entries(DUPLICABLE_BLOCK_TYPES).map(([type, meta]) => <button key={type} type="button" onClick={() => addDuplicateBlock(card.id, type)}>Duplicate {meta.label}</button>)}
-        </div>
-        {!blocks.length ? <p className="custom-zone-empty-note">No duplicated content yet. Duplicate one of the supported blocks, then select an empty layout and add it.</p> : null}
-        {blocks.map(block => <DuplicateBlockEditor key={block.id} card={card} block={block} />)}
-      </div>
-    );
-  }
-
-  function DuplicateBlockEditor({ card, block }) {
-    const meta = DUPLICABLE_BLOCK_TYPES[block.type] || {};
-    return (
-      <div className="duplicate-block-editor">
-        <div className="duplicate-block-title"><strong>{block.name}</strong><button type="button" onClick={() => deleteDuplicateBlock(card.id, block.id)}>Delete copy</button></div>
-        <label>Name<input value={block.name} onChange={e => updateDuplicateBlock(card.id, block.id, { name: e.target.value })} /></label>
-        <label>Title<input value={block.title} onChange={e => updateDuplicateBlock(card.id, block.id, { title: e.target.value })} /></label>
-        {block.kind !== "frontPair" ? renderDuplicateColorPicker(card, block, "titleColor", "Title Color") : null}
-        {block.kind !== "frontPair" ? <DuplicateStyleMiniControls card={card} block={block} styleKey="titleStyle" titleMode /> : null}
-        {block.kind === "special" ? (
-          <>
-            {renderDuplicateColorPicker(card, block, "textColor", "Text Color")}
-            <DuplicateStyleMiniControls card={card} block={block} styleKey="textStyle" />
-            <textarea className="special-ability-textarea" value={block.text} onChange={e => updateDuplicateBlock(card.id, block.id, { text: e.target.value })} />
-          </>
-        ) : block.kind === "frontPair" ? (
-          <>
-            <div className="duplicate-inline-tools">{renderDuplicateColorPicker(card, block, "textColor", "Text Color")}{renderDuplicateColorPicker(card, block, "numberColor", "Numbers Color")}</div>
-            <DuplicateStyleMiniControls card={card} block={block} styleKey="textStyle" />
-            <DuplicateStyleMiniControls card={card} block={block} styleKey="numberStyle" numbersMode />
-            <label>Value<input className="attr-value" value={block.value} onChange={e => updateDuplicateBlock(card.id, block.id, { value: cleanTwoDigitValue(e.target.value) })} /></label>
-          </>
-        ) : (
-          <>
-            <div className="duplicate-inline-tools">{renderDuplicateColorPicker(card, block, "textColor", "Text Color")}{renderDuplicateColorPicker(card, block, "numberColor", "Numbers Color")}</div>
-            <DuplicateStyleMiniControls card={card} block={block} styleKey="textStyle" />
-            <DuplicateStyleMiniControls card={card} block={block} styleKey="numberStyle" numbersMode />
-            <button type="button" onClick={() => addDuplicateItem(card.id, block.id)}>+ Add row</button>
-            {(block.items || []).map(item => <div className="attribute-row" key={item.id}><input value={item.name} onChange={e => updateDuplicateItem(card.id, block.id, item.id, { name: e.target.value })} /><input className="attr-value" value={item.value} onChange={e => updateDuplicateItem(card.id, block.id, item.id, { value: cleanTwoDigitValue(e.target.value) })} /><label className="show-on-card-toggle"><input type="checkbox" checked={item.showOnCard !== false} onChange={e => updateDuplicateItem(card.id, block.id, item.id, { showOnCard: e.target.checked })} /><span>Show</span></label><button type="button" onClick={() => updateDuplicateBlock(card.id, block.id, { items: (block.items || []).filter(x => x.id !== item.id) })}>×</button></div>)}
-          </>
-        )}
-      </div>
-    );
-  }
 
   function SectionTitleEditor({ card, titleKey, colorKey, label }) {
     return (
@@ -8082,16 +7740,7 @@ function App() {
           <button type="button" className="mini-action-btn layout-action-btn" disabled={!layoutStyleClipboard} onClick={() => applyLayoutStyleToAllCards(card.id)}>Apply Layout Style To All Cards</button>
           <button type="button" className="mini-action-btn layout-action-btn danger" disabled={!selectedLayout || selectedLayout.cardId !== card.id} onClick={() => deleteSelectedLayoutZone(card.id)}>Delete layout</button>
         </div>
-        {customZones.length ? <p className="custom-zone-empty-note">New layouts are empty containers. Select one on the card to move, resize, delete it, or attach duplicated content.</p> : null}
-        {selectedLayout?.cardId === card.id && selectedLayout.kind === "custom" ? (
-          <div className="custom-zone-content-picker">
-            <strong>Selected layout content</strong>
-            <select value={(customZones.find(zone => zone.id === selectedLayout.zoneKey)?.contentBlockId) || ""} onChange={e => assignContentToCustomZone(card.id, selectedLayout.zoneKey, e.target.value)}>
-              <option value="">+ Add content</option>
-              {normalizeDuplicateBlocks(card).map(block => <option key={block.id} value={block.id}>{block.name}</option>)}
-            </select>
-          </div>
-        ) : null}
+        {customZones.length ? <p className="custom-zone-empty-note">New layouts are empty containers. Select one on the card to move, resize, delete it, or copy its layout style.</p> : null}
       </div>
     );
   }
@@ -8188,18 +7837,16 @@ function App() {
         </div>
         <div className="card-editor-controls">
         {CardLayoutEditor({ card })}
-        {DuplicateBlocksEditor({ card })}
         <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
         <div className="card-edit-section compact-color-row"><strong>Header Front</strong>{renderColorPicker(card, "headerFront", "Color")}{renderTextStyleControls(card, "headerFront", false, { panelAlign: "front" })}</div>
         <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Front</strong>{renderColorPicker(card, "positionFront", "Color")}{renderTextStyleControls(card, "positionFront", false, { panelAlign: "front" })}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
         <StarMenuEditor card={card} />
         <div className="card-edit-section compact-color-row"><strong>Header Back</strong>{renderColorPicker(card, "headerBack", "Color")}{renderTextStyleControls(card, "headerBack", false, { panelAlign: "front" })}</div>
         <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Back</strong>{renderColorPicker(card, "positionBack", "Color")}{renderTextStyleControls(card, "positionBack", false, { panelAlign: "front" })}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
-        {FrontZoneFieldsEditor({ card, storageKey: "frontAttributeFields", title: "Attributes Front", colorKey: "attributesFront", sourceSection: "passiveAttributes" })}
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "attributesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "attributes", "Text Color")}{renderTextStyleControls(card, "attributes", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "attributesValue", "Numbers Color")}{renderTextStyleControls(card, "attributesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "bonusesBack")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "bonuses", "Text Color")}{renderTextStyleControls(card, "bonuses", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "bonusesValue", "Numbers Color")}{renderTextStyleControls(card, "bonusesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "attributes", "Text Color")}{renderTextStyleControls(card, "attributes", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "attributesValue", "Numbers Color")}{renderTextStyleControls(card, "attributesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
+        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "bonuses", "Text Color")}{renderTextStyleControls(card, "bonuses", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "bonusesValue", "Numbers Color")}{renderTextStyleControls(card, "bonusesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
         <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Preferred Foot</strong>{renderColorPicker(card, "preferredFoot", "Color")}{renderTextStyleControls(card, "preferredFoot", false, { panelAlign: "left", buttonLabel: "Text", hideLine: true, fontSizeMin: 20 })}</div><select value={PREFERRED_FOOT_OPTIONS.includes(card.preferredFoot) ? card.preferredFoot : "Right"} onChange={e => updateCardField(card.id, "preferredFoot", e.target.value)}>{PREFERRED_FOOT_OPTIONS.map(foot => <option key={foot} value={foot}>{foot}</option>)}</select></div>
-        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong><button type="button" className="mini-action-btn layout-action-btn" onClick={() => addDuplicateBlock(card.id, "specialAbility")}>Duplicate</button></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar">{renderColorPicker(card, "specialAbility", "Text Color")}{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left", inlinePanel: true })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
+        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar">{renderColorPicker(card, "specialAbility", "Text Color")}{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left", inlinePanel: true })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
         <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong>{renderColorPicker(card, "defensiveArea", "Grid")}{renderColorPicker(card, "defensiveAreaActive", "Selected Area")}<DefensiveGridAdjustControl card={card} /><OpponentGoalTextControl card={card} /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
         </div>
       </div>
@@ -9212,7 +8859,7 @@ function App() {
       pending.plan.interceptors,
       pending.interceptorIndex,
       pieceId,
-      activeRuleSetRef.current.actions?.pass?.modifierCap || 4,
+      activeRuleSetRef.current.actions?.pass?.modifierCap ?? 4,
     );
     if (!applied) return false;
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
@@ -9302,11 +8949,11 @@ function App() {
 
   function buildInterceptionRollDetails({ pending, defender, interceptor, natural }) {
     const plan = pending.plan;
-    const interception = cardStat(cardById[defender.cardId], "Interception");
+    const interception = cardStat(cardById[defender.cardId], "stat:interception");
     const orderModifier = Number(interceptor?.orderModifier) || 0;
     const nonDominantPenalty = plan.foot?.dominant ? 0 : 1;
     const previousNaturalOnePenalty = Number(pending.naturalOnePenalty) || 0;
-    const modifierCap = activeRuleSetRef.current.actions?.pass?.modifierCap || 4;
+    const modifierCap = activeRuleSetRef.current.actions?.pass?.modifierCap ?? 4;
     const roll = resolveInterceptionRoll({
       natural: Number(natural),
       interception,
@@ -11028,7 +10675,7 @@ function App() {
             {canChoose && <div className="interceptor-choice-options">
               {candidates.map(item => {
                 const defender = pieces.find(piece => piece.id === item.defender?.id) || item.defender;
-                const interception = cardStat(cardById[defender?.cardId], "Interception");
+                const interception = cardStat(cardById[defender?.cardId], "stat:interception");
                 const sign = interception >= 0 ? "+" : "";
                 return <button key={defender?.id} type="button" onClick={() => choosePassInterceptor(defender?.id)}>
                   {getPieceIdentity(defender)} ({teamName}) — Interception {sign}{interception}
@@ -11173,8 +10820,11 @@ function App() {
               <label>Long pass threshold (squares; strictly greater than)
                 <input disabled={ruleSetEditingLocked} type="number" min="0.01" step="0.01" value={ruleSetDraft.actions?.pass?.longPassThreshold ?? 15} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, longPassThreshold: Math.max(0.01, Number(e.target.value) || 15) } } }))} />
               </label>
-              <label>Maximum stacked modifier
-                <input disabled={ruleSetEditingLocked} type="number" min="0" max="20" step="1" value={ruleSetDraft.actions?.pass?.modifierCap ?? 4} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, modifierCap: clamp(Math.floor(Number(e.target.value) || 0), 0, 20) } } }))} />
+              <label>Maximum total modifier
+                <span className="rule-signed-number">
+                  <span aria-hidden="true">±</span>
+                  <input aria-label="Maximum total modifier" disabled={ruleSetEditingLocked} type="number" min="0" max="20" step="1" value={ruleSetDraft.actions?.pass?.modifierCap ?? 4} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, modifierCap: clamp(Math.floor(Number(e.target.value) || 0), 0, 20) } } }))} />
+                </span>
               </label>
               <label>Resolution delay (ms)
                 <input disabled={ruleSetEditingLocked} type="number" min="0" max="5000" step="100" value={ruleSetDraft.actions?.pass?.resolutionDelayMs ?? 1500} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, resolutionDelayMs: clamp(Math.floor(Number(e.target.value) || 0), 0, 5000) } } }))} />

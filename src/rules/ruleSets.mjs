@@ -52,7 +52,9 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
         rollMode: "manual",
         pathMode,
         longPassThreshold: Math.max(0.01, Number(pass.longPassThreshold) || 15),
-        modifierCap: Math.max(0, Math.min(20, Math.floor(Number(pass.modifierCap) || 4))),
+        modifierCap: Math.max(0, Math.min(20, Math.floor(
+          Number.isFinite(Number(pass.modifierCap)) ? Number(pass.modifierCap) : 4,
+        ))),
         resolutionDelayMs: Math.max(0, Math.min(5000, Math.floor(Number(pass.resolutionDelayMs) || 2000))),
         equalRollOutcome: pass.equalRollOutcome === "interception" ? "interception" : "pass-succeeds",
       },

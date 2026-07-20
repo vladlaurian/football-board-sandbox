@@ -2,14 +2,24 @@
 
 ## Current project status
 
-- **Current build:** v19.22
+- **Current build:** v19.23
 - **Application:** Football Board Sandbox
 - **Modes:** Editor Mode and Match Mode
 - **Primary project objective:** Match Mode must produce a semantically complete AI Analysis Export that allows an AI to reconstruct and analyze the match, including the reason behind relevant actions and interventions.
-- **Last completed work:** Free Ball is now explicitly exported with `movementReason: "FREE_BALL"`; the mandatory development/onboarding workflow is documented.
+- **Last completed work:** Rule Sets Editor modifier semantics are explicit and consistent: Maximum Total Modifier is displayed as ±X, zero is preserved, and final modifiers clamp symmetrically.
 - **Known unresolved work:** Long Pass is detected and classified, but still uses normal Passing resolution; its separate gameplay rule is not implemented.
 - **Next planned feature:** define and implement Long Pass after analysis and approval.
 - **Mandatory onboarding:** before any work, read this README and every document in `/docs`, especially [`docs/DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md).
+
+## v19.23 — Rule Sets Editor modifier semantics and documentation
+
+- Renamed **Maximum stacked modifier** to **Maximum total modifier**.
+- The editor now displays the value with an explicit `±` prefix, for example `±4`.
+- Fixed every Pass/interception runtime read that treated a configured `0` as missing and silently replaced it with `4`.
+- The progressive interceptor-order bonus remains positive and capped at `+X`.
+- The final combined modifier is clamped symmetrically to `-X ... +X`.
+- Added regression tests for zero-cap propagation and negative modifier clamping.
+- Added [`docs/RULE_SETS_EDITOR.md`](docs/RULE_SETS_EDITOR.md), documenting the editor, availability, settings, real engine effects, current Long Pass limitation, and Resolution Delay behavior.
 
 ## v19.22 — Explicit Free Ball AI semantics and development contract
 
@@ -82,6 +92,7 @@
 ## Architecture documents — read before structural changes
 
 - [`docs/ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md): permanent integration contract for automated Match actions.
+- [`docs/RULE_SETS_EDITOR.md`](docs/RULE_SETS_EDITOR.md): Rule Sets Editor availability, settings, engine effects, and current limitations.
 - [`docs/ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md): permanent Architecture Decision Log. **Every major architectural change must update it in the same build.**
 - [`docs/MULTIPLAYER_ARCHITECTURE_REFACTOR_PLAN.md`](docs/MULTIPLAYER_ARCHITECTURE_REFACTOR_PLAN.md): temporary OPEN migration plan. Delete it after the multiplayer storage refactor is fully implemented and validated.
 
@@ -1734,3 +1745,7 @@ The 3/2 possession rule is active only in Match Mode.
 - After both phases end, normal actions are blocked until the next turn; FREE remains available.
 - Compact team-colored action controls remove the Inspector horizontal scrollbar.
 - Turn phase is included in local saves and shared tracker state for multiplayer compatibility.
+
+## v19.24 Global Back Stats
+
+Attributes and Bonuses on the card back now use one global schema. Their values and Show flags remain individual per card. Legacy front-stat and duplicated-content systems were removed; the Stars renderer, Inspector, PNG export and Layout Zones remain supported.

@@ -27,3 +27,13 @@ test("Rule Set library has a stable default and unique duplicate ids", () => {
   assert.notEqual(fullLibrary[0].id, fullLibrary[1].id);
   assert.equal(findRuleSet(fullLibrary, duplicate.id).name, "Default Rules");
 });
+
+
+test("Rule Set normalization preserves an explicit zero modifier cap", () => {
+  const normalized = normalizeRuleSet({
+    id: "zero-cap",
+    name: "Zero Cap",
+    actions: { pass: { status: "configured", modifierCap: 0 } },
+  });
+  assert.equal(normalized.actions.pass.modifierCap, 0);
+});

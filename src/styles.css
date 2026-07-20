@@ -5132,82 +5132,6 @@ select option {
   opacity: .72 !important;
 }
 
-/* Step 2: duplicated content blocks assigned to empty custom layouts */
-.duplicate-blocks-editor {
-  gap: 8px;
-}
-.duplicate-source-actions,
-.duplicate-inline-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-.duplicate-source-actions button,
-.duplicate-block-title button {
-  font-size: 12px;
-  font-weight: 650;
-  padding: 6px 9px;
-}
-.duplicate-block-editor {
-  display: grid;
-  gap: 7px;
-  padding: 9px;
-  border: 1px solid rgba(147, 197, 253, .28);
-  border-radius: 12px;
-  background: rgba(15, 23, 42, .34);
-}
-.duplicate-block-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.duplicate-style-mini {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-  padding: 6px;
-  border-radius: 10px;
-  background: rgba(15, 23, 42, .28);
-}
-.duplicate-style-mini button,
-.duplicate-style-mini select {
-  min-height: 30px;
-}
-.duplicate-style-mini button.selected {
-  border-color: rgba(34, 211, 238, .95);
-  box-shadow: 0 0 0 2px rgba(34, 211, 238, .18) inset;
-}
-.duplicate-style-mini label {
-  display: inline-flex !important;
-  align-items: center;
-  gap: 5px;
-  width: auto !important;
-  min-width: 130px;
-}
-.duplicate-style-mini input[type="range"] {
-  width: 85px;
-}
-.custom-zone-content-picker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 12px;
-  background: rgba(14, 165, 233, .08);
-  border: 1px solid rgba(125, 211, 252, .24);
-}
-.custom-zone-content-picker select {
-  flex: 1 1 auto;
-  min-width: 180px;
-}
-.duplicate-content-zone {
-  width: 100%;
-  height: 100%;
-}
-
 /* FINAL UI FIX: use the same top-layer behavior for every Color picker.
    Prevents Header/Position color panels from sitting under the following rows. */
 .card-editor,
@@ -7496,3 +7420,5 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   }
 }
 .pending-decision-history-controls{display:flex;gap:6px;align-items:center}.pending-decision-history-controls button{display:flex;align-items:center;justify-content:center;padding:6px;border-radius:8px;border:1px solid rgba(255,255,255,.22);background:#252525;color:white;cursor:pointer}.pending-decision-history-controls button:disabled{opacity:.35;cursor:not-allowed}
+
+.rule-signed-number{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:7px}.rule-signed-number>span{font-size:18px;font-weight:900;line-height:1}.rule-signed-number input{min-width:0}

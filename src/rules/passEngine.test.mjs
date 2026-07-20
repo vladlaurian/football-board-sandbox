@@ -128,6 +128,12 @@ test("normal Pass gameplay reads the established Passing card attribute", () => 
   assert.equal(cardStat(card, "Pass"), 14);
 });
 
+test("gameplay reads stable global stat IDs before legacy labels", () => {
+  const card = { passiveAttributes: [{ id: "stat:passing", name: "Renamed Passing", value: 15 }], bonuses: [{ id: "stat:interception", name: "Renamed Interception", value: 12 }] };
+  assert.equal(cardStat(card, "stat:passing"), 15);
+  assert.equal(cardStat(card, "stat:interception"), 12);
+});
+
 test("interception resolution exposes its unclamped modifier and cap", () => {
   const result = resolveInterceptionRoll({ natural: 12, interception: 3, orderModifier: 1, nonDominantPenalty: 1, passerPass: 16, modifierCap: 4 });
   assert.equal(result.rawModifier, 5);
@@ -142,4 +148,21 @@ test("teammate direct hit still resolves eligible interception reactions", () =>
   assert.equal(passRequiresInterceptionSequence({ directHit: { team: "red" }, interceptors: [{ defender: { id: "B-1" } }] }, "blue"), false);
   assert.equal(passRequiresInterceptionSequence({ directHit: null, interceptors: [{ defender: { id: "B-1" } }] }, "blue"), true);
   assert.equal(passRequiresInterceptionSequence({ directHit: { team: "blue" }, interceptors: [] }, "blue"), false);
+});
+
+
+test("zero modifier cap disables progressive and final modifiers", () => {
+  const result = resolveInterceptionRoll({ natural: 12, interception: 3, orderModifier: 5, previousNaturalOnePenalty: -2, passerPass: 12, modifierCap: 0 });
+  assert.equal(result.modifierCap, 0);
+  assert.equal(result.modifier, 0);
+  assert.equal(result.total, 12);
+  assert.equal(result.capped, true);
+});
+
+test("maximum total modifier clamps negative totals symmetrically", () => {
+  const result = resolveInterceptionRoll({ natural: 12, interception: 0, orderModifier: 0, previousNaturalOnePenalty: -7, passerPass: 20, modifierCap: 4 });
+  assert.equal(result.rawModifier, -7);
+  assert.equal(result.modifier, -4);
+  assert.equal(result.modifierCap, 4);
+  assert.equal(result.capped, true);
 });

@@ -165,22 +165,26 @@ export function footForPass(origin, target, passer, preferredFoot = "Both") {
   return { foot, dominant: preferred === foot.toLowerCase() };
 }
 
-export function cardStat(card, name) {
-  const wanted = String(name).trim().toLowerCase();
-  // The card editor's established label is "Passing". Gameplay rules may use
-  // the shorter semantic name "Pass", but must read the same underlying stat.
-  // Keep Long Pass separate: it is a future rule, not the normal Passing value.
-  const acceptedNames = wanted === "pass" ? new Set(["pass", "passing"]) : new Set([wanted]);
+export function cardStat(card, nameOrId) {
+  const wanted = String(nameOrId).trim().toLowerCase();
+  const semanticName = wanted.startsWith("stat:") ? wanted.slice(5) : wanted;
+  // Stable global stat IDs are authoritative. Name matching remains as a
+  // compatibility fallback for old match recordings and imported cards.
+  const acceptedNames = semanticName === "pass" ? new Set(["pass", "passing"]) : new Set([semanticName]);
   const sources = [card?.bonuses, card?.passiveAttributes, card?.attributes];
   for (const source of sources) {
-    const row = Array.isArray(source) && source.find(item => acceptedNames.has(String(item?.name || item?.label || "").trim().toLowerCase()));
+    const row = Array.isArray(source) && source.find(item => {
+      const id = String(item?.id || "").trim().toLowerCase();
+      const label = String(item?.name || item?.label || "").trim().toLowerCase();
+      return id === wanted || acceptedNames.has(label);
+    });
     if (row) return Number(row.value ?? row.amount ?? 0) || 0;
   }
   return 0;
 }
 
 export function clampModifier(value, cap = 4) {
-  const safeCap = Math.max(0, Number(cap) || 4);
+  const safeCap = Math.max(0, Number.isFinite(Number(cap)) ? Number(cap) : 4);
   return Math.max(-safeCap, Math.min(safeCap, Number(value) || 0));
 }
 
@@ -219,7 +223,7 @@ export function applyInterceptorChoice(interceptors, index, selectedPieceId, mod
     ...list.slice(safeIndex).filter(item => !candidateIds.has(String(item?.defender?.id))),
   ].map((item, orderIndex) => ({
     ...item,
-    orderModifier: Math.min(Math.max(0, Number(modifierCap) || 4), orderIndex),
+    orderModifier: Math.min(Math.max(0, Number.isFinite(Number(modifierCap)) ? Number(modifierCap) : 4), orderIndex),
   }));
   return {
     interceptors: reordered,
@@ -271,7 +275,7 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     })
     .filter(item => item.visibleCells.length)
     .sort((left, right) => left.priorityDistanceSquared - right.priorityDistanceSquared || String(left.defender.id).localeCompare(String(right.defender.id)))
-    .map((item, index) => ({ ...item, orderModifier: Math.min(Number(passRules.modifierCap) || 4, index) }));
+    .map((item, index) => ({ ...item, orderModifier: Math.min(Math.max(0, Number.isFinite(Number(passRules.modifierCap)) ? Number(passRules.modifierCap) : 4), index) }));
   return {
     kind: "pass-plan",
     pathMode,
@@ -284,7 +288,7 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     distance,
     isLong: distance > (Number(passRules.longPassThreshold) || 15),
     foot,
-    passerPass: cardStat(passerCard, "Pass"),
+    passerPass: cardStat(passerCard, "stat:passing"),
     directHit: hit ? { pieceId: hit.piece.id, team: teamKeyForPiece(hit.piece), entryT: hit.entryT } : null,
     passCells,
     defensiveAreaCrossings,
@@ -309,9 +313,9 @@ export function passRequiresInterceptionSequence(plan, passingTeam) {
 
 export function resolveInterceptionRoll({ natural, interception, orderModifier, nonDominantPenalty = 0, previousNaturalOnePenalty = 0, passerPass, modifierCap = 4 }) {
   const rawModifier = Number(interception) + Number(orderModifier) + Number(nonDominantPenalty) + Number(previousNaturalOnePenalty);
-  if (natural === 1) return { outcome: "pass-continues", natural: 1, total: 1, modifier: 0, rawModifier, modifierCap: Math.max(0, Number(modifierCap) || 4), capped: false };
-  if (natural === 20) return { outcome: "natural-20-interception", natural: 20, total: 20, modifier: 0, rawModifier, modifierCap: Math.max(0, Number(modifierCap) || 4), capped: false };
-  const cap = Math.max(0, Number(modifierCap) || 4);
+  if (natural === 1) return { outcome: "pass-continues", natural: 1, total: 1, modifier: 0, rawModifier, modifierCap: Math.max(0, Number.isFinite(Number(modifierCap)) ? Number(modifierCap) : 4), capped: false };
+  if (natural === 20) return { outcome: "natural-20-interception", natural: 20, total: 20, modifier: 0, rawModifier, modifierCap: Math.max(0, Number.isFinite(Number(modifierCap)) ? Number(modifierCap) : 4), capped: false };
+  const cap = Math.max(0, Number.isFinite(Number(modifierCap)) ? Number(modifierCap) : 4);
   const modifier = clampModifier(rawModifier, cap);
   const total = Number(natural) + modifier;
   return { outcome: total > Number(passerPass) ? "interception" : "pass-continues", natural: Number(natural), total, modifier, rawModifier, modifierCap: cap, capped: modifier !== rawModifier };
