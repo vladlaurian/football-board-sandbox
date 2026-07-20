@@ -113,6 +113,7 @@ import {
 } from "./multiplayer/sessionTimeline.mjs";
 import { createMultiplayerTraceId, createMultiplayerTracer } from "./multiplayer/debugTracer.mjs";
 import { canControlBonusAction, validateBonusActionEndIntent } from "./multiplayer/bonusActionAuthority.mjs";
+import { canControlResolution } from "./multiplayer/resolutionAuthority.mjs";
 import {
   normalizeMatchActionState,
   normalizeTrackerSnapshot,
@@ -157,7 +158,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.3";
+const APP_VERSION = "v20.5";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5739,6 +5740,7 @@ function App() {
     if (!piece) return;
 
     if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting") {
+      if (!canControlActiveResolution(actionResolutionRef.current)) return;
       choosePassTarget(piece.x, piece.y);
       return;
     }
@@ -8526,6 +8528,7 @@ function App() {
     const point = gridPointFromClient(e.clientX, e.clientY);
     if (!point) return;
     if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting") {
+      if (!canControlActiveResolution(actionResolutionRef.current)) return;
       choosePassTarget(point.x, point.y);
       return;
     }
@@ -8801,6 +8804,10 @@ function App() {
     return canControlBonusAction({ sessionActive: Boolean(sessionCode), myTeam, continuation });
   }
 
+  function canControlActiveResolution(resolution = actionResolutionRef.current) {
+    return canControlResolution({ sessionActive: Boolean(sessionCode), myTeam, resolution });
+  }
+
   function isPassPreviewCancellable(pending = actionResolutionRef.current) {
     return pending?.kind === "pass" && ["targeting", "route-selection"].includes(pending.status);
   }
@@ -8984,7 +8991,7 @@ function App() {
 
   function cancelPassTargeting() {
     const pending = actionResolutionRef.current;
-    if (!isPassPreviewCancellable(pending)) return false;
+    if (!isPassPreviewCancellable(pending) || !canControlActiveResolution(pending)) return false;
     if (sessionCode && isSessionGuest) {
       void requestHostPassCancellation(pending);
       return true;
@@ -9045,7 +9052,7 @@ function App() {
 
   function choosePassTarget(x, y) {
     const pending = actionResolutionRef.current;
-    if (pending?.kind !== "pass" || pending.status !== "targeting") return false;
+    if (pending?.kind !== "pass" || pending.status !== "targeting" || !canControlActiveResolution(pending)) return false;
     if (sessionCode && isSessionGuest) {
       void requestHostPassTargetSelection(x, y, pending);
       return true;
@@ -9165,6 +9172,7 @@ function App() {
 
   function confirmPassRoute(cornerId) {
     const pending = actionResolutionRef.current;
+    if (!canControlActiveResolution(pending)) return false;
     const activated = activatePassRoute(cornerId);
     if (!pending || !activated) return;
     const { next, activation, plan } = activated;
@@ -10168,6 +10176,7 @@ function App() {
         if (measureMode && gesture.point) {
           applyRulerPoint(gesture.point);
         } else if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting") {
+          if (!canControlActiveResolution(actionResolutionRef.current)) return;
           const point = gridPointFromClient(gesture.startX, gesture.startY);
           if (point) choosePassTarget(point.x, point.y);
         } else if (actionResolutionRef.current?.kind === "pass") {
@@ -10526,9 +10535,10 @@ function App() {
         rulerMarkers={rulerMarkers}
         defensiveAreaOverlays={defensiveAreaOverlays}
         passPreview={passPreview}
-        passTargeting={actionResolution?.kind === "pass" && actionResolution.status === "targeting"}
+        passTargeting={actionResolution?.kind === "pass" && actionResolution.status === "targeting" && canControlActiveResolution(actionResolution)}
         passActive={passActive}
         passTargetDistance={passTargetDistance}
+        passRouteInteractive={actionResolution?.kind === "pass" && actionResolution.status === "route-selection" && canControlActiveResolution(actionResolution)}
         onSelectPassRoute={confirmPassRoute}
         pieces={pieces}
         getPieceDisplayLabel={getPieceDisplayLabel}

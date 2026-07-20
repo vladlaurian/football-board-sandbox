@@ -1810,3 +1810,10 @@ The 3/2 possession rule is active only in Match Mode.
 - Rule Sets modal is height-limited and vertically scrollable; title and Save controls remain reachable.
 - Interception resolution in multiplayer is host-authoritative. The pass plan freezes the active Interception configuration, and the host recomputes the result from the canonical Timeline state after receiving the dice event.
 - Client-precomputed Interception outcomes are no longer trusted as the multiplayer source of truth.
+
+## v20.5 — Multiplayer resolution UI authority
+
+- Shared resolution state no longer grants shared interaction rights.
+- Pass targeting, route selection and cancellation are owner-only in multiplayer.
+- Added defensive handler guards and reusable `resolutionAuthority` helpers.
+- Added `docs/MULTIPLAYER_RESOLUTION_UI_AUTHORITY_V20_5.md`.

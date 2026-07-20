@@ -167,3 +167,7 @@ The Interception configuration owns the defender roll stat ID, standard-modifier
 - Future Long Pass work must call the same Interception resolver rather than create a Long Pass roll engine.
 
 **Reference:** `docs/INTERCEPTION_ENGINE_V20.md`.
+
+## ADR — Shared resolution state does not imply shared UI control (v20.5)
+
+In multiplayer, action resolution state is canonical and visible to every client. Interactive controls are local and require ownership of the resolution team. UI components receive explicit interactivity flags, and action handlers repeat the same authority check defensively. Future Shot, Dribble, Cross and other resolution interfaces must follow this rule.

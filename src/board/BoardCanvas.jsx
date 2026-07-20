@@ -84,6 +84,7 @@ export function BoardCanvas({
   passTargeting,
   passActive,
   passTargetDistance,
+  passRouteInteractive = true,
   onSelectPassRoute,
   pieces,
   getPieceDisplayLabel,
@@ -198,7 +199,9 @@ export function BoardCanvas({
             onPointerUp={event => { event.preventDefault(); event.stopPropagation(); }}
             onTouchStart={event => event.stopPropagation()}
             onTouchEnd={event => event.stopPropagation()}
-            onClick={event => { event.preventDefault(); event.stopPropagation(); onSelectPassRoute?.(route.cornerId); }}
+            disabled={!passRouteInteractive}
+            aria-disabled={!passRouteInteractive}
+            onClick={event => { event.preventDefault(); event.stopPropagation(); if (passRouteInteractive) onSelectPassRoute?.(route.cornerId); }}
             title={`${route.foot} ${route.modifier} · ${route.isLong ? "Long Pass" : "Short Pass"}`}
           >
             <span>{route.foot} {route.modifier}</span><small>{route.isLong ? "LONG" : "SHORT"}</small>
