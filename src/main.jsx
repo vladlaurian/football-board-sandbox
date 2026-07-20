@@ -155,7 +155,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.18";
+const APP_VERSION = "v19.19";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -8842,9 +8842,9 @@ function App() {
   }
   function currentTimelineGameStateSnapshot() {
     const timeline = gameTimelineRef.current;
-    return gameMode === "match" && timeline
-      ? timelineStateAt(timeline, timeline.cursor)
-      : null;
+    if (!timeline) return null;
+    const state = timelineStateAt(timeline, timeline.cursor);
+    return state?.gameMode === "match" ? state : null;
   }
   function isTeamPhaseActive(team) {
     return isTeamActiveForTrackerPhase(trackerRulesSnapshot(), team);

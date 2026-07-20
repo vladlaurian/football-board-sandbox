@@ -1,5 +1,12 @@
 # Football Board Sandbox
 
+## v19.19 — Canonical Timeline state for delayed multiplayer resolution
+
+- Fixed delayed Host resolution using stale React `gameMode` captured by Firebase listener closures.
+- `currentTimelineGameStateSnapshot()` now derives match mode from the canonical Timeline cursor state, not component render state.
+- This allows `PASS_INTERCEPTED`, `PASS_COMPLETED`, and subsequent generic action outcomes to be committed after remote rolls.
+- Multiplayer tracer remains available through `DEBUG_MULTIPLAYER`.
+
 ## v19.18 — Durable multiplayer host authority during Firebase hydration
 
 - Fixed the interception-resolution deadlock caused by Firebase listeners retaining the pre-hydration `isSessionHost = false` closure.

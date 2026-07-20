@@ -151,3 +151,8 @@ Automated coverage includes tracer activation/guard output, rollback eligibility
 - Host delayed resolutions now emit `RESOLUTION_FAILED` with the original exception metadata instead of leaving an unexplained gap after `ROLL_RECEIVED`.
 - Concurrent processing of the same canonical Timeline entry is rejected and traced.
 - This is diagnostic and execution-safety infrastructure; no Pass rule or outcome logic was changed.
+
+
+## v19.19 validated investigation result
+
+Tracer evidence showed `ROLL_RECEIVED` followed by `HOST_RESOLUTION_COMPLETED` with no Timeline commit, repeatedly for the same entry. The delayed resolver was executing from a Firebase listener closure whose React `gameMode` value could remain `editor`. `currentTimelineGameStateSnapshot()` therefore returned null; fallback snapshots were normalized as editor state and `recordTimelineTransition()` correctly rejected them. The fix derives mode and state from the canonical Timeline cursor. This is a generic Timeline/remote-resolution fix, not a Pass-specific rule change.
