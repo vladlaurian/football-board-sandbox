@@ -1,3 +1,14 @@
+## v20.3 — Multiplayer Bonus Action authority
+
+- Bonus Action player control is restricted to the client assigned to the continuation team.
+- The opposing client can observe but cannot select those players, start their bonus action, or press `END B.A.`.
+- `BONUS_ACTION_ENDED` and `BONUS_ACTION_DECLINED` are host-authoritative in multiplayer. Guests send a validated `bonusActionEndIntent`.
+- The host validates continuation ID, status, team ownership, and active resolution before committing.
+- Rejected requests restore canonical state and clear stale local selection.
+- Added waiting feedback and duplicate-click protection.
+- Gameplay chains of consecutive Natural 20 Bonus Actions are unchanged.
+- See `docs/MULTIPLAYER_BONUS_ACTION_AUTHORITY_V20_3.md`.
+
 
 ## v20.2 — Multiplayer pass target/cancel authority
 

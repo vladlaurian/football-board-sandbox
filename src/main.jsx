@@ -112,6 +112,7 @@ import {
   shouldRollbackFailedTimelineCommit,
 } from "./multiplayer/sessionTimeline.mjs";
 import { createMultiplayerTraceId, createMultiplayerTracer } from "./multiplayer/debugTracer.mjs";
+import { canControlBonusAction, validateBonusActionEndIntent } from "./multiplayer/bonusActionAuthority.mjs";
 import {
   normalizeMatchActionState,
   normalizeTrackerSnapshot,
@@ -156,7 +157,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.2";
+const APP_VERSION = "v20.3";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2007,6 +2008,7 @@ function App() {
   const [actionResolution, setActionResolution] = useState(null);
   const [passTargetIntentPending, setPassTargetIntentPending] = useState(false);
   const [passCancelIntentPending, setPassCancelIntentPending] = useState(false);
+  const [bonusActionEndIntentPending, setBonusActionEndIntentPending] = useState(false);
   const [actionContinuation, setActionContinuation] = useState(null);
   const [passResultNotice, setPassResultNotice] = useState(null);
   const [liveDelayedResolutionEntryId, setLiveDelayedResolutionEntryId] = useState("");
@@ -2090,6 +2092,8 @@ function App() {
   const actionResolutionRef = useRef(actionResolution);
   const passTargetIntentPendingRef = useRef(false);
   const passCancelIntentPendingRef = useRef(false);
+  const bonusActionEndIntentPendingRef = useRef(false);
+  const processedBonusActionEndIntentIdsRef = useRef(new Set());
   const processedPassTargetIntentIdsRef = useRef(new Set());
   const processedPassCancelIntentIdsRef = useRef(new Set());
   const actionContinuationRef = useRef(actionContinuation);
@@ -2120,6 +2124,7 @@ function App() {
   useEffect(() => { actionResolutionRef.current = actionResolution; }, [actionResolution]);
   useEffect(() => { passTargetIntentPendingRef.current = passTargetIntentPending; }, [passTargetIntentPending]);
   useEffect(() => { passCancelIntentPendingRef.current = passCancelIntentPending; }, [passCancelIntentPending]);
+  useEffect(() => { bonusActionEndIntentPendingRef.current = bonusActionEndIntentPending; }, [bonusActionEndIntentPending]);
   useEffect(() => {
     if (actionResolution?.kind !== "pass" || actionResolution.status !== "targeting") {
       setPassTargetIntentPending(false);
@@ -3817,6 +3822,44 @@ function App() {
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, sessionCode]);
+
+  useEffect(() => {
+    if (!user || !sessionCode) return undefined;
+    const code = sessionCode.toUpperCase();
+    const unsub = onSnapshot(sessionRuntimeRef(code, "bonusActionEndIntent"), snapshot => {
+      if (!snapshot.exists()) return;
+      const intent = snapshot.data() || {};
+      const requestId = String(intent.requestId || "");
+      if (!requestId) return;
+      if (!sessionAuthorityRef.current.isHost) {
+        if (["accepted", "rejected"].includes(String(intent.status || "")) && intent.requestedByClient === clientIdRef.current) {
+          setBonusActionEndIntentPending(false);
+          bonusActionEndIntentPendingRef.current = false;
+          if (String(intent.status || "") === "rejected") {
+            applyTimelineGameState(timelineStateAt(gameTimelineRef.current, gameTimelineRef.current?.cursor), { preserveLocalSelection: false });
+            setSelectedId(null);
+            setHoveredCell(null);
+          }
+        }
+        return;
+      }
+      if (processedBonusActionEndIntentIdsRef.current.has(requestId) || intent.status !== "pending") return;
+      processedBonusActionEndIntentIdsRef.current.add(requestId);
+      const continuation = actionContinuationRef.current;
+      const valid = validateBonusActionEndIntent({
+        intent, continuation, actionResolution: actionResolutionRef.current, teamOwners,
+      });
+      if (valid) commitEndBonusAction(continuation);
+      updateDoc(sessionRuntimeRef(code, "bonusActionEndIntent"), {
+        status: valid ? "accepted" : "rejected",
+        rejectionReason: valid ? null : "unauthorized-or-stale-bonus-action",
+        handledAt: serverTimestamp(), handledBy: clientIdRef.current,
+        canonicalRevision: Math.max(0, Number(gameTimelineRef.current?.revision) || 0),
+      }).catch(error => console.error("Bonus action end intent acknowledgement failed", error));
+      multiplayerTracerRef.current.multiplayer("BONUS_ACTION_END_INTENT_HANDLED", { requestId, continuationId: intent.continuationId, valid });
+    }, error => console.error("Bonus action end intent listener failed", error));
+    return () => unsub();
+  }, [user, sessionCode, teamOwners]);
 
   useEffect(() => {
     if (!user || !sessionCode) return;
@@ -5531,6 +5574,7 @@ function App() {
 
     const continuation = actionContinuationRef.current;
     if (continuation?.kind === "bonus-card-action") {
+      if (!canControlBonusContinuation(continuation)) return false;
       if (continuation.status !== CONTINUATION_STATUS.ACTION_ACTIVE || continuation.actionType !== "MOVE" || continuation.pieceId !== piece.id || continuation.team !== pieceTeamKey(piece)) return false;
       const evaluation = evaluateMove(piece, x, y);
       if (!evaluation.legal) {
@@ -5708,6 +5752,7 @@ function App() {
 
     const continuation = actionContinuationRef.current;
     if (continuation?.kind === "bonus-card-action") {
+      if (!canControlBonusContinuation(continuation)) return;
       if (piece.team !== "BALL" && pieceTeamKey(piece) !== continuation.team) return;
       if (continuation.status === CONTINUATION_STATUS.ACTION_ACTIVE && continuation.actionType === "MOVE" && piece.id !== continuation.pieceId) return;
     }
@@ -8752,6 +8797,10 @@ function App() {
     return continuation?.kind === "bonus-card-action" && continuation.team === team ? continuation : null;
   }
 
+  function canControlBonusContinuation(continuation = actionContinuationRef.current) {
+    return canControlBonusAction({ sessionActive: Boolean(sessionCode), myTeam, continuation });
+  }
+
   function isPassPreviewCancellable(pending = actionResolutionRef.current) {
     return pending?.kind === "pass" && ["targeting", "route-selection"].includes(pending.status);
   }
@@ -9499,6 +9548,7 @@ function App() {
     }
     const continuation = currentBonusContinuationForTeam(pieceTeamKey(piece));
     if (continuation) {
+      if (!canControlBonusContinuation(continuation)) return;
       if (continuation.status !== CONTINUATION_STATUS.READY || type === "GROUP_MOVE" || type === "FREE" || !canControlPieceStatus(piece)) return;
       const started = beginBonusCardAction(type, piece);
       if (!started) return;
@@ -9736,9 +9786,8 @@ function App() {
     });
   }
 
-  function endBonusAction(piece) {
-    const team = pieceTeamKey(piece);
-    const continuation = currentBonusContinuationForTeam(team);
+  function commitEndBonusAction(continuation) {
+    const team = continuation?.team;
     const completion = endContinuationAction(continuation);
     if (!completion || actionResolutionRef.current) return;
     const beforeTimeline = captureTimelineGameState();
@@ -9794,6 +9843,39 @@ function App() {
       before: beforeTimeline,
       after: mergeTimelineGameState(beforeTimeline, overrides),
     });
+  }
+
+  async function requestBonusActionEnd(continuation) {
+    if (!sessionCode || !continuation || bonusActionEndIntentPendingRef.current) return false;
+    bonusActionEndIntentPendingRef.current = true;
+    setBonusActionEndIntentPending(true);
+    const requestId = `bonus_action_end_${continuation.id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    try {
+      await setDoc(sessionRuntimeRef(sessionCode.toUpperCase(), "bonusActionEndIntent"), {
+        requestId, continuationId: continuation.id, team: continuation.team,
+        requestedByUid: user?.uid || "", requestedByClient: clientIdRef.current,
+        baseRevision: Math.max(0, Number(gameTimelineRef.current?.revision) || 0),
+        status: "pending", requestedAt: serverTimestamp(),
+      });
+      multiplayerTracerRef.current.multiplayer("BONUS_ACTION_END_INTENT_SENT", { requestId, continuationId: continuation.id, team: continuation.team });
+      return true;
+    } catch (error) {
+      bonusActionEndIntentPendingRef.current = false;
+      setBonusActionEndIntentPending(false);
+      console.error("Bonus action end intent failed", error);
+      return false;
+    }
+  }
+
+  function endBonusAction(piece) {
+    const team = pieceTeamKey(piece);
+    const continuation = currentBonusContinuationForTeam(team);
+    if (!continuation || !canControlBonusContinuation(continuation) || actionResolutionRef.current) return;
+    if (sessionCode && !sessionAuthorityRef.current.isHost) {
+      requestBonusActionEnd(continuation);
+      return;
+    }
+    commitEndBonusAction(continuation);
   }
 
   function startTrackedGame(team) {
@@ -10540,6 +10622,8 @@ function App() {
                         className={`inspector-flip-request-btn team-action-btn ${pieceTeamKey(inspectedPiece)}`}
                         disabled={
                           pieceTeamKey(inspectedPiece) !== actionContinuation.team
+                          || !canControlBonusContinuation(actionContinuation)
+                          || bonusActionEndIntentPending
                           || ![
                             CONTINUATION_STATUS.READY,
                             CONTINUATION_STATUS.AWAITING_END_BONUS_ACTION,
@@ -10951,6 +11035,9 @@ function App() {
         <div className="pass-action-prompt waiting"><strong>Resolving interception…</strong><span>Please wait.</span></div>
       )}
 
+      {bonusActionEndIntentPending && (
+        <div className="pass-action-prompt"><strong>Ending Bonus Action…</strong><span>Waiting for host confirmation.</span></div>
+      )}
       {actionContinuation?.kind === "bonus-card-action" && (
         <div className="pass-action-prompt bonus"><strong>Natural 20 interception</strong><span>{actionContinuation.status === CONTINUATION_STATUS.READY
           ? `Select a ${actionContinuation.team === "blue" ? "Blue" : "Red"} player and choose one card action, or press END B.A. to decline it.`
