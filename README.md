@@ -1,4 +1,13 @@
 
+## v20.2 — Multiplayer pass target/cancel authority
+
+- `PASS_TARGET_SELECTED` remains host-authoritative.
+- `PASS_CANCELLED` is now also requested by the guest and committed only by the host.
+- Rejected pass intents restore the guest from the canonical Timeline and clear ghost targeting state.
+- The UI shows `Sending pass target…` and `Cancelling pass…` while awaiting host confirmation.
+- The Interception pre-roll prompt now displays the target value and offensive statistic.
+- See `docs/MULTIPLAYER_PASS_TARGET_CANCEL_AUTHORITY_V20_2.md`.
+
 ## v20.1 — Multiplayer pass-target authority fix
 
 - `PASS_TARGET_SELECTED` is no longer committed optimistically by a guest.
