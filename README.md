@@ -1,15 +1,15 @@
 # Football Board Sandbox
 
-## v19.23.2 — Match-only possession gate and one-shot Free Ball
+## v19.23.3 — Match-only Pass possession and one-shot Free Ball
 
-- Rebuilt directly from the original v19.20 diagnostic base.
-- PASS is available only to the player currently sharing the ball square, and this restriction applies only in Match Mode.
-- No Pass Engine, interception, long-pass, dice, or 3/2 gameplay rule was changed. A pass into an opponent defensive area still follows the existing interception-roll flow.
-- Renamed the visible `Free Mode` control to `Free Move`; its internal tracker state remains compatible with existing Match snapshots.
-- Added `Free Ball` only in Match Mode, between `End Turn` and `Free Move`. Activating it selects the ball for one unrestricted move; after that move the ball is deselected and the mode ends automatically. Pressing the button again before moving cancels the mode.
-- Free Ball is local UI orchestration while the resulting ball position is recorded through the existing Match Timeline movement path.
-- Updated the visible Sandbox version and `package.json` version to 19.23.2.
-- Release archives must not contain `package-lock.json`, `node_modules`, or generated build folders.
+- Rebuilt strictly from v19.20; the Pass Engine, interception rolls, and the 3/2 rule are unchanged.
+- In Match Mode only, PASS is available only on the card of the player currently sharing the ball's square. No new possession restriction is applied outside Match Mode.
+- Renamed the existing player-placement control from `Free Mode` to `Free Move`; it remains available only in Match Mode.
+- Added `Free Ball` in Match Mode. It selects only the ball, permits one free relocation, then automatically deselects the ball and exits the mode. A second relocation requires pressing `Free Ball` again.
+- `Free Ball` is isolated UI interaction state, not a Tracker/action-engine lock. It does not disable MOVE, GROUP MOVE, the 3/2 rule, or any other player-card action.
+- Leaving Match Mode, cancelling Free Ball, or selecting a player clears the temporary Free Ball state.
+- Build identity is synchronized as v19.23.3 in the sandbox UI, package metadata, README, and ZIP filename.
+- Delivery rule: release archives exclude `package-lock.json`, `node_modules`, and generated `dist` output.
 
 ## v19.20 — Surgical canonical-resolution diagnostics
 

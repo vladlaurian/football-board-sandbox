@@ -161,3 +161,11 @@ its action state from the live Timeline cursor entry. A local React ref may lag
 behind Firestore hydration and must not be allowed to veto the canonical roll.
 The cosmetic resolving state is cleared only after validation and event
 consumption succeed.
+
+## v19.23.3 UI-state boundary: Free Ball and Pass availability
+
+- `Free Ball` is a one-shot Match Mode interaction state owned by the UI. It is not an action transaction, Tracker authorization, Action Resolution state, or global action lock.
+- Activating `Free Ball` selects only the ball. A successful relocation clears the selection and exits the state immediately; another relocation requires a new activation.
+- Cancelling the state, selecting a player, or leaving Match Mode clears it without changing action economy.
+- `Free Ball` must never disable MOVE, GROUP MOVE, the 3/2 rule, PASS, or another card action.
+- PASS possession gating is a Match Mode UI/entry guard: only the player sharing the ball's square may begin PASS. It does not alter the Pass Engine, interception sequencing, dice rules, or the 3/2 movement rule.

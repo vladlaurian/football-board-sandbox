@@ -156,7 +156,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v19.23.2";
+const APP_VERSION = "v19.23.3";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2542,17 +2542,25 @@ function App() {
     return piece.team === "A" ? "blue" : piece.team === "B" ? "red" : "";
   }
 
-  function pieceHasBall(piece, sourcePieces = piecesRef.current || pieces) {
+  function pieceHasBall(piece, boardPieces = piecesRef.current || pieces) {
     if (!piece || piece.team === "BALL") return false;
-    return (sourcePieces || []).some(item =>
-      item.team === "BALL"
-      && Number(item.x) === Number(piece.x)
-      && Number(item.y) === Number(piece.y)
-    );
+    return boardPieces.some(item => item.team === "BALL" && Number(item.x) === Number(piece.x) && Number(item.y) === Number(piece.y));
   }
 
-  function canUsePassForPiece(piece) {
-    return gameMode !== "match" || pieceHasBall(piece);
+  function activateFreeBall() {
+    if (gameMode !== "match" || replayModeRef.current || actionResolutionRef.current || actionContinuationRef.current) return;
+    const ball = (piecesRef.current || pieces).find(item => item.team === "BALL");
+    if (!ball || !canMovePiece(ball)) return;
+    setFreeBallActive(true);
+    setSelectedId(ball.id);
+    setHoveredCell(null);
+  }
+
+  function clearFreeBall() {
+    setFreeBallActive(false);
+    const selected = (piecesRef.current || pieces).find(item => item.id === selectedId);
+    if (selected?.team === "BALL") setSelectedId(null);
+    setHoveredCell(null);
   }
 
   function canControlPieceStatus(piece) {
@@ -5239,7 +5247,6 @@ function App() {
     else if (result.reason === "actions-complete-end-turn") primary = <>All actions are complete. Press END TURN to finish your turn.</>;
     else if (result.reason === "all-actions-complete") primary = <>All actions are complete. Advance to the next turn.</>;
     else if (result.reason === "exit-free-mode") primary = <>Exit FREE MOVE first.</>;
-    else if (result.reason === "pass-requires-possession") primary = <>Only the player in possession can pass.</>;
     else if (result.reason === "advance-turn") primary = <>Advance to next turn.</>;
     else primary = <>This move is not allowed.</>;
     if (!result.threeTwoAlreadyUsed) return primary;
@@ -5270,13 +5277,13 @@ function App() {
       ...(leavingMatch ? { actionResolution: null, actionContinuation: null } : {}),
     });
     if (leavingMatch) {
+      setFreeBallActive(false);
       cancelDelayedResolutionTimer();
       setLiveActionResolution(null);
       setLiveActionContinuation(null);
       setSelectedId(null);
       setHoveredCell(null);
       setPassResultNotice(null);
-      setFreeBallActive(false);
     }
     setGameMode(next);
     if (next === "match") {
@@ -5407,7 +5414,7 @@ function App() {
       stateOverrides: { movementStateByPieceId: nextMovement },
     });
     // A completed movement always closes the current player selection. MOVE,
-    // GROUP MOVE, FREE MOVE and FREE BALL keep their selection only until this physical move.
+    // GROUP MOVE, and FREE MOVE keep their selection only until this physical move.
     setSelectedId(null);
     setHoveredCell(null);
     if (piece.team === "BALL" && freeBallActive) setFreeBallActive(false);
@@ -5417,14 +5424,15 @@ function App() {
   function moveSelectedPieceTo(x, y) {
     const piece = (piecesRef.current || pieces).find(item => item.id === selectedId);
     if (!piece || !canMovePiece(piece)) return false;
-    if (gameMode === "match" && piece.team === "BALL") {
-      if (!freeBallActive) return false;
-      const geometry = getMovementGeometry(piece, { x, y });
-      if (geometry.kind === "same") return false;
-      return commitPieceMove(piece, x, y, { legal: true, geometry, moveCost: 0, remaining: 0 }, { authorizationOverride: { allowed: true, mode: "free-ball" } });
-    }
 
     const continuation = actionContinuationRef.current;
+    if (gameMode === "match" && piece.team === "BALL") {
+      if (!freeBallActive) return;
+      setSelectedId(piece.id);
+      setHoveredCell(null);
+      return;
+    }
+    if (freeBallActive && piece.team !== "BALL") clearFreeBall();
     if (continuation?.kind === "bonus-card-action") {
       if (continuation.status !== CONTINUATION_STATUS.ACTION_ACTIVE || continuation.actionType !== "MOVE" || continuation.pieceId !== piece.id || continuation.team !== pieceTeamKey(piece)) return false;
       const evaluation = evaluateMove(piece, x, y);
@@ -5597,13 +5605,6 @@ function App() {
     // route badges (or panning). A puck click must not restart normal movement.
     if (actionResolutionRef.current?.kind === "pass") return;
 
-    if (gameMode === "match" && piece.team === "BALL") {
-      if (!freeBallActive) return;
-      setSelectedId(piece.id);
-      setHoveredCell(null);
-      return;
-    }
-
     const continuation = actionContinuationRef.current;
     if (continuation?.kind === "bonus-card-action") {
       if (piece.team !== "BALL" && pieceTeamKey(piece) !== continuation.team) return;
@@ -5623,7 +5624,11 @@ function App() {
 
     const selectedPiece = (piecesRef.current || pieces).find(item => item.id === selectedId);
     const freeMode = matchActionState.freeMode || {};
-    if (freeMode.active && piece.team === "BALL") return;
+    if (freeMode.active && piece.team === "BALL") {
+      setSelectedId(piece.id);
+      setHoveredCell(null);
+      return;
+    }
     if (freeMode.active && piece.team !== "BALL" && piece.id !== freeMode.pieceId) {
       setIllegalMoveNotice({ reason: "exit-free-mode" });
       return;
@@ -8906,6 +8911,10 @@ function App() {
       myTeam,
     });
   }
+  useEffect(() => {
+    if (gameMode !== "match" && freeBallActive) clearFreeBall();
+  }, [gameMode]);
+
   async function applyActionStateUpdate(nextLog, nextState, nextUsed) {
     setTrackerActionLog(nextLog); setMatchActionState(nextState); setTrackerUsedActions(nextUsed);
   }
@@ -9562,21 +9571,6 @@ function App() {
     });
   }
 
-  function toggleFreeBall() {
-    if (gameMode !== "match" || replayModeRef.current || actionResolutionRef.current || actionContinuationRef.current || matchActionState.freeMode?.active) return;
-    const ball = (piecesRef.current || pieces).find(item => item.team === "BALL");
-    if (!ball) return;
-    if (freeBallActive) {
-      setFreeBallActive(false);
-      if (selectedId === ball.id) setSelectedId(null);
-      setHoveredCell(null);
-      return;
-    }
-    setFreeBallActive(true);
-    setSelectedId(ball.id);
-    setHoveredCell(null);
-  }
-
   async function consumeInspectorAction(type, piece) {
     const pendingPass = actionResolutionRef.current;
     if (pendingPass?.kind === "pass") {
@@ -9586,10 +9580,6 @@ function App() {
     const continuation = currentBonusContinuationForTeam(pieceTeamKey(piece));
     if (continuation) {
       if (continuation.status !== CONTINUATION_STATUS.READY || type === "GROUP_MOVE" || type === "FREE" || !canControlPieceStatus(piece)) return;
-      if (type === "PASS" && gameMode === "match" && !canUsePassForPiece(piece)) {
-        setIllegalMoveNotice({ reason: "pass-requires-possession" });
-        return;
-      }
       const started = beginBonusCardAction(type, piece);
       if (!started) return;
       if (type === "PASS") {
@@ -9613,10 +9603,7 @@ function App() {
     // route are confirmed. Cancelling the preview leaves Tracker untouched.
     if (type === "PASS") {
       if (gameMode === "match") {
-        if (!canUsePassForPiece(piece)) {
-          setIllegalMoveNotice({ reason: "pass-requires-possession" });
-          return;
-        }
+        if (!pieceHasBall(piece)) return;
         if (!isTeamPhaseActive(team)) {
           setIllegalMoveNotice({ reason: phaseBlockReason() });
           return;
@@ -10642,7 +10629,7 @@ function App() {
                       disabled={(() => {
                         const continuation = currentBonusContinuationForTeam(pieceTeamKey(inspectedPiece));
                         if (continuation) return true;
-                        return !canUseActionForPiece(inspectedPiece) || !isTeamPhaseActive(pieceTeamKey(inspectedPiece)) || matchActionState.freeMode?.active || freeBallActive || Boolean(actionResolution);
+                        return !canUseActionForPiece(inspectedPiece) || !isTeamPhaseActive(pieceTeamKey(inspectedPiece)) || matchActionState.freeMode?.active || Boolean(actionResolution);
                       })()}
                       onClick={() => requestEndTurn(inspectedPiece)}
                     >
@@ -10652,24 +10639,23 @@ function App() {
                       <button
                         type="button"
                         className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${freeBallActive ? "is-active" : ""}`}
-                        disabled={Boolean(actionResolution) || Boolean(actionContinuation) || Boolean(matchActionState.freeMode?.active)}
+                        disabled={Boolean(actionResolution) || Boolean(actionContinuation)}
                         aria-pressed={freeBallActive}
-                        onClick={toggleFreeBall}
-                        title="Move the ball freely once. The mode ends automatically after the move."
+                        onClick={freeBallActive ? clearFreeBall : activateFreeBall}
                       >
                         {freeBallActive ? "FREE BALL: ON" : "FREE BALL"}
                       </button>
                     )}
                     {gameMode === "match" && (
-                      <button
-                        type="button"
-                        className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id ? "is-active" : ""}`}
-                        disabled={!canUseFreeModeForPiece(inspectedPiece) || Boolean(actionResolution) || Boolean(actionContinuation) || (matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId !== inspectedPiece.id) || freeBallActive}
-                        aria-pressed={Boolean(matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id)}
-                        onClick={() => consumeInspectorAction("FREE", inspectedPiece)}
-                      >
-                        {matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id ? "FREE MOVE: ON" : "FREE MOVE"}
-                      </button>
+                    <button
+                      type="button"
+                      className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id ? "is-active" : ""}`}
+                      disabled={!canUseFreeModeForPiece(inspectedPiece) || Boolean(actionResolution) || Boolean(actionContinuation) || (matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId !== inspectedPiece.id)}
+                      aria-pressed={Boolean(matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id)}
+                      onClick={() => consumeInspectorAction("FREE", inspectedPiece)}
+                    >
+                      {matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id ? "FREE MOVE: ON" : "FREE MOVE"}
+                    </button>
                     )}
                   </div>
                 </div>
@@ -10686,11 +10672,8 @@ function App() {
                     const isPassCancel = type === "PASS" && pendingPass?.passerId === inspectedPiece.id && isPassPreviewCancellable(pendingPass);
                     const passLocksActions = Boolean(pendingPass);
                     const bonusActionAvailable = continuation?.status === CONTINUATION_STATUS.READY;
-                    const passRequiresBall = type === "PASS" && gameMode === "match" && !canUsePassForPiece(inspectedPiece);
                     const disabled = passLocksActions
                       ? !isPassCancel
-                      : passRequiresBall
-                        ? true
                       : foreignContinuationActive
                         ? true
                       : bonusActionAvailable
@@ -10698,12 +10681,12 @@ function App() {
                         : Boolean(continuation)
                           || !canUseActionForPiece(inspectedPiece)
                           || matchActionState.freeMode?.active
-                          || freeBallActive
                           || groupMoveActive
+                          || (gameMode === "match" && type === "PASS" && !pieceHasBall(inspectedPiece))
                           || (type === "MOVE" && pieceState.moveUsed)
                           || (type === "GROUP_MOVE" && status.remaining !== 1 && !trackerComplete);
                     const label = isPassCancel ? "CANCEL PASS" : type.replace("GROUP_MOVE", "GROUP MOVE");
-                    return <button className={`team-action-btn ${team} ${type === "GROUP_MOVE" ? "group-move-btn" : ""} ${trackerComplete ? "action-locked" : ""}`} key={type} type="button" disabled={disabled} aria-disabled={trackerComplete || disabled} title={type === "PASS" && gameMode === "match" && !canUsePassForPiece(inspectedPiece) ? "Only the player in possession can pass." : ""} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{label}</button>;
+                    return <button className={`team-action-btn ${team} ${type === "GROUP_MOVE" ? "group-move-btn" : ""} ${trackerComplete ? "action-locked" : ""}`} key={type} type="button" disabled={disabled} aria-disabled={trackerComplete || disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{label}</button>;
                   })}
                 </div>
                 {inspectedPiece.inactive ? (
