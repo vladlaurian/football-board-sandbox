@@ -2157,6 +2157,7 @@ function App() {
   const actionContinuationRef = useRef(actionContinuation);
   const delayedResolutionTimerRef = useRef(null);
   const delayedResolutionEntryIdRef = useRef("");
+  const invalidatedDelayedResolutionEntryIdsRef = useRef(new Set());
   const delayedResolutionExecutionRef = useRef(createResolutionExecutionRegistry());
   const shownPassResultEntryIdsRef = useRef(new Set());
   const liveTimelinePresentationReadyRef = useRef(false);
@@ -2888,6 +2889,39 @@ function App() {
     setLiveDelayedResolutionEntryId("");
   }
 
+  function invalidateDelayedResolutionForTimelineTravel(timeline) {
+    const canonical = canonicalDelayedResolutionContext(timeline);
+    const activeEntryId = String(canonical?.request?.entryId || delayedResolutionEntryIdRef.current || "");
+    if (activeEntryId) {
+      invalidatedDelayedResolutionEntryIdsRef.current.add(activeEntryId);
+      // Keep the guard bounded during long sandbox sessions.
+      if (invalidatedDelayedResolutionEntryIdsRef.current.size > 100) {
+        const oldest = invalidatedDelayedResolutionEntryIdsRef.current.values().next().value;
+        invalidatedDelayedResolutionEntryIdsRef.current.delete(oldest);
+      }
+      multiplayerTracerRef.current.multiplayer("RESOLUTION_INVALIDATED_BY_TIMELINE_TRAVEL", {
+        entryId: activeEntryId,
+        actionId: canonical?.request?.actionId || "",
+        cursor: timeline?.cursor ?? null,
+        revision: timeline?.revision ?? null,
+      });
+    }
+    cancelDelayedResolutionTimer();
+    pendingDiceRollRef.current = { blue: null, red: null };
+    diceRollingRef.current = { blue: false, red: false };
+    diceCooldownUntilRef.current = 0;
+    setDiceCooldownUntil(0);
+    if (diceCooldownTimerRef.current) {
+      window.clearTimeout(diceCooldownTimerRef.current);
+      diceCooldownTimerRef.current = null;
+    }
+    if (sessionCode) {
+      void deleteDoc(sessionRuntimeRef(sessionCode.toUpperCase(), "dice")).catch(error => {
+        multiplayerTracerRef.current.error("UNDO_DICE_RUNTIME_CLEAR_FAILED", error, { sessionCode });
+      });
+    }
+  }
+
   function scheduleDelayedResolution(request) {
     const traceId = String(request?.payload?.traceId || request?.payload?.rollEvent?.traceId || request?.traceId || actionTraceIdsRef.current.get(request?.actionId) || "");
     if (!request) {
@@ -2901,6 +2935,14 @@ function App() {
     const entryId = String(request.entryId || "");
     if (!entryId) {
       multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "missing timeline entry id", { traceId, actionId: request.actionId });
+      return;
+    }
+    if (invalidatedDelayedResolutionEntryIdsRef.current.has(entryId)) {
+      multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "invalidated by undo or redo", {
+        traceId,
+        entryId,
+        actionId: request.actionId,
+      });
       return;
     }
     // Repeated Firestore snapshots must not restart the same suspense timer.
@@ -5102,7 +5144,7 @@ function App() {
     if (!replayModeRef.current && sessionCode && !isSessionHost) return;
     const current = gameTimelineRef.current;
     if (!current) return;
-    cancelDelayedResolutionTimer();
+    invalidateDelayedResolutionForTimelineTravel(current);
     setPassResultNotice(null);
     const lastEntry = current.entries?.[(current.cursor || 0) - 1];
     const result = atomicTimelineTransactionId(lastEntry)
@@ -5119,7 +5161,7 @@ function App() {
     if (!replayModeRef.current && sessionCode && !isSessionHost) return;
     const current = gameTimelineRef.current;
     if (!current) return;
-    cancelDelayedResolutionTimer();
+    invalidateDelayedResolutionForTimelineTravel(current);
     setPassResultNotice(null);
     const nextEntry = current.entries?.[current.cursor || 0];
     const result = atomicTimelineTransactionId(nextEntry)

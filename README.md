@@ -1702,3 +1702,11 @@ The 3/2 possession rule is active only in Match Mode.
 - After both phases end, normal actions are blocked until the next turn; FREE remains available.
 - Compact team-colored action controls remove the Inspector horizontal scrollbar.
 - Turn phase is included in local saves and shared tracker state for multiplayer compatibility.
+
+
+## v19.21 — Multiplayer Undo delayed-resolution reset
+
+- Undo/Redo now invalidates the currently pending delayed-resolution entry before moving the Timeline cursor.
+- Late Firestore snapshots cannot reschedule an invalidated dice resolution.
+- Local dice pending/cooldown state and the shared runtime dice lock are cleared during Timeline travel.
+- Normal pass, interception, and Bonus Action resolution logic is unchanged.
