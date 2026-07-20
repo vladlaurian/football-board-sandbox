@@ -156,7 +156,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20";
+const APP_VERSION = "v20.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2005,6 +2005,7 @@ function App() {
   const [pendingEndTurn, setPendingEndTurn] = useState(null);
   const [pendingAutoMove, setPendingAutoMove] = useState(null);
   const [actionResolution, setActionResolution] = useState(null);
+  const [passTargetIntentPending, setPassTargetIntentPending] = useState(false);
   const [actionContinuation, setActionContinuation] = useState(null);
   const [passResultNotice, setPassResultNotice] = useState(null);
   const [liveDelayedResolutionEntryId, setLiveDelayedResolutionEntryId] = useState("");
@@ -2086,6 +2087,8 @@ function App() {
   const cardStateRef = useRef(cardState);
   const activeRuleSetRef = useRef(activeRuleSet);
   const actionResolutionRef = useRef(actionResolution);
+  const passTargetIntentPendingRef = useRef(false);
+  const processedPassTargetIntentIdsRef = useRef(new Set());
   const actionContinuationRef = useRef(actionContinuation);
   const delayedResolutionTimerRef = useRef(null);
   const delayedResolutionEntryIdRef = useRef("");
@@ -2112,6 +2115,13 @@ function App() {
   useEffect(() => { if (cardState?.backStatsSchema?.migrationError) window.alert(cardState.backStatsSchema.migrationError); }, [cardState?.backStatsSchema?.migrationError]);
   useEffect(() => { activeRuleSetRef.current = activeRuleSet; }, [activeRuleSet]);
   useEffect(() => { actionResolutionRef.current = actionResolution; }, [actionResolution]);
+  useEffect(() => { passTargetIntentPendingRef.current = passTargetIntentPending; }, [passTargetIntentPending]);
+  useEffect(() => {
+    if (actionResolution?.kind !== "pass" || actionResolution.status !== "targeting") {
+      setPassTargetIntentPending(false);
+      passTargetIntentPendingRef.current = false;
+    }
+  }, [actionResolution]);
   useEffect(() => { actionContinuationRef.current = actionContinuation; }, [actionContinuation]);
   useEffect(() => {
     if (actionResolution?.kind !== "pass" || actionResolution.status !== "awaiting-interception-roll") return;
@@ -2687,7 +2697,14 @@ function App() {
             toRevision: previousTimeline?.revision ?? null,
           });
           replaceGameTimeline(previousTimeline);
-          applyTimelineGameState(timelineStateAt(previousTimeline, previousTimeline.cursor), { preserveLocalSelection: true });
+          // A rejected optimistic gameplay commit must also discard every local
+          // interaction derived from that rejected revision. Keeping selection
+          // here creates a ghost targeting cursor over canonical gameplay.
+          applyTimelineGameState(timelineStateAt(previousTimeline, previousTimeline.cursor), { preserveLocalSelection: false });
+          setHoveredCell(null);
+          setSelectedId(null);
+          setPassTargetIntentPending(false);
+          passTargetIntentPendingRef.current = false;
           cancelDelayedResolutionTimer();
         } else {
           multiplayerTracerRef.current.guard("TIMELINE_ROLLBACK_SKIPPED", "failed commit is no longer the current optimistic revision", {
@@ -3672,6 +3689,61 @@ function App() {
     }, (error) => {
       console.error("Session cards listener failed", error);
       setSessionStatus("Cards error");
+    });
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, sessionCode]);
+
+  useEffect(() => {
+    if (!user || !sessionCode) return undefined;
+    const code = sessionCode.toUpperCase();
+    const unsub = onSnapshot(sessionRuntimeRef(code, "passTargetIntent"), snapshot => {
+      if (!snapshot.exists()) return;
+      const intent = snapshot.data() || {};
+      const requestId = String(intent.requestId || "");
+      if (!requestId) return;
+
+      // Guests only wait for the canonical Timeline update. They never commit
+      // PASS_TARGET_SELECTED themselves.
+      if (!sessionAuthorityRef.current.isHost) {
+        if (["accepted", "rejected"].includes(String(intent.status || "")) && intent.requestedByClient === clientIdRef.current) {
+          setPassTargetIntentPending(false);
+          passTargetIntentPendingRef.current = false;
+        }
+        return;
+      }
+      if (processedPassTargetIntentIdsRef.current.has(requestId) || intent.status !== "pending") return;
+      processedPassTargetIntentIdsRef.current.add(requestId);
+
+      const pending = actionResolutionRef.current;
+      const valid = pending?.kind === "pass"
+        && pending.status === "targeting"
+        && String(pending.id) === String(intent.actionId)
+        && pending.team === intent.team
+        && Number.isFinite(Number(intent.x))
+        && Number.isFinite(Number(intent.y));
+
+      if (!valid) {
+        updateDoc(sessionRuntimeRef(code, "passTargetIntent"), {
+          status: "rejected",
+          rejectionReason: "stale-or-invalid-pass-target",
+          handledAt: serverTimestamp(),
+          handledBy: clientIdRef.current,
+        }).catch(error => console.error("Pass target intent rejection sync failed", error));
+        multiplayerTracerRef.current.guard("PASS_TARGET_INTENT_REJECTED", "stale or invalid canonical targeting state", { requestId, actionId: intent.actionId });
+        return;
+      }
+
+      const committed = commitPassTargetSelection(intent.x, intent.y, pending);
+      updateDoc(sessionRuntimeRef(code, "passTargetIntent"), {
+        status: committed ? "accepted" : "rejected",
+        handledAt: serverTimestamp(),
+        handledBy: clientIdRef.current,
+        canonicalRevision: Math.max(0, Number(gameTimelineRef.current?.revision) || 0),
+      }).catch(error => console.error("Pass target intent acknowledgement failed", error));
+      multiplayerTracerRef.current.multiplayer("PASS_TARGET_INTENT_HANDLED", { requestId, actionId: intent.actionId, committed });
+    }, error => {
+      console.error("Pass target intent listener failed", error);
     });
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -8764,8 +8836,7 @@ function App() {
     });
   }
 
-  function choosePassTarget(x, y) {
-    const pending = actionResolutionRef.current;
+  function commitPassTargetSelection(x, y, pending = actionResolutionRef.current) {
     if (pending?.kind !== "pass" || pending.status !== "targeting") return false;
     const next = { ...pending, target: { x: Number(x), y: Number(y) }, status: "route-selection" };
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
@@ -8780,10 +8851,50 @@ function App() {
       after: mergeTimelineGameState(before, { actionResolution: next }),
       allowNoop: true,
     });
-    if (activeRuleSet.actions?.pass?.pathMode === "center-to-center") {
+    if (activeRuleSetRef.current.actions?.pass?.pathMode === "center-to-center") {
       confirmPassRoute(null);
     }
     return true;
+  }
+
+  async function requestHostPassTargetSelection(x, y, pending) {
+    if (!sessionCode || !isSessionGuest || passTargetIntentPendingRef.current) return false;
+    const requestId = createActionEventId(`pass_target_${pending.id}`);
+    setPassTargetIntentPending(true);
+    passTargetIntentPendingRef.current = true;
+    setHoveredCell(null);
+    try {
+      await setDoc(sessionRuntimeRef(sessionCode.toUpperCase(), "passTargetIntent"), {
+        requestId,
+        actionId: pending.id,
+        team: pending.team,
+        x: Number(x),
+        y: Number(y),
+        baseRevision: Math.max(0, Number(gameTimelineRef.current?.revision) || 0),
+        requestedBy: user?.uid || clientIdRef.current,
+        requestedByClient: clientIdRef.current,
+        status: "pending",
+        createdAt: serverTimestamp(),
+      }, { merge: false });
+      multiplayerTracerRef.current.multiplayer("PASS_TARGET_INTENT_SENT", { requestId, actionId: pending.id, baseRevision: gameTimelineRef.current?.revision ?? null });
+      return true;
+    } catch (error) {
+      setPassTargetIntentPending(false);
+      passTargetIntentPendingRef.current = false;
+      multiplayerTracerRef.current.error("PASS_TARGET_INTENT_FAILED", error, { requestId, actionId: pending.id });
+      setSessionStatus("Pass target sync error");
+      return false;
+    }
+  }
+
+  function choosePassTarget(x, y) {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "pass" || pending.status !== "targeting") return false;
+    if (sessionCode && isSessionGuest) {
+      void requestHostPassTargetSelection(x, y, pending);
+      return true;
+    }
+    return commitPassTargetSelection(x, y, pending);
   }
 
   function activatePassRoute(cornerId) {

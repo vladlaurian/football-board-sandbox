@@ -1,3 +1,12 @@
+
+## v20.1 — Multiplayer pass-target authority fix
+
+- `PASS_TARGET_SELECTED` is no longer committed optimistically by a guest.
+- A guest writes a transient pass-target intent; the host validates the canonical pass action and commits the Timeline transition.
+- Stale intents are rejected by action ID and canonical targeting state.
+- Timeline conflict rollback now clears local selection, hover, pass-target intent state, and delayed-resolution UI instead of preserving a ghost targeting cursor.
+- Sandbox version label: `v20.1`; package version: `20.1.0`.
+
 # Football Board Sandbox
 
 ## Current project status
