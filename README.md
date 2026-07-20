@@ -1,5 +1,64 @@
 # Football Board Sandbox
 
+## v19.23 — Pass possession, automatic empty-space interception and sandbox ball control
+
+### Gameplay and UI
+
+- `PASS` is enabled only on the card whose player currently shares a square with the Match Ball. Other cards keep the button disabled; no extra error dialog is required.
+- A pass aimed at an **empty square** covered by one opposing Defensive Area is intercepted automatically by that defender. No D20 interception roll is made.
+- If the empty target square is covered by multiple opposing Defensive Areas, the defending player chooses which eligible defender receives the ball.
+- An occupied target keeps the existing direct-hit and interception-sequence rules; the new automatic rule applies only to an empty destination.
+- The card utility `Free Mode` was renamed to **Free Move**.
+- Added **Free Ball** between `END TURN` and `FREE MOVE`, using the same visual style as Free Move. It is available from every player card to every participant at any time and allows the Match Ball to be placed freely as a sandbox recovery tool.
+
+### Firebase configuration validated outside the source build
+
+The deployed Firestore rules must explicitly include the runtime subcollection because parent permissions are not inherited by subcollections:
+
+```text
+/sessions/{sessionId}/runtime/{documentId}
+```
+
+The missing rule caused `Dice runtime sync failed FirebaseError: Missing or insufficient permissions.` Once the authenticated read/write rule was published, normal multiplayer Pass, interception and Bonus Action flow worked.
+
+### Deferred multiplayer Undo issue — v19.21 and v19.22 experiments rejected
+
+Multiplayer Undo after an asynchronous Pass/interception resolution remains a known deferred issue. Normal multiplayer gameplay works when Undo is not used. The control remains available because this is a sandbox and the issue will be revisited after the remaining core actions are implemented.
+
+#### v19.21 experiment — local resolution invalidation
+
+Attempted:
+
+- cancelling the active delayed-resolution timer during Undo/Redo;
+- locally invalidating the prior Timeline dice entry;
+- clearing temporary resolution state and the advisory runtime dice lock.
+
+Result: **rejected**. Firestore snapshots continued to reintroduce and schedule the same historical `DICE_ROLLED` entry.
+
+#### v19.22 experiment — canonical guard before scheduling
+
+Attempted:
+
+- removing the v19.21 local invalidation mechanism;
+- validating live cursor, canonical entry identity and action identity before scheduling;
+- explicitly clearing the Guest waiting overlay when Timeline travel was detected.
+
+Result: **rejected**. The historical resolution was still repeatedly scheduled and then aborted:
+
+```text
+HOST_RESOLUTION_SCHEDULED
+RESOLUTION_ABORTED
+reason: stale timeline or missing canonical request
+```
+
+Decision: do not carry either experimental patch forward. Revisit the issue as one shared Timeline/Undo/Delayed Resolution synchronization refactor after Pass, Dribble, Shot and the remaining core actions exist.
+
+### Verification
+
+- `npm test`: 97/97 tests passed.
+- `npm run build`: Vite production build passed.
+- Added Pass-engine regression coverage for one Defensive Area, overlapping Defensive Areas and occupied targets.
+
 ## v19.20 — Surgical canonical-resolution diagnostics
 
 - Diagnostic-only build: no Pass, Undo/Redo, Natural 20, Bonus Action or multiplayer gameplay rules changed.

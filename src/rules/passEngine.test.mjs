@@ -143,3 +143,68 @@ test("teammate direct hit still resolves eligible interception reactions", () =>
   assert.equal(passRequiresInterceptionSequence({ directHit: null, interceptors: [{ defender: { id: "B-1" } }] }, "blue"), true);
   assert.equal(passRequiresInterceptionSequence({ directHit: { team: "blue" }, interceptors: [] }, "blue"), false);
 });
+
+test("an empty pass target inside one opposing Defensive Area is marked for automatic interception", () => {
+  const passer = { id: "passer", team: "A", x: 2, y: 2, cardId: "pass" };
+  const defender = { id: "defender", team: "B", x: 7, y: 3, cardId: "def" };
+  const cardById = {
+    pass: { passiveAttributes: [{ name: "Passing", value: 12 }] },
+    def: { defensiveArea: [{ dx: 0, dy: 1 }] },
+  };
+  const plan = buildPassPlan({
+    passer,
+    passerCard: cardById.pass,
+    pieces: [passer, defender, { id: "ball", team: "BALL", x: 2, y: 2 }],
+    cardById,
+    settings: { cols: 20, rows: 12 },
+    target: { x: 8, y: 3 },
+    cornerId: "top-right",
+    rules: { pathMode: "corner-to-center", modifierCap: 4 },
+  });
+  assert.equal(plan.targetIsEmpty, true);
+  assert.deepEqual(plan.automaticTargetInterceptors.map(item => item.defender.id), ["defender"]);
+});
+
+test("overlapping opposing Defensive Areas expose every automatic receiver", () => {
+  const passer = { id: "passer", team: "A", x: 2, y: 2, cardId: "pass" };
+  const first = { id: "d1", team: "B", x: 7, y: 3, cardId: "def1" };
+  const second = { id: "d2", team: "B", x: 8, y: 2, cardId: "def2" };
+  const cardById = {
+    pass: { passiveAttributes: [{ name: "Passing", value: 12 }] },
+    def1: { defensiveArea: [{ dx: 0, dy: 1 }] },
+    def2: { defensiveArea: [{ dx: -1, dy: 0 }] },
+  };
+  const plan = buildPassPlan({
+    passer,
+    passerCard: cardById.pass,
+    pieces: [passer, first, second],
+    cardById,
+    settings: { cols: 20, rows: 12 },
+    target: { x: 8, y: 3 },
+    cornerId: "top-right",
+    rules: { pathMode: "corner-to-center", modifierCap: 4 },
+  });
+  assert.deepEqual(plan.automaticTargetInterceptors.map(item => item.defender.id), ["d1", "d2"]);
+});
+
+test("an occupied pass target never triggers empty-square automatic interception", () => {
+  const passer = { id: "passer", team: "A", x: 2, y: 2, cardId: "pass" };
+  const defender = { id: "defender", team: "B", x: 7, y: 3, cardId: "def" };
+  const teammate = { id: "teammate", team: "A", x: 8, y: 3, cardId: "mate" };
+  const cardById = {
+    pass: { passiveAttributes: [{ name: "Passing", value: 12 }] },
+    def: { defensiveArea: [{ dx: 0, dy: 1 }] },
+  };
+  const plan = buildPassPlan({
+    passer,
+    passerCard: cardById.pass,
+    pieces: [passer, defender, teammate],
+    cardById,
+    settings: { cols: 20, rows: 12 },
+    target: { x: 8, y: 3 },
+    cornerId: "top-right",
+    rules: { pathMode: "corner-to-center", modifierCap: 4 },
+  });
+  assert.equal(plan.targetIsEmpty, false);
+  assert.deepEqual(plan.automaticTargetInterceptors, []);
+});
