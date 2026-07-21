@@ -178,7 +178,7 @@ In Match multiplayer, dice input is a semantic request, not a guest Timeline tra
 
 Turn progression must be derived from the transition's canonical `before.tracker` snapshot. Render-local Tracker state must not participate in possession-change calculations.
 
-Bonus Move is progressive. Each legal physical step is its own host-authoritative Timeline transition inside the same continuation and transaction group. `END B.A.` is a separate semantic command that ends the continuation. A guest may never apply an optimistic movement step locally to unlock `END B.A.`.
+A Bonus Move is one logical transition: physical movement and continuation completion are committed together. No UI may depend on a second optimistic guest commit to unlock `END B.A.`.
 
 ## ADR-019 — Host-authoritative action starts and atomic Bonus Pass
 
@@ -214,43 +214,3 @@ Consequences:
 - transient UI cleanup may clear local selection without destroying the active interaction context;
 - `activePieceId` is presentation-only. It must not replace `selectedId` in movement, hover, touch, pointer, Pass, or Interception input paths;
 - the Interaction Layer may observe the general resolution engine, Pass Engine, and Interception state, but may not absorb or redirect their responsibilities.
-
-
-## ADR-020 — Canonical Gameplay Command Foundation
-
-**Status:** Active in v20.11.2 / rebuilt Build 2A
-
-**Decision:** No gameplay mutation may originate directly from guest UI state. Every guest gameplay change must use a typed semantic command, be validated by the host, be delegated to the responsible specialized engine or authority, and be published as one canonical Timeline transition before clients reconstruct UI.
-
-Required flow:
-
-```text
-UI → Gameplay Command/Intent → Host Authority Router → specialized engine/authority → canonical Timeline → Interaction Layer/UI
-```
-
-The command envelope is shared, but lifecycle and rules remain specialized. Movement geometry belongs to Movement. Pass geometry belongs to Pass. Interception mathematics belongs to Interception. Bonus Move authorization belongs to the active continuation. Group Move authorization belongs to Tracker state. Free Move authorization belongs to Free Mode.
-
-**Mandatory invariants:**
-
-- UI, `selectedId`, `inspectedPieceId`, and Interaction Layer projections are never gameplay authority.
-- The router validates common concerns only: identity, ownership, revision, request id, piece identity, and supported command shape.
-- The router must not contain game-design rules.
-- Host and Guest must use the same canonical executor; Guest reaches it through transport, Host may call it directly.
-- A new action may not create a parallel multiplayer path. If it cannot fit this architecture, implementation stops and an architecture change is proposed first.
-- A command path is incomplete without schema, host validation, specialized authority, Timeline commit, idempotency/revision protection, tests, and documentation.
-- Reusing Movement geometry does not merge lifecycles. Normal Move, Bonus Move, Group Move, 3/2, and Free Move remain distinct authorization modes.
-
-**Implemented in Build 2A:** Normal Move start/step, Auto Move atomic start+step, Bonus Move steps, Group Move start/step, 3/2 steps, and Free Move steps. Pass and Interception remain on their existing specialized paths and must follow the same invariant when later migrated or extended.
-
-**Next phase:** Build 2B stabilizes local inspection, selection, cursor, reconnect, Undo/Redo, and cleanup around the canonical state. It must not redesign the command foundation.
-
-### Live hydration must preserve valid local interaction context
-
-Canonical Timeline hydration replaces gameplay state, but a forward live session revision must not erase a still-valid local `selectedId` / Inspector context. This context is required between semantic command phases such as `ACTION_START` and `ACTION_STEP`. Replay, explicit cursor restoration, rejected commands, and invalid/deleted pieces may clear it. This rule does not make selection authoritative; it only prevents canonical synchronization from destroying the local control surface needed to issue the next semantic command.
-
-
-## Canonical acknowledgement barrier
-
-**Status:** Active in v20.11.2
-
-A multi-step Guest action may not unlock its next UI step merely because an intent document says `accepted`. The Host must first finish publishing the canonical Timeline revision. The Guest must then hydrate at least the acknowledged `canonicalRevision` before the pending barrier is released. This prevents stale follow-up commands and forbids the invalid state where Tracker consumption is visible while the executable action step is rejected.

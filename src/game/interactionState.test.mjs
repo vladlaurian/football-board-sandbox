@@ -56,3 +56,31 @@ test("canonical active piece remains presentation data and does not replace loca
   assert.equal(localSelectedId, "b1");
   assert.equal(state.cursorMode, null);
 });
+
+test("normal move reconstructs the canonical active piece independently of local selection", () => {
+  const state = deriveInteractionState({
+    pieces,
+    matchActionState: {
+      activeMovement: { active: true, kind: "normal-move", pieceId: "a1", team: "blue", timelineGroupId: "mv-1" },
+    },
+    canControlNormalMove: true,
+  });
+  assert.equal(state.kind, "normal-move");
+  assert.equal(state.activePieceId, "a1");
+  assert.equal(state.controllingTeam, "blue");
+  assert.equal(state.canControl, true);
+  assert.equal(state.cursorMode, "normal-move");
+});
+
+test("normal move remains visible but read-only for the non-controlling client", () => {
+  const state = deriveInteractionState({
+    pieces,
+    matchActionState: {
+      activeMovement: { active: true, kind: "normal-move", pieceId: "a1", team: "blue", timelineGroupId: "mv-1" },
+    },
+    canControlNormalMove: false,
+  });
+  assert.equal(state.activePieceId, "a1");
+  assert.equal(state.canControl, false);
+  assert.equal(state.cursorMode, null);
+});

@@ -6,9 +6,9 @@ const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
 
 test("guest Free Move uses host-authoritative intents for start, move, and end", () => {
   assert.match(source, /sessionRuntimeRef\(sessionCode\.toUpperCase\(\), "freeModeIntent"\)/);
-  assert.match(source, /GAMEPLAY_ACTION_TYPE\.FREE_MOVE/);
+  assert.match(source, /operation: "move"/);
   assert.match(source, /requestHostFreeMode\(piece, isSameFreePiece \? "end" : "start"\)/);
-  assert.match(source, /executeCanonicalMovementCommand\(command, piece, routed\.mode\)/);
+  assert.match(source, /commitPieceMove\(piece, Number\(intent\.x\), Number\(intent\.y\).*authorizationOverride: \{ allowed: true, mode: "free" \}/s);
 });
 
 test("Match Mode ball selection requires Free Ball and remains one-shot", () => {

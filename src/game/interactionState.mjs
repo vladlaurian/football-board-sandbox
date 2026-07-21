@@ -24,6 +24,7 @@ export function deriveInteractionState({
   matchActionState = null,
   canControlResolution = false,
   canControlContinuation = false,
+  canControlNormalMove = false,
 } = {}) {
   if (actionResolution?.kind === "pass" && PASS_SELECTION_STATUSES.has(actionResolution.status)) {
     const activePieceId = validPieceId(pieces, actionResolution.passerId);
@@ -52,6 +53,20 @@ export function deriveInteractionState({
         : null,
       canCancelPass: false,
       canEndBonusAction: Boolean(canControlContinuation && BONUS_END_STATUSES.has(actionContinuation.status) && !actionResolution),
+    };
+  }
+
+
+  const activeMovement = matchActionState?.activeMovement;
+  if (activeMovement?.active && activeMovement.kind === "normal-move") {
+    return {
+      kind: "normal-move",
+      activePieceId: validPieceId(pieces, activeMovement.pieceId),
+      controllingTeam: activeMovement.team || null,
+      canControl: Boolean(canControlNormalMove),
+      cursorMode: canControlNormalMove ? "normal-move" : null,
+      canCancelPass: false,
+      canEndBonusAction: false,
     };
   }
 

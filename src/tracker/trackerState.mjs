@@ -55,6 +55,13 @@ export function normalizeMatchActionState(raw) {
       team: hasExplicitFreeMode && (raw.freeMode.team === "blue" || raw.freeMode.team === "red") ? raw.freeMode.team : null,
       timelineGroupId: hasExplicitFreeMode && raw.freeMode.timelineGroupId ? String(raw.freeMode.timelineGroupId) : null,
     },
+    activeMovement: {
+      active: Boolean(raw?.activeMovement?.active),
+      kind: raw?.activeMovement?.kind === "normal-move" ? "normal-move" : null,
+      pieceId: raw?.activeMovement?.pieceId ? String(raw.activeMovement.pieceId) : null,
+      team: raw?.activeMovement?.team === "blue" || raw?.activeMovement?.team === "red" ? raw.activeMovement.team : null,
+      timelineGroupId: raw?.activeMovement?.timelineGroupId ? String(raw.activeMovement.timelineGroupId) : null,
+    },
   };
 }
 

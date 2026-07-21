@@ -16,6 +16,6 @@
     "puppeteer-core": "^25.3.0"
   },
   "name": "football-board-sandbox",
-  "version": "20.11.2",
+  "version": "20.11.3",
   "private": true
 }

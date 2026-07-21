@@ -28,3 +28,16 @@ test("legacy free-move state is safely migrated to explicit free mode", () => {
   assert.equal(state.freeMode.pieceId, "A-1");
   assert.equal(state.freeMode.team, null);
 });
+
+test("normal move active interaction survives tracker normalization", () => {
+  const state = normalizeMatchActionState({
+    activeMovement: { active: true, kind: "normal-move", pieceId: "blue-7", team: "blue", timelineGroupId: "mv-7" },
+  });
+  assert.deepEqual(state.activeMovement, {
+    active: true,
+    kind: "normal-move",
+    pieceId: "blue-7",
+    team: "blue",
+    timelineGroupId: "mv-7",
+  });
+});

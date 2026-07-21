@@ -1,42 +1,16 @@
-## v20.11.2 — Canonical acknowledgement barrier
+## v20.11.3 — Normal MOVE vertical Host Authority migration
 
-**Sandbox:** `v20.11.2`  
-**Git/package:** `20.11.2`
+**Sandbox:** `v20.11.3`  
+**Git/package:** `20.11.3`
 
-- Marks v20.11.1 as still invalid for Guest Move.
-- Host now acknowledges action starts and movement steps only after the canonical Timeline write queue has completed.
-- Guest keeps the command pending until its hydrated Timeline revision reaches the `canonicalRevision` acknowledged by Host.
-- Movement input is blocked while either command barrier is pending, preventing stale `ACTION_STEP` requests from consuming an action and then being rejected.
-- Rejected commands still restore canonical gameplay and clear transient interaction.
-
-## v20.11.2 — Rebuilt Build 2A: live interaction reconciliation
-
-**Sandbox:** `v20.11.2`  
-**Git/package:** `20.11.2`  
-**Supersedes:** `v20.11.0`
-
-- Declares v20.11.0 invalid after the first Guest Move test consumed MOVE but erased selection before destination input.
-- Preserves valid local selection and Inspector context during forward live Timeline hydration.
-- Keeps Timeline canonical for gameplay while maintaining local UI state as non-authoritative interaction context.
-- Clears selection only when invalid, during replay/explicit restoration, or on rejected-command recovery.
-- Adds regression tests for the hydration boundary and the complete Movement command prerequisite.
-
-## v20.11.0 — Build 2A: Canonical Gameplay Command Foundation
-
-**Sandbox:** `v20.11.0`  
-**Git/package:** `20.11.0`  
-**Base:** `v20.10.2`
-
-- Added a shared typed gameplay-command envelope and host router.
-- Migrated guest Normal Move activation and movement steps to Host Authority.
-- Migrated Auto Move as a coherent host activation + step command.
-- Migrated progressive Bonus Move steps, Group Move steps, and 3/2 validation/commit.
-- Aligned Free Move movement steps with the common router while preserving its separate start/end lifecycle.
-- Removed canonical active-piece fallback from generic movement input; `selectedId` remains the explicit local input selection.
-- Preserved separate Movement, Pass, Interception, Tracker, Bonus Continuation, and Free Tool responsibilities.
-- Corrected documentation that incorrectly described Bonus Move as movement and continuation completion in one transition. Bonus Move is progressive; `END B.A.` is separate.
-- Documented the mandatory architecture for future Dribble, Shot, Cross, Tackle, Pass, and other gameplay actions.
-- Build 2B remains Interaction Layer Stabilization only.
+- Rebuilt from the known v20.10.2 baseline; invalid v20.11.0–v20.11.2 builds are not used as a code base.
+- Migrates only normal `MOVE` through a complete two-phase Host Authority lifecycle.
+- `START_MOVE` is sent as `actionStartIntent` with mode `normal-move`; only Host activates Tracker economy.
+- Tracker canonical state now records `activeMovement` with piece, team, kind and Timeline group.
+- Interaction Layer reconstructs the active MOVE piece independently of local Inspector selection.
+- Guest destination clicks are sent through `normalMoveCommitIntent`; only Host evaluates and commits the physical move.
+- The canonical active movement closes after the Host commits the destination.
+- `GROUP_MOVE`, Bonus Move, Free Move, Auto Move and 3/2 are intentionally unchanged in this build.
 
 ## v20.10.2 — Interaction Layer engine-boundary correction
 

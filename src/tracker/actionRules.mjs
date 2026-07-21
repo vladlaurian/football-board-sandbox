@@ -167,6 +167,13 @@ export function activateTrackerAction(rawTracker, { type, pieceId, team, entryId
           moveGroupId: entry.id,
         },
       },
+      activeMovement: {
+        active: true,
+        kind: "normal-move",
+        pieceId,
+        team,
+        timelineGroupId: entry.id,
+      },
     });
   }
   if (type === "GROUP_MOVE") {
