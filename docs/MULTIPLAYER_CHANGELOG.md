@@ -1,3 +1,14 @@
+## v20.9 — Host-authoritative guest safety tools
+
+**Sandbox:** `v20.9`  
+**Git/package:** `20.9.0`
+
+- Migrated guest Free Move start, movement, and end to host-authoritative intents.
+- Migrated guest Free Ball placement to a host-authoritative one-shot intent.
+- Prevented normal ball selection and movement in Match Mode unless Free Ball is active.
+- Preserved unrestricted ball editing in Editor Mode.
+- Kept the Free Move piece selected until Free Move is explicitly ended.
+
 ## v20.8 — Local inspection, persistent prompts, and progressive Bonus Move
 
 **Sandbox:** `v20.8`  

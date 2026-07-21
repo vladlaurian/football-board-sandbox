@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.8` |
-| Git/package version | `20.8.0` |
-| Build name | `Final_Board_v20_7_documentation_contract_consolidated` |
+| Sandbox version | `v20.9` |
+| Git/package version | `20.9.0` |
+| Build name | `Final_Board_v20_9_guest_free_tools_authority` |
 | Base build | `v20.8` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.8`. The repository version is defined in `package.json` as `20.8.0`. The browser title is `Sandbox v20.8`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.9`. The repository version is defined in `package.json` as `20.9.0`. The browser title is `Sandbox v20.9`.
 
-## v20.8 release summary
+## v20.9 release summary
 
-v20.8 separates player inspection from gameplay authorization, keeps Pass cursor feedback local to the player resolving Pass, makes action prompts draggable with persistent positions, preserves progressive Bonus Move until explicit `END B.A.`, and keeps Free Move / Free Ball available as team-owned safety tools in Match Mode.
+v20.9 makes guest Free Move and Free Ball host-authoritative, restores one-shot Free Ball behavior in Match Mode, prevents normal ball selection in Match Mode, and formalizes release archive and post-build reporting rules.
 
 ## First time here?
 
@@ -80,7 +80,7 @@ docs/
 - [`DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md): mandatory implementation and release workflow.
 - [`ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md): permanent architectural decisions and invariants.
 - [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md): current multiplayer model, intent flows, authority boundaries, cleanup rules, and open storage refactor.
-- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.8.
+- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.9.
 - [`ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md): generic action-resolution lifecycle.
 - [`INTERCEPTION_ENGINE.md`](docs/INTERCEPTION_ENGINE.md): interception resolver and its boundary with Pass.
 - [`RULE_SETS_EDITOR.md`](docs/RULE_SETS_EDITOR.md): editable rules, schema and runtime effects.

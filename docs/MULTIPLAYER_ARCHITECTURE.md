@@ -2,7 +2,7 @@
 
 ## Status and version
 
-This is the authoritative description of the multiplayer model in Sandbox `v20.8` / Git package `20.8.0`.
+This is the authoritative description of the multiplayer model in Sandbox `v20.9` / Git package `20.9.0`.
 
 Historical fixes are recorded in [`MULTIPLAYER_CHANGELOG.md`](MULTIPLAYER_CHANGELOG.md). Permanent cross-system decisions also appear in [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md).
 
@@ -259,3 +259,13 @@ Shot, Dribble, Cross and future actions must follow the same model:
 Selection is local UI state and is never locked by the opponent's Pass or Bonus Action. Either client may inspect any player at any time, while canonical gameplay actions remain restricted to the authorized team. Pass targeting cursor feedback is shown only to the client controlling the active resolution.
 
 In multiplayer, Free Move and Free Ball remain available regardless of turn or active continuation, but each client may activate them only from a player belonging to their assigned team. Canonical board changes continue through the session Timeline authority path.
+
+
+## Free Move and Free Ball authority
+
+In multiplayer, each client may activate Free Move and Free Ball only for its own team context. Guest interactions are semantic intents; only the host commits canonical Timeline changes.
+
+- `freeModeIntent` handles Free Move start, movement, and end.
+- `freeBallMoveIntent` handles the one-shot Free Ball placement.
+- Guests never commit `FREE_MODE_STARTED`, `FREE_MOVE`, `FREE_MODE_ENDED`, or `BALL_MOVED` directly.
+- Ownership is validated against the canonical team owner before the host applies the transition.

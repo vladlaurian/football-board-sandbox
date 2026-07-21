@@ -157,6 +157,8 @@ The final ZIP must not contain:
 
 The archive must contain the complete runnable source and the current documentation set.
 
+The ZIP must open directly to the project files and folders. It must not contain an additional top-level wrapper directory.
+
 ## 12. Stable systems
 
 The following systems are stable unless a request explicitly targets them or a proven root-cause fix requires a reviewed change:
@@ -174,3 +176,17 @@ New features integrate with these systems rather than bypassing or duplicating t
 ## Canonical documentation rule
 
 Every project fact, rule, architectural contract, workflow requirement, or historical change must have exactly one canonical document. Other documents may link to that canonical source, but must not duplicate or independently restate the same information. Before creating a new document, inspect the existing documentation and extend the correct canonical document whenever possible.
+
+
+## 13. Post-build delivery summary
+
+Every delivered build must be accompanied by a factual summary stating:
+
+- what was actually changed;
+- which files or systems were affected;
+- any deviation from the approved plan and why;
+- any issue discovered but not fixed;
+- the exact tests and production build commands executed and their results;
+- the final archive structure and version metadata verification.
+
+The summary must describe the delivered artifact, not the original intention.

@@ -158,7 +158,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.8";
+const APP_VERSION = "v20.9";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2063,6 +2063,8 @@ function App() {
   const [bonusActionEndIntentPending, setBonusActionEndIntentPending] = useState(false);
   const [diceRollIntentPending, setDiceRollIntentPending] = useState(false);
   const [actionStartIntentPending, setActionStartIntentPending] = useState(false);
+  const [freeModeIntentPending, setFreeModeIntentPending] = useState(false);
+  const [freeBallMoveIntentPending, setFreeBallMoveIntentPending] = useState(false);
   const [actionContinuation, setActionContinuation] = useState(null);
   const [passResultNotice, setPassResultNotice] = useState(null);
   const [liveDelayedResolutionEntryId, setLiveDelayedResolutionEntryId] = useState("");
@@ -2149,11 +2151,15 @@ function App() {
   const bonusActionEndIntentPendingRef = useRef(false);
   const diceRollIntentPendingRef = useRef(false);
   const actionStartIntentPendingRef = useRef(false);
+  const freeModeIntentPendingRef = useRef(false);
+  const freeBallMoveIntentPendingRef = useRef(false);
   const processedBonusActionEndIntentIdsRef = useRef(new Set());
   const processedPassTargetIntentIdsRef = useRef(new Set());
   const processedPassCancelIntentIdsRef = useRef(new Set());
   const processedDiceRollIntentIdsRef = useRef(new Set());
   const processedActionStartIntentIdsRef = useRef(new Set());
+  const processedFreeModeIntentIdsRef = useRef(new Set());
+  const processedFreeBallMoveIntentIdsRef = useRef(new Set());
   const actionContinuationRef = useRef(actionContinuation);
   const delayedResolutionTimerRef = useRef(null);
   const delayedResolutionEntryIdRef = useRef("");
@@ -2185,6 +2191,8 @@ function App() {
   useEffect(() => { bonusActionEndIntentPendingRef.current = bonusActionEndIntentPending; }, [bonusActionEndIntentPending]);
   useEffect(() => { diceRollIntentPendingRef.current = diceRollIntentPending; }, [diceRollIntentPending]);
   useEffect(() => { actionStartIntentPendingRef.current = actionStartIntentPending; }, [actionStartIntentPending]);
+  useEffect(() => { freeModeIntentPendingRef.current = freeModeIntentPending; }, [freeModeIntentPending]);
+  useEffect(() => { freeBallMoveIntentPendingRef.current = freeBallMoveIntentPending; }, [freeBallMoveIntentPending]);
   useEffect(() => {
     if (actionResolution?.kind !== "pass" || actionResolution.status !== "targeting") {
       setPassTargetIntentPending(false);
@@ -3783,6 +3791,73 @@ function App() {
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, sessionCode]);
+
+  useEffect(() => {
+    if (!user || !sessionCode) return;
+    const code = sessionCode.toUpperCase();
+    const unsub = onSnapshot(sessionRuntimeRef(code, "freeModeIntent"), snapshot => {
+      if (!snapshot.exists()) return;
+      const intent = snapshot.data() || {};
+      const requestId = String(intent.requestId || "");
+      if (!requestId) return;
+      if (!sessionAuthorityRef.current.isHost) {
+        if (["accepted", "rejected"].includes(String(intent.status || "")) && intent.requestedByClient === clientIdRef.current) {
+          setFreeModeIntentPending(false);
+          freeModeIntentPendingRef.current = false;
+          if (intent.status === "rejected") resetTransientGameplayUI({ restoreCanonical: true });
+          else if (String(intent.operation || "") === "end") setSelectedId(null);
+          else if (intent.pieceId) setSelectedId(String(intent.pieceId));
+        }
+        return;
+      }
+      if (processedFreeModeIntentIdsRef.current.has(requestId) || intent.status !== "pending") return;
+      processedFreeModeIntentIdsRef.current.add(requestId);
+      const piece = (piecesRef.current || []).find(item => String(item.id) === String(intent.pieceId));
+      const team = pieceTeamKey(piece);
+      const ownerValid = piece && piece.team !== "BALL" && ["blue", "red"].includes(team) && String(teamOwners?.[team] || "") === String(intent.requestedByUid || "");
+      let committed = false;
+      const operation = String(intent.operation || "toggle");
+      if (ownerValid && operation === "move") {
+        const freeMode = currentTimelineTrackerSnapshot().matchActionState.freeMode || {};
+        const occupied = (piecesRef.current || []).some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === Number(intent.x) && Number(item.y) === Number(intent.y));
+        if (freeMode.active && String(freeMode.pieceId) === String(piece.id) && !occupied && Number.isFinite(Number(intent.x)) && Number.isFinite(Number(intent.y))) {
+          const geometry = getMovementGeometry(piece, { x: Number(intent.x), y: Number(intent.y) });
+          if (geometry.kind !== "same") committed = commitPieceMove(piece, Number(intent.x), Number(intent.y), { legal: true, geometry, moveCost: 0, remaining: 0 }, { authorizationOverride: { allowed: true, mode: "free" } });
+        }
+      } else if (ownerValid) committed = commitFreeModeToggle(piece, { fromHostIntent: true, requestedOperation: operation });
+      updateDoc(sessionRuntimeRef(code, "freeModeIntent"), { status: committed ? "accepted" : "rejected", handledAt: serverTimestamp(), handledBy: clientIdRef.current })
+        .catch(error => console.error("Free mode intent acknowledgement failed", error));
+    }, error => console.error("Free mode intent listener failed", error));
+    return () => unsub();
+  }, [user, sessionCode, teamOwners]);
+
+  useEffect(() => {
+    if (!user || !sessionCode) return;
+    const code = sessionCode.toUpperCase();
+    const unsub = onSnapshot(sessionRuntimeRef(code, "freeBallMoveIntent"), snapshot => {
+      if (!snapshot.exists()) return;
+      const intent = snapshot.data() || {};
+      const requestId = String(intent.requestId || "");
+      if (!requestId) return;
+      if (!sessionAuthorityRef.current.isHost) {
+        if (["accepted", "rejected"].includes(String(intent.status || "")) && intent.requestedByClient === clientIdRef.current) {
+          setFreeBallMoveIntentPending(false);
+          freeBallMoveIntentPendingRef.current = false;
+          if (intent.status === "rejected") resetTransientGameplayUI({ restoreCanonical: true });
+        }
+        return;
+      }
+      if (processedFreeBallMoveIntentIdsRef.current.has(requestId) || intent.status !== "pending") return;
+      processedFreeBallMoveIntentIdsRef.current.add(requestId);
+      const team = String(intent.team || "");
+      const ownerValid = ["blue", "red"].includes(team) && String(teamOwners?.[team] || "") === String(intent.requestedByUid || "");
+      const coordsValid = Number.isFinite(Number(intent.x)) && Number.isFinite(Number(intent.y));
+      const committed = ownerValid && coordsValid ? commitFreeBallMove(Number(intent.x), Number(intent.y), { fromHostIntent: true }) : false;
+      updateDoc(sessionRuntimeRef(code, "freeBallMoveIntent"), { status: committed ? "accepted" : "rejected", handledAt: serverTimestamp(), handledBy: clientIdRef.current })
+        .catch(error => console.error("Free Ball intent acknowledgement failed", error));
+    }, error => console.error("Free Ball intent listener failed", error));
+    return () => unsub();
+  }, [user, sessionCode, teamOwners]);
 
   useEffect(() => {
     if (!user || !sessionCode) return undefined;
@@ -5510,25 +5585,24 @@ function App() {
   function toggleFreeBall(piece = null) {
     if (gameMode !== "match" || replayModeRef.current) return;
     if (sessionCode && (!piece || piece.team === "BALL" || pieceTeamKey(piece) !== myTeam)) return;
-    setFreeBallActive(active => !active);
-    setSelectedId(null);
+    setFreeBallActive(active => {
+      const next = !active;
+      const ball = (piecesRef.current || pieces).find(item => item.team === "BALL");
+      setSelectedId(next ? (ball?.id || null) : null);
+      return next;
+    });
     setHoveredCell(null);
     setPendingAutoMove(null);
     setPendingThreeTwoMove(null);
   }
 
-  function moveBallFreelyTo(x, y) {
-    if (!freeBallActive || gameMode !== "match") return false;
+  function commitFreeBallMove(x, y, { fromHostIntent = false } = {}) {
+    if (gameMode !== "match") return false;
+    if (sessionCode && isSessionGuest && !fromHostIntent) return false;
     const currentPieces = piecesRef.current || pieces;
     const ball = currentPieces.find(item => item.team === "BALL");
-    if (!ball) {
-      cancelFreeBall();
-      return false;
-    }
-    if (Number(ball.x) === Number(x) && Number(ball.y) === Number(y)) {
-      cancelFreeBall();
-      return false;
-    }
+    if (!ball) return false;
+    if (Number(ball.x) === Number(x) && Number(ball.y) === Number(y)) return false;
     pushHistory(currentPieces, movementStateRef.current);
     const nextPieces = ensureBenchReserveCount(currentPieces.map(item =>
       item.team === "BALL" ? { ...item, x, y } : item
@@ -5542,8 +5616,39 @@ function App() {
       metadata: { movementReason: "FREE_BALL" },
       stateOverrides: { movementStateByPieceId: movementStateRef.current },
     });
-    cancelFreeBall();
     return true;
+  }
+
+  async function requestHostFreeBallMove(x, y) {
+    if (!sessionCode || !isSessionGuest || freeBallMoveIntentPendingRef.current) return false;
+    const requestId = createActionEventId("free_ball_move");
+    setFreeBallMoveIntentPending(true);
+    freeBallMoveIntentPendingRef.current = true;
+    try {
+      await setDoc(sessionRuntimeRef(sessionCode.toUpperCase(), "freeBallMoveIntent"), {
+        requestId, team: myTeam, x: Number(x), y: Number(y),
+        requestedByUid: user?.uid || "", requestedByClient: clientIdRef.current,
+        status: "pending", createdAt: serverTimestamp(),
+      }, { merge: false });
+      return true;
+    } catch (error) {
+      setFreeBallMoveIntentPending(false);
+      freeBallMoveIntentPendingRef.current = false;
+      console.error("Free Ball intent failed", error);
+      return false;
+    }
+  }
+
+  function moveBallFreelyTo(x, y) {
+    if (!freeBallActive || gameMode !== "match") return false;
+    if (sessionCode && isSessionGuest) {
+      void requestHostFreeBallMove(x, y);
+      cancelFreeBall();
+      return true;
+    }
+    const committed = commitFreeBallMove(x, y);
+    cancelFreeBall();
+    return committed;
   }
 
   function getThreeTwoEligibility(piece, x, y) {
@@ -5567,7 +5672,8 @@ function App() {
     const targetOccupiedByPlayer = (piecesRef.current || pieces).some(item => item.id !== piece.id && item.team !== "BALL" && item.x === x && item.y === y);
     if (piece.team !== "BALL" && targetOccupiedByPlayer) return { legal: false, reason: "occupied", geometry };
     if (geometry.kind === "same") return { legal: false, reason: "same", geometry };
-    if (piece.team === "BALL" || gameMode === "editor") return { legal: true, geometry };
+    if (gameMode === "editor") return { legal: true, geometry };
+    if (piece.team === "BALL") return { legal: false, reason: "free-ball-required", geometry };
     if (geometry.kind === "mixed") return { legal: false, reason: "mixed", geometry };
     const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false, movementEnded: false };
     if (current.movementEnded) return { legal: false, reason: "movement-ended", geometry, current, remaining: 0 };
@@ -5604,6 +5710,7 @@ function App() {
     else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE MOVE before moving this player, or advance to next turn.</>;
     else if (result.reason === "pass-origin-blocked") primary = <>A pass cannot start from a corner shared with an opposing player.</>;
     else if (result.reason === "pass-requires-ball") primary = <>Only the player who has the ball can start a pass in Match Mode.</>;
+    else if (result.reason === "free-ball-required") primary = <>Press FREE BALL before moving the ball in Match Mode.</>;
     else if (result.reason === "team-exhausted") primary = <>Wait for opponent team or advance to next turn.</>;
     else if (result.reason === "wait-opponent") primary = <>Wait for opponent team.</>;
     else if (result.reason === "wait-active-team") primary = <>Wait for the opponent to finish their turn, or use Free Move.</>;
@@ -5783,10 +5890,28 @@ function App() {
     // Bonus Move is progressive: keep the player selected until END B.A. so
     // remaining movement points can be spent. Other movement modes preserve
     // the historical one-physical-move selection behavior.
-    if (isBonusPlacement) setSelectedId(piece.id);
+    if (isBonusPlacement || isFreePlacement) setSelectedId(piece.id);
     else setSelectedId(null);
     setHoveredCell(null);
     return true;
+  }
+
+  async function requestHostFreeMove(piece, x, y) {
+    if (!sessionCode || !isSessionGuest || freeModeIntentPendingRef.current || !piece) return false;
+    const requestId = createActionEventId("free_move");
+    setFreeModeIntentPending(true);
+    freeModeIntentPendingRef.current = true;
+    try {
+      await setDoc(sessionRuntimeRef(sessionCode.toUpperCase(), "freeModeIntent"), {
+        requestId, operation: "move", pieceId: piece.id, team: pieceTeamKey(piece), x: Number(x), y: Number(y),
+        requestedByUid: user?.uid || "", requestedByClient: clientIdRef.current,
+        status: "pending", createdAt: serverTimestamp(),
+      }, { merge: false });
+      return true;
+    } catch (error) {
+      setFreeModeIntentPending(false); freeModeIntentPendingRef.current = false;
+      console.error("Free Move intent failed", error); return false;
+    }
   }
 
   function moveSelectedPieceTo(x, y) {
@@ -5857,6 +5982,7 @@ function App() {
       if (occupied) { setIllegalMoveNotice({ reason: "occupied" }); return false; }
       const geometry = getMovementGeometry(piece, { x, y });
       if (geometry.kind === "same") return false;
+      if (sessionCode && isSessionGuest) { void requestHostFreeMove(piece, x, y); return true; }
       return commitPieceMove(piece, x, y, { legal: true, geometry, moveCost: 0, remaining: 0 });
     }
     const evaluation = authorization.mode === "group" ? evaluateGroupMove(piece, x, y) : evaluateMove(piece, x, y);
@@ -5959,6 +6085,7 @@ function App() {
     }
     const piece = (piecesRef.current || pieces).find(item => item.id === pieceId);
     if (!piece) return;
+    if (gameMode === "match" && piece.team === "BALL" && !freeBallActive) return;
 
     if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting" && canControlActiveResolution(actionResolutionRef.current)) {
       choosePassTarget(piece.x, piece.y);
@@ -5972,6 +6099,7 @@ function App() {
       return;
     }
     if (freeBallActive) {
+      if (piece.team === "BALL") { setSelectedId(piece.id); setHoveredCell(null); return; }
       moveBallFreelyTo(piece.x, piece.y);
       return;
     }
@@ -9793,6 +9921,53 @@ function App() {
     });
   }
 
+  async function requestHostFreeMode(piece, operation) {
+    if (!sessionCode || !isSessionGuest || freeModeIntentPendingRef.current || !piece) return false;
+    const requestId = createActionEventId(`free_mode_${operation}`);
+    setFreeModeIntentPending(true);
+    freeModeIntentPendingRef.current = true;
+    try {
+      await setDoc(sessionRuntimeRef(sessionCode.toUpperCase(), "freeModeIntent"), {
+        requestId, operation, pieceId: piece.id, team: pieceTeamKey(piece),
+        requestedByUid: user?.uid || "", requestedByClient: clientIdRef.current,
+        status: "pending", createdAt: serverTimestamp(),
+      }, { merge: false });
+      return true;
+    } catch (error) {
+      setFreeModeIntentPending(false);
+      freeModeIntentPendingRef.current = false;
+      console.error("Free mode intent failed", error);
+      return false;
+    }
+  }
+
+  function commitFreeModeToggle(piece, { fromHostIntent = false, requestedOperation = "toggle" } = {}) {
+    if (!piece || piece.team === "BALL") return false;
+    if (sessionCode && isSessionGuest && !fromHostIntent) return false;
+    const team = pieceTeamKey(piece);
+    const currentTracker = currentTimelineTrackerSnapshot();
+    const currentActionState = currentTracker.matchActionState;
+    const freeModeActive = Boolean(currentActionState.freeMode?.active);
+    const isSameFreePiece = freeModeActive && currentActionState.freeMode?.pieceId === piece.id;
+    if (requestedOperation === "end" && !isSameFreePiece) return false;
+    if (requestedOperation === "start" && freeModeActive) return false;
+    const beforeTimeline = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const timelineGroupId = isSameFreePiece
+      ? (currentActionState.freeMode?.timelineGroupId || `free_${piece.id}_${trackerCurrentTurn}`)
+      : `free_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const freeTransition = toggleFreeModeState(currentActionState, { pieceId: piece.id, team, timelineGroupId });
+    const nextState = freeTransition.state;
+    setMatchActionState(nextState);
+    setSelectedId(isSameFreePiece ? null : piece.id);
+    const afterTimeline = createGameState({ ...beforeTimeline, tracker: { ...beforeTimeline.tracker, matchActionState: nextState } });
+    recordTimelineTransition({
+      type: isSameFreePiece ? "FREE_MODE_ENDED" : "FREE_MODE_STARTED",
+      label: `${team === "blue" ? "Blue" : "Red"} Free Move ${isSameFreePiece ? "OFF" : "ON"}: ${getPieceDisplayLabel(piece)}`,
+      team, groupId: timelineGroupId, before: beforeTimeline, after: afterTimeline,
+    });
+    return true;
+  }
+
   async function consumeInspectorAction(type, piece) {
     if (type === "PASS" && gameMode === "match" && !playerHasBall(piece)) {
       setIllegalMoveNotice({ reason: "pass-requires-ball" });
@@ -9851,28 +10026,13 @@ function App() {
     const currentActionState = currentTracker.matchActionState;
     if (type === "FREE") {
       cancelFreeBall();
-      const beforeTimeline = currentTimelineGameStateSnapshot() || captureTimelineGameState();
       const freeModeActive = Boolean(currentActionState.freeMode?.active);
       const isSameFreePiece = freeModeActive && currentActionState.freeMode?.pieceId === piece.id;
-      const timelineGroupId = isSameFreePiece
-        ? (currentActionState.freeMode?.timelineGroupId || `free_${piece.id}_${trackerCurrentTurn}`)
-        : `free_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const freeTransition = toggleFreeModeState(currentActionState, { pieceId: piece.id, team, timelineGroupId });
-      const nextState = freeTransition.state;
-      setMatchActionState(nextState);
-      setSelectedId(piece.id);
-      const afterTimeline = createGameState({
-        ...beforeTimeline,
-        tracker: { ...beforeTimeline.tracker, matchActionState: nextState },
-      });
-      recordTimelineTransition({
-        type: isSameFreePiece ? "FREE_MODE_ENDED" : "FREE_MODE_STARTED",
-        label: `${team === "blue" ? "Blue" : "Red"} Free Move ${isSameFreePiece ? "OFF" : "ON"}: ${getPieceDisplayLabel(piece)}`,
-        team,
-        groupId: timelineGroupId,
-        before: beforeTimeline,
-        after: afterTimeline,
-      });
+      if (sessionCode && isSessionGuest) {
+        void requestHostFreeMode(piece, isSameFreePiece ? "end" : "start");
+        return;
+      }
+      commitFreeModeToggle(piece, { requestedOperation: isSameFreePiece ? "end" : "start" });
       return;
     }
     const activation = activateTrackerAction(currentTracker, {
