@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { deriveInteractionState, effectiveSelectedPieceId } from "./interactionState.mjs";
+import { deriveInteractionState } from "./interactionState.mjs";
 
 const pieces = [
   { id: "a1", team: "A" },
@@ -12,7 +12,7 @@ test("pass reconstructs the canonical passer independently of local selection", 
   const state = deriveInteractionState({ pieces, actionResolution: { kind: "pass", status: "targeting", passerId: "a1", team: "blue" }, canControlResolution: true });
   assert.equal(state.activePieceId, "a1");
   assert.equal(state.canCancelPass, true);
-  assert.equal(effectiveSelectedPieceId("b1", state), "a1");
+  assert.equal(state.activePieceId, "a1");
 });
 
 test("guest can see a pass without receiving interaction authority", () => {
@@ -46,4 +46,13 @@ test("missing or inactive canonical pieces never create ghost selection", () => 
   const inactive = deriveInteractionState({ pieces, actionResolution: { kind: "pass", status: "targeting", passerId: "inactive" }, canControlResolution: true });
   assert.equal(missing.activePieceId, null);
   assert.equal(inactive.activePieceId, null);
+});
+
+
+test("canonical active piece remains presentation data and does not replace local selection", () => {
+  const localSelectedId = "b1";
+  const state = deriveInteractionState({ pieces, actionResolution: { kind: "pass", status: "awaiting-interception-roll", passerId: "a1", team: "blue" }, canControlResolution: false });
+  assert.equal(state.activePieceId, "a1");
+  assert.equal(localSelectedId, "b1");
+  assert.equal(state.cursorMode, null);
 });

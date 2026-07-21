@@ -1,3 +1,17 @@
+## v20.10.2 — Interaction Layer engine-boundary correction
+
+**Sandbox:** `v20.10.2`  
+**Git/package:** `20.10.2`  
+**Base:** `v20.10.1`
+
+- Preserved the canonical derived Interaction Layer introduced in v20.10.
+- Removed the incorrect `effectiveSelectedId` bridge that fed canonical active-piece presentation into generic pointer, touch, hover, movement, Pass, and Interception input.
+- Added a separate `activeInteractionPieceId` presentation prop for board highlighting.
+- Restored `CANCEL PASS` to the Pass button position on the canonical passer card while keeping cancellation bound to `actionResolution`.
+- Restored `END B.A.` to the Inspector card controls while keeping completion bound to `actionContinuation`.
+- Kept the general resolution engine, Pass Engine, Interception Engine, Host Authority, Timeline, intents, and game design unchanged.
+- Added a regression invariant that an active canonical piece never replaces local selection.
+
 ## v20.9 — Host-authoritative guest safety tools
 
 **Sandbox:** `v20.9`  

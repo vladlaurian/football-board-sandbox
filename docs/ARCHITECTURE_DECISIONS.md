@@ -207,8 +207,10 @@ The projection supplies the active piece, interaction type, cursor mode and cano
 
 Consequences:
 
-- Timeline hydration, Undo/Redo, rollback and guest synchronization automatically reconstruct the active gameplay selection;
-- `CANCEL PASS` derives from the canonical Pass resolution and never from the inspected piece;
-- `END B.A.` derives from the canonical Bonus Action continuation and never from the inspected piece;
+- Timeline hydration, Undo/Redo, rollback and guest synchronization automatically reconstruct the active gameplay presentation/highlight;
+- `CANCEL PASS` executes from the canonical Pass resolution; its familiar card placement may be contextual to the canonical passer, but the command must not consume the inspected piece as gameplay authority;
+- `END B.A.` executes from the canonical Bonus Action continuation; its card placement must not make the inspected piece an input to continuation completion;
 - inspection remains locally free even while another piece is canonically active;
-- transient UI cleanup may clear local selection without destroying the active interaction context.
+- transient UI cleanup may clear local selection without destroying the active interaction context;
+- `activePieceId` is presentation-only. It must not replace `selectedId` in movement, hover, touch, pointer, Pass, or Interception input paths;
+- the Interaction Layer may observe the general resolution engine, Pass Engine, and Interception state, but may not absorb or redirect their responsibilities.

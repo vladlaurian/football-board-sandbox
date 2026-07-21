@@ -7439,3 +7439,6 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .draggable-action-prompt { cursor: grab; touch-action: none; user-select: none; }
 .draggable-action-prompt:active { cursor: grabbing; }
 .draggable-action-prompt button { cursor: pointer; }
+
+/* Canonical Interaction Layer highlight: presentation only. It must not activate generic board input. */
+.piece.interaction-active{outline:3px solid #ffe100;outline-offset:2px;z-index:10;box-shadow:0 0 0 2px rgba(255,225,0,.24),0 4px 10px rgba(0,0,0,.45)}

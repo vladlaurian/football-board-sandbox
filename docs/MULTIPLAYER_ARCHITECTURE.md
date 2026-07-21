@@ -2,7 +2,7 @@
 
 ## Status and version
 
-This is the authoritative description of the multiplayer model in Sandbox `v20.9` / Git package `20.9.0`.
+This is the authoritative description of the multiplayer model in Sandbox `v20.10.2` / Git package `20.10.2`.
 
 Historical fixes are recorded in [`MULTIPLAYER_CHANGELOG.md`](MULTIPLAYER_CHANGELOG.md). Permanent cross-system decisions also appear in [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md).
 
@@ -274,6 +274,6 @@ In multiplayer, each client may activate Free Move and Free Ball only for its ow
 
 Host Authority + Timeline + typed intents remain unchanged. Active UI interaction context is not transmitted as an additional multiplayer state.
 
-After each canonical Timeline hydration, both clients independently derive the same active gameplay piece and interaction mode from `actionResolution`, `actionContinuation`, and Match state. Authority flags are then applied locally so both clients can render the canonical interaction while only the owning client can control it.
+After each canonical Timeline hydration, both clients independently derive the same active gameplay piece and interaction mode from `actionResolution`, `actionContinuation`, and Match state. Authority flags are then applied locally so both clients can render the canonical interaction while only the owning client can control it. The derived active piece is presentation data only; generic pointer, touch, hover, movement, Pass, and Interception inputs continue to use their own explicit state and engine contracts.
 
-`selectedId` and `inspectedPieceId` remain local UI state. They are not authoritative and are not required for Pass cancellation, Bonus Action completion, or reconstruction after synchronization.
+`selectedId` and `inspectedPieceId` remain local UI state. They are not authoritative gameplay state. Canonical Pass cancellation and Bonus Action completion read `actionResolution` / `actionContinuation` directly even when their controls are rendered in the Inspector. The Interaction Layer must not feed `activePieceId` back into the general action engine, Pass Engine, or Interception Engine.

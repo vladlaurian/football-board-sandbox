@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.9` |
-| Git/package version | `20.9.0` |
-| Build name | `Final_Board_v20_9_guest_free_tools_authority` |
-| Base build | `v20.8` |
+| Sandbox version | `v20.10.2` |
+| Git/package version | `20.10.2` |
+| Build name | `Final_Board_v20_10_2_interaction_layer_engine_boundary_fix` |
+| Base build | `v20.10.1` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.9`. The repository version is defined in `package.json` as `20.9.0`. The browser title is `Sandbox v20.9`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.10.2`. The repository version is defined in `package.json` as `20.10.2`. The browser title is `Sandbox v20.10.2`.
 
-## v20.9 release summary
+## v20.10.2 release summary
 
-v20.9 makes guest Free Move and Free Ball host-authoritative, restores one-shot Free Ball behavior in Match Mode, prevents normal ball selection in Match Mode, and formalizes release archive and post-build reporting rules.
+v20.10.2 preserves the derived Interaction Layer while separating canonical interaction presentation from generic board selection/input. It restores the Pass/Interception input boundary, returns `CANCEL PASS` and `END B.A.` to the Inspector card controls, and keeps Host Authority, Pass Engine, Interception Engine, and the general resolution engine unchanged.
 
 ## First time here?
 
@@ -80,7 +80,7 @@ docs/
 - [`DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md): mandatory implementation and release workflow.
 - [`ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md): permanent architectural decisions and invariants.
 - [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md): current multiplayer model, intent flows, authority boundaries, cleanup rules, and open storage refactor.
-- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.9.
+- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.10.2.
 - [`ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md): generic action-resolution lifecycle.
 - [`INTERCEPTION_ENGINE.md`](docs/INTERCEPTION_ENGINE.md): interception resolver and its boundary with Pass.
 - [`RULE_SETS_EDITOR.md`](docs/RULE_SETS_EDITOR.md): editable rules, schema and runtime effects.
@@ -139,4 +139,4 @@ A version is not considered updated until the Sandbox label, browser title, pack
 
 ### v20.10 — Interaction Layer Refactor
 
-Active gameplay interaction is now derived from canonical Timeline state instead of depending on local selection or Inspector state. Pass, Bonus Action, and Free Move reconstruct their active piece locally on both host and guest. `CANCEL PASS` and `END B.A.` are canonical interaction controls and remain available independently of which card is inspected.
+Active gameplay interaction is derived from canonical Timeline state rather than authored by local selection. The canonical active piece is presentation data only and must never replace `selectedId` in generic board input. Pass, Bonus Action, and Free Move reconstruct their active-piece highlight locally on both host and guest. `CANCEL PASS` and `END B.A.` execute from canonical action state while retaining their familiar Inspector-card placement.

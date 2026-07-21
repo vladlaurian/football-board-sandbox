@@ -79,6 +79,3 @@ export function deriveInteractionState({
   };
 }
 
-export function effectiveSelectedPieceId(localSelectedId, interactionState) {
-  return interactionState?.activePieceId || localSelectedId || null;
-}

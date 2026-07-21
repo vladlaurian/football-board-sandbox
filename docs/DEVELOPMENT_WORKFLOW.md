@@ -197,6 +197,6 @@ The summary must describe the delivered artifact, not the original intention.
 - Keep Host Authority + Timeline + Intents as the canonical multiplayer architecture.
 - Do not rewrite multiplayer to solve current UI bugs.
 - Refactor the Interaction Layer so UI derives from canonical gameplay state.
-- Cancel Pass and End Bonus Action must not depend on local selection.
-- Guest should reconstruct interaction context from canonical action state after synchronization.
+- Cancel Pass and End Bonus Action must execute from canonical action state, even when their controls remain visually on the Inspector card.
+- Guest should reconstruct interaction presentation from canonical action state after synchronization. Derived active-piece presentation must never replace generic local selection or cross engine boundaries.
 - Timeline performance investigation is a separate task and must not be mixed with this refactor.

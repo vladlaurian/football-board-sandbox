@@ -53,6 +53,7 @@ export function BoardCanvas({
   boardWrapRef,
   pitchRef,
   selectedId,
+  activeInteractionPieceId = null,
   setHoveredCell,
   startBoardPan,
   moveBoardPan,
@@ -211,7 +212,7 @@ export function BoardCanvas({
             const isBall = piece.team === "BALL";
             const normalizedPiece = withBoardPosition(piece, settings);
             return <div key={piece.id} data-coord={normalizedPiece.coord} title={`${getPieceDisplayLabel(piece)} ${normalizedPiece.coord}${piece.cardId ? " · Card attached" : ""}${piece.inactive ? " · INACTIVE" : ""}`} className={`piece-hitbox ${isBall ? "ball-hitbox" : "player-hitbox"}`} style={{ left: `calc(${piece.x} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})`, top: `calc(${piece.y} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})` }} onPointerDown={event => onPiecePointerDown(piece.id, event)} onDoubleClick={() => openEdit(piece)}>
-              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${selectedId === piece.id ? "selected" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""}`}>{isBall ? <MatchBallIcon className="board-ball-icon" /> : <span className="piece-label">{getPieceDisplayLabel(piece)}</span>}</div>
+              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${selectedId === piece.id ? "selected" : ""} ${activeInteractionPieceId === piece.id && selectedId !== piece.id ? "interaction-active" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""}`}>{isBall ? <MatchBallIcon className="board-ball-icon" /> : <span className="piece-label">{getPieceDisplayLabel(piece)}</span>}</div>
             </div>;
           })}
         </div>
