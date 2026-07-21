@@ -1,0 +1,58 @@
+import { createGameState } from "../game/gameState.mjs";
+import { GAME_COMMAND_TYPE, gameCommandValidationReason, normalizeGameCommand } from "./gameCommands.mjs";
+import { createGameEvent } from "./gameEvents.mjs";
+import { createMatchContext } from "./matchContext.mjs";
+
+function rejected(reason) {
+  return { accepted: false, reason };
+}
+
+function accepted(nextState, events, timeline) {
+  return { accepted: true, nextState, events, timeline };
+}
+
+function validGridCoordinate(value) {
+  return Number.isFinite(Number(value)) && Number.isInteger(Number(value));
+}
+
+function applyFreeBallMoved(state, command) {
+  if (state.gameMode !== "match") return rejected("MATCH_MODE_REQUIRED");
+  const x = Number(command.payload?.x);
+  const y = Number(command.payload?.y);
+  if (!validGridCoordinate(x) || !validGridCoordinate(y)) return rejected("BALL_DESTINATION_INVALID");
+
+  const ballIndex = state.pieces.findIndex(piece => piece?.team === "BALL");
+  if (ballIndex < 0) return rejected("BALL_NOT_FOUND");
+  const ball = state.pieces[ballIndex];
+  if (Number(ball.x) === x && Number(ball.y) === y) return rejected("BALL_POSITION_UNCHANGED");
+
+  const pieces = state.pieces.map((piece, index) => index === ballIndex ? { ...piece, x, y } : piece);
+  const nextState = createGameState({ ...state, pieces });
+  return accepted(nextState, [createGameEvent({
+    type: "BALL_MOVED",
+    commandId: command.id,
+    metadata: {
+      pieceId: ball.id || "",
+      from: { x: Number(ball.x), y: Number(ball.y) },
+      to: { x, y },
+      movementReason: "FREE_BALL",
+    },
+  })], {
+    groupId: null,
+    undoMode: "step",
+    allowNoop: false,
+  });
+}
+
+export function applyGameCommand({ state, context, command } = {}) {
+  const normalizedCommand = normalizeGameCommand(command);
+  const validationReason = gameCommandValidationReason(normalizedCommand);
+  if (validationReason) return rejected(validationReason);
+
+  createMatchContext(context);
+  const currentState = createGameState(state);
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.FREE_BALL_MOVED) {
+    return applyFreeBallMoved(currentState, normalizedCommand);
+  }
+  return rejected("COMMAND_TYPE_UNSUPPORTED");
+}

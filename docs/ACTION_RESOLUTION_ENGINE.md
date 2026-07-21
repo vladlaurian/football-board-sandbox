@@ -4,6 +4,8 @@
 
 This document is the canonical contract for automated Match Mode actions. Read it before implementing Pass, Dribble, Tackle, Shot, Cross, or any future action that contains user decisions, manual rolls, reactions, deterministic resolution, or bonus continuation.
 
+The broader ownership boundary is defined in [`GAME_ENGINE_ARCHITECTURE.md`](GAME_ENGINE_ARCHITECTURE.md). This Action Resolution Engine is a reusable subsystem of the Game Engine; it must not become a parallel UI, Timeline, or Firebase resolution path.
+
 The generic engine is in `src/match/actionResolutionEngine.mjs`. Action-specific rule modules remain separate (for example `src/rules/passEngine.mjs`). UI code must not become a second rules engine.
 
 ## Ownership boundary
@@ -175,4 +177,3 @@ consumption succeed.
 Every Match Mode action integrated with this engine must also be reviewed in `src/timeline/aiAnalysisExport.mjs`. A feature is not complete merely because its canonical Timeline state is correct: the semantic export must preserve action type, relevant choices, roll/resolution identity, movement reason, possession effects and action-economy effects needed for later AI analysis. Add or update regression tests for the exported semantics.
 
 Free Ball remains outside this engine, but its canonical `BALL_MOVED` transition is exported explicitly with `movementReason: "FREE_BALL"` so AI analysis can distinguish administrative ball placement from an ambiguous manual move.
-

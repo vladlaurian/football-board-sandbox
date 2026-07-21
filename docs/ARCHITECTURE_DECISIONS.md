@@ -214,3 +214,93 @@ Consequences:
 - transient UI cleanup may clear local selection without destroying the active interaction context;
 - `activePieceId` is presentation-only. It must not replace `selectedId` in movement, hover, touch, pointer, Pass, or Interception input paths;
 - the Interaction Layer may observe the general resolution engine, Pass Engine, and Interception state, but may not absorb or redirect their responsibilities.
+
+
+# ARCHITECTURAL DIRECTION – POST v20.11.6
+
+## Status
+
+Following an architectural audit, development priority changed. The Game Engine contract and migration plan are now approved; implementation may proceed only through the current approved phase of `GAME_ENGINE_MIGRATION_PLAN.md`.
+
+This remains a strategic decision, not a multiplayer bug-fix task.
+
+## Current priorities
+
+1. Freeze AUTOMATED multiplayer development.
+2. Do NOT continue patching Host Authority.
+3. Preserve the existing Manual Multiplayer Sandbox.
+4. Build a stable architecture for Single Player first.
+5. Only after the single-player engine is stable should automated multiplayer be reconsidered.
+
+## Why
+
+The audit concluded that the current automated multiplayer problems are symptoms of architectural coupling rather than isolated bugs.
+
+The central issue is that main.jsx currently mixes:
+- UI
+- game orchestration
+- multiplayer
+- Firebase
+- timeline
+- undo
+- temporary interaction state
+
+Continuing to patch multiplayer before extracting the game engine is expected to increase technical debt.
+
+## New architectural objective
+
+The next development phase is to transform the application into:
+
+UI
+→ Game Controller
+→ Pure Game Engine
+→ Persistence / Multiplayer Adapter
+
+The Game Engine must become reusable by:
+- single player
+- replay
+- automated tests
+- future multiplayer
+
+## Important
+
+No decision has been made yet regarding Firebase vs Colyseus.
+
+That decision is intentionally postponed until:
+- the engine exists,
+- the single-player architecture is stable,
+- the engine is command-driven.
+
+Current expectation is that Firebase Host Authority may be sufficient for the intended scale (2 players + optional spectator), but this must be evaluated AFTER the engine refactor, not before.
+
+## Instructions for future AI chats
+
+Before implementing code:
+
+1. Read the complete documentation.
+2. Read `GAME_ENGINE_ARCHITECTURE.md` and `GAME_ENGINE_MIGRATION_PLAN.md`.
+3. Inspect the current phase's relevant code and tests.
+4. Propose only the current phase's approved scope and wait for user approval.
+5. Only then implement that phase.
+
+Do NOT continue automated multiplayer bug fixing before the architectural refactor.
+
+## ADR-020 — Command-driven Game Engine with one canonical MatchState
+
+**Status:** Active
+
+**Decision:** Match Mode gameplay is migrated to a pure, command-driven Game Engine. `MatchState` is the single mutable, serializable gameplay authority; the state at the active Timeline cursor is the authoritative current state. Every gameplay mutation is requested through a serializable command and is accepted or rejected by the engine. An accepted result contains next MatchState and semantic event data consumed by Timeline, Undo/Redo, Replay, and AI Analysis Export.
+
+`MatchContext` is immutable for the life of a match and freezes gameplay-relevant Rule Set, board settings, and compact card data at Match start. Editing cards or rules later affects future matches, never an active match or replay.
+
+UI, Controller, timers, Firebase, and future multiplayer adapters may request or transport commands but must not implement alternate rules or directly mutate gameplay state. Manual multiplayer remains unchanged while the engine migration is open. Automated multiplayer is reconsidered only after completed Single Player migration and a dedicated pre-multiplayer audit.
+
+**Reason:** `main.jsx` currently combines UI, gameplay orchestration, Timeline, Firebase, and transient state. This creates parallel state paths and made Host Authority bugs structural rather than isolated. A reusable engine is required before safely extending Single Player or returning to automated multiplayer.
+
+**Consequences:**
+
+- Permanent contract: [`GAME_ENGINE_ARCHITECTURE.md`](GAME_ENGINE_ARCHITECTURE.md).
+- Temporary execution checklist: [`GAME_ENGINE_MIGRATION_PLAN.md`](GAME_ENGINE_MIGRATION_PLAN.md).
+- Existing pure rule modules are reused; game design is unchanged by migration.
+- Timeline remains canonical history but does not validate rules.
+- A mechanic is migrated only when its legacy direct Match Mode mutation path is removed and required engine, Timeline, Undo/Redo, Replay, and AI-export tests pass.

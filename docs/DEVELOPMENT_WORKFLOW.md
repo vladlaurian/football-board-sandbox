@@ -15,12 +15,13 @@ Before proposing or implementing any change:
 1. Read `README.md` completely.
 2. Read this document completely.
 3. Read `docs/ARCHITECTURE_DECISIONS.md`.
-4. Read the permanent technical document for the system being changed.
-5. For multiplayer work, also read both `MULTIPLAYER_ARCHITECTURE.md` and `MULTIPLAYER_CHANGELOG.md`.
-6. Inspect the relevant code and tests.
-7. Identify the existing architecture, reusable logic, stable boundaries, previous failed approaches, and current source of truth.
-8. Explain what was understood, the exact files proposed for modification, the reason for each modification, the solution, and the risks.
-9. Do not implement until the user approves.
+4. For Match Mode, Game Engine, Timeline, Replay, AI Export, Controller, or future automated multiplayer work, read `docs/GAME_ENGINE_ARCHITECTURE.md` and the current `docs/GAME_ENGINE_MIGRATION_PLAN.md` before any proposal.
+5. Read the permanent technical document for the system being changed.
+6. For multiplayer work, also read both `MULTIPLAYER_ARCHITECTURE.md` and `MULTIPLAYER_CHANGELOG.md`.
+7. Inspect the relevant code and tests.
+8. Identify the existing architecture, reusable logic, stable boundaries, previous failed approaches, and current source of truth.
+9. Explain what was understood, the exact files proposed for modification, the reason for each modification, the solution, and the risks.
+10. Do not implement until the user approves.
 
 Do not assume a feature is absent because it is not visible in the UI. Search documentation and code first. Do not recreate a solution that already exists.
 
@@ -70,6 +71,8 @@ Stop only for a genuine unresolved ambiguity that materially changes the approve
 - A Match-only change must not restrict Editor Mode unless explicitly requested.
 - A UI-only change must not alter a game engine.
 - A rule-engine change must not be implemented only as UI validation.
+- Game Engine migration follows `GAME_ENGINE_ARCHITECTURE.md`: UI, Controller, timers, Firebase, and multiplayer adapters may request gameplay commands but may not directly mutate or independently validate Match Mode gameplay state.
+- Card and Rule Set edits after Match start affect future matches only; active MatchState is interpreted through frozen MatchContext.
 
 ## 7. AI Analysis Export rule
 
@@ -106,6 +109,8 @@ Each fact must have one authoritative home. Other documents should link to that 
 | Interception resolver contract | `INTERCEPTION_ENGINE.md` |
 | Rule Set schema and editor behavior | `RULE_SETS_EDITOR.md` |
 | Global back-card stat schema and card-local values | `GLOBAL_BACK_STATS.md` |
+| Command-driven MatchState, MatchContext, Engine, Controller, Timeline, and persistence boundaries | `GAME_ENGINE_ARCHITECTURE.md` |
+| Temporary Game Engine migration phase/checklist | `GAME_ENGINE_MIGRATION_PLAN.md` |
 
 Rules:
 
@@ -170,6 +175,8 @@ The following systems are stable unless a request explicitly targets them or a p
 - host-authoritative multiplayer resolution;
 - shared Editor/Inspector/Export card-rendering truth;
 - AI Analysis Export semantic contract.
+
+Automated multiplayer development is additionally frozen by ADR-020 while the Game Engine migration plan is open. Manual multiplayer is preserved unless a separately approved task targets it.
 
 New features integrate with these systems rather than bypassing or duplicating them.
 

@@ -6,13 +6,26 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.11.6` |
-| Git/package version | `20.11.6` |
-| Build name | `Final_Board_v20_11_6_guest_inspector_interaction_reconciliation` |
-| Base build | `v20.11.5` |
+| Sandbox version | `v20.12.0` |
+| Git/package version | `20.12.0` |
+| Build name | `Final_Board_v20_12_0_game_engine_kernel` |
+| Base build | `v20.11.6 game_engine_architecture_foundation` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.11.6`. The repository version is defined in `package.json` as `20.11.6`. The browser title is `Sandbox v20.11.6`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.12.0`. The repository version is defined in `package.json` as `20.12.0`. The browser title is `Sandbox v20.12.0`.
+
+## v20.12.0 release summary
+
+v20.12.0 creates the Phase 1 pure Game Engine kernel. It introduces the command, event, and MatchContext contracts plus a deterministic `FREE_BALL_MOVED` engine transition and focused tests. No gameplay handler in `main.jsx` is connected to the engine yet; Firebase, automated multiplayer, Manual Multiplayer, Timeline behavior, and visible gameplay behavior remain unchanged. Phase 2 will connect only Match Mode Free Ball through this engine path.
+
+## Game Engine migration foundation
+
+Automated multiplayer development is frozen while the project builds a command-driven, pure Game Engine for Single Player. Manual multiplayer remains unchanged. Match Mode will use one canonical MatchState, immutable per-match MatchContext, engine-owned transitions, and Timeline as canonical history.
+
+Read these documents before proposing Match Mode, Timeline, Replay, AI Export, Game Engine, Controller, or future automated multiplayer work:
+
+1. [`docs/GAME_ENGINE_ARCHITECTURE.md`](docs/GAME_ENGINE_ARCHITECTURE.md)
+2. [`docs/GAME_ENGINE_MIGRATION_PLAN.md`](docs/GAME_ENGINE_MIGRATION_PLAN.md)
 
 ## v20.11.6 release summary
 
@@ -29,9 +42,10 @@ Use this order before touching the project:
 1. Read this README completely.
 2. Read [`docs/DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md).
 3. Read [`docs/ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md).
-4. Read the permanent technical document for the system being changed.
-5. Inspect the relevant code and tests.
-6. Explain the proposed change and wait for approval before implementation.
+4. For Match Mode work, read [`docs/GAME_ENGINE_ARCHITECTURE.md`](docs/GAME_ENGINE_ARCHITECTURE.md) and [`docs/GAME_ENGINE_MIGRATION_PLAN.md`](docs/GAME_ENGINE_MIGRATION_PLAN.md).
+5. Read the permanent technical document for the system being changed.
+6. Inspect the relevant code and tests.
+7. Explain the proposed change and wait for approval before implementation.
 
 After approval, implement immediately. Do not repeat the plan, request approval again, or stop at an acknowledgement.
 
@@ -62,6 +76,7 @@ src/
   board/        board rendering, geometry, formations, movement state
   cards/        card rendering and gameplay-card projection
   game/         shared game-state helpers
+  engine/       pure command-driven Game Engine kernel
   match/        action resolution, continuations, delayed execution
   multiplayer/  authority checks, session Timeline, tracing
   rules/        Pass, Interception and Rule Set engines
@@ -72,6 +87,8 @@ docs/
   ACTION_RESOLUTION_ENGINE.md
   ARCHITECTURE_DECISIONS.md
   DEVELOPMENT_WORKFLOW.md
+  GAME_ENGINE_ARCHITECTURE.md
+  GAME_ENGINE_MIGRATION_PLAN.md
   GLOBAL_BACK_STATS.md
   INTERCEPTION_ENGINE.md
   MULTIPLAYER_ARCHITECTURE.md
@@ -89,6 +106,8 @@ docs/
 - [`INTERCEPTION_ENGINE.md`](docs/INTERCEPTION_ENGINE.md): interception resolver and its boundary with Pass.
 - [`RULE_SETS_EDITOR.md`](docs/RULE_SETS_EDITOR.md): editable rules, schema and runtime effects.
 - [`GLOBAL_BACK_STATS.md`](docs/GLOBAL_BACK_STATS.md): global card-stat schema and per-card values.
+- [`GAME_ENGINE_ARCHITECTURE.md`](docs/GAME_ENGINE_ARCHITECTURE.md): permanent MatchState, MatchContext, command, Engine, Controller, Timeline, and persistence contract.
+- [`GAME_ENGINE_MIGRATION_PLAN.md`](docs/GAME_ENGINE_MIGRATION_PLAN.md): temporary OPEN execution checklist for the Single Player Game Engine migration.
 
 ## Mandatory development rules
 
@@ -100,6 +119,8 @@ docs/
 - One fact has one authoritative documentation home. Other files link to it instead of duplicating it.
 - Do not create one document per patch. Update the permanent system document and the appropriate changelog.
 - Every Match Mode change must be reviewed for Timeline and AI Analysis Export semantics.
+- Game Engine migration is command-driven: UI, Controller, timers, Firebase, and multiplayer adapters must not directly mutate or independently validate Match Mode gameplay state.
+- Active matches use frozen gameplay card and Rule Set context; later Editor changes apply to future matches only.
 
 The complete contract is in [`DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md).
 
