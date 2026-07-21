@@ -11,6 +11,7 @@ import { createGameState, mergeGameState } from "./game/gameState.mjs";
 import { GAME_COMMAND_TYPE } from "./engine/gameCommands.mjs";
 import { createMatchContext } from "./engine/matchContext.mjs";
 import { dispatchSinglePlayerGameCommand, dispatchSinglePlayerGameCommandSequence } from "./engine/singlePlayerController.mjs";
+import { evaluateThreeTwoMove } from "./engine/threeTwoMoveRules.mjs";
 import {
   isBenchReservePiece,
   normalizeFormationPlayers,
@@ -162,7 +163,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.16.0";
+const APP_VERSION = "v20.17.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5761,6 +5762,14 @@ function App() {
   }
 
   function getThreeTwoEligibility(piece, x, y) {
+    if (!sessionCode) {
+      const state = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      return evaluateThreeTwoMove(state, singlePlayerMatchContext(), {
+        id: "three_two_preview",
+        type: GAME_COMMAND_TYPE.THREE_TWO_MOVE_COMMITTED,
+        payload: { pieceId: piece?.id, x: Number(x), y: Number(y) },
+      });
+    }
     const geometry = getMovementGeometry(piece, { x, y });
     const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false, movementEnded: false };
     const boardPieces = piecesRef.current || pieces;
@@ -6111,6 +6120,17 @@ function App() {
       });
     }
 
+    // 3/2 is an Engine-owned free action in offline Single Player. It must be
+    // offered before the normal Tracker-exhaustion gate because it does not
+    // consume a Tracker action.
+    if (!sessionCode && gameMode === "match" && piece.team !== "BALL") {
+      const threeTwo = getThreeTwoEligibility(piece, x, y);
+      if (threeTwo.eligible) {
+        setPendingThreeTwoMove({ pieceId: piece.id, x, y });
+        return true;
+      }
+    }
+
     const phaseTeam = piece.team === "BALL" ? null : pieceTeamKey(piece);
     const pieceActionState = piece.team === "BALL" ? {} : (matchActionState.byPieceId[piece.id] || {});
     const freeModeAuthorized = Boolean(matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === piece.id);
@@ -6179,6 +6199,27 @@ function App() {
     const piece = (piecesRef.current || pieces).find(item => item.id === pending.pieceId);
     if (!piece || !canMovePiece(piece)) return;
     if (useThreeTwo) {
+      if (!sessionCode) {
+        const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+        const dispatched = dispatchSinglePlayerGameCommand({
+          timeline: gameTimelineRef.current,
+          state: before,
+          context: singlePlayerMatchContext(),
+          command: {
+            id: createActionEventId(`three_two_move_${piece.id}`),
+            type: GAME_COMMAND_TYPE.THREE_TWO_MOVE_COMMITTED,
+            payload: { pieceId: piece.id, x: Number(pending.x), y: Number(pending.y) },
+          },
+          label: `${piece.team === "A" ? "Blue" : "Red"} ${piece.label} → ${toCoord(pending.x, pending.y)} (3/2)`,
+        });
+        if (!dispatched.result.accepted) {
+          setIllegalMoveNotice({ reason: dispatched.result.reason });
+          return;
+        }
+        replaceGameTimeline(dispatched.timeline);
+        applyTimelineGameState(dispatched.state);
+        return;
+      }
       const refreshed = getThreeTwoEligibility(piece, pending.x, pending.y);
       if (!refreshed.eligible) return;
       commitPieceMove(piece, pending.x, pending.y, refreshed, { useThreeTwo: true });
@@ -6263,7 +6304,13 @@ function App() {
     }
     const piece = (piecesRef.current || pieces).find(item => item.id === pieceId);
     if (!piece) return;
-    if (gameMode === "match" && piece.team === "BALL" && !freeBallActive) return;
+    if (gameMode === "match" && piece.team === "BALL" && !freeBallActive) {
+      if (!sessionCode) {
+        const selectedPiece = (piecesRef.current || pieces).find(item => item.id === (interactionState.activePieceId || selectedId));
+        if (selectedPiece && selectedPiece.team !== "BALL") moveSelectedPieceTo(piece.x, piece.y);
+      }
+      return;
+    }
 
     if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting" && canControlActiveResolution(actionResolutionRef.current)) {
       choosePassTarget(piece.x, piece.y);

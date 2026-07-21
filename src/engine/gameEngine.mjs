@@ -3,6 +3,7 @@ import { GAME_COMMAND_TYPE, gameCommandValidationReason, normalizeGameCommand } 
 import { createGameEvent } from "./gameEvents.mjs";
 import { createMatchContext } from "./matchContext.mjs";
 import { cancelNormalMove, commitNormalMove, startNormalMove } from "./normalMoveRules.mjs";
+import { commitThreeTwoMove } from "./threeTwoMoveRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -68,6 +69,14 @@ export function applyGameCommand({ state, context, command } = {}) {
       ...normalMoveTransition.event,
       commandId: normalizedCommand.id,
     })], normalMoveTransition.timeline);
+  }
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.THREE_TWO_MOVE_COMMITTED) {
+    const transition = commitThreeTwoMove(currentState, matchContext, normalizedCommand);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({
+      ...transition.event,
+      commandId: normalizedCommand.id,
+    })], transition.timeline);
   }
   return rejected("COMMAND_TYPE_UNSUPPORTED");
 }

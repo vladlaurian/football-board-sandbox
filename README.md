@@ -6,13 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.16.0` |
-| Git/package version | `20.16.0` |
-| Build name | `Final_Board_v20_16_0_single_player_move_workflow_unification` |
-| Base build | `v20.15.0 single_player_progressive_move` |
+| Sandbox version | `v20.17.0` |
+| Git/package version | `20.17.0` |
+| Build name | `Final_Board_v20_17_0_single_player_three_two_engine` |
+| Base build | `v20.16.0 single_player_move_workflow_unification` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.16.0`. The repository version is defined in `package.json` as `20.16.0`. The browser title is `Sandbox v20.16.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.17.0`. The repository version is defined in `package.json` as `20.17.0`. The browser title is `Sandbox v20.17.0`.
+
+## v20.17.0 release summary
+
+v20.17.0 migrates the offline Single Player 3/2 action into the pure Game Engine as `THREE_TWO_MOVE_COMMITTED`. The Engine owns active-phase validation, target-ball validation, range, occupancy, one-use-per-player state, the legacy post-3/2 movement consequence, semantic Timeline event, and rejection safety. The explicitly approved rule is now that 3/2 does not consume a Tracker action and remains available after the active team has exhausted its normal Tracker actions; it remains unavailable before Match start, outside that team's active phase, after prior use by that player, or where another player occupies the ball square. Clicking the ball with a player selected is an offline Single Player entry to the same Engine command. Manual multiplayer and its existing 3/2 path remain unchanged.
 
 ## v20.16.0 release summary
 

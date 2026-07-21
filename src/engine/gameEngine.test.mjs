@@ -186,8 +186,65 @@ test("NORMAL_MOVE rejects invalid moves without mutating canonical MatchState", 
   assert.deepEqual(activated.nextState, before);
 });
 
+test("THREE_TWO_MOVE_COMMITTED is a free active-phase action and preserves the ball position", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 5, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", label: "Blue 1", x: 2, y: 5 },
+    ],
+    tracker: {
+      ...normalMoveState().tracker,
+      usedActions: { blue: 5, red: 0 },
+      actionLog: { blue: Array.from({ length: 5 }, (_, index) => ({ id: `action-${index}`, type: "PASS", pieceId: "blue-1" })), red: [] },
+    },
+  });
+  const command = {
+    id: "three-two-1",
+    type: "THREE_TWO_MOVE_COMMITTED",
+    payload: { pieceId: "blue-1", x: 5, y: 5 },
+  };
+  const result = applyGameCommand({ state: start, context: normalMoveContext(), command });
+
+  assert.equal(result.accepted, true);
+  assert.equal(result.nextState.tracker.usedActions.blue, 5);
+  assert.equal(result.nextState.tracker.actionLog.blue.length, 5);
+  assert.equal(result.nextState.pieces.find(piece => piece.id === "blue-1").x, 5);
+  assert.equal(result.nextState.pieces.find(piece => piece.id === "ball").x, 5);
+  assert.deepEqual(result.nextState.movementStateByPieceId["blue-1"], {
+    axis: null, spent: 0, distance: 0, threeTwoUsed: true, movementEnded: false,
+  });
+  assert.equal(result.events[0].type, "THREE_TWO_MOVE");
+  assert.equal(result.events[0].metadata.movementReason, "THREE_TWO");
+});
+
+test("THREE_TWO_MOVE_COMMITTED rejects an occupied ball square, reuse, and inactive phase without mutation", () => {
+  const base = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 5, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 2, y: 5 },
+      { id: "red-1", team: "B", cardId: "card-blue-1", x: 5, y: 5 },
+    ],
+  });
+  const command = { id: "three-two-rejected", type: "THREE_TWO_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 5, y: 5 } };
+  const before = structuredClone(base);
+  assert.deepEqual(applyGameCommand({ state: base, context: normalMoveContext(), command }), { accepted: false, reason: "occupied" });
+  assert.deepEqual(base, before);
+
+  const used = createGameState({
+    ...base,
+    pieces: base.pieces.filter(piece => piece.id !== "red-1"),
+    movementStateByPieceId: { "blue-1": { threeTwoUsed: true } },
+  });
+  assert.deepEqual(applyGameCommand({ state: used, context: normalMoveContext(), command: { ...command, id: "three-two-used" } }), { accepted: false, reason: "used" });
+
+  const inactive = createGameState({ ...used, movementStateByPieceId: {}, tracker: { ...used.tracker, turnPhase: "defense" } });
+  assert.deepEqual(applyGameCommand({ state: inactive, context: normalMoveContext(), command: { ...command, id: "three-two-phase" } }), { accepted: false, reason: "wait-active-team" });
+});
+
 test("engine modules do not depend on UI, Firebase, or browser APIs", () => {
-  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs", "normalMoveRules.mjs", "singlePlayerController.mjs"];
+  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs", "normalMoveRules.mjs", "threeTwoMoveRules.mjs", "singlePlayerController.mjs"];
   const forbidden = /(?:from\s+["'](?:react|firebase\/|firebase)["']|\bwindow\b|\bdocument\b|\blocalStorage\b|\bsetTimeout\b|\bsetInterval\b|\bfetch\b|\bXMLHttpRequest\b)/;
   moduleFiles.forEach(file => {
     const source = fs.readFileSync(new URL(`./${file}`, import.meta.url), "utf8");

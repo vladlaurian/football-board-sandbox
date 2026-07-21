@@ -304,3 +304,17 @@ UI, Controller, timers, Firebase, and future multiplayer adapters may request or
 - Existing pure rule modules are reused; game design is unchanged by migration.
 - Timeline remains canonical history but does not validate rules.
 - A mechanic is migrated only when its legacy direct Match Mode mutation path is removed and required engine, Timeline, Undo/Redo, Replay, and AI-export tests pass.
+
+## ADR-021 — 3/2 is a canonical free active-phase action
+
+**Status:** Active
+
+**Decision:** In offline Single Player, 3/2 is requested through `THREE_TWO_MOVE_COMMITTED` and resolved solely by the Game Engine. It consumes no Tracker action and remains legal after the active team has exhausted normal Tracker actions. It remains limited to the active team phase, one use per player, its established straight/diagonal range, a ball destination, and a destination not occupied by another player. Clicking the visible ball with an eligible selected player is only a UI entry to that same command.
+
+**Reason:** Legacy UI gates treated a free action as unavailable when Tracker was exhausted, while the ball pointer handler stopped a direct destination click before 3/2 validation could run. Both paths made the rule unreliable and created a second gameplay interpretation outside canonical MatchState.
+
+**Consequences:**
+
+- `THREE_TWO_MOVE` remains the semantic Timeline/AI event.
+- Undo/Redo reconstructs the same engine-produced state.
+- Manual multiplayer keeps its legacy 3/2 implementation until multiplayer migration is explicitly reopened.

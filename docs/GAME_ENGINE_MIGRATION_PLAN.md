@@ -8,7 +8,7 @@ This is the temporary execution checklist. Permanent architecture is in [`GAME_E
 
 - Automated multiplayer development is frozen.
 - Manual multiplayer remains unchanged.
-- No game-design or rule change is authorized by this plan.
+- No game-design or rule change is authorized by this plan unless separately approved by the product owner and recorded in the relevant build documentation.
 - Each implementation build has one precise, independently testable objective.
 - A migrated mechanic must not retain a second active legacy mutation path.
 
@@ -109,9 +109,23 @@ The direct-board confirmation is not an independent Auto Move gameplay mechanic 
 
 ## Phase 4 — Remaining movement family
 
-**Status:** Pending.
+**Status:** In progress. 3/2 is complete in v20.17.0; Free Move and Group Move remain pending.
 
-Migrate Free Move, 3/2, and Group Move. Audit any remaining distinct movement prompt before treating it as a separate mechanic. Split into separate builds if focused tests show this phase is too broad.
+Migrate Free Move and Group Move. Audit any remaining distinct movement prompt before treating it as a separate mechanic. Split into separate builds if focused tests show this phase is too broad.
+
+### v20.17.0 — offline Single Player 3/2 vertical slice
+
+The 3/2 action now uses `THREE_TWO_MOVE_COMMITTED -> Game Engine -> Single Player Controller -> Timeline -> applyTimelineGameState`. Its engine rule is isolated in `src/engine/threeTwoMoveRules.mjs`; its accepted semantic event remains `THREE_TWO_MOVE`, which existing AI Export already classifies as `THREE_TWO`.
+
+The product owner explicitly approved the rule clarification: 3/2 is a free action that consumes no Tracker action and may be used after the active team has exhausted normal Tracker actions. It is still limited to one use per player in that player's active phase and cannot enter a ball square occupied by another player. The engine validates this from canonical MatchState. Offline clicking the ball with an eligible selected player opens the existing 3/2 confirmation and dispatches the same command. The session/manual-multiplayer branch remains unchanged.
+
+Focused acceptance:
+
+- deterministic acceptance and rejection for active phase, exhausted Tracker, occupancy, reuse, range, and Match start;
+- no MatchState mutation on rejection;
+- Timeline Undo/Redo for the semantic `THREE_TWO_MOVE` event;
+- no UI, Firebase, or browser dependencies in the new rule module;
+- focused command: `node --test src/engine/*.test.mjs src/timeline/aiAnalysisExport.test.mjs`.
 
 Acceptance:
 

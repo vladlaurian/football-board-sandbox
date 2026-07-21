@@ -86,7 +86,7 @@ A command is an attempted action. An event is a confirmed gameplay fact emitted 
 | Administrative ball placement | `FREE_BALL_MOVED` |
 | Normal movement | `MOVE_STARTED`, `MOVE_CANCELLED`, `MOVE_COMMITTED` |
 | Special movement | `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, `FREE_MOVE_ENDED`, `GROUP_MOVE_COMMITTED`, `AUTO_MOVE_CONFIRMED` |
-| 3/2 | `MOVE_COMMITTED` with `movementMode: "THREE_TWO"` |
+| 3/2 | `THREE_TWO_MOVE_COMMITTED` |
 | Tracker | `TURN_PHASE_ENDED`, `TURN_CHANGED`, `POSSESSION_CHANGED` |
 | Pass | `PASS_STARTED`, `PASS_CANCELLED`, `PASS_TARGET_SELECTED`, `PASS_ROUTE_SELECTED`, `PASS_INTERCEPTOR_SELECTED` |
 | Dice and resolution | `ROLL_SUBMITTED`, `RESOLUTION_DUE` |

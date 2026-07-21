@@ -125,6 +125,28 @@ test("Single Player Controller preserves Undo/Redo for progressive normal MOVE s
   assert.equal(redoneContinuation.state.tracker.matchActionState.activeMovement.active, false);
 });
 
+test("Single Player Controller records THREE_TWO_MOVE through Timeline and supports Undo/Redo", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 5, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 2, y: 5 },
+    ],
+  });
+  const dispatched = dispatchSinglePlayerGameCommand({
+    state: start,
+    context: normalMoveContext(),
+    command: { id: "three-two-controller", type: "THREE_TWO_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 5, y: 5 } },
+  });
+  assert.equal(dispatched.result.accepted, true);
+  assert.equal(dispatched.entry.type, "THREE_TWO_MOVE");
+  assert.equal(dispatched.state.pieces.find(piece => piece.id === "blue-1").x, 5);
+  const undone = undoTimeline(dispatched.timeline);
+  assert.equal(undone.state.pieces.find(piece => piece.id === "blue-1").x, 2);
+  const redone = redoTimeline(undone.timeline);
+  assert.equal(redone.state.pieces.find(piece => piece.id === "blue-1").x, 5);
+});
+
 test("Single Player Controller publishes direct-board normal MOVE only when start and first segment both succeed", () => {
   const start = normalMoveState();
   const complete = dispatchSinglePlayerGameCommandSequence({

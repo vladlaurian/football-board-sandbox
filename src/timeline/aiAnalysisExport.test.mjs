@@ -128,6 +128,24 @@ test("Free Ball is explicitly identified in AI export", () => {
   assert.equal(exported.semanticTimeline[0].movements[0].isBall, true);
 });
 
+test("Three Two is explicitly identified in AI export", () => {
+  const before = state();
+  const after = state({ pieces: [{ ...before.pieces[0], x: 11 }, before.pieces[1], before.pieces[2]] });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, {
+    id: "three_two_1",
+    type: "THREE_TWO_MOVE",
+    label: "Blue Veer → I12 (3/2)",
+    team: "blue",
+    metadata: { movementReason: "THREE_TWO" },
+    before,
+    after,
+  });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  assert.equal(exported.semanticTimeline[0].type, "MOVE");
+  assert.equal(exported.semanticTimeline[0].movementReason, "THREE_TWO");
+});
+
 test("AI export distinguishes a deliberately chosen test roll from a random roll", () => {
   const before = state();
   const after = state({ dice: { ...before.dice, blueResult: 20 } });
