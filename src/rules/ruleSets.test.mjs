@@ -46,7 +46,7 @@ test("legacy Pass interception settings migrate into the separate Interception a
     name: "Legacy",
     actions: { pass: { modifierCap: 3, equalRollOutcome: "interception" } },
   });
-  assert.equal(normalized.schemaVersion, 3);
+  assert.equal(normalized.schemaVersion, 4);
   assert.equal(normalized.actions.interception.modifierCap, 3);
   assert.equal(normalized.actions.interception.equalRollOutcome, "interception");
   assert.equal(normalized.actions.interception.defenderRollStatId, "stat:interception");
@@ -62,4 +62,28 @@ test("Interception configuration normalizes independent modifier toggles", () =>
   assert.equal(normalized.actions.interception.useStandardModifiers, false);
   assert.equal(normalized.actions.interception.useProgressiveBonus, false);
   assert.equal(normalized.actions.interception.modifierCap, 7);
+});
+
+test("Group Move configuration has stable defaults and clamps editable limits", () => {
+  const defaults = createDefaultRuleSet();
+  assert.deepEqual(defaults.actions.groupMove, {
+    status: "configured",
+    maximumPlayers: 4,
+    areaLength: 10,
+    maximumMovement: 6,
+    allowReverseMovement: false,
+  });
+
+  const normalized = normalizeRuleSet({
+    id: "group-move-limits",
+    name: "Group Move Limits",
+    actions: { groupMove: { maximumPlayers: 99, areaLength: 0, maximumMovement: 999, allowReverseMovement: true } },
+  });
+  assert.deepEqual(normalized.actions.groupMove, {
+    status: "configured",
+    maximumPlayers: 11,
+    areaLength: 1,
+    maximumMovement: 30,
+    allowReverseMovement: true,
+  });
 });

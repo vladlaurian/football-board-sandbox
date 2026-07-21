@@ -112,6 +112,27 @@ test("MatchContext is copied and frozen at creation", () => {
   assert.equal(Object.isFrozen(context.gameplayCardsById["card-1"]), true);
 });
 
+test("MatchContext freezes the configured Group Move Rule Set values", () => {
+  const raw = {
+    id: "group-move-context",
+    ruleSet: {
+      id: "group-move-rules",
+      actions: { groupMove: { maximumPlayers: 3, areaLength: 12, maximumMovement: 8, allowReverseMovement: true } },
+    },
+  };
+  const context = createMatchContext(raw);
+  raw.ruleSet.actions.groupMove.maximumPlayers = 9;
+
+  assert.deepEqual(context.ruleSet.actions.groupMove, {
+    status: "configured",
+    maximumPlayers: 3,
+    areaLength: 12,
+    maximumMovement: 8,
+    allowReverseMovement: true,
+  });
+  assert.equal(Object.isFrozen(context.ruleSet.actions.groupMove), true);
+});
+
 test("NORMAL_MOVE commands activate, cancel, and refund one Tracker action", () => {
   const start = normalMoveState();
   const activated = applyGameCommand({

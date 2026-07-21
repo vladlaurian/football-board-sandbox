@@ -6,13 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.19.0` |
-| Git/package version | `20.19.0` |
-| Build name | `Final_Board_v20_19_0_single_player_free_move_engine` |
-| Base build | `v20.18.0 single_player_movement_path_blocking` |
+| Sandbox version | `v20.20.0` |
+| Git/package version | `20.20.0` |
+| Build name | `Final_Board_v20_20_0_group_move_configuration` |
+| Base build | `v20.19.0 single_player_free_move_engine` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.19.0`. The repository version is defined in `package.json` as `20.19.0`. The browser title is `Sandbox v20.19.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.20.0`. The repository version is defined in `package.json` as `20.20.0`. The browser title is `Sandbox v20.20.0`.
+
+## v20.20.0 release summary
+
+v20.20.0 delivers only the approved Group Move configuration foundation. Rule Set editor now stores maximum players (default 4), full-width area length (default 10), maximum movement per player (default 6), and whether exact reverse movement on the locked line is permitted (default off). Values are validated, migrate safely from earlier Rule Sets, are frozen through MatchContext when an offline Match starts, and are included in AI Analysis Rule Set export. The existing Group Move gameplay path is deliberately unchanged in this build; area selection, eligibility, Engine commands, movement rules, and visuals are the next focused migration. Manual Multiplayer remains unchanged.
 
 ## v20.19.0 release summary
 

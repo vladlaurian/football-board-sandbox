@@ -100,6 +100,8 @@ Physical player movement validates one shared path rule: every intermediate hori
 
 In offline Single Player, Free Move is nevertheless an Engine-owned, visible correction. `FREE_MOVE_STARTED`, each `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` become ordinary Timeline entries, so Undo/Redo and Replay reconstruct them step by step and AI export labels them as administrative `FREE_MODE` information. It never consumes Tracker economy. While active, it locks every other offline Match Mode command; its selected player may move without normal geometry restrictions and may share the ball square, but cannot finish on another player and never carries the ball.
 
+Group Move configuration belongs to the Rule Set and is frozen in MatchContext when a Match begins. Its approved fields are maximum players, full-width selection-area length, maximum movement per player, and whether the exact reverse direction is allowed after the first Group Move segment locks the line. The configuration must never be read from a live editable Rule Set during a tracked Match.
+
 ## 4. Ownership boundaries
 
 | Layer | Owns | Must not own |

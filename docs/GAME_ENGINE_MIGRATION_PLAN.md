@@ -113,6 +113,12 @@ The direct-board confirmation is not an independent Auto Move gameplay mechanic 
 
 Migrate Group Move. Audit any remaining distinct movement prompt before treating it as a separate mechanic. Split into separate builds if focused tests show this phase is too broad.
 
+### v20.20.0 — Group Move configuration foundation
+
+The Group Move Rule Set fields now exist and are validated: `maximumPlayers` (4), `areaLength` (10), `maximumMovement` (6), and `allowReverseMovement` (false). They are persisted with Rule Sets, safely normalized for older data, frozen in MatchContext at offline Match start, and included in AI Analysis Rule Set export. No Group Move gameplay behavior changes in this build: the legacy activation, movement, and Manual Multiplayer paths remain deliberately untouched.
+
+The next Group Move build replaces the offline Single Player legacy path with the approved Engine lifecycle: temporary UI-only area placement and Cancel; confirmation that consumes the final Tracker action; canonical area/configuration/eligibility state; per-player movement; exact line locking; player-path traversal exception; ball/player destination rejection; action lock; Timeline/Undo/Redo/AI semantics; and distinct Group-ineligible visual treatment. The future normal-MOVE offside-direction rule is documented as a separate deferred requirement and is not bundled into Group Move.
+
 ### v20.19.0 — offline Single Player Free Move Engine migration
 
 Free Move now has one offline Match Mode mutation path: `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` flow through the Game Engine and Single Player Controller into Timeline. It is deliberately an administrative correction rather than a Tracker action. The three Timeline entries are ordinary reversible history, so Undo/Redo may step across them and AI export retains the correction as `FREE_MODE` with `MANUAL_CORRECTION` provenance.

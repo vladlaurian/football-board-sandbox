@@ -1,4 +1,4 @@
-export const RULE_SET_SCHEMA_VERSION = 3;
+export const RULE_SET_SCHEMA_VERSION = 4;
 export const DEFAULT_RULE_SET_ID = "default-rules";
 
 function cleanText(value, fallback = "") {
@@ -33,6 +33,13 @@ export function createDefaultRuleSet() {
         modifierCap: 4,
         equalRollOutcome: "pass-succeeds",
       },
+      groupMove: {
+        status: "configured",
+        maximumPlayers: 4,
+        areaLength: 10,
+        maximumMovement: 6,
+        allowReverseMovement: false,
+      },
     },
   };
 }
@@ -42,6 +49,7 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
   const fallbackSet = fallback && typeof fallback === "object" ? fallback : createDefaultRuleSet();
   const pass = source.actions?.pass && typeof source.actions.pass === "object" ? source.actions.pass : {};
   const interception = source.actions?.interception && typeof source.actions.interception === "object" ? source.actions.interception : {};
+  const groupMove = source.actions?.groupMove && typeof source.actions.groupMove === "object" ? source.actions.groupMove : {};
   const fallbackInterception = fallbackSet.actions?.interception || createDefaultRuleSet().actions.interception;
   const isLegacyRuleSet = Number(source.schemaVersion || 0) < RULE_SET_SCHEMA_VERSION;
   const pathMode = pass.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center";
@@ -74,6 +82,13 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
           Number.isFinite(migratedModifierCap) ? migratedModifierCap : 4,
         ))),
         equalRollOutcome: migratedEqualOutcome === "interception" ? "interception" : "pass-succeeds",
+      },
+      groupMove: {
+        status: isLegacyRuleSet || groupMove.status === "configured" ? "configured" : "not-configured",
+        maximumPlayers: Math.max(1, Math.min(11, Math.floor(Number.isFinite(Number(groupMove.maximumPlayers)) ? Number(groupMove.maximumPlayers) : 4))),
+        areaLength: Math.max(1, Math.min(100, Math.floor(Number.isFinite(Number(groupMove.areaLength)) ? Number(groupMove.areaLength) : 10))),
+        maximumMovement: Math.max(1, Math.min(30, Math.floor(Number.isFinite(Number(groupMove.maximumMovement)) ? Number(groupMove.maximumMovement) : 6))),
+        allowReverseMovement: groupMove.allowReverseMovement === true,
       },
     },
   };

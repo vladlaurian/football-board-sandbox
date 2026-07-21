@@ -164,7 +164,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.19.0";
+const APP_VERSION = "v20.20.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -12116,6 +12116,23 @@ function App() {
                 </select>
               </label>
               <span className="rule-manual-pill">Dice: manual roll only</span>
+            </section>
+            <section className="rule-action-card">
+              <div><strong>Group Move</strong><span>Single Player movement configuration</span></div>
+              <p>Configure the Group Move limits for new Matches. These values are frozen with the Rule Set when a Match starts.</p>
+              <label>Maximum players
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="11" step="1" value={ruleSetDraft.actions?.groupMove?.maximumPlayers ?? 4} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, maximumPlayers: clamp(Math.floor(Number(e.target.value) || 1), 1, 11) } } }))} />
+              </label>
+              <label>Area length (squares)
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="100" step="1" value={ruleSetDraft.actions?.groupMove?.areaLength ?? 10} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, areaLength: clamp(Math.floor(Number(e.target.value) || 1), 1, 100) } } }))} />
+              </label>
+              <label>Maximum movement (squares)
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="30" step="1" value={ruleSetDraft.actions?.groupMove?.maximumMovement ?? 6} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, maximumMovement: clamp(Math.floor(Number(e.target.value) || 1), 1, 30) } } }))} />
+              </label>
+              <label className="rule-checkbox-label">
+                <input disabled={ruleSetEditingLocked} type="checkbox" checked={ruleSetDraft.actions?.groupMove?.allowReverseMovement === true} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, allowReverseMovement: e.target.checked } } }))} />
+                Allow reverse movement on the locked line
+              </label>
             </section>
             <div className="rules-actions">
               <button disabled={ruleSetEditingLocked} onClick={createNewRuleSet}>New</button>
