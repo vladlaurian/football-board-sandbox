@@ -23,3 +23,9 @@ test("guest movement steps use the common command path", () => {
   assert.match(source, /GAMEPLAY_ACTION_TYPE\.FREE_MOVE/);
   assert.match(source, /routeGameplayCommand\(command/);
 });
+
+
+test("live canonical hydration preserves a valid local movement selection", () => {
+  assert.match(source, /shouldPreserveLocalSelectionDuringTimelineHydration/);
+  assert.match(source, /preserveLocalSelection: reconciliationMode === "restore"[\s\S]*sessionActive: Boolean\(sessionCode\)/);
+});

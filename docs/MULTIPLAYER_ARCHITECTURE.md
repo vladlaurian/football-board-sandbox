@@ -2,7 +2,7 @@
 
 ## Status and version
 
-This is the authoritative description of the multiplayer model in Sandbox `v20.11.0` / Git package `20.11.0`.
+This is the authoritative description of the multiplayer model in Sandbox `v20.11.1` / Git package `20.11.1`.
 
 Historical fixes are recorded in [`MULTIPLAYER_CHANGELOG.md`](MULTIPLAYER_CHANGELOG.md). Permanent cross-system decisions also appear in [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md).
 
@@ -279,7 +279,7 @@ After each canonical Timeline hydration, both clients independently derive the s
 `selectedId` and `inspectedPieceId` remain local UI state. They are not authoritative gameplay state. Canonical Pass cancellation and Bonus Action completion read `actionResolution` / `actionContinuation` directly even when their controls are rendered in the Inspector. The Interaction Layer must not feed `activePieceId` back into the general action engine, Pass Engine, or Interception Engine.
 
 
-## Canonical Gameplay Command Foundation (v20.11.0 / Build 2A)
+## Canonical Gameplay Command Foundation (v20.11.1 / rebuilt Build 2A)
 
 All guest gameplay mutations now follow the same authority boundary:
 
@@ -308,3 +308,10 @@ Pass and Interception are deliberately not routed through Movement. They retain 
 ### Build 2B boundary
 
 Build 2B is Interaction Layer Stabilization only: Inspector anchoring, local/manual inspection distinction, selection stability, cursor and preview lifecycle, reconnect, Undo/Redo, rollback, and legacy cleanup. It must not alter game design or introduce another authority path.
+
+
+## Live Timeline interaction reconciliation (v20.11.1)
+
+A live canonical revision replaces gameplay state but preserves a valid local selection/Inspector target. This is required for multi-phase commands: after the Host accepts `ACTION_START / MOVE`, the Guest must retain the selected piece long enough to issue `ACTION_STEP / MOVE`. Selection remains local and non-authoritative. It is cleared when the selected piece no longer exists or is inactive, during replay or explicit cursor restoration, after rejected commands that restore canonical state, or by deliberate user/UI cleanup.
+
+`v20.11.0` violated this boundary by clearing selection on every incoming replacement revision. It consumed the Move activation canonically while removing the Guest input context before the destination step. That build is superseded and must not be used as an implementation reference.

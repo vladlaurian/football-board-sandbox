@@ -1,3 +1,15 @@
+## v20.11.1 — Rebuilt Build 2A: live interaction reconciliation
+
+**Sandbox:** `v20.11.1`  
+**Git/package:** `20.11.1`  
+**Supersedes:** `v20.11.0`
+
+- Declares v20.11.0 invalid after the first Guest Move test consumed MOVE but erased selection before destination input.
+- Preserves valid local selection and Inspector context during forward live Timeline hydration.
+- Keeps Timeline canonical for gameplay while maintaining local UI state as non-authoritative interaction context.
+- Clears selection only when invalid, during replay/explicit restoration, or on rejected-command recovery.
+- Adds regression tests for the hydration boundary and the complete Movement command prerequisite.
+
 ## v20.11.0 — Build 2A: Canonical Gameplay Command Foundation
 
 **Sandbox:** `v20.11.0`  

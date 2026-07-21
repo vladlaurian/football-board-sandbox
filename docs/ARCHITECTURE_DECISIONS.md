@@ -218,7 +218,7 @@ Consequences:
 
 ## ADR-020 — Canonical Gameplay Command Foundation
 
-**Status:** Active in v20.11.0 / Build 2A
+**Status:** Active in v20.11.1 / rebuilt Build 2A
 
 **Decision:** No gameplay mutation may originate directly from guest UI state. Every guest gameplay change must use a typed semantic command, be validated by the host, be delegated to the responsible specialized engine or authority, and be published as one canonical Timeline transition before clients reconstruct UI.
 
@@ -243,3 +243,7 @@ The command envelope is shared, but lifecycle and rules remain specialized. Move
 **Implemented in Build 2A:** Normal Move start/step, Auto Move atomic start+step, Bonus Move steps, Group Move start/step, 3/2 steps, and Free Move steps. Pass and Interception remain on their existing specialized paths and must follow the same invariant when later migrated or extended.
 
 **Next phase:** Build 2B stabilizes local inspection, selection, cursor, reconnect, Undo/Redo, and cleanup around the canonical state. It must not redesign the command foundation.
+
+### Live hydration must preserve valid local interaction context
+
+Canonical Timeline hydration replaces gameplay state, but a forward live session revision must not erase a still-valid local `selectedId` / Inspector context. This context is required between semantic command phases such as `ACTION_START` and `ACTION_STEP`. Replay, explicit cursor restoration, rejected commands, and invalid/deleted pieces may clear it. This rule does not make selection authoritative; it only prevents canonical synchronization from destroying the local control surface needed to issue the next semantic command.

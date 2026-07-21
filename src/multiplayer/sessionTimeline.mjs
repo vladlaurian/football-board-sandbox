@@ -70,6 +70,18 @@ export function shouldRestoreTimelineState(localTimeline, incomingTimeline, pend
   return local.recordingId === incoming.recordingId && incoming.revision === local.revision;
 }
 
+
+export function shouldPreserveLocalSelectionDuringTimelineHydration({
+  sessionActive = false,
+  replayMode = false,
+} = {}) {
+  // Selection and Inspector are local interaction state. A forward live
+  // canonical revision replaces gameplay state, but must not erase a still
+  // valid local selection between ACTION_START and ACTION_STEP. Explicit
+  // replay/cursor restoration remains authoritative and may clear it.
+  return Boolean(sessionActive && !replayMode);
+}
+
 export function timelineReconciliationMode(localTimeline, incomingTimeline, pendingSyncCount = 0) {
   if (shouldApplyIncomingTimeline(localTimeline, incomingTimeline, pendingSyncCount)) return "replace";
   if (shouldRestoreTimelineState(localTimeline, incomingTimeline, pendingSyncCount)) return "restore";

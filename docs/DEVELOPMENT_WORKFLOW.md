@@ -202,7 +202,7 @@ The summary must describe the delivered artifact, not the original intention.
 - Timeline performance investigation is a separate task and must not be mixed with this refactor.
 
 
-## Mandatory gameplay-command gate (v20.11.0)
+## Mandatory gameplay-command gate (v20.11.1)
 
 Before implementing or extending Move, Pass, Dribble, Shot, Cross, Tackle, Bonus Action, 3/2, Group Move, Free Move, or any future gameplay action, verify that the change follows:
 
@@ -211,3 +211,8 @@ UI → semantic command/intent → Host Authority Router → specialized engine/
 ```
 
 Do not commit guest gameplay locally, do not use Inspector or selection as authority, and do not create a parallel runtime path. If the action does not fit, stop and propose an architecture change before coding. Every new command requires revision/idempotency checks, host/guest tests, and synchronized documentation.
+
+
+## Mandatory multi-phase command test
+
+A command foundation build is not accepted from unit routing tests alone. For every migrated multi-phase Guest action, the test plan must cover the complete lifecycle: Guest starts the action, Host commits and publishes it, Guest hydrates the revision without losing valid interaction context, Guest sends the next step, Host commits the result, and both clients hydrate the final state. A consumed Tracker action without an executable next step is a release-blocking failure.

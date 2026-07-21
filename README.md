@@ -6,18 +6,18 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.11.0` |
-| Git/package version | `20.11.0` |
-| Build name | `Final_Board_v20_11_0_build_2A_canonical_gameplay_command_foundation` |
-| Base build | `v20.10.2` |
+| Sandbox version | `v20.11.1` |
+| Git/package version | `20.11.1` |
+| Build name | `Final_Board_v20_11_1_build_2A_rebuilt_live_interaction_reconciliation` |
+| Base build | `v20.11.0` (superseded/invalid) |
 | Architecture phase | `Build 2A — Canonical Gameplay Command Foundation` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.11.0`. The repository version is defined in `package.json` as `20.11.0`. The browser title is `Sandbox v20.11.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.11.1`. The repository version is defined in `package.json` as `20.11.1`. The browser title is `Sandbox v20.11.1`.
 
-## v20.11.0 release summary
+## v20.11.1 release summary
 
-v20.11.0 introduces the Canonical Gameplay Command Foundation and migrates the Movement family to one host-authoritative command path. Normal Move, Auto Move, Bonus Move steps, Group Move, 3/2, and Free Move steps are requested semantically by guests, validated and executed by the host, committed to the canonical Timeline, and then hydrated back to both clients.
+v20.11.1 rebuilds Build 2A after v20.11.0 failed the first Guest Move test. The Canonical Gameplay Command Foundation remains, and forward live Timeline hydration now preserves a valid local selection and Inspector context between `ACTION_START` and `ACTION_STEP`. Gameplay remains Host-authoritative; selection remains local and non-authoritative.
 
 Pass and Interception are not moved into Movement. Their engines remain separate. The new command layer is an orchestrator and transport contract, not a universal rules engine.
 
@@ -85,7 +85,7 @@ docs/
 - [`DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md): mandatory implementation and release workflow.
 - [`ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md): permanent architectural decisions and invariants.
 - [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md): current multiplayer model, intent flows, authority boundaries, cleanup rules, and open storage refactor.
-- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.11.0.
+- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.11.1.
 - [`ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md): generic action-resolution lifecycle.
 - [`INTERCEPTION_ENGINE.md`](docs/INTERCEPTION_ENGINE.md): interception resolver and its boundary with Pass.
 - [`RULE_SETS_EDITOR.md`](docs/RULE_SETS_EDITOR.md): editable rules, schema and runtime effects.

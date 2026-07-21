@@ -10,6 +10,7 @@ import {
   shouldApplySessionBoardProjection,
   shouldApplyIncomingTimeline,
   shouldRestoreTimelineState,
+  shouldPreserveLocalSelectionDuringTimelineHydration,
   timelineReconciliationMode,
   timelineDiceRollId,
   shouldRollbackFailedTimelineCommit,
@@ -101,4 +102,11 @@ test("failed optimistic commits roll back only while still current", () => {
   const later = commitTimelineEntry(failed, { type: "PASS_COMPLETED", label: "done", before: initial, after: initial }, { allowNoop: true });
   assert.equal(shouldRollbackFailedTimelineCommit(failed, failed), true);
   assert.equal(shouldRollbackFailedTimelineCommit(later, failed), false);
+});
+
+
+test("live session hydration preserves local selection while replay restoration may clear it", () => {
+  assert.equal(shouldPreserveLocalSelectionDuringTimelineHydration({ sessionActive: true, replayMode: false }), true);
+  assert.equal(shouldPreserveLocalSelectionDuringTimelineHydration({ sessionActive: true, replayMode: true }), false);
+  assert.equal(shouldPreserveLocalSelectionDuringTimelineHydration({ sessionActive: false, replayMode: false }), false);
 });

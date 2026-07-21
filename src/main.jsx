@@ -109,6 +109,7 @@ import {
   normalizeSessionStatusLabel,
   shouldApplySessionBoardProjection,
   timelineReconciliationMode,
+  shouldPreserveLocalSelectionDuringTimelineHydration,
   timelineDiceRollId,
   shouldRollbackFailedTimelineCommit,
 } from "./multiplayer/sessionTimeline.mjs";
@@ -161,7 +162,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.11.0";
+const APP_VERSION = "v20.11.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -3067,7 +3068,11 @@ function App() {
       handleLiveTimelineEntries(localTimeline, hydrated);
     }
     applyTimelineGameState(timelineStateAt(hydrated, hydrated.cursor), {
-      preserveLocalSelection: reconciliationMode === "restore",
+      preserveLocalSelection: reconciliationMode === "restore"
+        || shouldPreserveLocalSelectionDuringTimelineHydration({
+          sessionActive: Boolean(sessionCode),
+          replayMode: replayModeRef.current,
+        }),
     });
     // Host authority is derived from canonical state, not only from the brief
     // moment when a remote DICE_ROLLED entry is first detected.
