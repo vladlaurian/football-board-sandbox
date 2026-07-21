@@ -1,3 +1,20 @@
+## v20.11.0 — Build 2A: Canonical Gameplay Command Foundation
+
+**Sandbox:** `v20.11.0`  
+**Git/package:** `20.11.0`  
+**Base:** `v20.10.2`
+
+- Added a shared typed gameplay-command envelope and host router.
+- Migrated guest Normal Move activation and movement steps to Host Authority.
+- Migrated Auto Move as a coherent host activation + step command.
+- Migrated progressive Bonus Move steps, Group Move steps, and 3/2 validation/commit.
+- Aligned Free Move movement steps with the common router while preserving its separate start/end lifecycle.
+- Removed canonical active-piece fallback from generic movement input; `selectedId` remains the explicit local input selection.
+- Preserved separate Movement, Pass, Interception, Tracker, Bonus Continuation, and Free Tool responsibilities.
+- Corrected documentation that incorrectly described Bonus Move as movement and continuation completion in one transition. Bonus Move is progressive; `END B.A.` is separate.
+- Documented the mandatory architecture for future Dribble, Shot, Cross, Tackle, Pass, and other gameplay actions.
+- Build 2B remains Interaction Layer Stabilization only.
+
 ## v20.10.2 — Interaction Layer engine-boundary correction
 
 **Sandbox:** `v20.10.2`  

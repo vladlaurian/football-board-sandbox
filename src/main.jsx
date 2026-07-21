@@ -115,6 +115,8 @@ import {
 import { createMultiplayerTraceId, createMultiplayerTracer } from "./multiplayer/debugTracer.mjs";
 import { canControlBonusAction, validateBonusActionEndIntent } from "./multiplayer/bonusActionAuthority.mjs";
 import { canControlResolution } from "./multiplayer/resolutionAuthority.mjs";
+import { createGameplayCommand, GAMEPLAY_ACTION_TYPE, GAMEPLAY_COMMAND_TYPE } from "./multiplayer/gameplayCommand.mjs";
+import { routeGameplayCommand } from "./multiplayer/gameplayCommandRouter.mjs";
 import {
   normalizeMatchActionState,
   normalizeTrackerSnapshot,
@@ -159,7 +161,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.10.2";
+const APP_VERSION = "v20.11.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2066,6 +2068,7 @@ function App() {
   const [actionStartIntentPending, setActionStartIntentPending] = useState(false);
   const [freeModeIntentPending, setFreeModeIntentPending] = useState(false);
   const [freeBallMoveIntentPending, setFreeBallMoveIntentPending] = useState(false);
+  const [gameplayCommandPending, setGameplayCommandPending] = useState(false);
   const [actionContinuation, setActionContinuation] = useState(null);
   const [passResultNotice, setPassResultNotice] = useState(null);
   const [liveDelayedResolutionEntryId, setLiveDelayedResolutionEntryId] = useState("");
@@ -2154,6 +2157,7 @@ function App() {
   const actionStartIntentPendingRef = useRef(false);
   const freeModeIntentPendingRef = useRef(false);
   const freeBallMoveIntentPendingRef = useRef(false);
+  const gameplayCommandPendingRef = useRef(false);
   const processedBonusActionEndIntentIdsRef = useRef(new Set());
   const processedPassTargetIntentIdsRef = useRef(new Set());
   const processedPassCancelIntentIdsRef = useRef(new Set());
@@ -2161,6 +2165,7 @@ function App() {
   const processedActionStartIntentIdsRef = useRef(new Set());
   const processedFreeModeIntentIdsRef = useRef(new Set());
   const processedFreeBallMoveIntentIdsRef = useRef(new Set());
+  const processedGameplayCommandIdsRef = useRef(new Set());
   const actionContinuationRef = useRef(actionContinuation);
   const delayedResolutionTimerRef = useRef(null);
   const delayedResolutionEntryIdRef = useRef("");
@@ -2194,6 +2199,7 @@ function App() {
   useEffect(() => { actionStartIntentPendingRef.current = actionStartIntentPending; }, [actionStartIntentPending]);
   useEffect(() => { freeModeIntentPendingRef.current = freeModeIntentPending; }, [freeModeIntentPending]);
   useEffect(() => { freeBallMoveIntentPendingRef.current = freeBallMoveIntentPending; }, [freeBallMoveIntentPending]);
+  useEffect(() => { gameplayCommandPendingRef.current = gameplayCommandPending; }, [gameplayCommandPending]);
   useEffect(() => {
     if (actionResolution?.kind !== "pass" || actionResolution.status !== "targeting") {
       setPassTargetIntentPending(false);
@@ -3863,7 +3869,7 @@ function App() {
   useEffect(() => {
     if (!user || !sessionCode) return undefined;
     const code = sessionCode.toUpperCase();
-    const unsub = onSnapshot(sessionRuntimeRef(code, "actionStartIntent"), snapshot => {
+    const unsub = onSnapshot(sessionRuntimeRef(code, "actionStartIntent"), async snapshot => {
       if (!snapshot.exists()) return;
       const intent = snapshot.data() || {};
       const requestId = String(intent.requestId || "");
@@ -3889,6 +3895,11 @@ function App() {
       if (ownerValid && baseRevisionValid && intent.mode === "normal-pass") {
         const noActiveFlow = !actionResolutionRef.current && !actionContinuationRef.current;
         if (noActiveFlow && playerHasBall(piece)) committed = Boolean(beginPassTargeting(piece, { fromHostIntent: true }));
+      } else if (ownerValid && baseRevisionValid && intent.mode === "tracker-action") {
+        const actionType = String(intent.actionType || "");
+        if (["MOVE", "GROUP_MOVE"].includes(actionType) && !actionResolutionRef.current && !actionContinuationRef.current) {
+          committed = Boolean((await commitTrackerActionActivation(actionType, piece)).committed);
+        }
       } else if (ownerValid && baseRevisionValid && intent.mode === "bonus-action") {
         const continuation = actionContinuationRef.current;
         const actionType = String(intent.actionType || "");
@@ -3911,6 +3922,60 @@ function App() {
       }).catch(error => console.error("Action start intent acknowledgement failed", error));
       multiplayerTracerRef.current.multiplayer("ACTION_START_INTENT_HANDLED", { requestId, mode: intent.mode, actionType: intent.actionType || null, committed });
     }, error => console.error("Action start intent listener failed", error));
+    return () => unsub();
+  }, [user, sessionCode, teamOwners]);
+
+  useEffect(() => {
+    if (!user || !sessionCode) return undefined;
+    const code = sessionCode.toUpperCase();
+    const unsub = onSnapshot(sessionRuntimeRef(code, "gameplayCommand"), async snapshot => {
+      if (!snapshot.exists()) return;
+      const command = snapshot.data() || {};
+      const requestId = String(command.requestId || "");
+      if (!requestId) return;
+      if (!sessionAuthorityRef.current.isHost) {
+        if (["accepted", "rejected"].includes(String(command.status || "")) && command.requestedByClient === clientIdRef.current) {
+          gameplayCommandPendingRef.current = false;
+          setGameplayCommandPending(false);
+          if (command.status === "rejected") resetTransientGameplayUI({ restoreCanonical: true });
+        }
+        return;
+      }
+      if (processedGameplayCommandIdsRef.current.has(requestId) || command.status !== "pending") return;
+      processedGameplayCommandIdsRef.current.add(requestId);
+      const piece = (piecesRef.current || []).find(item => String(item.id) === String(command.actorPieceId || ""));
+      const routed = routeGameplayCommand(command, {
+        canonicalRevision: Math.max(0, Number(gameTimelineRef.current?.revision) || 0),
+        teamOwners,
+        piece,
+      });
+      let committed = false;
+      let rejectionReason = routed.reason || null;
+      if (routed.accepted && routed.domain === "movement") {
+        if (routed.mode === "normal" && command.payload?.autoActivate) {
+          const activation = await commitTrackerActionActivation("MOVE", piece);
+          if (!activation.committed) {
+            rejectionReason = activation.reason || "move-activation-rejected";
+          } else {
+            const result = executeCanonicalMovementCommand(command, piece, routed.mode);
+            committed = Boolean(result?.committed);
+            rejectionReason = committed ? null : (result?.reason || "movement-command-rejected");
+          }
+        } else {
+          const result = executeCanonicalMovementCommand(command, piece, routed.mode);
+          committed = Boolean(result?.committed);
+          rejectionReason = committed ? null : (result?.reason || "movement-command-rejected");
+        }
+      }
+      await updateDoc(sessionRuntimeRef(code, "gameplayCommand"), {
+        status: committed ? "accepted" : "rejected",
+        rejectionReason,
+        handledAt: serverTimestamp(),
+        handledBy: clientIdRef.current,
+        canonicalRevision: Math.max(0, Number(gameTimelineRef.current?.revision) || 0),
+      }).catch(error => console.error("Gameplay command acknowledgement failed", error));
+      multiplayerTracerRef.current.multiplayer("GAMEPLAY_COMMAND_HANDLED", { requestId, actionType: command.actionType, committed, rejectionReason });
+    }, error => console.error("Gameplay command listener failed", error));
     return () => unsub();
   }, [user, sessionCode, teamOwners]);
 
@@ -5897,26 +5962,62 @@ function App() {
     return true;
   }
 
-  async function requestHostFreeMove(piece, x, y) {
-    if (!sessionCode || !isSessionGuest || freeModeIntentPendingRef.current || !piece) return false;
-    const requestId = createActionEventId("free_move");
-    setFreeModeIntentPending(true);
-    freeModeIntentPendingRef.current = true;
-    try {
-      await setDoc(sessionRuntimeRef(sessionCode.toUpperCase(), "freeModeIntent"), {
-        requestId, operation: "move", pieceId: piece.id, team: pieceTeamKey(piece), x: Number(x), y: Number(y),
-        requestedByUid: user?.uid || "", requestedByClient: clientIdRef.current,
-        status: "pending", createdAt: serverTimestamp(),
-      }, { merge: false });
-      return true;
-    } catch (error) {
-      setFreeModeIntentPending(false); freeModeIntentPendingRef.current = false;
-      console.error("Free Move intent failed", error); return false;
+  function executeCanonicalMovementCommand(command, piece, mode) {
+    if (!piece || !canMovePiece(piece)) return { committed: false, reason: "piece-not-movable" };
+    const x = Number(command?.payload?.x);
+    const y = Number(command?.payload?.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return { committed: false, reason: "invalid-destination" };
+
+    if (mode === "bonus") {
+      const continuation = actionContinuationRef.current;
+      const valid = continuation?.kind === "bonus-card-action"
+        && continuation.status === CONTINUATION_STATUS.ACTION_ACTIVE
+        && continuation.actionType === "MOVE"
+        && continuation.pieceId === piece.id
+        && continuation.team === pieceTeamKey(piece)
+        && String(continuation.id) === String(command.continuationId || "");
+      if (!valid) return { committed: false, reason: "invalid-bonus-continuation" };
+      const evaluation = evaluateMove(piece, x, y);
+      if (!evaluation.legal) return { committed: false, reason: evaluation.reason || "illegal-move" };
+      return { committed: commitPieceMove(piece, x, y, evaluation, { authorizationOverride: { allowed: true, mode: "bonus" } }), reason: null };
     }
+
+    if (mode === "three-two") {
+      const evaluation = getThreeTwoEligibility(piece, x, y);
+      if (!evaluation.eligible) return { committed: false, reason: evaluation.reason || "illegal-three-two" };
+      return { committed: commitPieceMove(piece, x, y, evaluation, { useThreeTwo: true }), reason: null };
+    }
+
+    if (mode === "free") {
+      const authorization = movementAuthorization(piece);
+      if (!authorization.allowed || authorization.mode !== "free") return { committed: false, reason: "free-move-not-authorized" };
+      const occupied = (piecesRef.current || pieces).some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === x && Number(item.y) === y);
+      const geometry = getMovementGeometry(piece, { x, y });
+      if (occupied || geometry.kind === "same") return { committed: false, reason: occupied ? "occupied" : "same" };
+      return { committed: commitPieceMove(piece, x, y, { legal: true, geometry, moveCost: 0, remaining: 0 }, { authorizationOverride: { allowed: true, mode: "free" } }), reason: null };
+    }
+
+    if (mode === "group") {
+      const team = pieceTeamKey(piece);
+      if (!hasValidGroupMoveAuthorization(team)) return { committed: false, reason: "group-move-not-authorized" };
+      const evaluation = evaluateGroupMove(piece, x, y);
+      if (!evaluation.legal) return { committed: false, reason: evaluation.reason || "illegal-group-move" };
+      return { committed: commitPieceMove(piece, x, y, evaluation, { authorizationOverride: { allowed: true, mode: "group" } }), reason: null };
+    }
+
+    const authorization = movementAuthorization(piece);
+    if (!authorization.allowed || authorization.mode !== "normal") return { committed: false, reason: authorization.reason || "move-not-authorized" };
+    const evaluation = evaluateMove(piece, x, y);
+    if (!evaluation.legal) return { committed: false, reason: evaluation.reason || "illegal-move" };
+    return { committed: commitPieceMove(piece, x, y, evaluation, { authorizationOverride: { allowed: true, mode: "normal" } }), reason: null };
+  }
+
+  async function requestHostFreeMove(piece, x, y) {
+    return requestHostGameplayCommand({ actionType: GAMEPLAY_ACTION_TYPE.FREE_MOVE, piece, x, y });
   }
 
   function moveSelectedPieceTo(x, y) {
-    const piece = (piecesRef.current || pieces).find(item => item.id === (interactionState.activePieceId || selectedId));
+    const piece = (piecesRef.current || pieces).find(item => item.id === selectedId);
     if (!piece || !canMovePiece(piece)) return false;
 
     const continuation = actionContinuationRef.current;
@@ -5928,10 +6029,11 @@ function App() {
         if (evaluation.reason !== "same") setIllegalMoveNotice(evaluation);
         return false;
       }
-      return commitPieceMove(piece, x, y, evaluation, {
-        authorizationOverride: { allowed: true, mode: "bonus" },
-        completeBonus: false,
-      });
+      if (sessionCode && isSessionGuest) {
+        void requestHostGameplayCommand({ actionType: GAMEPLAY_ACTION_TYPE.BONUS_MOVE, piece, x, y, continuationId: continuation.id });
+        return true;
+      }
+      return executeCanonicalMovementCommand(createGameplayCommand({ actionType: GAMEPLAY_ACTION_TYPE.BONUS_MOVE, continuationId: continuation.id, payload: { x, y } }), piece, "bonus").committed;
     }
 
     const phaseTeam = piece.team === "BALL" ? null : pieceTeamKey(piece);
@@ -5992,7 +6094,11 @@ function App() {
       if (evaluation.reason !== "same" && gameMode === "match" && piece.team !== "BALL") setIllegalMoveNotice(notice);
       return false;
     }
-    return commitPieceMove(piece, x, y, evaluation);
+    if (sessionCode && isSessionGuest) {
+      void requestHostGameplayCommand({ actionType: authorization.mode === "group" ? GAMEPLAY_ACTION_TYPE.GROUP_MOVE : GAMEPLAY_ACTION_TYPE.MOVE, piece, x, y });
+      return true;
+    }
+    return executeCanonicalMovementCommand(createGameplayCommand({ actionType: authorization.mode === "group" ? GAMEPLAY_ACTION_TYPE.GROUP_MOVE : GAMEPLAY_ACTION_TYPE.MOVE, payload: { x, y } }), piece, authorization.mode).committed;
   }
 
   function confirmThreeTwoMove(useThreeTwo) {
@@ -6004,7 +6110,11 @@ function App() {
     if (useThreeTwo) {
       const refreshed = getThreeTwoEligibility(piece, pending.x, pending.y);
       if (!refreshed.eligible) return;
-      commitPieceMove(piece, pending.x, pending.y, refreshed, { useThreeTwo: true });
+      if (sessionCode && isSessionGuest) {
+        void requestHostGameplayCommand({ actionType: GAMEPLAY_ACTION_TYPE.THREE_TWO, piece, x: pending.x, y: pending.y });
+      } else {
+        executeCanonicalMovementCommand(createGameplayCommand({ actionType: GAMEPLAY_ACTION_TYPE.THREE_TWO, payload: { x: pending.x, y: pending.y } }), piece, "three-two");
+      }
       return;
     }
     const authorization = movementAuthorization(piece);
@@ -9182,6 +9292,70 @@ function App() {
     return pending?.kind === "pass" && ["targeting", "route-selection"].includes(pending.status);
   }
 
+  async function commitTrackerActionActivation(type, piece) {
+    const team = pieceTeamKey(piece);
+    const currentTracker = currentTimelineTrackerSnapshot();
+    const activation = activateTrackerAction(currentTracker, {
+      type,
+      pieceId: piece.id,
+      team,
+      entryId: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    });
+    if (!activation.allowed) return { committed: false, reason: activation.reason || "activation-rejected" };
+    const { entry, actionLog: nextLog, usedActions: nextUsed, matchActionState: nextState } = activation;
+    const beforeTimeline = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    await applyActionStateUpdate(nextLog, nextState, nextUsed);
+    const afterTimeline = createGameState({
+      ...beforeTimeline,
+      tracker: { ...beforeTimeline.tracker, actionLog: nextLog, usedActions: nextUsed, matchActionState: nextState },
+    });
+    recordTimelineTransition({
+      id: entry.id,
+      type: `${type}_ACTIVATED`,
+      label: `${team === "blue" ? "Blue" : "Red"} ${type.replace("GROUP_MOVE", "GROUP MOVE")}: ${getPieceDisplayLabel(piece)}`,
+      team,
+      groupId: entry.id,
+      before: beforeTimeline,
+      after: afterTimeline,
+      allowNoop: true,
+    });
+    setSelectedId(piece.id);
+    setHoveredCell(null);
+    return { committed: true, reason: null };
+  }
+
+  async function requestHostGameplayCommand({ actionType, piece, x, y, continuationId = null, payload = {} }) {
+    if (!sessionCode || !isSessionGuest || gameplayCommandPendingRef.current || !piece) return false;
+    const requestId = createActionEventId(`gameplay_${String(actionType || "command").toLowerCase()}_${piece.id}`);
+    const command = createGameplayCommand({
+      requestId,
+      commandType: GAMEPLAY_COMMAND_TYPE.ACTION_STEP,
+      actionType,
+      actorPieceId: piece.id,
+      team: pieceTeamKey(piece),
+      baseRevision: Math.max(0, Number(gameTimelineRef.current?.revision) || 0),
+      continuationId,
+      requestedByUid: user?.uid || "",
+      requestedByClient: clientIdRef.current,
+      payload: { ...payload, x: Number(x), y: Number(y) },
+    });
+    gameplayCommandPendingRef.current = true;
+    setGameplayCommandPending(true);
+    try {
+      await setDoc(sessionRuntimeRef(sessionCode.toUpperCase(), "gameplayCommand"), {
+        ...command,
+        status: "pending",
+        requestedAt: serverTimestamp(),
+      }, { merge: false });
+      return true;
+    } catch (error) {
+      gameplayCommandPendingRef.current = false;
+      setGameplayCommandPending(false);
+      console.error("Gameplay command failed", error);
+      return false;
+    }
+  }
+
   async function requestHostActionStart({ mode, actionType = null, piece, continuationId = null }) {
     if (!sessionCode || !isSessionGuest || actionStartIntentPendingRef.current || !piece) return false;
     const requestId = createActionEventId(`action_start_${mode}_${piece.id}`);
@@ -10032,10 +10206,10 @@ function App() {
       beginPassTargeting(piece);
       return;
     }
-    const currentTracker = currentTimelineTrackerSnapshot();
-    const currentActionState = currentTracker.matchActionState;
     if (type === "FREE") {
       cancelFreeBall();
+      const currentTracker = currentTimelineTrackerSnapshot();
+      const currentActionState = currentTracker.matchActionState;
       const freeModeActive = Boolean(currentActionState.freeMode?.active);
       const isSameFreePiece = freeModeActive && currentActionState.freeMode?.pieceId === piece.id;
       if (sessionCode && isSessionGuest) {
@@ -10045,45 +10219,13 @@ function App() {
       commitFreeModeToggle(piece, { requestedOperation: isSameFreePiece ? "end" : "start" });
       return;
     }
-    const activation = activateTrackerAction(currentTracker, {
-      type,
-      pieceId: piece.id,
-      team,
-      entryId: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    });
-    if (!activation.allowed) {
-      if (["wait-active-team", "all-actions-complete", "actions-complete-end-turn"].includes(activation.reason)) {
-        setIllegalMoveNotice({ reason: activation.reason });
-      }
+    if (sessionCode && isSessionGuest && ["MOVE", "GROUP_MOVE"].includes(type)) {
+      void requestHostActionStart({ mode: "tracker-action", actionType: type, piece });
       return;
     }
-    const { entry, actionLog: nextLog, usedActions: nextUsed, matchActionState: nextState } = activation;
-    const beforeTimeline = currentTimelineGameStateSnapshot() || captureTimelineGameState();
-    await applyActionStateUpdate(nextLog, nextState, nextUsed);
-    const afterTimeline = createGameState({
-      ...beforeTimeline,
-      tracker: {
-        ...beforeTimeline.tracker,
-        actionLog: nextLog,
-        usedActions: nextUsed,
-        matchActionState: nextState,
-      },
-    });
-    recordTimelineTransition({
-      id: entry.id,
-      type: `${type}_ACTIVATED`,
-      label: `${team === "blue" ? "Blue" : "Red"} ${type.replace("GROUP_MOVE", "GROUP MOVE")}: ${getPieceDisplayLabel(piece)}`,
-      team,
-      groupId: entry.id,
-      before: beforeTimeline,
-      after: afterTimeline,
-      allowNoop: true,
-    });
-    if (type === "MOVE" || type === "GROUP_MOVE") {
-      setSelectedId(piece.id);
-    } else {
-      setSelectedId(null);
-      setHoveredCell(null);
+    const activationResult = await commitTrackerActionActivation(type, piece);
+    if (!activationResult.committed && ["wait-active-team", "all-actions-complete", "actions-complete-end-turn"].includes(activationResult.reason)) {
+      setIllegalMoveNotice({ reason: activationResult.reason });
     }
   }
   async function removeLastTrackerAction(team) {
@@ -10130,6 +10272,10 @@ function App() {
     const piece = (piecesRef.current || pieces).find(item => item.id === pending.pieceId);
     if (!piece || !canMovePiece(piece) || !canUseActionForPiece(piece)) return;
     const team = pieceTeamKey(piece);
+    if (sessionCode && isSessionGuest) {
+      void requestHostGameplayCommand({ actionType: GAMEPLAY_ACTION_TYPE.MOVE, piece, x: pending.x, y: pending.y, payload: { autoActivate: true } });
+      return;
+    }
     const currentTracker = currentTimelineTrackerSnapshot();
     const currentLog = currentTracker.actionLog;
     const currentUsed = currentTracker.usedActions;

@@ -6,17 +6,22 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.10.2` |
-| Git/package version | `20.10.2` |
-| Build name | `Final_Board_v20_10_2_interaction_layer_engine_boundary_fix` |
-| Base build | `v20.10.1` |
+| Sandbox version | `v20.11.0` |
+| Git/package version | `20.11.0` |
+| Build name | `Final_Board_v20_11_0_build_2A_canonical_gameplay_command_foundation` |
+| Base build | `v20.10.2` |
+| Architecture phase | `Build 2A — Canonical Gameplay Command Foundation` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.10.2`. The repository version is defined in `package.json` as `20.10.2`. The browser title is `Sandbox v20.10.2`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.11.0`. The repository version is defined in `package.json` as `20.11.0`. The browser title is `Sandbox v20.11.0`.
 
-## v20.10.2 release summary
+## v20.11.0 release summary
 
-v20.10.2 preserves the derived Interaction Layer while separating canonical interaction presentation from generic board selection/input. It restores the Pass/Interception input boundary, returns `CANCEL PASS` and `END B.A.` to the Inspector card controls, and keeps Host Authority, Pass Engine, Interception Engine, and the general resolution engine unchanged.
+v20.11.0 introduces the Canonical Gameplay Command Foundation and migrates the Movement family to one host-authoritative command path. Normal Move, Auto Move, Bonus Move steps, Group Move, 3/2, and Free Move steps are requested semantically by guests, validated and executed by the host, committed to the canonical Timeline, and then hydrated back to both clients.
+
+Pass and Interception are not moved into Movement. Their engines remain separate. The new command layer is an orchestrator and transport contract, not a universal rules engine.
+
+Build 2B remains required after multiplayer testing. It is limited to Interaction Layer stabilization, Inspector/selection reconciliation, lifecycle cleanup, reconnect/Undo/Redo regression handling, and removal of remaining legacy references. It must not redesign gameplay or create parallel command paths.
 
 ## First time here?
 
@@ -80,7 +85,7 @@ docs/
 - [`DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md): mandatory implementation and release workflow.
 - [`ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md): permanent architectural decisions and invariants.
 - [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md): current multiplayer model, intent flows, authority boundaries, cleanup rules, and open storage refactor.
-- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.10.2.
+- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.11.0.
 - [`ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md): generic action-resolution lifecycle.
 - [`INTERCEPTION_ENGINE.md`](docs/INTERCEPTION_ENGINE.md): interception resolver and its boundary with Pass.
 - [`RULE_SETS_EDITOR.md`](docs/RULE_SETS_EDITOR.md): editable rules, schema and runtime effects.

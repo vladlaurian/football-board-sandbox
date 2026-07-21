@@ -2,7 +2,7 @@
 
 ## Status and version
 
-This is the authoritative description of the multiplayer model in Sandbox `v20.10.2` / Git package `20.10.2`.
+This is the authoritative description of the multiplayer model in Sandbox `v20.11.0` / Git package `20.11.0`.
 
 Historical fixes are recorded in [`MULTIPLAYER_CHANGELOG.md`](MULTIPLAYER_CHANGELOG.md). Permanent cross-system decisions also appear in [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md).
 
@@ -277,3 +277,34 @@ Host Authority + Timeline + typed intents remain unchanged. Active UI interactio
 After each canonical Timeline hydration, both clients independently derive the same active gameplay piece and interaction mode from `actionResolution`, `actionContinuation`, and Match state. Authority flags are then applied locally so both clients can render the canonical interaction while only the owning client can control it. The derived active piece is presentation data only; generic pointer, touch, hover, movement, Pass, and Interception inputs continue to use their own explicit state and engine contracts.
 
 `selectedId` and `inspectedPieceId` remain local UI state. They are not authoritative gameplay state. Canonical Pass cancellation and Bonus Action completion read `actionResolution` / `actionContinuation` directly even when their controls are rendered in the Inspector. The Interaction Layer must not feed `activePieceId` back into the general action engine, Pass Engine, or Interception Engine.
+
+
+## Canonical Gameplay Command Foundation (v20.11.0 / Build 2A)
+
+All guest gameplay mutations now follow the same authority boundary:
+
+```text
+Guest UI
+  → typed gameplay command
+  → host envelope validation and routing
+  → specialized authority/engine
+  → host-only Timeline commit
+  → canonical hydration on Host and Guest
+```
+
+The common command envelope carries request identity, command type, action type, actor piece, team, base revision, continuation/action identity, requester identity, and action-specific payload.
+
+Movement is the first family fully migrated through this foundation:
+
+- Normal Move: host-authoritative activation and movement step.
+- Auto Move: host performs activation and movement coherently from one guest command.
+- Bonus Move: each progressive step is host-authoritative; `END B.A.` remains separate.
+- Group Move: host-authoritative activation and per-piece steps under the existing group authorization.
+- 3/2: host validates eligibility and geometry before commit.
+- Free Move: start/end retain Free Mode lifecycle; movement steps use the common command router and Movement executor.
+
+Pass and Interception are deliberately not routed through Movement. They retain their specialized engines and current semantic intents. Future Dribble, Shot, Cross, Tackle, and Pass extensions must use the same command foundation rather than direct UI commits or new parallel runtime documents.
+
+### Build 2B boundary
+
+Build 2B is Interaction Layer Stabilization only: Inspector anchoring, local/manual inspection distinction, selection stability, cursor and preview lifecycle, reconnect, Undo/Redo, rollback, and legacy cleanup. It must not alter game design or introduce another authority path.

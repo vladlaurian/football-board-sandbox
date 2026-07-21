@@ -200,3 +200,14 @@ The summary must describe the delivered artifact, not the original intention.
 - Cancel Pass and End Bonus Action must execute from canonical action state, even when their controls remain visually on the Inspector card.
 - Guest should reconstruct interaction presentation from canonical action state after synchronization. Derived active-piece presentation must never replace generic local selection or cross engine boundaries.
 - Timeline performance investigation is a separate task and must not be mixed with this refactor.
+
+
+## Mandatory gameplay-command gate (v20.11.0)
+
+Before implementing or extending Move, Pass, Dribble, Shot, Cross, Tackle, Bonus Action, 3/2, Group Move, Free Move, or any future gameplay action, verify that the change follows:
+
+```text
+UI → semantic command/intent → Host Authority Router → specialized engine/authority → Timeline → Interaction Layer/UI
+```
+
+Do not commit guest gameplay locally, do not use Inspector or selection as authority, and do not create a parallel runtime path. If the action does not fit, stop and propose an architecture change before coding. Every new command requires revision/idempotency checks, host/guest tests, and synchronized documentation.
