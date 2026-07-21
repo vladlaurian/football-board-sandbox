@@ -8534,14 +8534,14 @@ function App() {
     return "";
   }
 
-  const interactionState = useMemo(() => deriveInteractionState({
+  const interactionState = deriveInteractionState({
     pieces,
     actionResolution,
     actionContinuation,
     matchActionState,
     canControlResolution: canControlActiveResolution(actionResolution),
     canControlContinuation: canControlBonusContinuation(actionContinuation),
-  }), [pieces, actionResolution, actionContinuation, matchActionState, sessionCode, isSessionHost, myTeam, replayMode]);
+  });
   const effectiveSelectedId = effectiveSelectedPieceId(selectedId, interactionState);
   const selectedPiece = pieces.find(p => p.id === effectiveSelectedId);
   const movementPreview = useMemo(() => {
