@@ -6,13 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.13.0` |
-| Git/package version | `20.13.0` |
-| Build name | `Final_Board_v20_13_0_single_player_free_ball_vertical_slice` |
-| Base build | `v20.12.0 game_engine_kernel` |
+| Sandbox version | `v20.14.0` |
+| Git/package version | `20.14.0` |
+| Build name | `Final_Board_v20_14_0_single_player_normal_move` |
+| Base build | `v20.13.0 single_player_free_ball_vertical_slice` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.13.0`. The repository version is defined in `package.json` as `20.13.0`. The browser title is `Sandbox v20.13.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.14.0`. The repository version is defined in `package.json` as `20.14.0`. The browser title is `Sandbox v20.14.0`.
+
+## v20.14.0 release summary
+
+v20.14.0 completes Phase 3: offline Match Mode normal MOVE now dispatches `NORMAL_MOVE_STARTED`, `NORMAL_MOVE_CANCELLED`, and `NORMAL_MOVE_COMMITTED` through the pure Game Engine and Single Player Controller. The Engine owns Tracker activation/refund, normal-move legality, Speed cost, ball carry, movement-state update, and active-movement closure. A compact frozen MatchContext is created when a new offline tracked match starts, so its card-derived Speed values cannot change during the match. Existing manual multiplayer/Firebase MOVE paths, Editor Mode, Free Ball, Auto Move, Free Move, Group Move, 3/2, and Bonus Move remain unchanged.
 
 ## v20.13.0 release summary
 

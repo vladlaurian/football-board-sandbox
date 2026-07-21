@@ -72,7 +72,7 @@ The offline path now uses `FREE_BALL_MOVED -> Game Engine -> Single Player Contr
 
 ## Phase 3 — Normal MOVE
 
-**Status:** Pending.
+**Status:** Complete in v20.14.0.
 
 Migrate `MOVE_STARTED`, `MOVE_CANCELLED`, and `MOVE_COMMITTED`, including Tracker activation, cancellation before physical movement, action refund, physical movement, action consumption, and active-movement closure.
 
@@ -82,6 +82,18 @@ Acceptance:
 - cancel/refund semantics match current behavior;
 - Timeline and Undo semantics remain identical;
 - Interaction Layer remains presentation-only.
+
+Delivered files and tests:
+
+- `src/engine/normalMoveRules.mjs`
+- `src/engine/gameCommands.mjs`
+- `src/engine/gameEngine.mjs`
+- `src/engine/gameEngine.test.mjs`
+- `src/engine/singlePlayerController.test.mjs`
+- offline Match Mode branches of `commitNormalMoveStart()`, `commitNormalMoveCancellation()`, and `commitPieceMove()` in `src/main.jsx`
+- focused command: `node --test src/engine/*.test.mjs src/timeline/aiAnalysisExport.test.mjs`
+
+The normal-MOVE Engine path uses a compact immutable MatchContext created at offline tracked-match start. It reads Speed only from the frozen card projection. A rare compatibility fallback creates the same Context once for an older active local match that predates this build; it does not alter session/manual-multiplayer behavior. Existing Timeline event names (`MOVE_ACTIVATED`, `MOVE_CANCELLED`, `PIECE_MOVED`) and their stepwise Undo/Redo behavior are preserved.
 
 ## Phase 4 — Remaining movement family
 

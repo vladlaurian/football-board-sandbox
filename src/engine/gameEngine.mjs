@@ -2,6 +2,7 @@ import { createGameState } from "../game/gameState.mjs";
 import { GAME_COMMAND_TYPE, gameCommandValidationReason, normalizeGameCommand } from "./gameCommands.mjs";
 import { createGameEvent } from "./gameEvents.mjs";
 import { createMatchContext } from "./matchContext.mjs";
+import { cancelNormalMove, commitNormalMove, startNormalMove } from "./normalMoveRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -49,10 +50,24 @@ export function applyGameCommand({ state, context, command } = {}) {
   const validationReason = gameCommandValidationReason(normalizedCommand);
   if (validationReason) return rejected(validationReason);
 
-  createMatchContext(context);
+  const matchContext = createMatchContext(context);
   const currentState = createGameState(state);
   if (normalizedCommand.type === GAME_COMMAND_TYPE.FREE_BALL_MOVED) {
     return applyFreeBallMoved(currentState, normalizedCommand);
+  }
+  const normalMoveTransition = normalizedCommand.type === GAME_COMMAND_TYPE.NORMAL_MOVE_STARTED
+    ? startNormalMove(currentState, matchContext, normalizedCommand)
+    : normalizedCommand.type === GAME_COMMAND_TYPE.NORMAL_MOVE_CANCELLED
+      ? cancelNormalMove(currentState, normalizedCommand)
+      : normalizedCommand.type === GAME_COMMAND_TYPE.NORMAL_MOVE_COMMITTED
+        ? commitNormalMove(currentState, matchContext, normalizedCommand)
+        : null;
+  if (normalMoveTransition) {
+    if (!normalMoveTransition.accepted) return rejected(normalMoveTransition.reason);
+    return accepted(createGameState(normalMoveTransition.nextState), [createGameEvent({
+      ...normalMoveTransition.event,
+      commandId: normalizedCommand.id,
+    })], normalMoveTransition.timeline);
   }
   return rejected("COMMAND_TYPE_UNSUPPORTED");
 }

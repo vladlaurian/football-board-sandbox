@@ -8,6 +8,8 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import { RotateCcw, Plus, Minus, Undo2, Redo2, Edit3, X, Dices } from "lucide-react";
 import { createGameState, mergeGameState } from "./game/gameState.mjs";
+import { GAME_COMMAND_TYPE } from "./engine/gameCommands.mjs";
+import { createMatchContext } from "./engine/matchContext.mjs";
 import { dispatchSinglePlayerGameCommand } from "./engine/singlePlayerController.mjs";
 import {
   isBenchReservePiece,
@@ -160,7 +162,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.13.0";
+const APP_VERSION = "v20.14.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2090,6 +2092,7 @@ function App() {
   const replayModeRef = useRef(false);
   const replayWorkspaceRef = useRef(null);
   const matchCardSnapshotRef = useRef({ recordingId: "", cards: [] });
+  const matchContextRef = useRef(null);
   const exportedRecordingRevisionRef = useRef(new Map());
   const pendingTimelineBeforeRef = useRef(null);
   const timelineSyncQueueRef = useRef(Promise.resolve());
@@ -4403,6 +4406,18 @@ function App() {
     return next;
   }
 
+  function singlePlayerMatchContext() {
+    if (matchContextRef.current) return matchContextRef.current;
+    const context = createMatchContext({
+      id: gameTimelineRef.current?.recordingId || "single-player-compatibility-context",
+      ruleSet: activeRuleSetRef.current,
+      boardSettings: settingsRef.current,
+      gameplayCards: captureAvailableMatchCards(),
+    });
+    matchContextRef.current = context;
+    return context;
+  }
+
   function recordTimelineTransition({
     type = "GAME_STATE_CHANGED",
     label = "Game state changed",
@@ -5841,6 +5856,7 @@ function App() {
       ...(leavingMatch ? { actionResolution: null, actionContinuation: null } : {}),
     });
     if (leavingMatch) {
+      matchContextRef.current = null;
       cancelDelayedResolutionTimer();
       setLiveActionResolution(null);
       setLiveActionContinuation(null);
@@ -5906,8 +5922,26 @@ function App() {
   }
 
   function commitPieceMove(piece, x, y, evaluation, { useThreeTwo = false, authorizationOverride = null, completeBonus = false } = {}) {
-    pushHistory(piecesRef.current || pieces, movementStateRef.current);
     const authorization = authorizationOverride || movementAuthorization(piece);
+    if (!sessionCode && gameMode === "match" && !useThreeTwo && authorization.mode === "normal") {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`normal_move_commit_${piece.id}`),
+          type: GAME_COMMAND_TYPE.NORMAL_MOVE_COMMITTED,
+          payload: { pieceId: piece.id, x: Number(x), y: Number(y) },
+        },
+        label: `${piece.team === "A" ? "Blue" : "Red"} ${piece.label} → ${toCoord(x, y)}`,
+      });
+      if (!dispatched.result.accepted) return false;
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      return true;
+    }
+    pushHistory(piecesRef.current || pieces, movementStateRef.current);
     const isFreePlacement = authorization.mode === "free";
     const isGroupPlacement = authorization.mode === "group";
     const isBonusPlacement = authorization.mode === "bonus";
@@ -10131,6 +10165,23 @@ function App() {
 
   function commitNormalMoveStart(piece, { fromHostIntent = false } = {}) {
     if (!piece || piece.team === "BALL" || (!fromHostIntent && !canUseActionForPiece(piece))) return false;
+    if (!sessionCode) {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const team = pieceTeamKey(piece);
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: { id: createActionEventId(`normal_move_start_${piece.id}`), type: GAME_COMMAND_TYPE.NORMAL_MOVE_STARTED, payload: { pieceId: piece.id } },
+        label: `${team === "blue" ? "Blue" : "Red"} MOVE: ${getPieceDisplayLabel(piece)}`,
+      });
+      if (!dispatched.result.accepted) return false;
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      setSelectedId(piece.id);
+      setHoveredCell(null);
+      return true;
+    }
     const team = pieceTeamKey(piece);
     const currentTracker = currentTimelineTrackerSnapshot();
     const activation = activateTrackerAction(currentTracker, {
@@ -10173,6 +10224,22 @@ function App() {
   }
 
   function commitNormalMoveCancellation(piece, { fromHostIntent = false } = {}) {
+    if (!sessionCode) {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const team = pieceTeamKey(piece);
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: { id: createActionEventId(`normal_move_cancel_${piece.id}`), type: GAME_COMMAND_TYPE.NORMAL_MOVE_CANCELLED, payload: { pieceId: piece.id } },
+        label: `${team === "blue" ? "Blue" : "Red"} MOVE cancelled: ${getPieceDisplayLabel(piece)}`,
+      });
+      if (!dispatched.result.accepted) return false;
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      setHoveredCell(null);
+      return true;
+    }
     const currentTracker = currentTimelineTrackerSnapshot();
     const active = currentTracker.matchActionState.activeMovement || {};
     const team = pieceTeamKey(piece);
@@ -10592,6 +10659,14 @@ function App() {
     if (shouldCreatePlayableBaseline) {
       matchPlayableStartEstablishedRef.current = true;
       startGameTimeline(playableStart, { syncSession: Boolean(sessionCode) });
+    }
+    if (!sessionCode) {
+      matchContextRef.current = createMatchContext({
+        id: gameTimelineRef.current?.recordingId || `single-player-${Date.now()}`,
+        ruleSet: playableStart.ruleSet,
+        boardSettings: playableStart.settings,
+        gameplayCards: captureAvailableMatchCards(),
+      });
     }
     recordTimelineTransition({
       type: "MATCH_STARTED",

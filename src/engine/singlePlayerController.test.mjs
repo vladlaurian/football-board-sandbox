@@ -21,6 +21,30 @@ function command(overrides = {}) {
   };
 }
 
+function normalMoveState() {
+  return createGameState({
+    gameMode: "match",
+    pieces: [
+      { id: "ball", team: "BALL", x: 3, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 3, y: 5 },
+    ],
+    tracker: {
+      gameStarted: true,
+      startingTeam: "blue",
+      currentTurn: 1,
+      usedActions: { blue: 0, red: 0 },
+      actionLog: { blue: [], red: [] },
+      matchActionState: {},
+      turnPhase: "attack",
+      settings: { attackActions: 5, defenseActions: 4, turns: 20 },
+    },
+  });
+}
+
+function normalMoveContext() {
+  return { gameplayCards: [{ id: "card-blue-1", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] }] };
+}
+
 test("Single Player Controller records engine Free Ball result in Timeline and supports Undo/Redo", () => {
   const start = matchState();
   const dispatched = dispatchSinglePlayerGameCommand({
@@ -58,6 +82,34 @@ test("Single Player Controller leaves Timeline untouched when engine rejects com
   assert.deepEqual(dispatched.result, { accepted: false, reason: "BALL_POSITION_UNCHANGED" });
   assert.equal(dispatched.timeline.entries.length, 0);
   assert.deepEqual(dispatched.state, start);
+});
+
+test("Single Player Controller preserves Undo/Redo for normal MOVE activation and commit", () => {
+  const started = dispatchSinglePlayerGameCommand({
+    state: normalMoveState(),
+    context: normalMoveContext(),
+    command: { id: "normal-start", type: "NORMAL_MOVE_STARTED", payload: { pieceId: "blue-1" } },
+  });
+  const committed = dispatchSinglePlayerGameCommand({
+    timeline: started.timeline,
+    state: started.state,
+    context: normalMoveContext(),
+    command: { id: "normal-commit", type: "NORMAL_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 5, y: 5 } },
+  });
+  assert.equal(committed.timeline.entries.length, 2);
+  assert.equal(committed.entry.type, "PIECE_MOVED");
+  assert.equal(committed.state.tracker.usedActions.blue, 1);
+  assert.equal(committed.state.pieces.find(piece => piece.id === "blue-1").x, 5);
+
+  const undoneCommit = undoTimeline(committed.timeline);
+  assert.equal(undoneCommit.state.pieces.find(piece => piece.id === "blue-1").x, 3);
+  assert.equal(undoneCommit.state.tracker.matchActionState.activeMovement.active, true);
+  const undoneStart = undoTimeline(undoneCommit.timeline);
+  assert.equal(undoneStart.state.tracker.usedActions.blue, 0);
+  const redoneStart = redoTimeline(undoneStart.timeline);
+  const redoneCommit = redoTimeline(redoneStart.timeline);
+  assert.equal(redoneCommit.state.pieces.find(piece => piece.id === "blue-1").x, 5);
+  assert.equal(redoneCommit.state.tracker.matchActionState.activeMovement.active, false);
 });
 
 test("Single Player Controller does not depend on UI, Firebase, or browser APIs", () => {

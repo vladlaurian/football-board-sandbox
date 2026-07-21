@@ -24,6 +24,38 @@ function moveBallCommand(overrides = {}) {
   };
 }
 
+function normalMoveState(overrides = {}) {
+  return createGameState({
+    gameMode: "match",
+    pieces: [
+      { id: "ball", team: "BALL", x: 3, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", label: "Blue 1", x: 3, y: 5 },
+    ],
+    tracker: {
+      gameStarted: true,
+      startingTeam: "blue",
+      currentTurn: 1,
+      usedActions: { blue: 0, red: 0 },
+      actionLog: { blue: [], red: [] },
+      matchActionState: {},
+      turnPhase: "attack",
+      settings: { attackActions: 5, defenseActions: 4, turns: 20 },
+    },
+    ...overrides,
+  });
+}
+
+function normalMoveContext() {
+  return createMatchContext({
+    id: "normal-move-context",
+    gameplayCards: [{ id: "card-blue-1", name: "Blue 1", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] }],
+  });
+}
+
+function normalMoveCommand(type, payload = {}, id = type.toLowerCase()) {
+  return { id, type, payload: { pieceId: "blue-1", ...payload } };
+}
+
 test("FREE_BALL_MOVED produces a deterministic MatchState transition and semantic event", () => {
   const state = matchState();
   const context = createMatchContext({ id: "context-1" });
@@ -80,8 +112,59 @@ test("MatchContext is copied and frozen at creation", () => {
   assert.equal(Object.isFrozen(context.gameplayCardsById["card-1"]), true);
 });
 
+test("NORMAL_MOVE commands activate, cancel, and refund one Tracker action", () => {
+  const start = normalMoveState();
+  const activated = applyGameCommand({
+    state: start,
+    context: normalMoveContext(),
+    command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "move-start-1"),
+  });
+  assert.equal(activated.accepted, true);
+  assert.equal(activated.nextState.tracker.usedActions.blue, 1);
+  assert.equal(activated.nextState.tracker.matchActionState.activeMovement.pieceId, "blue-1");
+
+  const cancelled = applyGameCommand({
+    state: activated.nextState,
+    context: normalMoveContext(),
+    command: normalMoveCommand("NORMAL_MOVE_CANCELLED", {}, "move-cancel-1"),
+  });
+  assert.equal(cancelled.accepted, true);
+  assert.equal(cancelled.nextState.tracker.usedActions.blue, 0);
+  assert.deepEqual(cancelled.nextState.tracker.actionLog.blue, []);
+  assert.equal(cancelled.nextState.tracker.matchActionState.activeMovement.active, false);
+});
+
+test("NORMAL_MOVE_COMMITTED owns validation, movement, ball carry, and active-movement closure", () => {
+  const start = normalMoveState();
+  const activated = applyGameCommand({ state: start, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "move-start-2") });
+  const committed = applyGameCommand({
+    state: activated.nextState,
+    context: normalMoveContext(),
+    command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 5, y: 5 }, "move-commit-2"),
+  });
+  assert.equal(committed.accepted, true);
+  assert.deepEqual(committed.nextState.pieces.find(piece => piece.id === "blue-1"), { id: "blue-1", team: "A", cardId: "card-blue-1", label: "Blue 1", x: 5, y: 5 });
+  assert.deepEqual(committed.nextState.pieces.find(piece => piece.id === "ball"), { id: "ball", team: "BALL", x: 5, y: 5 });
+  assert.deepEqual(committed.nextState.movementStateByPieceId["blue-1"], { axis: "horizontal", spent: 2, distance: 2, threeTwoUsed: false, movementEnded: false });
+  assert.equal(committed.nextState.tracker.matchActionState.activeMovement.active, false);
+  assert.equal(committed.events[0].type, "PIECE_MOVED");
+});
+
+test("NORMAL_MOVE rejects invalid moves without mutating canonical MatchState", () => {
+  const start = normalMoveState();
+  const activated = applyGameCommand({ state: start, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "move-start-3") });
+  const before = structuredClone(activated.nextState);
+  const rejected = applyGameCommand({
+    state: activated.nextState,
+    context: normalMoveContext(),
+    command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 8, y: 6 }, "move-commit-3"),
+  });
+  assert.deepEqual(rejected, { accepted: false, reason: "mixed" });
+  assert.deepEqual(activated.nextState, before);
+});
+
 test("engine modules do not depend on UI, Firebase, or browser APIs", () => {
-  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs", "singlePlayerController.mjs"];
+  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs", "normalMoveRules.mjs", "singlePlayerController.mjs"];
   const forbidden = /(?:from\s+["'](?:react|firebase\/|firebase)["']|\bwindow\b|\bdocument\b|\blocalStorage\b|\bsetTimeout\b|\bsetInterval\b|\bfetch\b|\bXMLHttpRequest\b)/;
   moduleFiles.forEach(file => {
     const source = fs.readFileSync(new URL(`./${file}`, import.meta.url), "utf8");
