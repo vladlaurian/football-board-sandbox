@@ -109,7 +109,7 @@ The direct-board confirmation is not an independent Auto Move gameplay mechanic 
 
 ## Phase 4 — Remaining movement family
 
-**Status:** Complete for the movement family. 3/2 is complete in v20.17.0; Free Move is complete in v20.19.0; Group Move is complete in v20.20.0.
+**Status:** Complete for the movement family. 3/2 is complete in v20.17.0; Free Move is complete in v20.19.0; Group Move is complete in v20.20.0, with its offline UI/turn-closure correction in v20.20.1.
 
 Audit any remaining distinct movement prompt before treating it as a separate mechanic. Split into separate builds if focused tests show this phase is too broad.
 
@@ -118,6 +118,12 @@ Audit any remaining distinct movement prompt before treating it as a separate me
 Group Move now has one offline Match Mode mutation path. Pressing the button creates only a local preview zone; it is intentionally not Timeline state because it has not committed a game action. `GROUP_MOVE_ZONE_CONFIRMED` consumes the final normal Tracker action and records the confirmed zone in `matchActionState.groupMove`. Every subsequent `GROUP_MOVE_PLAYER_COMMITTED` is checked by the Engine against that frozen zone and records the existing `GROUP_MOVE_PIECE` Timeline event.
 
 The Rule Set schema is version 4 and adds `actions.groupMove.maxPlayers`, `zoneLength`, `maxDistance`, and `sameDirectionOnly`; old Rule Sets receive the approved defaults. MatchContext freezes these settings at Match start. The Engine owns zone eligibility, one move per player, maximum player count, maximum distance, first-move orientation/direction, player and ball destination restrictions, and the deliberate Group Move exception that may cross players. End Turn retains the existing turn reset and is the only normal closure. Manual Multiplayer and Editor Mode remain unchanged.
+
+### v20.20.1 — offline Single Player Group Move UI and turn-closure correction
+
+End Turn now clears the active canonical `matchActionState.groupMove` interaction before recording the next phase, so the Engine's intentional Group Move lock cannot leak into the opposing team's turn. The confirmed zone remains in MatchState exclusively for Engine eligibility validation; it is no longer rendered after confirmation. A local draft zone is positioned by dragging the band and remains non-canonical until confirmation.
+
+The board derives active-team candidate marking from exported pure Group Move eligibility evaluation: eligible candidates are highlighted; candidates in the confirmed zone that cannot participate are grey-outlined and display a lock. Cursor preview uses the same pure Group Move destination evaluator as the Engine, including Group maximum distance, established direction, occupancy/ball constraints, and the deliberate no-path-blocking exception. Manual Multiplayer and Editor Mode remain unchanged.
 
 ### v20.19.0 — offline Single Player Free Move Engine migration
 

@@ -89,6 +89,10 @@ export function BoardCanvas({
   onSelectPassRoute,
   groupMoveZone = null,
   onConfirmGroupMoveZone,
+  onGroupMoveZoneDragStart,
+  onGroupMoveZoneDragMove,
+  onGroupMoveZoneDragEnd,
+  groupMovePieceStatusById = {},
   pieces,
   getPieceDisplayLabel,
   onPiecePointerDown,
@@ -148,7 +152,37 @@ export function BoardCanvas({
           </>}
 
           {groupMoveZone && <>
-            <div className={`group-move-zone ${groupMoveZone.confirmable ? "is-draft" : "is-locked"}`} style={{ left: `calc(${groupMoveZone.zoneStartX} * var(--cell))`, width: `calc(${groupMoveZone.zoneLength} * var(--cell))` }} aria-label="Group Move zone" />
+            <div
+              className={`group-move-zone ${groupMoveZone.confirmable ? "is-draft" : "is-locked"}`}
+              style={{ left: `calc(${groupMoveZone.zoneStartX} * var(--cell))`, width: `calc(${groupMoveZone.zoneLength} * var(--cell))` }}
+              aria-label="Group Move zone"
+              onPointerDown={event => {
+                if (!groupMoveZone.confirmable) return;
+                event.preventDefault();
+                event.stopPropagation();
+                event.currentTarget.setPointerCapture?.(event.pointerId);
+                onGroupMoveZoneDragStart?.(event);
+              }}
+              onPointerMove={event => {
+                if (!groupMoveZone.confirmable) return;
+                event.preventDefault();
+                event.stopPropagation();
+                onGroupMoveZoneDragMove?.(event);
+              }}
+              onPointerUp={event => {
+                if (!groupMoveZone.confirmable) return;
+                event.preventDefault();
+                event.stopPropagation();
+                event.currentTarget.releasePointerCapture?.(event.pointerId);
+                onGroupMoveZoneDragEnd?.(event);
+              }}
+              onPointerCancel={event => {
+                if (!groupMoveZone.confirmable) return;
+                event.preventDefault();
+                event.stopPropagation();
+                onGroupMoveZoneDragEnd?.(event);
+              }}
+            />
             {groupMoveZone.confirmable && <button type="button" className="group-move-zone-confirm" style={{ left: `calc((${groupMoveZone.zoneStartX} + ${groupMoveZone.zoneLength / 2}) * var(--cell))` }} onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }} onClick={event => { event.preventDefault(); event.stopPropagation(); onConfirmGroupMoveZone?.(); }}>CONFIRM GROUP ZONE</button>}
           </>}
 
@@ -218,8 +252,9 @@ export function BoardCanvas({
           {pieces.map(piece => {
             const isBall = piece.team === "BALL";
             const normalizedPiece = withBoardPosition(piece, settings);
+            const groupMoveStatus = groupMovePieceStatusById[piece.id] || "";
             return <div key={piece.id} data-coord={normalizedPiece.coord} title={`${getPieceDisplayLabel(piece)} ${normalizedPiece.coord}${piece.cardId ? " · Card attached" : ""}${piece.inactive ? " · INACTIVE" : ""}`} className={`piece-hitbox ${isBall ? "ball-hitbox" : "player-hitbox"}`} style={{ left: `calc(${piece.x} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})`, top: `calc(${piece.y} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})` }} onPointerDown={event => onPiecePointerDown(piece.id, event)} onDoubleClick={() => openEdit(piece)}>
-              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${selectedId === piece.id ? "selected" : ""} ${activeInteractionPieceId === piece.id && selectedId !== piece.id ? "interaction-active" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""}`}>{isBall ? <MatchBallIcon className="board-ball-icon" /> : <span className="piece-label">{getPieceDisplayLabel(piece)}</span>}</div>
+              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${selectedId === piece.id ? "selected" : ""} ${activeInteractionPieceId === piece.id && selectedId !== piece.id ? "interaction-active" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""} ${groupMoveStatus ? `group-move-${groupMoveStatus}` : ""}`}>{isBall ? <MatchBallIcon className="board-ball-icon" /> : <><span className="piece-label">{getPieceDisplayLabel(piece)}</span>{groupMoveStatus === "ineligible" && <span className="group-move-lock" aria-label="Not eligible for Group Move">🔒</span>}</>}</div>
             </div>;
           })}
         </div>

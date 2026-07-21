@@ -3,6 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 import { createGameState } from "../game/gameState.mjs";
 import { applyGameCommand } from "./gameEngine.mjs";
+import { evaluateGroupMovePieceEligibility, evaluateGroupMovePlayer } from "./groupMoveRules.mjs";
 import { createMatchContext } from "./matchContext.mjs";
 
 function matchState() {
@@ -410,6 +411,36 @@ test("GROUP_MOVE confirms a zone only as the final action and then moves eligibl
   });
   assert.equal(second.accepted, true);
   assert.equal(second.nextState.tracker.matchActionState.groupMove.movedPieceIds.length, 2);
+});
+
+test("GROUP_MOVE preview evaluator uses the Engine rule and permits crossing a blocker", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 14, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 4, y: 5 },
+      { id: "blue-moved", team: "A", cardId: "card-blue-1", x: 5, y: 6 },
+      { id: "red-blocker", team: "B", x: 6, y: 5 },
+    ],
+    movementStateByPieceId: { "blue-moved": { spent: 1, distance: 1 } },
+    tracker: {
+      ...normalMoveState().tracker,
+      usedActions: { blue: 4, red: 0 },
+      actionLog: { blue: Array.from({ length: 4 }, (_, index) => ({ id: `action-${index}`, type: "PASS" })), red: [] },
+    },
+  });
+  const context = createMatchContext({ boardSettings: { cols: 20, rows: 12 }, ruleSet: { actions: { groupMove: { maxPlayers: 4, zoneLength: 5, maxDistance: 6, sameDirectionOnly: true } } } });
+  const active = applyGameCommand({ state: start, context, command: { id: "group-zone-preview", type: "GROUP_MOVE_ZONE_CONFIRMED", payload: { team: "blue", zoneStartX: 3 } } });
+  const before = structuredClone(active.nextState);
+  const eligible = evaluateGroupMovePieceEligibility(active.nextState, { payload: { pieceId: "blue-1" } });
+  const alreadyMoved = evaluateGroupMovePieceEligibility(active.nextState, { payload: { pieceId: "blue-moved" } });
+  const preview = evaluateGroupMovePlayer(active.nextState, context, { payload: { pieceId: "blue-1", x: 8, y: 5 } });
+
+  assert.equal(eligible.accepted, true);
+  assert.deepEqual(alreadyMoved, { accepted: false, reason: "GROUP_MOVE_PIECE_ALREADY_MOVED" });
+  assert.equal(preview.accepted, true);
+  assert.equal(preview.geometry.distance, 4);
+  assert.deepEqual(active.nextState, before);
 });
 
 test("GROUP_MOVE rejects unconfirmed, moved, outside-zone, ball, occupied, distance, and wrong-direction destinations", () => {

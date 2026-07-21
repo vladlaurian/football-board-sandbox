@@ -13,6 +13,7 @@ import { createMatchContext } from "./engine/matchContext.mjs";
 import { dispatchSinglePlayerGameCommand, dispatchSinglePlayerGameCommandSequence } from "./engine/singlePlayerController.mjs";
 import { firstPlayerBlockingMovementPath } from "./engine/movementPathRules.mjs";
 import { evaluateThreeTwoMove } from "./engine/threeTwoMoveRules.mjs";
+import { evaluateGroupMovePieceEligibility, evaluateGroupMovePlayer } from "./engine/groupMoveRules.mjs";
 import {
   isBenchReservePiece,
   normalizeFormationPlayers,
@@ -121,6 +122,7 @@ import { createMultiplayerTraceId, createMultiplayerTracer } from "./multiplayer
 import { canControlBonusAction, validateBonusActionEndIntent } from "./multiplayer/bonusActionAuthority.mjs";
 import { canControlResolution } from "./multiplayer/resolutionAuthority.mjs";
 import {
+  clearGroupMoveState,
   normalizeMatchActionState,
   normalizeTrackerSnapshot,
 } from "./tracker/trackerState.mjs";
@@ -164,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.20.0";
+const APP_VERSION = "v20.20.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2121,6 +2123,7 @@ function App() {
   const lastPieceTapRef = useRef({ time: 0, pieceId: "" });
   const multiTouchUntilRef = useRef(0);
   const boardPanRef = useRef(null);
+  const groupMoveZoneDragRef = useRef(null);
   const measureInteractionRef = useRef(null);
   const beforeLockViewRef = useRef(null);
   const clientIdRef = useRef(`client_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
@@ -8823,8 +8826,8 @@ function App() {
   function movementAxisSymbol(axis) {
     if (axis === "horizontal") return "↔";
     if (axis === "vertical") return "↕";
-    if (axis === "diagonal-nw-se") return "⤡";
-    if (axis === "diagonal-ne-sw") return "⤢";
+    if (axis === "diagonal-nw-se" || axis === "diagonal-positive") return "⤡";
+    if (axis === "diagonal-ne-sw" || axis === "diagonal-negative") return "⤢";
     return "";
   }
 
@@ -8855,6 +8858,20 @@ function App() {
   const selectedPiece = pieces.find(p => p.id === (activeInteractionPieceId || selectedId));
   const movementPreview = useMemo(() => {
     if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL" || !canPreviewMovementForPiece(selectedPiece)) return null;
+    const groupMove = !sessionCode && gameMode === "match" ? matchActionState.groupMove : null;
+    if (groupMove?.active) {
+      const state = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const result = evaluateGroupMovePlayer(state, singlePlayerMatchContext(), {
+        payload: { pieceId: selectedPiece.id, x: hoveredCell.x, y: hoveredCell.y },
+      });
+      if (!result.accepted) return { ...result, legal: false, label: "🚫" };
+      const axisIcon = movementAxisSymbol(result.geometry.axis);
+      return {
+        ...result,
+        legal: true,
+        label: `${axisIcon ? `${axisIcon} ` : ""}GM ${result.geometry.distance} / ${groupMove.maxDistance}`,
+      };
+    }
     const threeTwo = getThreeTwoEligibility(selectedPiece, hoveredCell.x, hoveredCell.y);
     if (threeTwo.eligible) return { ...threeTwo, legal: true, label: "3/2" };
     const result = evaluateMove(selectedPiece, hoveredCell.x, hoveredCell.y);
@@ -8875,6 +8892,20 @@ function App() {
     }
     return { ...result, label: `${axisIcon ? `${axisIcon} ` : ""}${result.moveCost ?? result.geometry.cost} / ${result.remaining}` };
   }, [selectedPiece, hoveredCell, gameMode, movementStateByPieceId, matchActionState, trackerUsedActions, cardState, sessionCardsById, sessionLibraryById, pieces, sessionCode, myTeam, cardVisibilityMode, cardRevealPermissions, user?.uid]);
+
+  const groupMovePieceStatusById = useMemo(() => {
+    const groupMove = !sessionCode && gameMode === "match" ? matchActionState.groupMove : null;
+    if (!groupMove?.active) return {};
+    const state = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const statuses = {};
+    for (const piece of pieces) {
+      if (piece.team === "BALL" || teamKeyForPiece(piece) !== groupMove.team) continue;
+      if (Number(piece.x) < groupMove.zoneStartX || Number(piece.x) >= groupMove.zoneStartX + groupMove.zoneLength) continue;
+      const eligibility = evaluateGroupMovePieceEligibility(state, { payload: { pieceId: piece.id } });
+      statuses[piece.id] = eligibility.accepted ? "eligible" : "ineligible";
+    }
+    return statuses;
+  }, [gameMode, matchActionState, pieces, sessionCode, movementStateByPieceId, trackerUsedActions]);
 
   const selectedMovementState = selectedPiece ? movementStateByPieceId[selectedPiece.id] : null;
   const selectedMovementAxis = selectedPiece && selectedPiece.team !== "BALL" && canPreviewMovementForPiece(selectedPiece) && !selectedMovementState?.movementEnded
@@ -8975,11 +9006,35 @@ function App() {
     return getRulerPointFromClient(e.clientX, e.clientY);
   }
 
-  function placeGroupMoveZoneAt(x) {
+  function startGroupMoveZoneDrag(event) {
     const draft = groupMoveZoneDraft;
-    if (!draft) return;
-    const maxStart = Math.max(0, settings.cols - draft.zoneLength);
-    setGroupMoveZoneDraft({ ...draft, zoneStartX: clamp(Math.floor(Number(x) || 0) - Math.floor(draft.zoneLength / 2), 0, maxStart) });
+    const point = draft ? gridPointFromClient(event.clientX, event.clientY) : null;
+    if (!draft || !point) return;
+    groupMoveZoneDragRef.current = {
+      pointerId: event.pointerId,
+      originStartX: draft.zoneStartX,
+      pointerStartX: point.x,
+    };
+  }
+
+  function moveGroupMoveZoneDrag(event) {
+    const drag = groupMoveZoneDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const point = gridPointFromClient(event.clientX, event.clientY);
+    if (!point) return;
+    setGroupMoveZoneDraft(current => {
+      if (!current) return current;
+      const maxStart = Math.max(0, settings.cols - current.zoneLength);
+      return {
+        ...current,
+        zoneStartX: clamp(drag.originStartX + point.x - drag.pointerStartX, 0, maxStart),
+      };
+    });
+  }
+
+  function endGroupMoveZoneDrag(event) {
+    if (groupMoveZoneDragRef.current?.pointerId !== event.pointerId) return;
+    groupMoveZoneDragRef.current = null;
   }
 
   function confirmGroupMoveZone() {
@@ -9125,8 +9180,6 @@ function App() {
 
   function onPitchPointerDown(e) {
     if (groupMoveZoneDraft) {
-      const point = gridPointFromClient(e.clientX, e.clientY);
-      if (point) placeGroupMoveZoneAt(point.x);
       e.preventDefault();
       e.stopPropagation();
       return;
@@ -9236,10 +9289,7 @@ function App() {
 
     const point = gridPointFromClient(e.clientX, e.clientY);
     if (!point) return;
-    if (groupMoveZoneDraft) {
-      placeGroupMoveZoneAt(point.x);
-      return;
-    }
+    if (groupMoveZoneDraft) return;
     if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting") {
       if (!canControlActiveResolution(actionResolutionRef.current)) return;
       choosePassTarget(point.x, point.y);
@@ -10775,7 +10825,19 @@ function App() {
     const endingTeam = pendingEndTurn.team;
     const beforeTimeline = captureTimelineGameState();
     const nextPhase = nextTrackerPhase(turnPhase);
+    const nextMatchActionState = clearGroupMoveState(beforeTimeline.tracker.matchActionState);
+    const afterTimeline = createGameState({
+      ...beforeTimeline,
+      tracker: {
+        ...beforeTimeline.tracker,
+        matchActionState: nextMatchActionState,
+        turnPhase: nextPhase,
+      },
+    });
     setPendingEndTurn(null);
+    setGroupMoveZoneDraft(null);
+    groupMoveZoneDragRef.current = null;
+    setMatchActionState(nextMatchActionState);
     setTurnPhase(nextPhase);
     setSelectedId(null);
     setHoveredCell(null);
@@ -10784,7 +10846,7 @@ function App() {
       label: `${endingTeam === "blue" ? "Blue" : "Red"} END TURN → ${nextPhase.toUpperCase()}`,
       team: endingTeam,
       before: beforeTimeline,
-      after: captureTimelineGameState({ turnPhase: nextPhase }),
+      after: afterTimeline,
     });
   }
 
@@ -11188,8 +11250,8 @@ function App() {
           const point = gridPointFromClient(gesture.startX, gesture.startY);
           if (point) moveBallFreelyTo(point.x, point.y);
         } else if (groupMoveZoneDraft) {
-          const point = gridPointFromClient(gesture.startX, gesture.startY);
-          if (point) placeGroupMoveZoneAt(point.x);
+          // The Group Move band is positioned only by dragging the band itself.
+          return;
         } else if (selectedId) {
           const point = gridPointFromClient(gesture.startX, gesture.startY);
           if (point) moveSelectedPieceTo(point.x, point.y);
@@ -11547,10 +11609,12 @@ function App() {
         onSelectPassRoute={confirmPassRoute}
         groupMoveZone={groupMoveZoneDraft
           ? { ...groupMoveZoneDraft, confirmable: true }
-          : !sessionCode && matchActionState.groupMove?.active && Number.isInteger(matchActionState.groupMove.zoneStartX) && matchActionState.groupMove.zoneLength > 0
-            ? { zoneStartX: matchActionState.groupMove.zoneStartX, zoneLength: matchActionState.groupMove.zoneLength, confirmable: false }
-            : null}
+          : null}
         onConfirmGroupMoveZone={confirmGroupMoveZone}
+        onGroupMoveZoneDragStart={startGroupMoveZoneDrag}
+        onGroupMoveZoneDragMove={moveGroupMoveZoneDrag}
+        onGroupMoveZoneDragEnd={endGroupMoveZoneDrag}
+        groupMovePieceStatusById={groupMovePieceStatusById}
         pieces={pieces}
         getPieceDisplayLabel={getPieceDisplayLabel}
         onPiecePointerDown={onPiecePointerDown}

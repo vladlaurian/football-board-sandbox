@@ -90,22 +90,29 @@ export function confirmGroupMoveZone(state, context, command) {
   };
 }
 
-export function commitGroupMovePlayer(state, context, command) {
+export function evaluateGroupMovePieceEligibility(state, command) {
   if (state.gameMode !== "match") return { accepted: false, reason: "MATCH_MODE_REQUIRED" };
   const tracker = normalizeTrackerSnapshot(state.tracker);
   const group = tracker.matchActionState.groupMove || {};
   const piece = pieceForCommand(state, command);
-  const x = Number(command.payload?.x);
-  const y = Number(command.payload?.y);
   if (!group.active || !hasGroupMoveAuthorization(tracker, group.team)) return { accepted: false, reason: "GROUP_MOVE_NOT_ACTIVE" };
   if (!piece || piece.team === "BALL" || piece.inactive || teamKeyForPiece(piece) !== group.team) return { accepted: false, reason: "GROUP_MOVE_PIECE_INVALID" };
-  if (!Number.isInteger(x) || !Number.isInteger(y) || !inBoard(context, x, y)) return { accepted: false, reason: "MOVE_DESTINATION_INVALID" };
   if (Number(piece.x) < group.zoneStartX || Number(piece.x) >= group.zoneStartX + group.zoneLength) return { accepted: false, reason: "GROUP_MOVE_OUTSIDE_ZONE" };
   if (group.movedPieceIds.includes(piece.id)) return { accepted: false, reason: "GROUP_MOVE_PIECE_ALREADY_MOVED" };
   if (group.movedPieceIds.length >= group.maxPlayers) return { accepted: false, reason: "GROUP_MOVE_LIMIT_REACHED" };
   if (hasGameplayMovement(state.movementStateByPieceId[piece.id])) return { accepted: false, reason: "GROUP_MOVE_PIECE_ALREADY_MOVED" };
   const ball = state.pieces.find(item => item?.team === "BALL");
   if (ball && Number(ball.x) === Number(piece.x) && Number(ball.y) === Number(piece.y)) return { accepted: false, reason: "GROUP_MOVE_PIECE_HAS_BALL" };
+  return { accepted: true, tracker, group, piece, ball };
+}
+
+export function evaluateGroupMovePlayer(state, context, command) {
+  const eligibility = evaluateGroupMovePieceEligibility(state, command);
+  if (!eligibility.accepted) return eligibility;
+  const { tracker, group, piece, ball } = eligibility;
+  const x = Number(command.payload?.x);
+  const y = Number(command.payload?.y);
+  if (!Number.isInteger(x) || !Number.isInteger(y) || !inBoard(context, x, y)) return { accepted: false, reason: "MOVE_DESTINATION_INVALID" };
   if (ball && Number(ball.x) === x && Number(ball.y) === y) return { accepted: false, reason: "GROUP_MOVE_BALL_DESTINATION" };
   if (state.pieces.some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === x && Number(item.y) === y)) return { accepted: false, reason: "occupied" };
   const geometry = getMovementGeometry(piece, { x, y });
@@ -114,6 +121,13 @@ export function commitGroupMovePlayer(state, context, command) {
   if (geometry.distance > group.maxDistance) return { accepted: false, reason: "GROUP_MOVE_DISTANCE" };
   const direction = directionFor(piece, x, y);
   if (group.direction && !directionMatches(group.direction, direction, group.sameDirectionOnly)) return { accepted: false, reason: "GROUP_MOVE_DIRECTION" };
+  return { accepted: true, tracker, group, piece, ball, x, y, geometry, direction };
+}
+
+export function commitGroupMovePlayer(state, context, command) {
+  const evaluation = evaluateGroupMovePlayer(state, context, command);
+  if (!evaluation.accepted) return evaluation;
+  const { tracker, group, piece, x, y, direction } = evaluation;
   const pieces = state.pieces.map(item => item.id === piece.id ? { ...item, x, y } : item);
   const matchActionState = normalizeMatchActionState({
     ...tracker.matchActionState,

@@ -6,13 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.20.0` |
-| Git/package version | `20.20.0` |
-| Build name | `Final_Board_v20_20_0_single_player_group_move_engine` |
-| Base build | `v20.19.0 single_player_free_move_engine` |
+| Sandbox version | `v20.20.1` |
+| Git/package version | `20.20.1` |
+| Build name | `Final_Board_v20_20_1_group_move_ui_turn_closure` |
+| Base build | `v20.20.0 single_player_group_move_engine` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.20.0`. The repository version is defined in `package.json` as `20.20.0`. The browser title is `Sandbox v20.20.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.20.1`. The repository version is defined in `package.json` as `20.20.1`. The browser title is `Sandbox v20.20.1`.
+
+## v20.20.1 release summary
+
+v20.20.1 corrects the offline Single Player Group Move integration without changing its approved game rules. End Turn now clears the active Group Move interaction from canonical MatchState before the next phase is recorded in Timeline; the opposing team is therefore no longer blocked by the Group Move Engine lock. The confirmed zone remains canonical for Engine validation but disappears visually after confirmation and at End Turn.
+
+The temporary zone is now positioned only by dragging the full-width band, rather than by clicking the pitch. After confirmation, players of the active team inside that frozen zone are marked directly: eligible players receive a clear highlight, while ineligible candidates receive a grey outline and a lock. The cursor preview calls the same pure Group Move evaluator used by the Engine, shows the Group Move maximum instead of card Speed, respects the first established direction, and deliberately permits a route through another player while retaining destination restrictions. Manual Multiplayer and Editor Mode remain unchanged.
 
 ## v20.20.0 release summary
 

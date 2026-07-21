@@ -76,6 +76,25 @@ export function normalizeMatchActionState(raw) {
   };
 }
 
+export function clearGroupMoveState(rawActionState) {
+  const current = normalizeMatchActionState(rawActionState);
+  if (!current.groupMove.active) return current;
+  return normalizeMatchActionState({
+    ...current,
+    groupMove: {
+      active: false,
+      team: null,
+      timelineGroupId: null,
+      zoneStartX: null,
+      zoneLength: 0,
+      maxPlayers: 0,
+      maxDistance: 0,
+      movedPieceIds: [],
+      direction: null,
+    },
+  });
+}
+
 export function normalizeTrackerSnapshot(raw = {}) {
   const rawSettings = raw.settings || {};
   const settings = {

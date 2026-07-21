@@ -22,7 +22,7 @@ This separation is documented in [`INTERCEPTION_ENGINE.md`](INTERCEPTION_ENGINE.
 
 ## Group Move settings
 
-Group Move is available only as the final normal action of the active team. Pressing it opens a temporary full-width zone preview; only confirming that zone consumes the action and freezes its Rule Set values in the MatchContext.
+Group Move is available only as the final normal action of the active team. Pressing it opens a temporary full-width zone preview, positioned by dragging the band; only confirming that zone consumes the action and freezes its Rule Set values in the MatchContext. After confirmation the band disappears, while eligible candidates are highlighted and ineligible candidates inside the frozen zone show a grey outline and lock.
 
 ### Maximum Players
 

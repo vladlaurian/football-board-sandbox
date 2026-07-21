@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeMatchActionState, normalizeTrackerSnapshot, TRACKER_ACTION_ABBR } from "./trackerState.mjs";
+import { clearGroupMoveState, normalizeMatchActionState, normalizeTrackerSnapshot, TRACKER_ACTION_ABBR } from "./trackerState.mjs";
 
 test("tracker snapshot keeps the current attacking-team field and clamps action economy", () => {
   const tracker = normalizeTrackerSnapshot({
@@ -40,4 +40,25 @@ test("normal move active interaction survives tracker normalization", () => {
     team: "blue",
     timelineGroupId: "mv-7",
   });
+});
+
+test("ending a turn clears only the active Group Move interaction", () => {
+  const state = clearGroupMoveState({
+    byPieceId: { "blue-1": { moveUsed: true, moveAuthorized: true, moveGroupId: "move-1" } },
+    groupMove: {
+      active: true,
+      team: "blue",
+      timelineGroupId: "group-1",
+      zoneStartX: 3,
+      zoneLength: 10,
+      maxPlayers: 4,
+      maxDistance: 6,
+      movedPieceIds: ["blue-2"],
+      direction: { orientation: "horizontal", dx: 1, dy: 0 },
+    },
+  });
+  assert.equal(state.groupMove.active, false);
+  assert.equal(state.groupMove.team, null);
+  assert.deepEqual(state.groupMove.movedPieceIds, []);
+  assert.deepEqual(state.byPieceId["blue-1"], { moveUsed: true, moveAuthorized: true, moveGroupId: "move-1" });
 });
