@@ -2103,6 +2103,7 @@ function App() {
   const [pendingTurnChange, setPendingTurnChange] = useState(null);
   const [turnAdvanceNotice, setTurnAdvanceNotice] = useState(false);
   const [pendingThreeTwoMove, setPendingThreeTwoMove] = useState(null);
+  const [groupMoveZoneDraft, setGroupMoveZoneDraft] = useState(null);
   const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
   const [lockUI, setLockUI] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -5670,6 +5671,7 @@ function App() {
   function toggleFreeBall(piece = null) {
     if (gameMode !== "match" || replayModeRef.current) return;
     if (!sessionCode && currentTimelineTrackerSnapshot().matchActionState.freeMode?.active) return;
+    if (!sessionCode && currentTimelineTrackerSnapshot().matchActionState.groupMove?.active) return;
     if (sessionCode && (!piece || piece.team === "BALL" || pieceTeamKey(piece) !== myTeam)) return;
     setFreeBallActive(active => {
       const next = !active;
@@ -5838,6 +5840,14 @@ function App() {
     else if (result.reason === "no-speed") primary = <>No Speed value is assigned to this player.</>;
     else if (result.reason === "occupied") primary = <>The destination cell is occupied by another player.</>;
     else if (result.reason === "path-blocked") primary = <>Another player blocks the movement path.</>;
+    else if (result.reason === "group-move-last-action-only") primary = <>GROUP MOVE is available only when exactly one normal action remains.</>;
+    else if (result.reason === "GROUP_MOVE_OUTSIDE_ZONE") primary = <>This player is outside the confirmed Group Move zone.</>;
+    else if (result.reason === "GROUP_MOVE_PIECE_ALREADY_MOVED") primary = <>This player has already moved during this turn.</>;
+    else if (result.reason === "GROUP_MOVE_PIECE_HAS_BALL") primary = <>The player carrying the ball cannot use Group Move.</>;
+    else if (result.reason === "GROUP_MOVE_LIMIT_REACHED") primary = <>The maximum number of Group Move players has been reached.</>;
+    else if (result.reason === "GROUP_MOVE_BALL_DESTINATION") primary = <>A Group Move player cannot finish on the ball.</>;
+    else if (result.reason === "GROUP_MOVE_DISTANCE") primary = <>This Group Move exceeds the configured maximum distance.</>;
+    else if (result.reason === "GROUP_MOVE_DIRECTION") primary = <>All Group Move players must follow the first movement direction.</>;
     else if (result.reason === "movement-ended") primary = <>This player has no legal movement remaining during the current turn.</>;
     else if (result.reason === "match-not-started") primary = <>Start the match in Tracker before moving players.</>;
     else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE MOVE before moving this player, or advance to next turn.</>;
@@ -6108,6 +6118,29 @@ function App() {
   function moveSelectedPieceTo(x, y) {
     const piece = (piecesRef.current || pieces).find(item => item.id === (interactionState.activePieceId || selectedId));
     if (!piece || !canMovePiece(piece)) return false;
+
+    if (!sessionCode && gameMode === "match" && matchActionState.groupMove?.active) {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`group_move_${piece.id}`),
+          type: GAME_COMMAND_TYPE.GROUP_MOVE_PLAYER_COMMITTED,
+          payload: { pieceId: piece.id, x: Number(x), y: Number(y) },
+        },
+        label: `${piece.team === "A" ? "Blue" : "Red"} Group Move: ${getPieceDisplayLabel(piece)} → ${toCoord(x, y)}`,
+      });
+      if (!dispatched.result.accepted) {
+        if (dispatched.result.reason !== "same") setIllegalMoveNotice({ reason: dispatched.result.reason });
+        return false;
+      }
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      setSelectedId(null);
+      return true;
+    }
 
     if (sessionCode && isSessionGuest && interactionState.kind === "normal-move") {
       if (normalMoveCommitIntentPendingRef.current) return false;
@@ -8942,6 +8975,38 @@ function App() {
     return getRulerPointFromClient(e.clientX, e.clientY);
   }
 
+  function placeGroupMoveZoneAt(x) {
+    const draft = groupMoveZoneDraft;
+    if (!draft) return;
+    const maxStart = Math.max(0, settings.cols - draft.zoneLength);
+    setGroupMoveZoneDraft({ ...draft, zoneStartX: clamp(Math.floor(Number(x) || 0) - Math.floor(draft.zoneLength / 2), 0, maxStart) });
+  }
+
+  function confirmGroupMoveZone() {
+    const draft = groupMoveZoneDraft;
+    if (!draft || sessionCode) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: {
+        id: createActionEventId(`group_move_zone_${draft.team}`),
+        type: GAME_COMMAND_TYPE.GROUP_MOVE_ZONE_CONFIRMED,
+        payload: { team: draft.team, zoneStartX: draft.zoneStartX },
+      },
+      label: `${draft.team === "blue" ? "Blue" : "Red"} Group Move: zone confirmed`,
+    });
+    if (!dispatched.result.accepted) {
+      setIllegalMoveNotice({ reason: dispatched.result.reason });
+      return false;
+    }
+    replaceGameTimeline(dispatched.timeline);
+    applyTimelineGameState(dispatched.state);
+    setGroupMoveZoneDraft(null);
+    return true;
+  }
+
   function buildSharedRulerState(overrides = {}) {
     return {
       active: true,
@@ -9059,6 +9124,13 @@ function App() {
   }
 
   function onPitchPointerDown(e) {
+    if (groupMoveZoneDraft) {
+      const point = gridPointFromClient(e.clientX, e.clientY);
+      if (point) placeGroupMoveZoneAt(point.x);
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     if (measureMode) {
       if (e.pointerType === "touch") return;
       e.preventDefault();
@@ -9164,6 +9236,10 @@ function App() {
 
     const point = gridPointFromClient(e.clientX, e.clientY);
     if (!point) return;
+    if (groupMoveZoneDraft) {
+      placeGroupMoveZoneAt(point.x);
+      return;
+    }
     if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting") {
       if (!canControlActiveResolution(actionResolutionRef.current)) return;
       choosePassTarget(point.x, point.y);
@@ -10393,6 +10469,8 @@ function App() {
   }
 
   async function consumeInspectorAction(type, piece) {
+    if (groupMoveZoneDraft && type !== "GROUP_MOVE") return;
+    if (!sessionCode && currentTimelineTrackerSnapshot().matchActionState.groupMove?.active) return;
     const singlePlayerFreeMode = !sessionCode && currentTimelineTrackerSnapshot().matchActionState.freeMode?.active;
     if (singlePlayerFreeMode) {
       const activeFreePieceId = currentTimelineTrackerSnapshot().matchActionState.freeMode?.pieceId;
@@ -10477,6 +10555,29 @@ function App() {
     }
     if (type === "MOVE") {
       commitNormalMoveStart(piece);
+      return;
+    }
+    if (type === "GROUP_MOVE" && !sessionCode) {
+      if (groupMoveZoneDraft) {
+        setGroupMoveZoneDraft(null);
+        return;
+      }
+      const team = pieceTeamKey(piece);
+      const tracker = currentTimelineTrackerSnapshot();
+      if (!canUseActionForPiece(piece) || !isTeamPhaseActive(team) || tracker.matchActionState.groupMove?.active) return;
+      if (getTeamActionStatus(team).remaining !== 1) {
+        setIllegalMoveNotice({ reason: "group-move-last-action-only" });
+        return;
+      }
+      const configuredLength = Math.max(1, Math.min(settings.cols, Number(activeRuleSet.actions?.groupMove?.zoneLength) || 10));
+      setGroupMoveZoneDraft({
+        team,
+        zoneStartX: Math.max(0, Math.floor((settings.cols - configuredLength) / 2)),
+        zoneLength: configuredLength,
+      });
+      cancelFreeBall();
+      setSelectedId(null);
+      setHoveredCell(null);
       return;
     }
     const currentTracker = currentTimelineTrackerSnapshot();
@@ -11086,6 +11187,9 @@ function App() {
         } else if (freeBallActive) {
           const point = gridPointFromClient(gesture.startX, gesture.startY);
           if (point) moveBallFreelyTo(point.x, point.y);
+        } else if (groupMoveZoneDraft) {
+          const point = gridPointFromClient(gesture.startX, gesture.startY);
+          if (point) placeGroupMoveZoneAt(point.x);
         } else if (selectedId) {
           const point = gridPointFromClient(gesture.startX, gesture.startY);
           if (point) moveSelectedPieceTo(point.x, point.y);
@@ -11441,6 +11545,12 @@ function App() {
         passTargetDistance={passTargetDistance}
         passRouteInteractive={actionResolution?.kind === "pass" && actionResolution.status === "route-selection" && canControlActiveResolution(actionResolution)}
         onSelectPassRoute={confirmPassRoute}
+        groupMoveZone={groupMoveZoneDraft
+          ? { ...groupMoveZoneDraft, confirmable: true }
+          : !sessionCode && matchActionState.groupMove?.active && Number.isInteger(matchActionState.groupMove.zoneStartX) && matchActionState.groupMove.zoneLength > 0
+            ? { zoneStartX: matchActionState.groupMove.zoneStartX, zoneLength: matchActionState.groupMove.zoneLength, confirmable: false }
+            : null}
+        onConfirmGroupMoveZone={confirmGroupMoveZone}
         pieces={pieces}
         getPieceDisplayLabel={getPieceDisplayLabel}
         onPiecePointerDown={onPiecePointerDown}
@@ -11557,7 +11667,7 @@ function App() {
                       <button
                         type="button"
                         className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${freeBallActive ? "is-active" : ""}`}
-                        disabled={replayModeRef.current || (!sessionCode && matchActionState.freeMode?.active) || (Boolean(sessionCode) && pieceTeamKey(inspectedPiece) !== myTeam)}
+                        disabled={replayModeRef.current || (!sessionCode && (matchActionState.freeMode?.active || matchActionState.groupMove?.active)) || (Boolean(sessionCode) && pieceTeamKey(inspectedPiece) !== myTeam)}
                         aria-pressed={freeBallActive}
                         onClick={() => toggleFreeBall(inspectedPiece)}
                       >
@@ -12118,20 +12228,20 @@ function App() {
               <span className="rule-manual-pill">Dice: manual roll only</span>
             </section>
             <section className="rule-action-card">
-              <div><strong>Group Move</strong><span>Single Player movement configuration</span></div>
-              <p>Configure the Group Move limits for new Matches. These values are frozen with the Rule Set when a Match starts.</p>
+              <div><strong>Group Move</strong><span>Last normal action only</span></div>
+              <p>These values are frozen when a Match starts. Group Move may cross players, but never finish on a player or the ball.</p>
               <label>Maximum players
-                <input disabled={ruleSetEditingLocked} type="number" min="1" max="11" step="1" value={ruleSetDraft.actions?.groupMove?.maximumPlayers ?? 4} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, maximumPlayers: clamp(Math.floor(Number(e.target.value) || 1), 1, 11) } } }))} />
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="11" step="1" value={ruleSetDraft.actions?.groupMove?.maxPlayers ?? 4} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, maxPlayers: clamp(Math.floor(Number(e.target.value) || 1), 1, 11) } } }))} />
               </label>
-              <label>Area length (squares)
-                <input disabled={ruleSetEditingLocked} type="number" min="1" max="100" step="1" value={ruleSetDraft.actions?.groupMove?.areaLength ?? 10} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, areaLength: clamp(Math.floor(Number(e.target.value) || 1), 1, 100) } } }))} />
+              <label>Zone length (squares)
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="100" step="1" value={ruleSetDraft.actions?.groupMove?.zoneLength ?? 10} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, zoneLength: clamp(Math.floor(Number(e.target.value) || 1), 1, 100) } } }))} />
               </label>
-              <label>Maximum movement (squares)
-                <input disabled={ruleSetEditingLocked} type="number" min="1" max="30" step="1" value={ruleSetDraft.actions?.groupMove?.maximumMovement ?? 6} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, maximumMovement: clamp(Math.floor(Number(e.target.value) || 1), 1, 30) } } }))} />
+              <label>Maximum distance/player
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="100" step="1" value={ruleSetDraft.actions?.groupMove?.maxDistance ?? 6} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, maxDistance: clamp(Math.floor(Number(e.target.value) || 1), 1, 100) } } }))} />
               </label>
               <label className="rule-checkbox-label">
-                <input disabled={ruleSetEditingLocked} type="checkbox" checked={ruleSetDraft.actions?.groupMove?.allowReverseMovement === true} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, allowReverseMovement: e.target.checked } } }))} />
-                Allow reverse movement on the locked line
+                <input disabled={ruleSetEditingLocked} type="checkbox" checked={ruleSetDraft.actions?.groupMove?.sameDirectionOnly !== false} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, sameDirectionOnly: e.target.checked } } }))} />
+                Same direction as first move
               </label>
             </section>
             <div className="rules-actions">

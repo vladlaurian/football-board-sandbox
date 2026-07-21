@@ -138,13 +138,6 @@ function compactRuleSet(ruleSet) {
         modifierCap: normalized.actions.interception.modifierCap,
         equalRollOutcome: normalized.actions.interception.equalRollOutcome,
       },
-      groupMove: {
-        status: normalized.actions.groupMove.status,
-        maximumPlayers: normalized.actions.groupMove.maximumPlayers,
-        areaLength: normalized.actions.groupMove.areaLength,
-        maximumMovement: normalized.actions.groupMove.maximumMovement,
-        allowReverseMovement: normalized.actions.groupMove.allowReverseMovement,
-      },
     },
   };
 }

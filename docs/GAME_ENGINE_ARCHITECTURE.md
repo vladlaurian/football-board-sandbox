@@ -85,7 +85,7 @@ A command is an attempted action. An event is a confirmed gameplay fact emitted 
 | Match | `MATCH_STARTED`, `MATCH_ENDED` |
 | Administrative ball placement | `FREE_BALL_MOVED` |
 | Normal movement | `MOVE_STARTED`, `MOVE_CANCELLED`, `MOVE_COMMITTED` |
-| Special movement | `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, `FREE_MOVE_ENDED`, `GROUP_MOVE_COMMITTED`, `AUTO_MOVE_CONFIRMED` |
+| Special movement | `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, `FREE_MOVE_ENDED`, `GROUP_MOVE_ZONE_CONFIRMED`, `GROUP_MOVE_PLAYER_COMMITTED`, `AUTO_MOVE_CONFIRMED` |
 | 3/2 | `THREE_TWO_MOVE_COMMITTED` |
 | Tracker | `TURN_PHASE_ENDED`, `TURN_CHANGED`, `POSSESSION_CHANGED` |
 | Pass | `PASS_STARTED`, `PASS_CANCELLED`, `PASS_TARGET_SELECTED`, `PASS_ROUTE_SELECTED`, `PASS_INTERCEPTOR_SELECTED` |
@@ -96,11 +96,9 @@ Future Dribble, Shot, Tackle, and Cross commands use this same contract; they mu
 
 Existing Timeline event names remain authoritative wherever possible, including `MOVE_ACTIVATED`, `MOVE_COMMITTED`, `BALL_MOVED`, `PASS_TARGETING_STARTED`, `PASS_TARGET_SELECTED`, `DICE_ROLLED`, `PASS_INTERCEPTION_MISSED`, `PASS_COMPLETED`, `PASS_INTERCEPTED`, `BONUS_ACTION_ENDED`, and `BONUS_ACTION_DECLINED`. Cosmetic renaming is prohibited.
 
-Physical player movement validates one shared path rule: every intermediate horizontal, vertical, or diagonal square must be free of players. Teammates and opponents block identically; the ball does not block. This is an Engine rule for migrated movement and is reused by temporary legacy Single Player movement paths until those mechanics migrate. Free Move is deliberately exempt because it is an administrative recovery tool, not a normal gameplay movement mechanic.
+Normal, 3/2, and Bonus player movement validate one shared path rule: every intermediate horizontal, vertical, or diagonal square must be free of players. Teammates and opponents block identically; the ball does not block. Group Move is the deliberate tactical exception: it may cross players but cannot finish on a player or ball. Free Move is deliberately exempt because it is an administrative recovery tool, not a normal gameplay movement mechanic.
 
 In offline Single Player, Free Move is nevertheless an Engine-owned, visible correction. `FREE_MOVE_STARTED`, each `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` become ordinary Timeline entries, so Undo/Redo and Replay reconstruct them step by step and AI export labels them as administrative `FREE_MODE` information. It never consumes Tracker economy. While active, it locks every other offline Match Mode command; its selected player may move without normal geometry restrictions and may share the ball square, but cannot finish on another player and never carries the ball.
-
-Group Move configuration belongs to the Rule Set and is frozen in MatchContext when a Match begins. Its approved fields are maximum players, full-width selection-area length, maximum movement per player, and whether the exact reverse direction is allowed after the first Group Move segment locks the line. The configuration must never be read from a live editable Rule Set during a tracked Match.
 
 ## 4. Ownership boundaries
 

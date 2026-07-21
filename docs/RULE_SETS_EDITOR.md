@@ -8,16 +8,39 @@ A Rule Set is normalized before use, persisted with project and match state, and
 
 Player stat definitions and values are not owned by Rule Sets. Stats are selected by stable global IDs from the global back-card schema; each card supplies its individual numeric value. `Show` affects rendering only.
 
-## v20 action separation
+## v20 action configuration
 
-Rule Set schema version 3 separates:
+Rule Set schema version 4 configures:
 
 ```text
 Pass → geometry and pass classification
 Interception → roll statistic and mathematical resolution
+Group Move → zone and coordinated movement limits
 ```
 
 This separation is documented in [`INTERCEPTION_ENGINE.md`](INTERCEPTION_ENGINE.md).
+
+## Group Move settings
+
+Group Move is available only as the final normal action of the active team. Pressing it opens a temporary full-width zone preview; only confirming that zone consumes the action and freezes its Rule Set values in the MatchContext.
+
+### Maximum Players
+
+The maximum number of different eligible players that may make one Group Move segment. Default: `4`.
+
+### Zone Length
+
+The longitudinal length of the full-width zone selected on the board before confirmation. Default: `10` squares.
+
+### Maximum Distance per Player
+
+The maximum one-segment distance for each chosen player. Card Speed is not used. Default: `6` squares.
+
+### Same Direction as First Move
+
+When enabled, every player must use the exact direction chosen by the first successful Group Move segment. When disabled, reverse movement on the same horizontal, vertical, or exact diagonal axis is allowed. Default: enabled.
+
+Group Move may cross players deliberately, but cannot finish on a player or the ball.
 
 ## Pass settings
 
@@ -102,7 +125,7 @@ Natural 1 and Natural 20 override this setting.
 
 ## Migration from earlier Rule Sets
 
-Rule Set schema version 2 stored `modifierCap` and `equalRollOutcome` under Pass. Schema version 3 migrates those values into the Interception action automatically.
+Rule Set schema version 2 stored `modifierCap` and `equalRollOutcome` under Pass. Schema version 3 migrated those values into the Interception action automatically. Schema version 4 adds Group Move settings; older Rule Sets receive the approved Group Move defaults automatically.
 
 Migration defaults preserve v19.x behavior:
 
@@ -114,7 +137,7 @@ Migration defaults preserve v19.x behavior:
 
 ## Saving, loading, and duplication
 
-New, Duplicate, Load, and Save Rule Set operate on both Pass and Interception sections. The normalized schema is stored in project state, multiplayer Match state, recordings, replay state, and AI Analysis Rule Set snapshots.
+New, Duplicate, Load, and Save Rule Set operate on Pass, Interception, and Group Move sections. The normalized schema is stored in project state, multiplayer Match state, recordings, replay state, and AI Analysis Rule Set snapshots.
 
 ## v20 testing contract
 

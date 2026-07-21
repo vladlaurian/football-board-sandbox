@@ -5,6 +5,7 @@ import { createMatchContext } from "./matchContext.mjs";
 import { cancelNormalMove, commitNormalMove, startNormalMove } from "./normalMoveRules.mjs";
 import { commitThreeTwoMove } from "./threeTwoMoveRules.mjs";
 import { commitFreeMove, endFreeMove, startFreeMove } from "./freeMoveRules.mjs";
+import { commitGroupMovePlayer, confirmGroupMoveZone } from "./groupMoveRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -55,10 +56,12 @@ export function applyGameCommand({ state, context, command } = {}) {
   const matchContext = createMatchContext(context);
   const currentState = createGameState(state);
   const freeMoveActive = Boolean(currentState.tracker?.matchActionState?.freeMode?.active);
+  const groupMoveActive = Boolean(currentState.tracker?.matchActionState?.groupMove?.active);
   if (freeMoveActive && ![
     GAME_COMMAND_TYPE.FREE_MOVE_COMMITTED,
     GAME_COMMAND_TYPE.FREE_MOVE_ENDED,
   ].includes(normalizedCommand.type)) return rejected("FREE_MOVE_ACTIVE");
+  if (groupMoveActive && normalizedCommand.type !== GAME_COMMAND_TYPE.GROUP_MOVE_PLAYER_COMMITTED) return rejected("GROUP_MOVE_ACTIVE");
   const freeMoveTransition = normalizedCommand.type === GAME_COMMAND_TYPE.FREE_MOVE_STARTED
     ? startFreeMove(currentState, normalizedCommand)
     : normalizedCommand.type === GAME_COMMAND_TYPE.FREE_MOVE_COMMITTED
@@ -72,6 +75,18 @@ export function applyGameCommand({ state, context, command } = {}) {
       ...freeMoveTransition.event,
       commandId: normalizedCommand.id,
     })], freeMoveTransition.timeline);
+  }
+  const groupMoveTransition = normalizedCommand.type === GAME_COMMAND_TYPE.GROUP_MOVE_ZONE_CONFIRMED
+    ? confirmGroupMoveZone(currentState, matchContext, normalizedCommand)
+    : normalizedCommand.type === GAME_COMMAND_TYPE.GROUP_MOVE_PLAYER_COMMITTED
+      ? commitGroupMovePlayer(currentState, matchContext, normalizedCommand)
+      : null;
+  if (groupMoveTransition) {
+    if (!groupMoveTransition.accepted) return rejected(groupMoveTransition.reason);
+    return accepted(createGameState(groupMoveTransition.nextState), [createGameEvent({
+      ...groupMoveTransition.event,
+      commandId: normalizedCommand.id,
+    })], groupMoveTransition.timeline);
   }
   if (normalizedCommand.type === GAME_COMMAND_TYPE.FREE_BALL_MOVED) {
     return applyFreeBallMoved(currentState, normalizedCommand);

@@ -87,6 +87,8 @@ export function BoardCanvas({
   passTargetDistance,
   passRouteInteractive = true,
   onSelectPassRoute,
+  groupMoveZone = null,
+  onConfirmGroupMoveZone,
   pieces,
   getPieceDisplayLabel,
   onPiecePointerDown,
@@ -143,6 +145,11 @@ export function BoardCanvas({
           {selectedPiece && <>
             <div className="selected-cell" style={{ left: `calc(${Math.floor(selectedPiece.x)} * var(--cell))`, top: `calc(${Math.floor(selectedPiece.y)} * var(--cell))` }} />
             {selectedMovementAxis && <div className="selected-axis-badge" style={{ left: `calc((${selectedPiece.x} + .82) * var(--cell))`, top: `calc((${selectedPiece.y} + .08) * var(--cell))` }}>{movementAxisSymbol(selectedMovementAxis)}</div>}
+          </>}
+
+          {groupMoveZone && <>
+            <div className={`group-move-zone ${groupMoveZone.confirmable ? "is-draft" : "is-locked"}`} style={{ left: `calc(${groupMoveZone.zoneStartX} * var(--cell))`, width: `calc(${groupMoveZone.zoneLength} * var(--cell))` }} aria-label="Group Move zone" />
+            {groupMoveZone.confirmable && <button type="button" className="group-move-zone-confirm" style={{ left: `calc((${groupMoveZone.zoneStartX} + ${groupMoveZone.zoneLength / 2}) * var(--cell))` }} onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }} onClick={event => { event.preventDefault(); event.stopPropagation(); onConfirmGroupMoveZone?.(); }}>CONFIRM GROUP ZONE</button>}
           </>}
 
           {!passActive && movementPreview && hoveredCell && <div className={`destination-cell-highlight ${!movementPreview.legal ? "illegal" : "legal"}`} style={{ left: `calc(${hoveredCell.x} * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell))` }} />}

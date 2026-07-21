@@ -64,26 +64,11 @@ test("Interception configuration normalizes independent modifier toggles", () =>
   assert.equal(normalized.actions.interception.modifierCap, 7);
 });
 
-test("Group Move configuration has stable defaults and clamps editable limits", () => {
-  const defaults = createDefaultRuleSet();
-  assert.deepEqual(defaults.actions.groupMove, {
-    status: "configured",
-    maximumPlayers: 4,
-    areaLength: 10,
-    maximumMovement: 6,
-    allowReverseMovement: false,
+test("Group Move rules are present by default and legacy Rule Sets receive stable defaults", () => {
+  const defaultRules = createDefaultRuleSet();
+  assert.deepEqual(defaultRules.actions.groupMove, {
+    status: "configured", maxPlayers: 4, zoneLength: 10, maxDistance: 6, sameDirectionOnly: true,
   });
-
-  const normalized = normalizeRuleSet({
-    id: "group-move-limits",
-    name: "Group Move Limits",
-    actions: { groupMove: { maximumPlayers: 99, areaLength: 0, maximumMovement: 999, allowReverseMovement: true } },
-  });
-  assert.deepEqual(normalized.actions.groupMove, {
-    status: "configured",
-    maximumPlayers: 11,
-    areaLength: 1,
-    maximumMovement: 30,
-    allowReverseMovement: true,
-  });
+  const legacy = normalizeRuleSet({ id: "legacy-group", schemaVersion: 3, actions: {} });
+  assert.deepEqual(legacy.actions.groupMove, defaultRules.actions.groupMove);
 });

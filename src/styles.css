@@ -7442,3 +7442,5 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 
 /* Canonical Interaction Layer highlight: presentation only. It must not activate generic board input. */
 .piece.interaction-active{outline:3px solid #ffe100;outline-offset:2px;z-index:10;box-shadow:0 0 0 2px rgba(255,225,0,.24),0 4px 10px rgba(0,0,0,.45)}
+
+.group-move-zone{position:absolute;top:0;bottom:0;border:2px dashed rgba(255,225,80,.95);background:rgba(255,225,80,.12);pointer-events:none;z-index:4}.group-move-zone.is-locked{border-style:solid;background:rgba(255,225,80,.08)}.group-move-zone-confirm{position:absolute;top:8px;transform:translateX(-50%);z-index:14;padding:7px 10px;border-radius:9px;border:1px solid rgba(255,225,80,.8);background:#3f3515;color:#fff2aa;font-weight:900;font-size:11px;cursor:pointer}.group-move-zone-confirm:active,.rules-actions button:active{transform:translateY(1px) scale(.98);filter:brightness(1.22)}

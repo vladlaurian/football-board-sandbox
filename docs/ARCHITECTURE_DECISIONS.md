@@ -323,15 +323,30 @@ UI, Controller, timers, Firebase, and future multiplayer adapters may request or
 
 **Status:** Active
 
-**Decision:** Offline Single Player physical gameplay movement cannot pass through another player. The rule is shared by Normal MOVE, 3/2, Bonus Move, and Group Move: teammates and opponents block identically, while the ball does not. Existing destination occupancy remains separate. Free Move is deliberately exempt from path, distance, axis, phase, and Tracker restrictions because it is the administrative recovery tool; it continues to preserve the board invariant that two players cannot end on the same square.
+**Decision:** Offline Single Player physical gameplay movement cannot pass through another player. The rule is shared by Normal MOVE, 3/2, and Bonus Move: teammates and opponents block identically, while the ball does not. Existing destination occupancy remains separate. Group Move is the deliberate tactical exception: it may cross players but may not finish on a player or the ball. Free Move is deliberately exempt from path, distance, axis, phase, and Tracker restrictions because it is the administrative recovery tool; it continues to preserve the board invariant that two players cannot end on the same square.
 
 **Reason:** Destination-only validation permitted players to jump over other players. Applying the rule selectively by team would create an arbitrary ghost-player exception, while constraining Free Move would remove the safety tool needed to recover from faulty or incomplete game states.
 
 **Consequences:**
 
 - `movementPathRules.mjs` is the sole pure corridor implementation.
-- Normal MOVE and 3/2 enforce it in the Engine; temporary legacy Single Player Bonus/Group paths reuse the same module.
+- Normal MOVE and 3/2 enforce it in the Engine; temporary legacy Single Player Bonus paths reuse the same module.
 - Editor Mode, Free Ball, and Manual Multiplayer are unchanged.
+
+## ADR-024 — Group Move is a zone-confirmed Engine action with a deliberate crossing exception
+
+**Status:** Active
+
+**Decision:** In offline Single Player, pressing GROUP MOVE opens only a local zone preview. The action is not consumed until `GROUP_MOVE_ZONE_CONFIRMED` establishes a full-width longitudinal zone in canonical MatchState. The confirmed zone consumes the final normal Tracker action and cannot be moved afterward. `GROUP_MOVE_PLAYER_COMMITTED` then moves eligible players one at a time under the same canonical Group Move state until its configured player limit or End Turn.
+
+Players must begin in the confirmed zone, have no ball, and have no gameplay movement during the turn; administrative Free Move does not disqualify them. Each player moves once, ignores card Speed, respects configured maximum distance, and cannot finish on a player or ball. The first successful move fixes orientation and optionally exact direction for the group. Unlike normal movement, Group Move may cross players: this is a deliberate tactical tool for moving a line and creating an offside attempt.
+
+**Consequences:**
+
+- Rule Set schema v4 owns Group Move limits and MatchContext freezes them at Match start.
+- Preview-zone repositioning is UI-only; only confirmation and physical moves enter Timeline.
+- Timeline preserves `GROUP_MOVE_ACTIVATED` and `GROUP_MOVE_PIECE`; Undo/Redo, Replay, and AI export retain their existing semantic vocabulary.
+- Manual Multiplayer and Editor Mode retain their legacy behavior.
 
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
@@ -349,24 +364,3 @@ While Free Move is active, no other offline Match Mode action may proceed. Its s
 - UI-level lock prevents remaining legacy offline action entrances and Free Ball from interleaving.
 - Undoing an end restores active Free Move; undoing a segment restores its prior board position; Redo reapplies the same sequence.
 - Manual Multiplayer and Editor Mode remain unchanged.
-
-## ADR-024 — Group Move configuration is a frozen Match rule
-
-**Status:** Active
-
-**Decision:** Group Move configuration belongs to the Rule Set rather than UI-local state. The values are `maximumPlayers`, `areaLength`, `maximumMovement`, and `allowReverseMovement`, with defaults 4, 10, 6, and false. They are normalized when Rule Sets load and frozen in MatchContext at Match start.
-
-**Reason:** A live editor value must never change the legal limits of a tracked Match halfway through its Timeline. Freezing the compact configuration gives Engine, History, Replay, and AI export one identical rule source.
-
-**Consequences:**
-
-- v20.20.0 introduces configuration only; it does not alter existing Group Move gameplay.
-- The next Group Move Engine migration must read only the MatchContext snapshot.
-- Older Rule Sets safely receive the approved defaults.
-- Manual Multiplayer remains unchanged.
-
-## Deferred rule — normal MOVE beginning from offside
-
-**Status:** Approved design; not implemented until Offside is formally defined.
-
-If a player begins a normal MOVE from an offside position, the first physical segment fixes both its axis and exact direction for the remaining normal-MOVE segments. The player cannot reverse direction during that MOVE. A subsequently legal 3/2 remains a distinct action and is not prohibited by this restriction. This is intentionally separate from Group Move, whose active state blocks 3/2 entirely.

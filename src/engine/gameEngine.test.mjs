@@ -112,27 +112,6 @@ test("MatchContext is copied and frozen at creation", () => {
   assert.equal(Object.isFrozen(context.gameplayCardsById["card-1"]), true);
 });
 
-test("MatchContext freezes the configured Group Move Rule Set values", () => {
-  const raw = {
-    id: "group-move-context",
-    ruleSet: {
-      id: "group-move-rules",
-      actions: { groupMove: { maximumPlayers: 3, areaLength: 12, maximumMovement: 8, allowReverseMovement: true } },
-    },
-  };
-  const context = createMatchContext(raw);
-  raw.ruleSet.actions.groupMove.maximumPlayers = 9;
-
-  assert.deepEqual(context.ruleSet.actions.groupMove, {
-    status: "configured",
-    maximumPlayers: 3,
-    areaLength: 12,
-    maximumMovement: 8,
-    allowReverseMovement: true,
-  });
-  assert.equal(Object.isFrozen(context.ruleSet.actions.groupMove), true);
-});
-
 test("NORMAL_MOVE commands activate, cancel, and refund one Tracker action", () => {
   const start = normalMoveState();
   const activated = applyGameCommand({
@@ -315,7 +294,7 @@ test("THREE_TWO_MOVE_COMMITTED rejects a player blocking the path to the ball", 
 });
 
 test("engine modules do not depend on UI, Firebase, or browser APIs", () => {
-  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs", "movementPathRules.mjs", "normalMoveRules.mjs", "threeTwoMoveRules.mjs", "freeMoveRules.mjs", "singlePlayerController.mjs"];
+  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs", "movementPathRules.mjs", "normalMoveRules.mjs", "threeTwoMoveRules.mjs", "freeMoveRules.mjs", "groupMoveRules.mjs", "singlePlayerController.mjs"];
   const forbidden = /(?:from\s+["'](?:react|firebase\/|firebase)["']|\bwindow\b|\bdocument\b|\blocalStorage\b|\bsetTimeout\b|\bsetInterval\b|\bfetch\b|\bXMLHttpRequest\b)/;
   moduleFiles.forEach(file => {
     const source = fs.readFileSync(new URL(`./${file}`, import.meta.url), "utf8");
@@ -387,4 +366,74 @@ test("FREE_MOVE permits the ball square but rejects a second player destination"
     state: ballSquare.nextState, context: normalMoveContext(),
     command: { id: "free-occupied", type: "FREE_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 8, y: 8 } },
   }), { accepted: false, reason: "occupied" });
+});
+
+test("GROUP_MOVE confirms a zone only as the final action and then moves eligible players through blockers", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 14, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 4, y: 5 },
+      { id: "blue-2", team: "A", cardId: "card-blue-1", x: 5, y: 6 },
+      { id: "red-blocker", team: "B", x: 6, y: 5 },
+    ],
+    tracker: {
+      ...normalMoveState().tracker,
+      usedActions: { blue: 4, red: 0 },
+      actionLog: { blue: Array.from({ length: 4 }, (_, index) => ({ id: `action-${index}`, type: "PASS", pieceId: "blue-1" })), red: [] },
+    },
+  });
+  const context = createMatchContext({ ...normalMoveContext(), boardSettings: { cols: 20, rows: 12 }, ruleSet: { actions: { groupMove: { maxPlayers: 2, zoneLength: 5, maxDistance: 6, sameDirectionOnly: true } } } });
+  const confirmed = applyGameCommand({
+    state: start, context,
+    command: { id: "group-zone", type: "GROUP_MOVE_ZONE_CONFIRMED", payload: { team: "blue", zoneStartX: 3 } },
+  });
+  assert.equal(confirmed.accepted, true);
+  assert.equal(confirmed.nextState.tracker.usedActions.blue, 5);
+  assert.deepEqual(confirmed.nextState.tracker.matchActionState.groupMove.movedPieceIds, []);
+  assert.equal(confirmed.events[0].type, "GROUP_MOVE_ACTIVATED");
+  assert.deepEqual(applyGameCommand({
+    state: confirmed.nextState, context,
+    command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "blocked-by-group"),
+  }), { accepted: false, reason: "GROUP_MOVE_ACTIVE" });
+  const first = applyGameCommand({
+    state: confirmed.nextState, context,
+    command: { id: "group-first", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-1", x: 8, y: 5 } },
+  });
+  assert.equal(first.accepted, true);
+  assert.equal(first.nextState.pieces.find(piece => piece.id === "blue-1").x, 8);
+  assert.equal(first.events[0].type, "GROUP_MOVE_PIECE");
+  assert.deepEqual(first.nextState.tracker.matchActionState.groupMove.direction, { orientation: "horizontal", dx: 1, dy: 0 });
+  const second = applyGameCommand({
+    state: first.nextState, context,
+    command: { id: "group-second", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-2", x: 9, y: 6 } },
+  });
+  assert.equal(second.accepted, true);
+  assert.equal(second.nextState.tracker.matchActionState.groupMove.movedPieceIds.length, 2);
+});
+
+test("GROUP_MOVE rejects unconfirmed, moved, outside-zone, ball, occupied, distance, and wrong-direction destinations", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 8, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 3, y: 5 },
+      { id: "blue-2", team: "A", cardId: "card-blue-1", x: 4, y: 6 },
+      { id: "blue-moved", team: "A", cardId: "card-blue-1", x: 5, y: 4 },
+      { id: "red-1", team: "B", x: 7, y: 5 },
+    ],
+    movementStateByPieceId: { "blue-moved": { spent: 1, distance: 1 } },
+    tracker: { ...normalMoveState().tracker, usedActions: { blue: 4, red: 0 }, actionLog: { blue: Array.from({ length: 4 }, (_, index) => ({ id: `a-${index}`, type: "PASS" })), red: [] } },
+  });
+  const context = createMatchContext({ boardSettings: { cols: 20, rows: 12 }, ruleSet: { actions: { groupMove: { maxPlayers: 1, zoneLength: 4, maxDistance: 3, sameDirectionOnly: true } } } });
+  assert.deepEqual(applyGameCommand({ state: start, context, command: { id: "unconfirmed", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-1", x: 4, y: 5 } } }), { accepted: false, reason: "GROUP_MOVE_NOT_ACTIVE" });
+  const active = applyGameCommand({ state: start, context, command: { id: "zone", type: "GROUP_MOVE_ZONE_CONFIRMED", payload: { team: "blue", zoneStartX: 3 } } });
+  assert.deepEqual(applyGameCommand({ state: active.nextState, context, command: { id: "moved", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-moved", x: 6, y: 4 } } }), { accepted: false, reason: "GROUP_MOVE_PIECE_ALREADY_MOVED" });
+  const carrierState = createGameState({ ...active.nextState, pieces: active.nextState.pieces.map(piece => piece.id === "ball" ? { ...piece, x: 3, y: 5 } : piece) });
+  assert.deepEqual(applyGameCommand({ state: carrierState, context, command: { id: "carrier", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-1", x: 6, y: 5 } } }), { accepted: false, reason: "GROUP_MOVE_PIECE_HAS_BALL" });
+  assert.deepEqual(applyGameCommand({ state: active.nextState, context, command: { id: "ball", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-1", x: 8, y: 5 } } }), { accepted: false, reason: "GROUP_MOVE_BALL_DESTINATION" });
+  assert.deepEqual(applyGameCommand({ state: active.nextState, context, command: { id: "occupied", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-1", x: 7, y: 5 } } }), { accepted: false, reason: "occupied" });
+  assert.deepEqual(applyGameCommand({ state: active.nextState, context, command: { id: "far", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-1", x: 7, y: 5 } } }), { accepted: false, reason: "occupied" });
+  const first = applyGameCommand({ state: active.nextState, context, command: { id: "first", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-1", x: 6, y: 5 } } });
+  assert.deepEqual(applyGameCommand({ state: first.nextState, context, command: { id: "direction", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-2", x: 4, y: 3 } } }), { accepted: false, reason: "GROUP_MOVE_LIMIT_REACHED" });
 });

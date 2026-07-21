@@ -8,7 +8,7 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 |---|---|
 | Sandbox version | `v20.20.0` |
 | Git/package version | `20.20.0` |
-| Build name | `Final_Board_v20_20_0_group_move_configuration` |
+| Build name | `Final_Board_v20_20_0_single_player_group_move_engine` |
 | Base build | `v20.19.0 single_player_free_move_engine` |
 | Modes | Editor Mode and Match Mode |
 
@@ -16,7 +16,11 @@ The visible Sandbox label is defined in `src/main.jsx` as `v20.20.0`. The reposi
 
 ## v20.20.0 release summary
 
-v20.20.0 delivers only the approved Group Move configuration foundation. Rule Set editor now stores maximum players (default 4), full-width area length (default 10), maximum movement per player (default 6), and whether exact reverse movement on the locked line is permitted (default off). Values are validated, migrate safely from earlier Rule Sets, are frozen through MatchContext when an offline Match starts, and are included in AI Analysis Rule Set export. The existing Group Move gameplay path is deliberately unchanged in this build; area selection, eligibility, Engine commands, movement rules, and visuals are the next focused migration. Manual Multiplayer remains unchanged.
+v20.20.0 migrates offline Single Player Group Move into the pure Game Engine. Pressing GROUP MOVE opens only a local, repositionable full-width zone preview; no Tracker action or Timeline entry is created yet. Confirming the zone dispatches `GROUP_MOVE_ZONE_CONFIRMED`, consumes the final normal action, locks the zone into canonical MatchState, and records `GROUP_MOVE_ACTIVATED`. Eligible players are then selected by moving them one at a time through `GROUP_MOVE_PLAYER_COMMITTED`; each segment records the existing `GROUP_MOVE_PIECE` semantic event and shares the same Timeline group.
+
+The Group Move Rule Set editor now configures maximum players (default 4), zone length (10), maximum movement distance per player (6), and whether every player must use the first movement direction (default yes). Players must begin inside the confirmed zone, belong to the active team, have no ball, and have made no gameplay movement earlier in the turn; Free Move does not disqualify them. Group Move deliberately may cross players to support line movement and offside tactics, but cannot finish on a player or the ball. The first successful segment fixes horizontal, vertical, or exact diagonal orientation and optionally direction. End Turn remains the only normal closure. Manual Multiplayer, including its legacy Group Move behavior, remains unchanged.
+
+The Rule Set modal buttons New, Duplicate, Load, and Save Rule Set now have an explicit pressed-state visual response without changing their behavior.
 
 ## v20.19.0 release summary
 

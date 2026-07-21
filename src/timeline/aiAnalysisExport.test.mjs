@@ -143,23 +143,6 @@ test("Free Move is exported as an explicit administrative correction without Tra
   assert.equal(exported.semanticTimeline[0].actionEconomyAfter.teamActionsUsed, 0);
 });
 
-test("AI export includes the frozen Group Move Rule Set configuration", () => {
-  const before = state({
-    ruleSet: {
-      id: "group-move-export",
-      actions: { groupMove: { maximumPlayers: 3, areaLength: 12, maximumMovement: 8, allowReverseMovement: true } },
-    },
-  });
-  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline: createTimeline(before) });
-  assert.deepEqual(exported.rulesetSnapshot.ruleSet.actions.groupMove, {
-    status: "configured",
-    maximumPlayers: 3,
-    areaLength: 12,
-    maximumMovement: 8,
-    allowReverseMovement: true,
-  });
-});
-
 test("Three Two is explicitly identified in AI export", () => {
   const before = state();
   const after = state({ pieces: [{ ...before.pieces[0], x: 11 }, before.pieces[1], before.pieces[2]] });

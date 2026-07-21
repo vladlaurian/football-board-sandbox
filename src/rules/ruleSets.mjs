@@ -35,10 +35,10 @@ export function createDefaultRuleSet() {
       },
       groupMove: {
         status: "configured",
-        maximumPlayers: 4,
-        areaLength: 10,
-        maximumMovement: 6,
-        allowReverseMovement: false,
+        maxPlayers: 4,
+        zoneLength: 10,
+        maxDistance: 6,
+        sameDirectionOnly: true,
       },
     },
   };
@@ -85,10 +85,10 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
       },
       groupMove: {
         status: isLegacyRuleSet || groupMove.status === "configured" ? "configured" : "not-configured",
-        maximumPlayers: Math.max(1, Math.min(11, Math.floor(Number.isFinite(Number(groupMove.maximumPlayers)) ? Number(groupMove.maximumPlayers) : 4))),
-        areaLength: Math.max(1, Math.min(100, Math.floor(Number.isFinite(Number(groupMove.areaLength)) ? Number(groupMove.areaLength) : 10))),
-        maximumMovement: Math.max(1, Math.min(30, Math.floor(Number.isFinite(Number(groupMove.maximumMovement)) ? Number(groupMove.maximumMovement) : 6))),
-        allowReverseMovement: groupMove.allowReverseMovement === true,
+        maxPlayers: Math.max(1, Math.min(11, Math.floor(Number(groupMove.maxPlayers) || 4))),
+        zoneLength: Math.max(1, Math.min(100, Math.floor(Number(groupMove.zoneLength) || 10))),
+        maxDistance: Math.max(1, Math.min(100, Math.floor(Number(groupMove.maxDistance) || 6))),
+        sameDirectionOnly: groupMove.sameDirectionOnly !== false,
       },
     },
   };

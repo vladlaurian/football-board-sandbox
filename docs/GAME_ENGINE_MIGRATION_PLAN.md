@@ -109,15 +109,15 @@ The direct-board confirmation is not an independent Auto Move gameplay mechanic 
 
 ## Phase 4 — Remaining movement family
 
-**Status:** In progress. 3/2 is complete in v20.17.0; Free Move is complete in v20.19.0; Group Move remains pending.
+**Status:** Complete for the movement family. 3/2 is complete in v20.17.0; Free Move is complete in v20.19.0; Group Move is complete in v20.20.0.
 
-Migrate Group Move. Audit any remaining distinct movement prompt before treating it as a separate mechanic. Split into separate builds if focused tests show this phase is too broad.
+Audit any remaining distinct movement prompt before treating it as a separate mechanic. Split into separate builds if focused tests show this phase is too broad.
 
-### v20.20.0 — Group Move configuration foundation
+### v20.20.0 — offline Single Player Group Move Engine migration
 
-The Group Move Rule Set fields now exist and are validated: `maximumPlayers` (4), `areaLength` (10), `maximumMovement` (6), and `allowReverseMovement` (false). They are persisted with Rule Sets, safely normalized for older data, frozen in MatchContext at offline Match start, and included in AI Analysis Rule Set export. No Group Move gameplay behavior changes in this build: the legacy activation, movement, and Manual Multiplayer paths remain deliberately untouched.
+Group Move now has one offline Match Mode mutation path. Pressing the button creates only a local preview zone; it is intentionally not Timeline state because it has not committed a game action. `GROUP_MOVE_ZONE_CONFIRMED` consumes the final normal Tracker action and records the confirmed zone in `matchActionState.groupMove`. Every subsequent `GROUP_MOVE_PLAYER_COMMITTED` is checked by the Engine against that frozen zone and records the existing `GROUP_MOVE_PIECE` Timeline event.
 
-The next Group Move build replaces the offline Single Player legacy path with the approved Engine lifecycle: temporary UI-only area placement and Cancel; confirmation that consumes the final Tracker action; canonical area/configuration/eligibility state; per-player movement; exact line locking; player-path traversal exception; ball/player destination rejection; action lock; Timeline/Undo/Redo/AI semantics; and distinct Group-ineligible visual treatment. The future normal-MOVE offside-direction rule is documented as a separate deferred requirement and is not bundled into Group Move.
+The Rule Set schema is version 4 and adds `actions.groupMove.maxPlayers`, `zoneLength`, `maxDistance`, and `sameDirectionOnly`; old Rule Sets receive the approved defaults. MatchContext freezes these settings at Match start. The Engine owns zone eligibility, one move per player, maximum player count, maximum distance, first-move orientation/direction, player and ball destination restrictions, and the deliberate Group Move exception that may cross players. End Turn retains the existing turn reset and is the only normal closure. Manual Multiplayer and Editor Mode remain unchanged.
 
 ### v20.19.0 — offline Single Player Free Move Engine migration
 

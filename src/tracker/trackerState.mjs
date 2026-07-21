@@ -48,6 +48,17 @@ export function normalizeMatchActionState(raw) {
       active: Boolean(raw?.groupMove?.active),
       team: raw?.groupMove?.team === "blue" || raw?.groupMove?.team === "red" ? raw.groupMove.team : null,
       timelineGroupId: raw?.groupMove?.timelineGroupId ? String(raw.groupMove.timelineGroupId) : null,
+      zoneStartX: Number.isInteger(Number(raw?.groupMove?.zoneStartX)) ? Number(raw.groupMove.zoneStartX) : null,
+      zoneLength: Math.max(0, Math.floor(Number(raw?.groupMove?.zoneLength) || 0)),
+      maxPlayers: Math.max(0, Math.floor(Number(raw?.groupMove?.maxPlayers) || 0)),
+      maxDistance: Math.max(0, Math.floor(Number(raw?.groupMove?.maxDistance) || 0)),
+      sameDirectionOnly: raw?.groupMove?.sameDirectionOnly !== false,
+      movedPieceIds: Array.isArray(raw?.groupMove?.movedPieceIds) ? [...new Set(raw.groupMove.movedPieceIds.map(String).filter(Boolean))] : [],
+      direction: raw?.groupMove?.direction && typeof raw.groupMove.direction === "object" ? {
+        orientation: ["horizontal", "vertical", "diagonal-positive", "diagonal-negative"].includes(raw.groupMove.direction.orientation) ? raw.groupMove.direction.orientation : null,
+        dx: [-1, 0, 1].includes(Number(raw.groupMove.direction.dx)) ? Number(raw.groupMove.direction.dx) : 0,
+        dy: [-1, 0, 1].includes(Number(raw.groupMove.direction.dy)) ? Number(raw.groupMove.direction.dy) : 0,
+      } : null,
     },
     freeMode: {
       active: hasExplicitFreeMode ? Boolean(raw.freeMode.active) : Boolean(legacyFreeEntry),

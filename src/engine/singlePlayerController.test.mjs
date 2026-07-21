@@ -206,3 +206,27 @@ test("Single Player Controller records Free Move start, segments, and end as ord
   assert.equal(redoEnd.state.tracker.matchActionState.freeMode.active, false);
   assert.equal(redoEnd.state.pieces.find(piece => piece.id === "blue-1").x, 9);
 });
+
+test("Single Player Controller records Group Move zone confirmation and each player segment through ordinary Undo/Redo", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 12, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 3, y: 5 },
+    ],
+    tracker: { ...normalMoveState().tracker, usedActions: { blue: 4, red: 0 }, actionLog: { blue: Array.from({ length: 4 }, (_, index) => ({ id: `a-${index}`, type: "PASS" })), red: [] } },
+  });
+  const context = { ...normalMoveContext(), boardSettings: { cols: 20, rows: 12 }, ruleSet: { actions: { groupMove: { maxPlayers: 4, zoneLength: 6, maxDistance: 6, sameDirectionOnly: true } } } };
+  const zone = dispatchSinglePlayerGameCommand({ state: start, context, command: { id: "group-zone", type: "GROUP_MOVE_ZONE_CONFIRMED", payload: { team: "blue", zoneStartX: 2 } } });
+  const moved = dispatchSinglePlayerGameCommand({ timeline: zone.timeline, state: zone.state, context, command: { id: "group-move", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-1", x: 7, y: 5 } } });
+  assert.deepEqual(moved.timeline.entries.map(entry => entry.type), ["GROUP_MOVE_ACTIVATED", "GROUP_MOVE_PIECE"]);
+  const undone = undoTimeline(moved.timeline);
+  assert.equal(undone.state.tracker.matchActionState.groupMove.active, true);
+  assert.equal(undone.state.pieces.find(piece => piece.id === "blue-1").x, 3);
+  const undoneZone = undoTimeline(undone.timeline);
+  assert.equal(Boolean(undoneZone.state.tracker.matchActionState.groupMove?.active), false);
+  assert.equal(undoneZone.state.tracker.usedActions.blue, 4);
+  const redoneZone = redoTimeline(undoneZone.timeline);
+  const redoneMove = redoTimeline(redoneZone.timeline);
+  assert.equal(redoneMove.state.pieces.find(piece => piece.id === "blue-1").x, 7);
+});
