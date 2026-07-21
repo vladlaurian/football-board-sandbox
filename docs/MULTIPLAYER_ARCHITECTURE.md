@@ -2,7 +2,7 @@
 
 ## Status and version
 
-This is the authoritative description of the multiplayer model in Sandbox `v20.11.3` / Git package `20.11.3`.
+This is the authoritative description of the multiplayer model in Sandbox `v20.11.4` / Git package `20.11.4`.
 
 Historical fixes are recorded in [`MULTIPLAYER_CHANGELOG.md`](MULTIPLAYER_CHANGELOG.md). Permanent cross-system decisions also appear in [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md).
 

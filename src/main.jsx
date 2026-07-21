@@ -159,7 +159,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.11.3";
+const APP_VERSION = "v20.11.4";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -3892,6 +3892,8 @@ function App() {
 
       if (ownerValid && baseRevisionValid && intent.mode === "normal-move") {
         committed = Boolean(commitNormalMoveStart(piece, { fromHostIntent: true }));
+      } else if (ownerValid && baseRevisionValid && intent.mode === "cancel-normal-move") {
+        committed = Boolean(commitNormalMoveCancellation(piece, { fromHostIntent: true }));
       } else if (ownerValid && baseRevisionValid && intent.mode === "normal-pass") {
         const noActiveFlow = !actionResolutionRef.current && !actionContinuationRef.current;
         if (noActiveFlow && playerHasBall(piece)) committed = Boolean(beginPassTargeting(piece, { fromHostIntent: true }));
@@ -8654,7 +8656,11 @@ function App() {
     canControlNormalMove: !sessionCode || myTeam === matchActionState.activeMovement?.team || isSessionHost,
   });
   const activeInteractionPieceId = interactionState.activePieceId;
-  const selectedPiece = pieces.find(p => p.id === selectedId);
+  useEffect(() => {
+    if (!activeInteractionPieceId || !interactionState.canControl) return;
+    setInspectedPieceId(activeInteractionPieceId);
+  }, [activeInteractionPieceId, interactionState.canControl]);
+  const selectedPiece = pieces.find(p => p.id === (selectedId || activeInteractionPieceId));
   const movementPreview = useMemo(() => {
     if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL" || !canPreviewMovementForPiece(selectedPiece)) return null;
     const threeTwo = getThreeTwoEligibility(selectedPiece, hoveredCell.x, hoveredCell.y);
@@ -10132,6 +10138,50 @@ function App() {
     return true;
   }
 
+  function commitNormalMoveCancellation(piece, { fromHostIntent = false } = {}) {
+    const currentTracker = currentTimelineTrackerSnapshot();
+    const active = currentTracker.matchActionState.activeMovement || {};
+    const team = pieceTeamKey(piece);
+    const log = Array.isArray(currentTracker.actionLog?.[team]) ? currentTracker.actionLog[team] : [];
+    const last = log[log.length - 1];
+    const valid = Boolean(
+      piece
+      && active.active
+      && active.kind === "normal-move"
+      && String(active.pieceId || "") === String(piece.id)
+      && active.team === team
+      && last?.type === "MOVE"
+      && String(last.pieceId || "") === String(piece.id)
+      && String(last.id || "") === String(active.timelineGroupId || "")
+    );
+    if (!valid) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const nextLog = { ...currentTracker.actionLog, [team]: log.slice(0, -1) };
+    const nextUsed = { ...currentTracker.usedActions, [team]: nextLog[team].length };
+    const nextByPieceId = { ...currentTracker.matchActionState.byPieceId };
+    delete nextByPieceId[piece.id];
+    const nextState = normalizeMatchActionState({
+      ...currentTracker.matchActionState,
+      byPieceId: nextByPieceId,
+      activeMovement: { active: false, kind: null, pieceId: null, team: null, timelineGroupId: null },
+    });
+    void applyActionStateUpdate(nextLog, nextState, nextUsed);
+    setHoveredCell(null);
+    recordTimelineTransition({
+      type: "MOVE_CANCELLED",
+      label: `${team === "blue" ? "Blue" : "Red"} MOVE cancelled: ${getPieceDisplayLabel(piece)}`,
+      team,
+      groupId: active.timelineGroupId || null,
+      before,
+      after: createGameState({
+        ...before,
+        tracker: { ...before.tracker, actionLog: nextLog, usedActions: nextUsed, matchActionState: nextState },
+      }),
+      allowNoop: true,
+    });
+    return true;
+  }
+
   async function consumeInspectorAction(type, piece) {
     if (type === "PASS" && gameMode === "match" && !playerHasBall(piece)) {
       setIllegalMoveNotice({ reason: "pass-requires-ball" });
@@ -10140,6 +10190,18 @@ function App() {
     const pendingPass = actionResolutionRef.current;
     if (pendingPass?.kind === "pass") {
       if (type === "PASS" && pendingPass.passerId === piece.id && isPassPreviewCancellable(pendingPass)) cancelPassTargeting();
+      return;
+    }
+    const activeNormalMove = currentTimelineTrackerSnapshot().matchActionState.activeMovement || {};
+    if (type === "MOVE"
+      && activeNormalMove.active
+      && activeNormalMove.kind === "normal-move"
+      && String(activeNormalMove.pieceId || "") === String(piece.id)) {
+      if (sessionCode && isSessionGuest) {
+        void requestHostActionStart({ mode: "cancel-normal-move", actionType: "MOVE", piece });
+        return;
+      }
+      commitNormalMoveCancellation(piece);
       return;
     }
     const continuation = currentBonusContinuationForTeam(pieceTeamKey(piece));
@@ -11270,10 +11332,17 @@ function App() {
                     const isPassCancel = type === "PASS"
                       && pendingPass?.passerId === inspectedPiece.id
                       && interactionState.canCancelPass;
+                    const activeNormalMove = matchActionState.activeMovement || {};
+                    const isMoveCancel = type === "MOVE"
+                      && activeNormalMove.active
+                      && activeNormalMove.kind === "normal-move"
+                      && String(activeNormalMove.pieceId || "") === String(inspectedPiece.id);
                     const passLocksActions = Boolean(pendingPass) && !isPassCancel;
                     const bonusActionAvailable = continuation?.status === CONTINUATION_STATUS.READY;
                     const disabled = isPassCancel
                       ? passCancelIntentPending
+                      : isMoveCancel
+                        ? actionStartIntentPending
                       : passLocksActions
                         ? true
                         : foreignContinuationActive
@@ -11287,7 +11356,7 @@ function App() {
                             || groupMoveActive
                             || (type === "MOVE" && pieceState.moveUsed)
                             || (type === "GROUP_MOVE" && status.remaining !== 1 && !trackerComplete);
-                    const label = isPassCancel ? "CANCEL PASS" : type.replace("GROUP_MOVE", "GROUP MOVE");
+                    const label = isPassCancel ? "CANCEL PASS" : isMoveCancel ? "CANCEL MOVE" : type.replace("GROUP_MOVE", "GROUP MOVE");
                     return <button className={`team-action-btn ${team} ${type === "GROUP_MOVE" ? "group-move-btn" : ""} ${trackerComplete ? "action-locked" : ""}`} key={type} type="button" disabled={disabled} aria-disabled={trackerComplete || disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{label}</button>;
                   })}
                 </div>

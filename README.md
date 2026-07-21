@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.11.3` |
-| Git/package version | `20.11.3` |
+| Sandbox version | `v20.11.4` |
+| Git/package version | `20.11.4` |
 | Build name | `Final_Board_v20_10_2_interaction_layer_engine_boundary_fix` |
 | Base build | `v20.10.1` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.11.3`. The repository version is defined in `package.json` as `20.11.3`. The browser title is `Sandbox v20.11.3`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.11.4`. The repository version is defined in `package.json` as `20.11.4`. The browser title is `Sandbox v20.11.4`.
 
-## v20.11.3 release summary
+## v20.11.4 release summary
 
-v20.11.3 is rebuilt directly from the v20.10.2 baseline. It migrates only normal `MOVE` through a complete vertical Host Authority lifecycle: Guest requests activation, Host records canonical `activeMovement`, Interaction Layer reconstructs the active piece independently of local selection, Guest requests the destination, and Host validates and commits the physical move. Other movement modes are intentionally unchanged.
+v20.11.4 preserves the working normal MOVE Host Authority lifecycle from v20.11.3 and repairs Guest interaction presentation. Canonical active pieces now drive the movement cursor/preview and Inspector card even when local selection is cleared. PASS keeps its active passer visible so CANCEL PASS remains accessible. Normal MOVE exposes CANCEL MOVE while the canonical move is active; cancelling before the first physical step removes the MOVE activation and restores the Tracker action economy. After the first step, activeMovement closes and CANCEL MOVE is no longer available.
 
 ## First time here?
 
@@ -80,7 +80,7 @@ docs/
 - [`DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md): mandatory implementation and release workflow.
 - [`ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md): permanent architectural decisions and invariants.
 - [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md): current multiplayer model, intent flows, authority boundaries, cleanup rules, and open storage refactor.
-- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.11.3.
+- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.11.4.
 - [`ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md): generic action-resolution lifecycle.
 - [`INTERCEPTION_ENGINE.md`](docs/INTERCEPTION_ENGINE.md): interception resolver and its boundary with Pass.
 - [`RULE_SETS_EDITOR.md`](docs/RULE_SETS_EDITOR.md): editable rules, schema and runtime effects.

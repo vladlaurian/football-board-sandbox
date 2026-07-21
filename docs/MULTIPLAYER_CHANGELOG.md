@@ -1,3 +1,15 @@
+## v20.11.4 — Guest interaction reconciliation and cancellable MOVE
+
+**Sandbox:** `v20.11.4`  
+**Git/package:** `20.11.4`
+
+- Preserves the working v20.11.3 normal MOVE Host Authority lifecycle.
+- Uses the canonical active interaction piece for movement preview/cursor when Guest local selection is cleared.
+- Keeps the active MOVE/PASS card visible in Inspector for the controlling Guest.
+- Adds canonical `CANCEL MOVE` before the first physical movement step.
+- Cancelling MOVE removes its last Tracker activation, refunds the action, clears MOVE authorization, and closes `activeMovement`.
+- After any physical MOVE step, `activeMovement` is closed and cancellation is no longer available.
+
 ## v20.11.3 — Normal MOVE vertical Host Authority migration
 
 **Sandbox:** `v20.11.3`  

@@ -107,7 +107,7 @@ export function BoardCanvas({
 
   return (
     <div
-      className={`board-wrap ${selectedId ? "piece-selected" : ""} ${passActive ? "pass-active" : ""}`}
+      className={`board-wrap ${(selectedId || activeInteractionPieceId) ? "piece-selected" : ""} ${passActive ? "pass-active" : ""}`}
       ref={boardWrapRef}
       onPointerDown={startBoardPan}
       onPointerMove={moveBoardPan}
