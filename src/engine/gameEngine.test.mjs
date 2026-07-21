@@ -195,7 +195,7 @@ test("engine modules do not depend on UI, Firebase, or browser APIs", () => {
   });
 });
 
-test("Auto Move remains outside the Phase 3 normal-MOVE engine interception", () => {
+test("legacy authorization overrides remain outside the Phase 3 normal-MOVE engine interception", () => {
   const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
   assert.match(source, /!useThreeTwo && !authorizationOverride && authorization\.mode === "normal"/);
 });

@@ -10,7 +10,7 @@ import { RotateCcw, Plus, Minus, Undo2, Redo2, Edit3, X, Dices } from "lucide-re
 import { createGameState, mergeGameState } from "./game/gameState.mjs";
 import { GAME_COMMAND_TYPE } from "./engine/gameCommands.mjs";
 import { createMatchContext } from "./engine/matchContext.mjs";
-import { dispatchSinglePlayerGameCommand } from "./engine/singlePlayerController.mjs";
+import { dispatchSinglePlayerGameCommand, dispatchSinglePlayerGameCommandSequence } from "./engine/singlePlayerController.mjs";
 import {
   isBenchReservePiece,
   normalizeFormationPlayers,
@@ -162,7 +162,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.15.0";
+const APP_VERSION = "v20.16.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -10459,6 +10459,33 @@ function App() {
     if (!pending || !shouldMove) return;
     const piece = (piecesRef.current || pieces).find(item => item.id === pending.pieceId);
     if (!piece || !canMovePiece(piece) || !canUseActionForPiece(piece)) return;
+    if (!sessionCode) {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const team = pieceTeamKey(piece);
+      const startId = createActionEventId(`normal_move_start_${piece.id}`);
+      const dispatched = dispatchSinglePlayerGameCommandSequence({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        commands: [
+          {
+            command: { id: startId, type: GAME_COMMAND_TYPE.NORMAL_MOVE_STARTED, payload: { pieceId: piece.id } },
+            label: `${team === "blue" ? "Blue" : "Red"} MOVE: ${getPieceDisplayLabel(piece)}`,
+          },
+          {
+            command: { id: createActionEventId(`normal_move_commit_${piece.id}`), type: GAME_COMMAND_TYPE.NORMAL_MOVE_COMMITTED, payload: { pieceId: piece.id, x: Number(pending.x), y: Number(pending.y) } },
+            label: `${piece.team === "A" ? "Blue" : "Red"} ${piece.label} → ${toCoord(pending.x, pending.y)}`,
+          },
+        ],
+      });
+      if (!dispatched.accepted) {
+        if (dispatched.result.reason && dispatched.result.reason !== "same") setIllegalMoveNotice({ reason: dispatched.result.reason });
+        return;
+      }
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      return;
+    }
     const team = pieceTeamKey(piece);
     const currentTracker = currentTimelineTrackerSnapshot();
     const currentLog = currentTracker.actionLog;
@@ -11479,7 +11506,8 @@ function App() {
                             || (type === "MOVE" && pieceState.moveUsed && !hasRemainingNormalMove)
                             || (type === "GROUP_MOVE" && status.remaining !== 1 && !trackerComplete);
                     const label = isPassCancel ? "CANCEL PASS" : isMoveCancel ? "CANCEL MOVE" : type.replace("GROUP_MOVE", "GROUP MOVE");
-                    return <button className={`team-action-btn ${team} ${type === "GROUP_MOVE" ? "group-move-btn" : ""} ${trackerComplete ? "action-locked" : ""}`} key={type} type="button" disabled={disabled} aria-disabled={trackerComplete || disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{label}</button>;
+                    const actionLocked = trackerComplete && !isPassCancel && !isMoveCancel;
+                    return <button className={`team-action-btn ${team} ${type === "GROUP_MOVE" ? "group-move-btn" : ""} ${actionLocked ? "action-locked" : ""}`} key={type} type="button" disabled={disabled} aria-disabled={actionLocked || disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{label}</button>;
                   })}
                 </div>
                 {inspectedPiece.inactive ? (

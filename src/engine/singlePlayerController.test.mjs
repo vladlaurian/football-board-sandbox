@@ -3,7 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 import { createGameState } from "../game/gameState.mjs";
 import { redoTimeline, undoTimeline } from "../timeline/timelineEngine.mjs";
-import { dispatchSinglePlayerGameCommand } from "./singlePlayerController.mjs";
+import { dispatchSinglePlayerGameCommand, dispatchSinglePlayerGameCommandSequence } from "./singlePlayerController.mjs";
 
 function matchState() {
   return createGameState({
@@ -123,6 +123,35 @@ test("Single Player Controller preserves Undo/Redo for progressive normal MOVE s
   const redoneContinuation = redoTimeline(redoneCommit.timeline);
   assert.equal(redoneContinuation.state.pieces.find(piece => piece.id === "blue-1").x, 6);
   assert.equal(redoneContinuation.state.tracker.matchActionState.activeMovement.active, false);
+});
+
+test("Single Player Controller publishes direct-board normal MOVE only when start and first segment both succeed", () => {
+  const start = normalMoveState();
+  const complete = dispatchSinglePlayerGameCommandSequence({
+    state: start,
+    context: normalMoveContext(),
+    commands: [
+      { command: { id: "board-start", type: "NORMAL_MOVE_STARTED", payload: { pieceId: "blue-1" } }, label: "Blue MOVE" },
+      { command: { id: "board-commit", type: "NORMAL_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 5, y: 5 } }, label: "Blue → F5" },
+    ],
+  });
+  assert.equal(complete.accepted, true);
+  assert.equal(complete.timeline.entries.length, 2);
+  assert.equal(complete.state.tracker.usedActions.blue, 1);
+  assert.equal(complete.state.tracker.matchActionState.byPieceId["blue-1"].moveAuthorized, true);
+
+  const rejected = dispatchSinglePlayerGameCommandSequence({
+    state: start,
+    context: {},
+    commands: [
+      { command: { id: "board-start-rejected", type: "NORMAL_MOVE_STARTED", payload: { pieceId: "blue-1" } } },
+      { command: { id: "board-commit-rejected", type: "NORMAL_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 5, y: 5 } } },
+    ],
+  });
+  assert.equal(rejected.accepted, false);
+  assert.deepEqual(rejected.result, { accepted: false, reason: "no-speed" });
+  assert.equal(rejected.timeline.entries.length, 0);
+  assert.equal(rejected.state.tracker.usedActions.blue, 0);
 });
 
 test("Single Player Controller does not depend on UI, Firebase, or browser APIs", () => {

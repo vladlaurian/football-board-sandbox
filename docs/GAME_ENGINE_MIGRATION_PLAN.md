@@ -97,17 +97,21 @@ The normal-MOVE Engine path uses a compact immutable MatchContext created at off
 
 ### v20.14.1 correction — Auto Move boundary
 
-v20.14.0 accidentally let the Phase 3 normal-MOVE interception capture the pre-existing offline Auto Move path that begins from a direct board click and uses an authorization override. Auto Move does not create the Phase 3 `activeMovement` state, so the Engine correctly rejected its physical commit after the legacy path had already consumed Tracker state. v20.14.1 restores the old Auto Move path by excluding authorization overrides from the Phase 3 interception. Auto Move remains pending for its explicit Phase 4 migration; no rule or manual-multiplayer behavior changed.
+v20.14.0 accidentally let the Phase 3 normal-MOVE interception capture the pre-existing offline direct-board path that begins from a confirmation and uses an authorization override. That path did not create the Phase 3 `activeMovement` state, so the Engine correctly rejected its physical commit after the legacy path had already consumed Tracker state. v20.14.1 temporarily restored the old path. v20.16.0 replaces that temporary boundary: offline direct-board confirmation now runs the same Engine command sequence as card-started normal MOVE. Manual multiplayer remains unchanged.
 
 ### v20.15.0 correction — progressive normal MOVE
 
 The intended normal-MOVE rule is progressive for the active team phase: one Tracker action authorizes one player to move in any number of legal segments without further Tracker consumption. `moveUsed` records the paid action; `moveAuthorized` is the remaining turn-scoped right to move; `activeMovement` is only the temporary interaction before the first physical segment and therefore supports Cancel/refund only at that point. After the first segment, the Engine accepts later `NORMAL_MOVE_COMMITTED` commands from the existing `moveAuthorized` state, retains the original `moveGroupId`, validates the active team phase, axis, occupancy and total Speed, and records each physical segment as `PIECE_MOVED`. Existing turn reset clears authorization. There is deliberately no End Move command.
 
+### v20.16.0 correction — one offline normal-MOVE workflow
+
+The direct-board confirmation is not an independent Auto Move gameplay mechanic in Single Player. It is a second UI entrance to normal MOVE. The modal remains UI-local, but its confirmation evaluates `NORMAL_MOVE_STARTED` followed by the first `NORMAL_MOVE_COMMITTED` through `dispatchSinglePlayerGameCommandSequence()`. The Controller publishes neither result if either command is rejected. This removes the previous React/Timeline split in direct-board movement while preserving the two existing Timeline events and their Undo/Redo semantics. The session/manual-multiplayer direct-board path is deliberately unchanged.
+
 ## Phase 4 — Remaining movement family
 
 **Status:** Pending.
 
-Migrate Free Move, 3/2, Group Move, and Auto Move. Split into separate builds if focused tests show this phase is too broad.
+Migrate Free Move, 3/2, and Group Move. Audit any remaining distinct movement prompt before treating it as a separate mechanic. Split into separate builds if focused tests show this phase is too broad.
 
 Acceptance:
 

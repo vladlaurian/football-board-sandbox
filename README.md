@@ -6,13 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.15.0` |
-| Git/package version | `20.15.0` |
-| Build name | `Final_Board_v20_15_0_single_player_progressive_move` |
-| Base build | `v20.14.1 auto_move_regression_fix` |
+| Sandbox version | `v20.16.0` |
+| Git/package version | `20.16.0` |
+| Build name | `Final_Board_v20_16_0_single_player_move_workflow_unification` |
+| Base build | `v20.15.0 single_player_progressive_move` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.15.0`. The repository version is defined in `package.json` as `20.15.0`. The browser title is `Sandbox v20.15.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.16.0`. The repository version is defined in `package.json` as `20.16.0`. The browser title is `Sandbox v20.16.0`.
+
+## v20.16.0 release summary
+
+v20.16.0 unifies the two offline Single Player entrances to normal MOVE. Confirming a direct board move no longer updates Tracker or Timeline through the old Auto Move mutation path. Instead, the Controller evaluates `NORMAL_MOVE_STARTED` and the first `NORMAL_MOVE_COMMITTED` as one unpublished sequence, then publishes both Engine-produced Timeline entries only if both succeed. Card-started MOVE and board-started MOVE therefore produce the same canonical state, including the progressive turn-scoped `moveAuthorized` right. The confirmation modal remains UI-only. Manual multiplayer and the legacy session path remain unchanged. The Cancel MOVE cursor no longer falsely appears blocked merely because the Tracker action limit is reached.
 
 ## v20.15.0 release summary
 
