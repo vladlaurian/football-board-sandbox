@@ -171,3 +171,8 @@ test("engine modules do not depend on UI, Firebase, or browser APIs", () => {
     assert.equal(forbidden.test(source), false, `${file} imports or uses a forbidden runtime dependency`);
   });
 });
+
+test("Auto Move remains outside the Phase 3 normal-MOVE engine interception", () => {
+  const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
+  assert.match(source, /!useThreeTwo && !authorizationOverride && authorization\.mode === "normal"/);
+});

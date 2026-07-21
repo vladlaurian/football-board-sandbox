@@ -95,6 +95,10 @@ Delivered files and tests:
 
 The normal-MOVE Engine path uses a compact immutable MatchContext created at offline tracked-match start. It reads Speed only from the frozen card projection. A rare compatibility fallback creates the same Context once for an older active local match that predates this build; it does not alter session/manual-multiplayer behavior. Existing Timeline event names (`MOVE_ACTIVATED`, `MOVE_CANCELLED`, `PIECE_MOVED`) and their stepwise Undo/Redo behavior are preserved.
 
+### v20.14.1 correction — Auto Move boundary
+
+v20.14.0 accidentally let the Phase 3 normal-MOVE interception capture the pre-existing offline Auto Move path that begins from a direct board click and uses an authorization override. Auto Move does not create the Phase 3 `activeMovement` state, so the Engine correctly rejected its physical commit after the legacy path had already consumed Tracker state. v20.14.1 restores the old Auto Move path by excluding authorization overrides from the Phase 3 interception. Auto Move remains pending for its explicit Phase 4 migration; no rule or manual-multiplayer behavior changed.
+
 ## Phase 4 — Remaining movement family
 
 **Status:** Pending.

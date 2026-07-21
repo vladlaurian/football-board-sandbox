@@ -162,7 +162,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.14.0";
+const APP_VERSION = "v20.14.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5923,7 +5923,7 @@ function App() {
 
   function commitPieceMove(piece, x, y, evaluation, { useThreeTwo = false, authorizationOverride = null, completeBonus = false } = {}) {
     const authorization = authorizationOverride || movementAuthorization(piece);
-    if (!sessionCode && gameMode === "match" && !useThreeTwo && authorization.mode === "normal") {
+    if (!sessionCode && gameMode === "match" && !useThreeTwo && !authorizationOverride && authorization.mode === "normal") {
       const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
       const dispatched = dispatchSinglePlayerGameCommand({
         timeline: gameTimelineRef.current,

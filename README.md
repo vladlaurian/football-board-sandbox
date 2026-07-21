@@ -6,13 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.14.0` |
-| Git/package version | `20.14.0` |
-| Build name | `Final_Board_v20_14_0_single_player_normal_move` |
-| Base build | `v20.13.0 single_player_free_ball_vertical_slice` |
+| Sandbox version | `v20.14.1` |
+| Git/package version | `20.14.1` |
+| Build name | `Final_Board_v20_14_1_auto_move_regression_fix` |
+| Base build | `v20.14.0 single_player_normal_move` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.14.0`. The repository version is defined in `package.json` as `20.14.0`. The browser title is `Sandbox v20.14.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.14.1`. The repository version is defined in `package.json` as `20.14.1`. The browser title is `Sandbox v20.14.1`.
+
+## v20.14.1 release summary
+
+v20.14.1 fixes the v20.14.0 offline Auto Move regression: selecting a player and clicking a legal destination directly on the board again follows its unchanged pre-Engine Auto Move path after confirmation. The Phase 3 Engine interception now applies only to normal MOVE commits that were started through `NORMAL_MOVE_STARTED`; it no longer intercepts Auto Move's legacy authorization override. This restores the board-click flow without migrating or changing Auto Move rules. Manual multiplayer remains unchanged.
 
 ## v20.14.0 release summary
 
