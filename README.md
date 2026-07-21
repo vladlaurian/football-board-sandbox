@@ -6,22 +6,18 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.11.1` |
-| Git/package version | `20.11.1` |
+| Sandbox version | `v20.11.2` |
+| Git/package version | `20.11.2` |
 | Build name | `Final_Board_v20_11_1_build_2A_rebuilt_live_interaction_reconciliation` |
 | Base build | `v20.11.0` (superseded/invalid) |
 | Architecture phase | `Build 2A — Canonical Gameplay Command Foundation` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.11.1`. The repository version is defined in `package.json` as `20.11.1`. The browser title is `Sandbox v20.11.1`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.11.2`. The repository version is defined in `package.json` as `20.11.2`. The browser title is `Sandbox v20.11.2`.
 
-## v20.11.1 release summary
+## v20.11.2 release summary
 
-v20.11.1 rebuilds Build 2A after v20.11.0 failed the first Guest Move test. The Canonical Gameplay Command Foundation remains, and forward live Timeline hydration now preserves a valid local selection and Inspector context between `ACTION_START` and `ACTION_STEP`. Gameplay remains Host-authoritative; selection remains local and non-authoritative.
-
-Pass and Interception are not moved into Movement. Their engines remain separate. The new command layer is an orchestrator and transport contract, not a universal rules engine.
-
-Build 2B remains required after multiplayer testing. It is limited to Interaction Layer stabilization, Inspector/selection reconciliation, lifecycle cleanup, reconnect/Undo/Redo regression handling, and removal of remaining legacy references. It must not redesign gameplay or create parallel command paths.
+v20.11.2 replaces the still-invalid v20.11.1 Guest Move handshake. The failure was an acknowledgement race: Host consumed MOVE and acknowledged the action before Guest had hydrated the new canonical Timeline revision, so the next movement command carried a stale `baseRevision`, was rejected, and cleared local selection. Host acknowledgement and Guest input are now both gated by canonical Timeline publication/hydration.
 
 ## First time here?
 
@@ -85,7 +81,7 @@ docs/
 - [`DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md): mandatory implementation and release workflow.
 - [`ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md): permanent architectural decisions and invariants.
 - [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md): current multiplayer model, intent flows, authority boundaries, cleanup rules, and open storage refactor.
-- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.11.1.
+- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.11.2.
 - [`ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md): generic action-resolution lifecycle.
 - [`INTERCEPTION_ENGINE.md`](docs/INTERCEPTION_ENGINE.md): interception resolver and its boundary with Pass.
 - [`RULE_SETS_EDITOR.md`](docs/RULE_SETS_EDITOR.md): editable rules, schema and runtime effects.

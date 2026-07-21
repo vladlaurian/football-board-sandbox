@@ -202,7 +202,7 @@ The summary must describe the delivered artifact, not the original intention.
 - Timeline performance investigation is a separate task and must not be mixed with this refactor.
 
 
-## Mandatory gameplay-command gate (v20.11.1)
+## Mandatory gameplay-command gate (v20.11.2)
 
 Before implementing or extending Move, Pass, Dribble, Shot, Cross, Tackle, Bonus Action, 3/2, Group Move, Free Move, or any future gameplay action, verify that the change follows:
 

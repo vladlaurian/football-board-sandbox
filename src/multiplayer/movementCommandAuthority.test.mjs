@@ -29,3 +29,16 @@ test("live canonical hydration preserves a valid local movement selection", () =
   assert.match(source, /shouldPreserveLocalSelectionDuringTimelineHydration/);
   assert.match(source, /preserveLocalSelection: reconciliationMode === "restore"[\s\S]*sessionActive: Boolean\(sessionCode\)/);
 });
+
+
+test("host acknowledgement waits for canonical timeline publication", () => {
+  assert.match(source, /if \(committed\) \{[\s\S]*await awaitCanonicalTimelinePublication\(\)[\s\S]*updateDoc\(sessionRuntimeRef\(code, "actionStartIntent"\)/);
+  assert.match(source, /if \(committed\) \{[\s\S]*await awaitCanonicalTimelinePublication\(\)[\s\S]*updateDoc\(sessionRuntimeRef\(code, "gameplayCommand"\)/);
+});
+
+test("guest movement remains blocked until acknowledged canonical revision is hydrated", () => {
+  assert.match(source, /actionStartAcceptedRevisionRef\.current = acceptedRevision/);
+  assert.match(source, /gameplayCommandAcceptedRevisionRef\.current = acceptedRevision/);
+  assert.match(source, /releaseCanonicalCommandBarriers\(hydrated\.revision\)/);
+  assert.match(source, /if \(actionStartIntentPendingRef\.current \|\| gameplayCommandPendingRef\.current\) return false/);
+});

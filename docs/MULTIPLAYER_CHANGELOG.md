@@ -1,7 +1,18 @@
-## v20.11.1 — Rebuilt Build 2A: live interaction reconciliation
+## v20.11.2 — Canonical acknowledgement barrier
 
-**Sandbox:** `v20.11.1`  
-**Git/package:** `20.11.1`  
+**Sandbox:** `v20.11.2`  
+**Git/package:** `20.11.2`
+
+- Marks v20.11.1 as still invalid for Guest Move.
+- Host now acknowledges action starts and movement steps only after the canonical Timeline write queue has completed.
+- Guest keeps the command pending until its hydrated Timeline revision reaches the `canonicalRevision` acknowledged by Host.
+- Movement input is blocked while either command barrier is pending, preventing stale `ACTION_STEP` requests from consuming an action and then being rejected.
+- Rejected commands still restore canonical gameplay and clear transient interaction.
+
+## v20.11.2 — Rebuilt Build 2A: live interaction reconciliation
+
+**Sandbox:** `v20.11.2`  
+**Git/package:** `20.11.2`  
 **Supersedes:** `v20.11.0`
 
 - Declares v20.11.0 invalid after the first Guest Move test consumed MOVE but erased selection before destination input.

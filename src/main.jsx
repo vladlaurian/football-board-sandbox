@@ -162,7 +162,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.11.1";
+const APP_VERSION = "v20.11.2";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2159,6 +2159,8 @@ function App() {
   const freeModeIntentPendingRef = useRef(false);
   const freeBallMoveIntentPendingRef = useRef(false);
   const gameplayCommandPendingRef = useRef(false);
+  const actionStartAcceptedRevisionRef = useRef(null);
+  const gameplayCommandAcceptedRevisionRef = useRef(null);
   const processedBonusActionEndIntentIdsRef = useRef(new Set());
   const processedPassTargetIntentIdsRef = useRef(new Set());
   const processedPassCancelIntentIdsRef = useRef(new Set());
@@ -2772,6 +2774,8 @@ function App() {
     diceRollIntentPendingRef.current = false;
     setActionStartIntentPending(false);
     actionStartIntentPendingRef.current = false;
+    actionStartAcceptedRevisionRef.current = null;
+    gameplayCommandAcceptedRevisionRef.current = null;
     setPendingAutoMove(null);
     setPendingThreeTwoMove(null);
     if (restoreCanonical) {
@@ -3056,6 +3060,27 @@ function App() {
     })) scheduleDelayedResolution(request);
   }
 
+  function releaseCanonicalCommandBarriers(canonicalRevision) {
+    const revision = Math.max(0, Number(canonicalRevision) || 0);
+    const actionStartRevision = actionStartAcceptedRevisionRef.current;
+    if (actionStartRevision != null && revision >= actionStartRevision) {
+      actionStartAcceptedRevisionRef.current = null;
+      actionStartIntentPendingRef.current = false;
+      setActionStartIntentPending(false);
+    }
+    const gameplayRevision = gameplayCommandAcceptedRevisionRef.current;
+    if (gameplayRevision != null && revision >= gameplayRevision) {
+      gameplayCommandAcceptedRevisionRef.current = null;
+      gameplayCommandPendingRef.current = false;
+      setGameplayCommandPending(false);
+    }
+  }
+
+  async function awaitCanonicalTimelinePublication() {
+    await timelineSyncQueueRef.current;
+    return Math.max(0, Number(gameTimelineRef.current?.revision) || 0);
+  }
+
   function hydrateSharedTimelineIfReady() {
     const meta = sharedTimelineMetaRef.current;
     const hydrated = hydrateSessionTimeline(meta, sessionTimelineEntriesRef.current, captureTimelineGameState());
@@ -3074,6 +3099,7 @@ function App() {
           replayMode: replayModeRef.current,
         }),
     });
+    releaseCanonicalCommandBarriers(hydrated.revision);
     // Host authority is derived from canonical state, not only from the brief
     // moment when a remote DICE_ROLLED entry is first detected.
     ensureHostCanonicalDelayedResolution(hydrated);
@@ -3882,9 +3908,18 @@ function App() {
 
       if (!sessionAuthorityRef.current.isHost) {
         if (["accepted", "rejected"].includes(String(intent.status || "")) && intent.requestedByClient === clientIdRef.current) {
-          setActionStartIntentPending(false);
-          actionStartIntentPendingRef.current = false;
-          if (intent.status === "rejected") resetTransientGameplayUI({ restoreCanonical: true });
+          if (intent.status === "rejected") {
+            setActionStartIntentPending(false);
+            actionStartIntentPendingRef.current = false;
+            actionStartAcceptedRevisionRef.current = null;
+            resetTransientGameplayUI({ restoreCanonical: true });
+          } else {
+            const acceptedRevision = Math.max(0, Number(intent.canonicalRevision) || 0);
+            actionStartAcceptedRevisionRef.current = acceptedRevision;
+            if (Math.max(0, Number(gameTimelineRef.current?.revision) || 0) >= acceptedRevision) {
+              releaseCanonicalCommandBarriers(gameTimelineRef.current?.revision);
+            }
+          }
         }
         return;
       }
@@ -3918,6 +3953,15 @@ function App() {
         }
       }
 
+      if (committed) {
+        try {
+          await awaitCanonicalTimelinePublication();
+        } catch (error) {
+          console.error("Action start canonical publication failed", error);
+          committed = false;
+        }
+      }
+
       updateDoc(sessionRuntimeRef(code, "actionStartIntent"), {
         status: committed ? "accepted" : "rejected",
         rejectionReason: committed ? null : "unauthorized-stale-or-invalid-action-start",
@@ -3940,9 +3984,18 @@ function App() {
       if (!requestId) return;
       if (!sessionAuthorityRef.current.isHost) {
         if (["accepted", "rejected"].includes(String(command.status || "")) && command.requestedByClient === clientIdRef.current) {
-          gameplayCommandPendingRef.current = false;
-          setGameplayCommandPending(false);
-          if (command.status === "rejected") resetTransientGameplayUI({ restoreCanonical: true });
+          if (command.status === "rejected") {
+            gameplayCommandPendingRef.current = false;
+            setGameplayCommandPending(false);
+            gameplayCommandAcceptedRevisionRef.current = null;
+            resetTransientGameplayUI({ restoreCanonical: true });
+          } else {
+            const acceptedRevision = Math.max(0, Number(command.canonicalRevision) || 0);
+            gameplayCommandAcceptedRevisionRef.current = acceptedRevision;
+            if (Math.max(0, Number(gameTimelineRef.current?.revision) || 0) >= acceptedRevision) {
+              releaseCanonicalCommandBarriers(gameTimelineRef.current?.revision);
+            }
+          }
         }
         return;
       }
@@ -3970,6 +4023,15 @@ function App() {
           const result = executeCanonicalMovementCommand(command, piece, routed.mode);
           committed = Boolean(result?.committed);
           rejectionReason = committed ? null : (result?.reason || "movement-command-rejected");
+        }
+      }
+      if (committed) {
+        try {
+          await awaitCanonicalTimelinePublication();
+        } catch (error) {
+          console.error("Gameplay command canonical publication failed", error);
+          committed = false;
+          rejectionReason = "canonical-publication-failed";
         }
       }
       await updateDoc(sessionRuntimeRef(code, "gameplayCommand"), {
@@ -6022,6 +6084,7 @@ function App() {
   }
 
   function moveSelectedPieceTo(x, y) {
+    if (actionStartIntentPendingRef.current || gameplayCommandPendingRef.current) return false;
     const piece = (piecesRef.current || pieces).find(item => item.id === selectedId);
     if (!piece || !canMovePiece(piece)) return false;
 
