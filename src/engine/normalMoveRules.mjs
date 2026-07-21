@@ -1,6 +1,6 @@
 import { getMovementGeometry, diagonalCostForDistance } from "../board/movementState.mjs";
 import { cardStat, teamKeyForPiece } from "../rules/passEngine.mjs";
-import { activateTrackerAction } from "../tracker/actionRules.mjs";
+import { activateTrackerAction, isTeamActiveForTrackerPhase } from "../tracker/actionRules.mjs";
 import { normalizeMatchActionState, normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 
 function normalMovementState(value) {
@@ -90,8 +90,10 @@ export function commitNormalMove(state, context, command) {
   const tracker = normalizeTrackerSnapshot(state.tracker);
   const active = tracker.matchActionState.activeMovement || {};
   const pieceState = tracker.matchActionState.byPieceId[piece.id] || {};
-  if (!active.active || active.kind !== "normal-move" || String(active.pieceId || "") !== String(piece.id)
-    || active.team !== team || !pieceState.moveAuthorized) return { accepted: false, reason: "NORMAL_MOVE_NOT_ACTIVE" };
+  const activeForPiece = active.active && active.kind === "normal-move"
+    && String(active.pieceId || "") === String(piece.id) && active.team === team;
+  if (!isTeamActiveForTrackerPhase(tracker, team)) return { accepted: false, reason: "wait-active-team" };
+  if (!pieceState.moveAuthorized || (!activeForPiece && active.active)) return { accepted: false, reason: "NORMAL_MOVE_NOT_ACTIVE" };
   const geometry = getMovementGeometry(piece, { x, y });
   if (state.pieces.some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === x && Number(item.y) === y)) return { accepted: false, reason: "occupied" };
   if (geometry.kind === "same") return { accepted: false, reason: "same" };
@@ -120,14 +122,16 @@ export function commitNormalMove(state, context, command) {
       distance: current.distance + geometry.distance,
     },
   };
-  const matchActionState = normalizeMatchActionState({
-    ...tracker.matchActionState,
-    activeMovement: { active: false, kind: null, pieceId: null, team: null, timelineGroupId: null },
-  });
+  const matchActionState = activeForPiece
+    ? normalizeMatchActionState({
+        ...tracker.matchActionState,
+        activeMovement: { active: false, kind: null, pieceId: null, team: null, timelineGroupId: null },
+      })
+    : tracker.matchActionState;
   return {
     accepted: true,
     nextState: { ...state, pieces, movementStateByPieceId, tracker: { ...state.tracker, matchActionState } },
     event: { type: "PIECE_MOVED", team, metadata: { pieceId: piece.id, from: { x: Number(piece.x), y: Number(piece.y) }, to: { x, y }, movementReason: "NORMAL_MOVE" } },
-    timeline: { groupId: active.timelineGroupId || null, undoMode: "step", allowNoop: false },
+    timeline: { groupId: activeForPiece ? active.timelineGroupId : pieceState.moveGroupId, undoMode: "step", allowNoop: false },
   };
 }

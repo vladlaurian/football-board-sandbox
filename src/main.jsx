@@ -162,7 +162,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.14.1";
+const APP_VERSION = "v20.15.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -10305,6 +10305,11 @@ function App() {
       commitNormalMoveCancellation(piece);
       return;
     }
+    if (type === "MOVE" && currentTimelineTrackerSnapshot().matchActionState.byPieceId?.[piece.id]?.moveAuthorized) {
+      setSelectedId(piece.id);
+      setHoveredCell(null);
+      return;
+    }
     const continuation = currentBonusContinuationForTeam(pieceTeamKey(piece));
     if (continuation) {
       if (!canControlBonusContinuation(continuation)) return;
@@ -11446,6 +11451,14 @@ function App() {
                       && activeNormalMove.active
                       && activeNormalMove.kind === "normal-move"
                       && String(activeNormalMove.pieceId || "") === String(inspectedPiece.id);
+                    const currentMovement = movementStateByPieceId[inspectedPiece.id] || {};
+                    const currentSpeed = getPieceSpeed(inspectedPiece);
+                    const hasRemainingNormalMove = Boolean(
+                      pieceState.moveAuthorized
+                      && !currentMovement.movementEnded
+                      && currentSpeed !== null
+                      && Number(currentMovement.spent) < currentSpeed
+                    );
                     const passLocksActions = Boolean(pendingPass) && !isPassCancel;
                     const bonusActionAvailable = continuation?.status === CONTINUATION_STATUS.READY;
                     const disabled = isPassCancel
@@ -11463,7 +11476,7 @@ function App() {
                             || matchActionState.freeMode?.active
                             || (type === "PASS" && gameMode === "match" && !playerHasBall(inspectedPiece))
                             || groupMoveActive
-                            || (type === "MOVE" && pieceState.moveUsed)
+                            || (type === "MOVE" && pieceState.moveUsed && !hasRemainingNormalMove)
                             || (type === "GROUP_MOVE" && status.remaining !== 1 && !trackerComplete);
                     const label = isPassCancel ? "CANCEL PASS" : isMoveCancel ? "CANCEL MOVE" : type.replace("GROUP_MOVE", "GROUP MOVE");
                     return <button className={`team-action-btn ${team} ${type === "GROUP_MOVE" ? "group-move-btn" : ""} ${trackerComplete ? "action-locked" : ""}`} key={type} type="button" disabled={disabled} aria-disabled={trackerComplete || disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{label}</button>;

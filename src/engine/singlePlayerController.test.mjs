@@ -84,7 +84,7 @@ test("Single Player Controller leaves Timeline untouched when engine rejects com
   assert.deepEqual(dispatched.state, start);
 });
 
-test("Single Player Controller preserves Undo/Redo for normal MOVE activation and commit", () => {
+test("Single Player Controller preserves Undo/Redo for progressive normal MOVE segments", () => {
   const started = dispatchSinglePlayerGameCommand({
     state: normalMoveState(),
     context: normalMoveContext(),
@@ -101,15 +101,28 @@ test("Single Player Controller preserves Undo/Redo for normal MOVE activation an
   assert.equal(committed.state.tracker.usedActions.blue, 1);
   assert.equal(committed.state.pieces.find(piece => piece.id === "blue-1").x, 5);
 
-  const undoneCommit = undoTimeline(committed.timeline);
+  const continued = dispatchSinglePlayerGameCommand({
+    timeline: committed.timeline,
+    state: committed.state,
+    context: normalMoveContext(),
+    command: { id: "normal-continued", type: "NORMAL_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 6, y: 5 } },
+  });
+  assert.equal(continued.timeline.entries.length, 3);
+  assert.equal(continued.state.tracker.usedActions.blue, 1);
+  assert.equal(continued.state.pieces.find(piece => piece.id === "blue-1").x, 6);
+
+  const undoneContinuation = undoTimeline(continued.timeline);
+  assert.equal(undoneContinuation.state.pieces.find(piece => piece.id === "blue-1").x, 5);
+  const undoneCommit = undoTimeline(undoneContinuation.timeline);
   assert.equal(undoneCommit.state.pieces.find(piece => piece.id === "blue-1").x, 3);
   assert.equal(undoneCommit.state.tracker.matchActionState.activeMovement.active, true);
   const undoneStart = undoTimeline(undoneCommit.timeline);
   assert.equal(undoneStart.state.tracker.usedActions.blue, 0);
   const redoneStart = redoTimeline(undoneStart.timeline);
   const redoneCommit = redoTimeline(redoneStart.timeline);
-  assert.equal(redoneCommit.state.pieces.find(piece => piece.id === "blue-1").x, 5);
-  assert.equal(redoneCommit.state.tracker.matchActionState.activeMovement.active, false);
+  const redoneContinuation = redoTimeline(redoneCommit.timeline);
+  assert.equal(redoneContinuation.state.pieces.find(piece => piece.id === "blue-1").x, 6);
+  assert.equal(redoneContinuation.state.tracker.matchActionState.activeMovement.active, false);
 });
 
 test("Single Player Controller does not depend on UI, Firebase, or browser APIs", () => {

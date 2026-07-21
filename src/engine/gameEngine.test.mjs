@@ -150,6 +150,29 @@ test("NORMAL_MOVE_COMMITTED owns validation, movement, ball carry, and active-mo
   assert.equal(committed.events[0].type, "PIECE_MOVED");
 });
 
+test("NORMAL_MOVE authorization permits later segments without another Tracker action", () => {
+  const start = normalMoveState();
+  const activated = applyGameCommand({ state: start, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "move-start-progressive") });
+  const first = applyGameCommand({ state: activated.nextState, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 4, y: 5 }, "move-first-progressive") });
+  assert.equal(first.accepted, true);
+  assert.equal(first.nextState.tracker.matchActionState.activeMovement.active, false);
+  assert.equal(first.nextState.tracker.matchActionState.byPieceId["blue-1"].moveAuthorized, true);
+
+  const second = applyGameCommand({ state: first.nextState, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 6, y: 5 }, "move-second-progressive") });
+  assert.equal(second.accepted, true);
+  assert.equal(second.nextState.tracker.usedActions.blue, 1);
+  assert.equal(second.nextState.tracker.actionLog.blue.length, 1);
+  assert.equal(second.nextState.pieces.find(piece => piece.id === "blue-1").x, 6);
+  assert.equal(second.timeline.groupId, "move-start-progressive");
+
+  const wrongAxis = applyGameCommand({ state: second.nextState, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 6, y: 6 }, "move-wrong-axis") });
+  assert.deepEqual(wrongAxis, { accepted: false, reason: "axis" });
+
+  const phaseEnded = createGameState({ ...second.nextState, tracker: { ...second.nextState.tracker, turnPhase: "defense" } });
+  const afterPhaseEnd = applyGameCommand({ state: phaseEnded, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 7, y: 5 }, "move-after-phase-end") });
+  assert.deepEqual(afterPhaseEnd, { accepted: false, reason: "wait-active-team" });
+});
+
 test("NORMAL_MOVE rejects invalid moves without mutating canonical MatchState", () => {
   const start = normalMoveState();
   const activated = applyGameCommand({ state: start, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "move-start-3") });

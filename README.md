@@ -6,13 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.14.1` |
-| Git/package version | `20.14.1` |
-| Build name | `Final_Board_v20_14_1_auto_move_regression_fix` |
-| Base build | `v20.14.0 single_player_normal_move` |
+| Sandbox version | `v20.15.0` |
+| Git/package version | `20.15.0` |
+| Build name | `Final_Board_v20_15_0_single_player_progressive_move` |
+| Base build | `v20.14.1 auto_move_regression_fix` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.14.1`. The repository version is defined in `package.json` as `20.14.1`. The browser title is `Sandbox v20.14.1`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.15.0`. The repository version is defined in `package.json` as `20.15.0`. The browser title is `Sandbox v20.15.0`.
+
+## v20.15.0 release summary
+
+v20.15.0 restores the intended progressive normal-MOVE rule for offline Single Player. One Tracker MOVE action grants `moveAuthorized` for the rest of the active team phase. The player may then make any number of legal movement segments without extra Tracker consumption, while the Engine preserves the first movement axis and total Speed budget. `activeMovement` remains only the temporary pre-first-move interaction that supports Cancel/refund. Once a physical segment exists, the existing authorization remains until the normal turn reset; there is no End Move command. Manual multiplayer, Auto Move, 3/2, Free Move, Group Move, and Bonus Move are unchanged.
 
 ## v20.14.1 release summary
 
