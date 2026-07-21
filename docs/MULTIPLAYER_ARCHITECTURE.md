@@ -269,3 +269,11 @@ In multiplayer, each client may activate Free Move and Free Ball only for its ow
 - `freeBallMoveIntent` handles the one-shot Free Ball placement.
 - Guests never commit `FREE_MODE_STARTED`, `FREE_MOVE`, `FREE_MODE_ENDED`, or `BALL_MOVED` directly.
 - Ownership is validated against the canonical team owner before the host applies the transition.
+
+## Interaction Layer reconstruction (v20.10)
+
+Host Authority + Timeline + typed intents remain unchanged. Active UI interaction context is not transmitted as an additional multiplayer state.
+
+After each canonical Timeline hydration, both clients independently derive the same active gameplay piece and interaction mode from `actionResolution`, `actionContinuation`, and Match state. Authority flags are then applied locally so both clients can render the canonical interaction while only the owning client can control it.
+
+`selectedId` and `inspectedPieceId` remain local UI state. They are not authoritative and are not required for Pass cancellation, Bonus Action completion, or reconstruction after synchronization.

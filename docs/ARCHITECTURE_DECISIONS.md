@@ -191,3 +191,24 @@ Bonus Pass activation and Pass targeting are one atomic canonical transition (`B
 ## Selection is not action authorization
 
 **Decision:** Player selection and card inspection are always local UI operations. Turn ownership, Pass ownership, Bonus Action ownership, and multiplayer team ownership are enforced only when a gameplay action is attempted. A canonical action may therefore block mutation without blocking inspection.
+
+## Interaction Layer is a derived projection (v20.10)
+
+Canonical gameplay state remains the only authority for active interactions. The UI must not use `selectedId` or `inspectedPieceId` as a substitute for active gameplay state.
+
+The local Interaction Layer is derived from:
+
+- `actionResolution` for active Pass flows;
+- `actionContinuation` for Bonus Action flows;
+- `matchActionState.freeMode` for Free Move;
+- local authority context for whether the client may control the interaction.
+
+The projection supplies the active piece, interaction type, cursor mode and canonical controls. Local free selection and Inspector state remain separate and are never synchronized as gameplay.
+
+Consequences:
+
+- Timeline hydration, Undo/Redo, rollback and guest synchronization automatically reconstruct the active gameplay selection;
+- `CANCEL PASS` derives from the canonical Pass resolution and never from the inspected piece;
+- `END B.A.` derives from the canonical Bonus Action continuation and never from the inspected piece;
+- inspection remains locally free even while another piece is canonically active;
+- transient UI cleanup may clear local selection without destroying the active interaction context.

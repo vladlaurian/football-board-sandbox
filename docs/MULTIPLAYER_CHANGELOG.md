@@ -145,3 +145,13 @@ Do not create a new multiplayer document for each patch. For future releases:
 2. append one release entry here;
 3. update permanent cross-system consequences in `ARCHITECTURE_DECISIONS.md` when required;
 4. keep README limited to orientation and the current release summary.
+
+## v20.10 — Interaction Layer structural refactor
+
+- Added a pure Interaction Layer projection for Pass, Bonus Action, and Free Move.
+- Active gameplay selection is reconstructed from canonical state after Timeline hydration and multiplayer synchronization.
+- Decoupled `CANCEL PASS` from selected/inspected pieces.
+- Decoupled `END B.A.` from selected/inspected pieces.
+- Preserved free local inspection while a canonical interaction remains active.
+- Added unit coverage for host/guest visibility, ownership, reconstruction, and ghost-selection prevention.
+- Host Authority, Timeline structure, semantic intents, and game design are unchanged.

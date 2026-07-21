@@ -136,3 +136,7 @@ Every build must record and verify:
 - no `node_modules`, `dist`, temporary files, logs, caches, package lock, or secrets in the release archive.
 
 A version is not considered updated until the Sandbox label, browser title, package version, README record, and archive name agree. Documentation-only consolidation may retain the application version when no runtime behavior changes, but the README build name and base build must still identify the delivered archive accurately.
+
+### v20.10 — Interaction Layer Refactor
+
+Active gameplay interaction is now derived from canonical Timeline state instead of depending on local selection or Inspector state. Pass, Bonus Action, and Free Move reconstruct their active piece locally on both host and guest. `CANCEL PASS` and `END B.A.` are canonical interaction controls and remain available independently of which card is inspected.

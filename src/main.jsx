@@ -46,6 +46,7 @@ import { resolveInterception } from "./rules/interceptionEngine.mjs";
 import { BoardCanvas } from "./board/BoardCanvas.jsx";
 import { MatchBallIcon } from "./board/MatchBallIcon.jsx";
 import { clamp } from "./game/numberUtils.mjs";
+import { deriveInteractionState, effectiveSelectedPieceId } from "./game/interactionState.mjs";
 import {
   closeTimeline,
   commitTimelineEntry,
@@ -5915,7 +5916,7 @@ function App() {
   }
 
   function moveSelectedPieceTo(x, y) {
-    const piece = (piecesRef.current || pieces).find(item => item.id === selectedId);
+    const piece = (piecesRef.current || pieces).find(item => item.id === (interactionState.activePieceId || selectedId));
     if (!piece || !canMovePiece(piece)) return false;
 
     const continuation = actionContinuationRef.current;
@@ -8533,7 +8534,16 @@ function App() {
     return "";
   }
 
-  const selectedPiece = pieces.find(p => p.id === selectedId);
+  const interactionState = useMemo(() => deriveInteractionState({
+    pieces,
+    actionResolution,
+    actionContinuation,
+    matchActionState,
+    canControlResolution: canControlActiveResolution(actionResolution),
+    canControlContinuation: canControlBonusContinuation(actionContinuation),
+  }), [pieces, actionResolution, actionContinuation, matchActionState, sessionCode, isSessionHost, myTeam, replayMode]);
+  const effectiveSelectedId = effectiveSelectedPieceId(selectedId, interactionState);
+  const selectedPiece = pieces.find(p => p.id === effectiveSelectedId);
   const movementPreview = useMemo(() => {
     if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL" || !canPreviewMovementForPiece(selectedPiece)) return null;
     const threeTwo = getThreeTwoEligibility(selectedPiece, hoveredCell.x, hoveredCell.y);
@@ -8853,7 +8863,7 @@ function App() {
     const pass = actionResolutionRef.current;
     if (pass?.kind === "pass" && pass.status !== "targeting") {
       setHoveredCell(null);
-    } else if (selectedId && e.pointerType !== "touch") {
+    } else if (effectiveSelectedId && e.pointerType !== "touch") {
       setHoveredCell(gridPointFromClient(e.clientX, e.clientY, { clampToBoard: false }));
     }
 
@@ -8896,7 +8906,7 @@ function App() {
       moveBallFreelyTo(point.x, point.y);
       return;
     }
-    if (selectedId) moveSelectedPieceTo(point.x, point.y);
+    if (effectiveSelectedId) moveSelectedPieceTo(point.x, point.y);
   }
 
   function onHistoryPointerDown(e) {
@@ -10284,9 +10294,8 @@ function App() {
     }
   }
 
-  function endBonusAction(piece) {
-    const team = pieceTeamKey(piece);
-    const continuation = currentBonusContinuationForTeam(team);
+  function endBonusAction() {
+    const continuation = actionContinuationRef.current;
     if (!continuation || !canControlBonusContinuation(continuation) || actionResolutionRef.current) return;
     if (sessionCode && !sessionAuthorityRef.current.isHost) {
       requestBonusActionEnd(continuation);
@@ -10595,7 +10604,7 @@ function App() {
         } else if (freeBallActive) {
           const point = gridPointFromClient(gesture.startX, gesture.startY);
           if (point) moveBallFreelyTo(point.x, point.y);
-        } else if (selectedId) {
+        } else if (effectiveSelectedId) {
           const point = gridPointFromClient(gesture.startX, gesture.startY);
           if (point) moveSelectedPieceTo(point.x, point.y);
         }
@@ -10915,7 +10924,7 @@ function App() {
       <BoardCanvas
         boardWrapRef={boardWrapRef}
         pitchRef={pitchRef}
-        selectedId={selectedId}
+        selectedId={effectiveSelectedId}
         setHoveredCell={setHoveredCell}
         startBoardPan={startBoardPan}
         moveBoardPan={moveBoardPan}
@@ -11035,26 +11044,6 @@ function App() {
                     </button>
                   ))}
                   <div className="inspector-turn-actions">
-                    {actionContinuation?.kind === "bonus-card-action" && (
-                      <button
-                        type="button"
-                        className={`inspector-flip-request-btn team-action-btn ${pieceTeamKey(inspectedPiece)}`}
-                        disabled={
-                          pieceTeamKey(inspectedPiece) !== actionContinuation.team
-                          || !canControlBonusContinuation(actionContinuation)
-                          || bonusActionEndIntentPending
-                          || ![
-                            CONTINUATION_STATUS.READY,
-                            CONTINUATION_STATUS.ACTION_ACTIVE,
-                            CONTINUATION_STATUS.AWAITING_END_BONUS_ACTION,
-                          ].includes(actionContinuation.status)
-                          || Boolean(actionResolution)
-                        }
-                        onClick={() => endBonusAction(inspectedPiece)}
-                      >
-                        END B.A.
-                      </button>
-                    )}
                     <button
                       type="button"
                       className={`inspector-flip-request-btn team-action-btn ${pieceTeamKey(inspectedPiece)}`}
@@ -11101,11 +11090,10 @@ function App() {
                     const continuation = currentBonusContinuationForTeam(team);
                     const foreignContinuationActive = actionContinuation?.kind === "bonus-card-action" && actionContinuation.team !== team;
                     const pendingPass = actionResolution?.kind === "pass" ? actionResolution : null;
-                    const isPassCancel = type === "PASS" && pendingPass?.passerId === inspectedPiece.id && isPassPreviewCancellable(pendingPass);
                     const passLocksActions = Boolean(pendingPass);
                     const bonusActionAvailable = continuation?.status === CONTINUATION_STATUS.READY;
                     const disabled = passLocksActions
-                      ? !isPassCancel
+                      ? true
                       : foreignContinuationActive
                         ? true
                       : bonusActionAvailable
@@ -11117,7 +11105,7 @@ function App() {
                           || groupMoveActive
                           || (type === "MOVE" && pieceState.moveUsed)
                           || (type === "GROUP_MOVE" && status.remaining !== 1 && !trackerComplete);
-                    const label = isPassCancel ? "CANCEL PASS" : type.replace("GROUP_MOVE", "GROUP MOVE");
+                    const label = type.replace("GROUP_MOVE", "GROUP MOVE");
                     return <button className={`team-action-btn ${team} ${type === "GROUP_MOVE" ? "group-move-btn" : ""} ${trackerComplete ? "action-locked" : ""}`} key={type} type="button" disabled={disabled} aria-disabled={trackerComplete || disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{label}</button>;
                   })}
                 </div>
@@ -11463,7 +11451,12 @@ function App() {
           ? `Select a ${actionContinuation.team === "blue" ? "Blue" : "Red"} player and choose one card action, or press END B.A. to decline it.`
           : actionContinuation.status === CONTINUATION_STATUS.ACTION_ACTIVE
             ? `${actionContinuation.team === "blue" ? "Blue" : "Red"} is taking the bonus ${String(actionContinuation.actionType || "card").replace("_", " ")} action.`
-            : `${actionContinuation.team === "blue" ? "Blue" : "Red"} completed the bonus action. Press END B.A. to continue.`}</span></DraggableActionPrompt>
+            : `${actionContinuation.team === "blue" ? "Blue" : "Red"} completed the bonus action. Press END B.A. to continue.`}</span>
+          {interactionState.canEndBonusAction && <button type="button" disabled={bonusActionEndIntentPending} onClick={endBonusAction}>END B.A.</button>}
+        </DraggableActionPrompt>
+      )}
+      {interactionState.canCancelPass && (
+        <DraggableActionPrompt promptKey="canonical-pass-cancel" className="pass"><strong>Pass active</strong><span>The passer and pass context are restored from canonical gameplay state.</span><button type="button" disabled={passCancelIntentPending} onClick={cancelPassTargeting}>CANCEL PASS</button></DraggableActionPrompt>
       )}
 
       {passResultNotice && (

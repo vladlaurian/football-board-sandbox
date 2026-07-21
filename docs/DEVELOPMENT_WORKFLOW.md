@@ -190,3 +190,13 @@ Every delivered build must be accompanied by a factual summary stating:
 - the final archive structure and version metadata verification.
 
 The summary must describe the delivered artifact, not the original intention.
+
+
+## Future Architecture Note – Interaction Layer Refactor
+
+- Keep Host Authority + Timeline + Intents as the canonical multiplayer architecture.
+- Do not rewrite multiplayer to solve current UI bugs.
+- Refactor the Interaction Layer so UI derives from canonical gameplay state.
+- Cancel Pass and End Bonus Action must not depend on local selection.
+- Guest should reconstruct interaction context from canonical action state after synchronization.
+- Timeline performance investigation is a separate task and must not be mixed with this refactor.
