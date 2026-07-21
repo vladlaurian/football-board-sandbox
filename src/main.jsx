@@ -159,7 +159,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.11.5";
+const APP_VERSION = "v20.11.6";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2064,6 +2064,7 @@ function App() {
   const [bonusActionEndIntentPending, setBonusActionEndIntentPending] = useState(false);
   const [diceRollIntentPending, setDiceRollIntentPending] = useState(false);
   const [actionStartIntentPending, setActionStartIntentPending] = useState(false);
+  const [pendingInteractionPieceId, setPendingInteractionPieceId] = useState(null);
   const [normalMoveCommitIntentPending, setNormalMoveCommitIntentPending] = useState(false);
   const [freeModeIntentPending, setFreeModeIntentPending] = useState(false);
   const [freeBallMoveIntentPending, setFreeBallMoveIntentPending] = useState(false);
@@ -3877,7 +3878,10 @@ function App() {
         if (["accepted", "rejected"].includes(String(intent.status || "")) && intent.requestedByClient === clientIdRef.current) {
           setActionStartIntentPending(false);
           actionStartIntentPendingRef.current = false;
-          if (intent.status === "rejected") resetTransientGameplayUI({ restoreCanonical: true });
+          if (intent.status === "rejected") {
+            setPendingInteractionPieceId(null);
+            resetTransientGameplayUI({ restoreCanonical: true });
+          }
         }
         return;
       }
@@ -8656,11 +8660,21 @@ function App() {
     canControlNormalMove: !sessionCode || myTeam === matchActionState.activeMovement?.team || isSessionHost,
   });
   const activeInteractionPieceId = interactionState.activePieceId;
+  const inspectorAnchorPieceId = activeInteractionPieceId || selectedId || pendingInteractionPieceId;
   useEffect(() => {
-    if (!activeInteractionPieceId || !interactionState.canControl) return;
-    setInspectedPieceId(activeInteractionPieceId);
-  }, [activeInteractionPieceId, interactionState.canControl]);
-  const selectedPiece = pieces.find(p => p.id === (selectedId || activeInteractionPieceId));
+    if (activeInteractionPieceId && pendingInteractionPieceId === activeInteractionPieceId) {
+      setPendingInteractionPieceId(null);
+    }
+  }, [activeInteractionPieceId, pendingInteractionPieceId]);
+  useEffect(() => {
+    if (inspectorAnchorPieceId) {
+      setInspectedPieceId(inspectorAnchorPieceId);
+      return;
+    }
+    setHoveredCell(null);
+    setInspectedPieceId(null);
+  }, [inspectorAnchorPieceId]);
+  const selectedPiece = pieces.find(p => p.id === (activeInteractionPieceId || selectedId));
   const movementPreview = useMemo(() => {
     if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL" || !canPreviewMovementForPiece(selectedPiece)) return null;
     const threeTwo = getThreeTwoEligibility(selectedPiece, hoveredCell.x, hoveredCell.y);
@@ -8688,15 +8702,6 @@ function App() {
   const selectedMovementAxis = selectedPiece && selectedPiece.team !== "BALL" && canPreviewMovementForPiece(selectedPiece) && !selectedMovementState?.movementEnded
     ? selectedMovementState?.axis || null
     : null;
-
-  useEffect(() => {
-    if (!selectedId) {
-      setHoveredCell(null);
-      setInspectedPieceId(null);
-    } else {
-      setInspectedPieceId(selectedId);
-    }
-  }, [selectedId]);
 
   const coordinateCells = useMemo(() => {
     if (!showCoordinates) return [];
@@ -9304,6 +9309,7 @@ function App() {
     const requestId = createActionEventId(`action_start_${mode}_${piece.id}`);
     setActionStartIntentPending(true);
     actionStartIntentPendingRef.current = true;
+    if (["normal-move", "normal-pass"].includes(mode)) setPendingInteractionPieceId(piece.id);
     try {
       await setDoc(sessionRuntimeRef(sessionCode.toUpperCase(), "actionStartIntent"), {
         requestId,
@@ -9323,6 +9329,7 @@ function App() {
     } catch (error) {
       setActionStartIntentPending(false);
       actionStartIntentPendingRef.current = false;
+      setPendingInteractionPieceId(null);
       console.error("Action start intent failed", error);
       return false;
     }

@@ -201,3 +201,11 @@ Do not create a new multiplayer document for each patch. For future releases:
 - Fixed Guest `END BA` being silently rejected after an active Bonus Action.
 - `validateBonusActionEndIntent` now accepts the canonical `action-active` continuation state, matching `endContinuationAction`, which already supports ending an active bonus action.
 - MOVE, PASS, card selection reconciliation, and other gameplay flows are unchanged in this build.
+
+
+## v20.11.6 — Guest Inspector interaction reconciliation
+
+- Kept the Inspector anchored to the canonical active MOVE/PASS piece.
+- Added a temporary requested-piece anchor across the Guest-to-Host start handoff, eliminating the empty Inspector frame before Timeline hydration.
+- Prevented local target/inspection selection from replacing the active passer or mover card.
+- No gameplay authority, movement, pass, or Bonus Action rules changed.

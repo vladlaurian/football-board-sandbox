@@ -6,13 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.11.5` |
-| Git/package version | `20.11.5` |
-| Build name | `Final_Board_v20_10_2_interaction_layer_engine_boundary_fix` |
-| Base build | `v20.10.1` |
+| Sandbox version | `v20.11.6` |
+| Git/package version | `20.11.6` |
+| Build name | `Final_Board_v20_11_6_guest_inspector_interaction_reconciliation` |
+| Base build | `v20.11.5` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.11.5`. The repository version is defined in `package.json` as `20.11.5`. The browser title is `Sandbox v20.11.5`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.11.6`. The repository version is defined in `package.json` as `20.11.6`. The browser title is `Sandbox v20.11.6`.
+
+## v20.11.6 release summary
+
+v20.11.6 stabilizes Guest Inspector reconciliation for canonical MOVE and PASS interactions. The Inspector now anchors to the canonical active piece, preserves the requested piece during the Guest-to-Host handoff, and does not let a volatile local selection clear or replace the active gameplay card. This removes the card flicker at PASS start, keeps the passer card open after target selection, and keeps the MOVE card open while Cancel Move is available. Gameplay authority and action engines are unchanged.
 
 ## v20.11.5 release summary
 
@@ -80,7 +84,7 @@ docs/
 - [`DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md): mandatory implementation and release workflow.
 - [`ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md): permanent architectural decisions and invariants.
 - [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md): current multiplayer model, intent flows, authority boundaries, cleanup rules, and open storage refactor.
-- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.11.5.
+- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.11.6.
 - [`ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md): generic action-resolution lifecycle.
 - [`INTERCEPTION_ENGINE.md`](docs/INTERCEPTION_ENGINE.md): interception resolver and its boundary with Pass.
 - [`RULE_SETS_EDITOR.md`](docs/RULE_SETS_EDITOR.md): editable rules, schema and runtime effects.
