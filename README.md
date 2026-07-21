@@ -6,13 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.17.0` |
-| Git/package version | `20.17.0` |
-| Build name | `Final_Board_v20_17_0_single_player_three_two_engine` |
-| Base build | `v20.16.0 single_player_move_workflow_unification` |
+| Sandbox version | `v20.18.0` |
+| Git/package version | `20.18.0` |
+| Build name | `Final_Board_v20_18_0_single_player_movement_path_blocking` |
+| Base build | `v20.17.0 single_player_three_two_engine` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.17.0`. The repository version is defined in `package.json` as `20.17.0`. The browser title is `Sandbox v20.17.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.18.0`. The repository version is defined in `package.json` as `20.18.0`. The browser title is `Sandbox v20.18.0`.
+
+## v20.18.0 release summary
+
+v20.18.0 introduces one pure movement-path rule for offline Single Player. Normal MOVE, 3/2, Bonus Move, and Group Move may not pass through a co-player or opponent; the destination remains subject to the existing occupancy rule. The shared path rule checks every intermediate horizontal, vertical, or diagonal square and deliberately ignores the ball. Free Move remains an unrestricted administrative safety tool: it does not use path blocking, distance, axis, phase, or Tracker restrictions, while retaining the existing no-two-players-on-one-square invariant. Editor Mode, Free Ball, and Manual Multiplayer remain unchanged.
 
 ## v20.17.0 release summary
 

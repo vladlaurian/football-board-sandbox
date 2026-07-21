@@ -2,6 +2,7 @@ import { getMovementGeometry } from "../board/movementState.mjs";
 import { cardStat, teamKeyForPiece } from "../rules/passEngine.mjs";
 import { isTeamActiveForTrackerPhase } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
+import { firstPlayerBlockingMovementPath } from "./movementPathRules.mjs";
 
 function threeTwoMovementState(value) {
   return {
@@ -43,6 +44,9 @@ export function evaluateThreeTwoMove(state, context, command) {
   if (geometry.kind === "same" || geometry.kind === "mixed") return { eligible: false, reason: "geometry", geometry, current };
   const withinRange = geometry.kind === "straight" ? geometry.distance <= 3 : geometry.distance <= 2;
   if (!withinRange) return { eligible: false, reason: "range", geometry, current };
+  if (firstPlayerBlockingMovementPath({ pieces: state.pieces, movingPieceId: piece.id, from: piece, to: { x, y } })) {
+    return { eligible: false, reason: "path-blocked", geometry, current };
+  }
   const speed = threeTwoSpeed(piece, context);
   if (speed === null) return { eligible: false, reason: "no-speed", geometry, current };
   return { eligible: true, piece, team, x, y, geometry, current, speed };

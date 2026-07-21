@@ -2,6 +2,7 @@ import { getMovementGeometry, diagonalCostForDistance } from "../board/movementS
 import { cardStat, teamKeyForPiece } from "../rules/passEngine.mjs";
 import { activateTrackerAction, isTeamActiveForTrackerPhase } from "../tracker/actionRules.mjs";
 import { normalizeMatchActionState, normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
+import { firstPlayerBlockingMovementPath } from "./movementPathRules.mjs";
 
 function normalMovementState(value) {
   return {
@@ -98,6 +99,9 @@ export function commitNormalMove(state, context, command) {
   if (state.pieces.some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === x && Number(item.y) === y)) return { accepted: false, reason: "occupied" };
   if (geometry.kind === "same") return { accepted: false, reason: "same" };
   if (geometry.kind === "mixed") return { accepted: false, reason: "mixed" };
+  if (firstPlayerBlockingMovementPath({ pieces: state.pieces, movingPieceId: piece.id, from: piece, to: { x, y } })) {
+    return { accepted: false, reason: "path-blocked" };
+  }
   const current = normalMovementState(state.movementStateByPieceId[piece.id]);
   if (current.movementEnded) return { accepted: false, reason: "movement-ended" };
   const speed = normalMoveSpeed(piece, context);

@@ -127,6 +127,19 @@ Focused acceptance:
 - no UI, Firebase, or browser dependencies in the new rule module;
 - focused command: `node --test src/engine/*.test.mjs src/timeline/aiAnalysisExport.test.mjs`.
 
+### v20.18.0 — offline Single Player movement path blocking
+
+`src/engine/movementPathRules.mjs` is the single pure source for physical movement corridors. It enumerates only legal straight or diagonal path squares and finds the first non-ball player blocking an intermediate square. Normal MOVE and 3/2 call it inside the Engine. The existing offline Single Player Bonus Move and Group Move validators reuse the same module until they receive their own Engine migrations.
+
+The product owner approved the gameplay rule: teammates and opponents both block physical movement; the ball does not. Free Move remains intentionally exempt as an unrestricted administrative safety tool, except for the existing destination occupancy invariant. Editor Mode, Free Ball, and all session/manual-multiplayer paths are unchanged.
+
+Focused acceptance:
+
+- horizontal, vertical, and diagonal path enumeration;
+- teammate and opponent blockers; ball ignored;
+- Engine rejection without state mutation for Normal MOVE and 3/2;
+- focused command: `node --test src/engine/*.test.mjs src/timeline/aiAnalysisExport.test.mjs src/multiplayer/freeToolsAuthority.test.mjs`.
+
 Acceptance:
 
 - every Match Mode physical move has explicit command and semantic reason;

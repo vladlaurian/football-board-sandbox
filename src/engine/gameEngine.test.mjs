@@ -186,6 +186,38 @@ test("NORMAL_MOVE rejects invalid moves without mutating canonical MatchState", 
   assert.deepEqual(activated.nextState, before);
 });
 
+test("NORMAL_MOVE_COMMITTED rejects a player blocking its horizontal or diagonal path", () => {
+  const horizontal = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 3, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 3, y: 5 },
+      { id: "red-1", team: "B", x: 5, y: 5 },
+    ],
+  });
+  const started = applyGameCommand({ state: horizontal, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "path-start-horizontal") });
+  assert.deepEqual(applyGameCommand({
+    state: started.nextState,
+    context: normalMoveContext(),
+    command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 7, y: 5 }, "path-horizontal"),
+  }), { accepted: false, reason: "path-blocked" });
+
+  const diagonal = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 3, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 3, y: 5 },
+      { id: "blue-2", team: "A", x: 4, y: 6 },
+    ],
+  });
+  const diagonalStarted = applyGameCommand({ state: diagonal, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "path-start-diagonal") });
+  assert.deepEqual(applyGameCommand({
+    state: diagonalStarted.nextState,
+    context: normalMoveContext(),
+    command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 5, y: 7 }, "path-diagonal"),
+  }), { accepted: false, reason: "path-blocked" });
+});
+
 test("THREE_TWO_MOVE_COMMITTED is a free active-phase action and preserves the ball position", () => {
   const start = createGameState({
     ...normalMoveState(),
@@ -243,8 +275,26 @@ test("THREE_TWO_MOVE_COMMITTED rejects an occupied ball square, reuse, and inact
   assert.deepEqual(applyGameCommand({ state: inactive, context: normalMoveContext(), command: { ...command, id: "three-two-phase" } }), { accepted: false, reason: "wait-active-team" });
 });
 
+test("THREE_TWO_MOVE_COMMITTED rejects a player blocking the path to the ball", () => {
+  const state = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 5, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 2, y: 5 },
+      { id: "blue-2", team: "A", x: 3, y: 5 },
+    ],
+  });
+  const before = structuredClone(state);
+  assert.deepEqual(applyGameCommand({
+    state,
+    context: normalMoveContext(),
+    command: { id: "three-two-path", type: "THREE_TWO_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 5, y: 5 } },
+  }), { accepted: false, reason: "path-blocked" });
+  assert.deepEqual(state, before);
+});
+
 test("engine modules do not depend on UI, Firebase, or browser APIs", () => {
-  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs", "normalMoveRules.mjs", "threeTwoMoveRules.mjs", "singlePlayerController.mjs"];
+  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs", "movementPathRules.mjs", "normalMoveRules.mjs", "threeTwoMoveRules.mjs", "singlePlayerController.mjs"];
   const forbidden = /(?:from\s+["'](?:react|firebase\/|firebase)["']|\bwindow\b|\bdocument\b|\blocalStorage\b|\bsetTimeout\b|\bsetInterval\b|\bfetch\b|\bXMLHttpRequest\b)/;
   moduleFiles.forEach(file => {
     const source = fs.readFileSync(new URL(`./${file}`, import.meta.url), "utf8");

@@ -96,6 +96,8 @@ Future Dribble, Shot, Tackle, and Cross commands use this same contract; they mu
 
 Existing Timeline event names remain authoritative wherever possible, including `MOVE_ACTIVATED`, `MOVE_COMMITTED`, `BALL_MOVED`, `PASS_TARGETING_STARTED`, `PASS_TARGET_SELECTED`, `DICE_ROLLED`, `PASS_INTERCEPTION_MISSED`, `PASS_COMPLETED`, `PASS_INTERCEPTED`, `BONUS_ACTION_ENDED`, and `BONUS_ACTION_DECLINED`. Cosmetic renaming is prohibited.
 
+Physical player movement validates one shared path rule: every intermediate horizontal, vertical, or diagonal square must be free of players. Teammates and opponents block identically; the ball does not block. This is an Engine rule for migrated movement and is reused by temporary legacy Single Player movement paths until those mechanics migrate. Free Move is deliberately exempt because it is an administrative recovery tool, not a normal gameplay movement mechanic.
+
 ## 4. Ownership boundaries
 
 | Layer | Owns | Must not own |

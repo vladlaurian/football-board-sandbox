@@ -318,3 +318,17 @@ UI, Controller, timers, Firebase, and future multiplayer adapters may request or
 - `THREE_TWO_MOVE` remains the semantic Timeline/AI event.
 - Undo/Redo reconstructs the same engine-produced state.
 - Manual multiplayer keeps its legacy 3/2 implementation until multiplayer migration is explicitly reopened.
+
+## ADR-022 — Physical movement uses one player-blocking path rule
+
+**Status:** Active
+
+**Decision:** Offline Single Player physical gameplay movement cannot pass through another player. The rule is shared by Normal MOVE, 3/2, Bonus Move, and Group Move: teammates and opponents block identically, while the ball does not. Existing destination occupancy remains separate. Free Move is deliberately exempt from path, distance, axis, phase, and Tracker restrictions because it is the administrative recovery tool; it continues to preserve the board invariant that two players cannot end on the same square.
+
+**Reason:** Destination-only validation permitted players to jump over other players. Applying the rule selectively by team would create an arbitrary ghost-player exception, while constraining Free Move would remove the safety tool needed to recover from faulty or incomplete game states.
+
+**Consequences:**
+
+- `movementPathRules.mjs` is the sole pure corridor implementation.
+- Normal MOVE and 3/2 enforce it in the Engine; temporary legacy Single Player Bonus/Group paths reuse the same module.
+- Editor Mode, Free Ball, and Manual Multiplayer are unchanged.

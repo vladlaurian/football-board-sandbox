@@ -11,6 +11,7 @@ import { createGameState, mergeGameState } from "./game/gameState.mjs";
 import { GAME_COMMAND_TYPE } from "./engine/gameCommands.mjs";
 import { createMatchContext } from "./engine/matchContext.mjs";
 import { dispatchSinglePlayerGameCommand, dispatchSinglePlayerGameCommandSequence } from "./engine/singlePlayerController.mjs";
+import { firstPlayerBlockingMovementPath } from "./engine/movementPathRules.mjs";
 import { evaluateThreeTwoMove } from "./engine/threeTwoMoveRules.mjs";
 import {
   isBenchReservePiece,
@@ -163,7 +164,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.17.0";
+const APP_VERSION = "v20.18.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5793,6 +5794,12 @@ function App() {
     if (gameMode === "editor") return { legal: true, geometry };
     if (piece.team === "BALL") return { legal: false, reason: "free-ball-required", geometry };
     if (geometry.kind === "mixed") return { legal: false, reason: "mixed", geometry };
+    if (!sessionCode && gameMode === "match" && firstPlayerBlockingMovementPath({
+      pieces: piecesRef.current || pieces,
+      movingPieceId: piece.id,
+      from: piece,
+      to: { x, y },
+    })) return { legal: false, reason: "path-blocked", geometry };
     const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false, movementEnded: false };
     if (current.movementEnded) return { legal: false, reason: "movement-ended", geometry, current, remaining: 0 };
     const speed = getPieceSpeed(piece);
@@ -5812,6 +5819,12 @@ function App() {
     if (piece.team !== "BALL" && targetOccupiedByPlayer) return { legal: false, reason: "occupied", geometry };
     if (geometry.kind === "same") return { legal: false, reason: "same", geometry };
     if (geometry.kind === "mixed") return { legal: false, reason: "mixed", geometry };
+    if (!sessionCode && gameMode === "match" && firstPlayerBlockingMovementPath({
+      pieces: piecesRef.current || pieces,
+      movingPieceId: piece.id,
+      from: piece,
+      to: { x, y },
+    })) return { legal: false, reason: "path-blocked", geometry };
     const current = movementStateRef.current[piece.id] || { axis: null, spent: 0, distance: 0, threeTwoUsed: false, movementEnded: false };
     if (current.axis && current.axis !== geometry.axis) return { legal: false, reason: "axis", geometry, current };
     return { legal: true, geometry, moveCost: 0, current, remaining: Infinity };
@@ -5823,6 +5836,7 @@ function App() {
     else if (result.reason === "mixed") primary = <>Mixed movement is not allowed.</>;
     else if (result.reason === "no-speed") primary = <>No Speed value is assigned to this player.</>;
     else if (result.reason === "occupied") primary = <>The destination cell is occupied by another player.</>;
+    else if (result.reason === "path-blocked") primary = <>Another player blocks the movement path.</>;
     else if (result.reason === "movement-ended") primary = <>This player has no legal movement remaining during the current turn.</>;
     else if (result.reason === "match-not-started") primary = <>Start the match in Tracker before moving players.</>;
     else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE MOVE before moving this player, or advance to next turn.</>;
