@@ -12,7 +12,7 @@ export function validateBonusActionEndIntent({ intent, continuation, actionResol
     && continuation?.kind === "bonus-card-action"
     && String(continuation.id) === String(intent?.continuationId)
     && continuation.team === team
-    && ["ready", "awaiting-end-bonus-action"].includes(String(continuation.status || ""))
+    && ["ready", "action-active", "awaiting-end-bonus-action"].includes(String(continuation.status || ""))
     && !actionResolution
     && expectedOwner
     && expectedOwner === String(intent?.requestedByUid || "")

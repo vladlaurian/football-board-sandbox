@@ -195,3 +195,9 @@ Do not create a new multiplayer document for each patch. For future releases:
 - Preserved free local inspection while a canonical interaction remains active.
 - Added unit coverage for host/guest visibility, ownership, reconstruction, and ghost-selection prevention.
 - Host Authority, Timeline structure, semantic intents, and game design are unchanged.
+
+## v20.11.5 — Guest END BA authority fix
+
+- Fixed Guest `END BA` being silently rejected after an active Bonus Action.
+- `validateBonusActionEndIntent` now accepts the canonical `action-active` continuation state, matching `endContinuationAction`, which already supports ending an active bonus action.
+- MOVE, PASS, card selection reconciliation, and other gameplay flows are unchanged in this build.

@@ -14,7 +14,9 @@ test("only the local owner team controls a multiplayer bonus action", () => {
 test("bonus-action end intent requires canonical continuation and team ownership", () => {
   const intent = { requestId: "req-1", continuationId: "ba-1", team: "red", requestedByUid: "red-user" };
   assert.equal(validateBonusActionEndIntent({ intent, continuation, actionResolution: null, teamOwners: { red: "red-user" } }), true);
+  assert.equal(validateBonusActionEndIntent({ intent, continuation: { ...continuation, status: "action-active", actionType: "MOVE", pieceId: "r1" }, actionResolution: null, teamOwners: { red: "red-user" } }), true);
+  assert.equal(validateBonusActionEndIntent({ intent, continuation: { ...continuation, status: "awaiting-end-bonus-action" }, actionResolution: null, teamOwners: { red: "red-user" } }), true);
   assert.equal(validateBonusActionEndIntent({ intent: { ...intent, requestedByUid: "blue-user" }, continuation, actionResolution: null, teamOwners: { red: "red-user" } }), false);
-  assert.equal(validateBonusActionEndIntent({ intent, continuation: { ...continuation, status: "action-active" }, actionResolution: null, teamOwners: { red: "red-user" } }), false);
+  assert.equal(validateBonusActionEndIntent({ intent, continuation: { ...continuation, status: "invalid-status" }, actionResolution: null, teamOwners: { red: "red-user" } }), false);
   assert.equal(validateBonusActionEndIntent({ intent, continuation, actionResolution: { kind: "pass" }, teamOwners: { red: "red-user" } }), false);
 });
