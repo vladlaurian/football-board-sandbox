@@ -158,7 +158,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.7";
+const APP_VERSION = "v20.8";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -1860,6 +1860,57 @@ function createInitialPieces(cols, rows, blueFormation = FORMATION_SLOTS[0], red
 
   pieces.push({ id: "BALL", team: "BALL", label: "●", x: Math.floor(cols / 2), y: midY });
   return ensureBenchReserveCount(pieces, localSettings, 7);
+}
+
+
+function DraggableActionPrompt({ promptKey, className = "", children }) {
+  const storageKey = `football-board-action-prompt-position-${promptKey}-v1`;
+  const [position, setPosition] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+      if (Number.isFinite(saved?.x) && Number.isFinite(saved?.y)) return saved;
+    } catch {}
+    return { x: Math.max(12, Math.round(window.innerWidth / 2 - 180)), y: 138 };
+  });
+  const dragRef = useRef(null);
+
+  function onPointerDown(event) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragRef.current = { pointerId: event.pointerId, dx: event.clientX - position.x, dy: event.clientY - position.y };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function onPointerMove(event) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const next = {
+      x: clamp(event.clientX - drag.dx, 0, Math.max(0, window.innerWidth - 320)),
+      y: clamp(event.clientY - drag.dy, 0, Math.max(0, window.innerHeight - 90)),
+    };
+    setPosition(next);
+  }
+
+  function stopDrag(event) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    try { localStorage.setItem(storageKey, JSON.stringify(position)); } catch {}
+  }
+
+  useEffect(() => {
+    try { localStorage.setItem(storageKey, JSON.stringify(position)); } catch {}
+  }, [position, storageKey]);
+
+  return <div
+    className={`pass-action-prompt draggable-action-prompt ${className}`.trim()}
+    style={{ left: `${position.x}px`, top: `${position.y}px`, transform: "none" }}
+    onPointerDown={onPointerDown}
+    onPointerMove={onPointerMove}
+    onPointerUp={stopDrag}
+    onPointerCancel={stopDrag}
+  >{children}</div>;
 }
 
 function App() {
@@ -5456,8 +5507,9 @@ function App() {
     setPendingThreeTwoMove(null);
   }
 
-  function toggleFreeBall() {
-    if (gameMode !== "match" || actionResolutionRef.current) return;
+  function toggleFreeBall(piece = null) {
+    if (gameMode !== "match" || replayModeRef.current) return;
+    if (sessionCode && (!piece || piece.team === "BALL" || pieceTeamKey(piece) !== myTeam)) return;
     setFreeBallActive(active => !active);
     setSelectedId(null);
     setHoveredCell(null);
@@ -5728,9 +5780,11 @@ function App() {
       groupId: timelineGroupId,
       stateOverrides: { movementStateByPieceId: nextMovement },
     });
-    // A completed movement always closes the current player selection. MOVE,
-    // GROUP MOVE, and FREE MOVE keep their selection only until this physical move.
-    setSelectedId(null);
+    // Bonus Move is progressive: keep the player selected until END B.A. so
+    // remaining movement points can be spent. Other movement modes preserve
+    // the historical one-physical-move selection behavior.
+    if (isBonusPlacement) setSelectedId(piece.id);
+    else setSelectedId(null);
     setHoveredCell(null);
     return true;
   }
@@ -5750,7 +5804,7 @@ function App() {
       }
       return commitPieceMove(piece, x, y, evaluation, {
         authorizationOverride: { allowed: true, mode: "bonus" },
-        completeBonus: true,
+        completeBonus: false,
       });
     }
 
@@ -5906,14 +5960,17 @@ function App() {
     const piece = (piecesRef.current || pieces).find(item => item.id === pieceId);
     if (!piece) return;
 
-    if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting") {
-      if (!canControlActiveResolution(actionResolutionRef.current)) return;
+    if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting" && canControlActiveResolution(actionResolutionRef.current)) {
       choosePassTarget(piece.x, piece.y);
       return;
     }
-    // Once the destination is chosen, the board is intentionally locked to
-    // route badges (or panning). A puck click must not restart normal movement.
-    if (actionResolutionRef.current?.kind === "pass") return;
+    // Pass state blocks gameplay actions, not inspection. The non-controlling
+    // client may always select any puck while the active player resolves Pass.
+    if (actionResolutionRef.current?.kind === "pass") {
+      setSelectedId(pieceId);
+      setHoveredCell(null);
+      return;
+    }
     if (freeBallActive) {
       moveBallFreelyTo(piece.x, piece.y);
       return;
@@ -5921,9 +5978,17 @@ function App() {
 
     const continuation = actionContinuationRef.current;
     if (continuation?.kind === "bonus-card-action") {
-      if (!canControlBonusContinuation(continuation)) return;
-      if (piece.team !== "BALL" && pieceTeamKey(piece) !== continuation.team) return;
-      if (continuation.status === CONTINUATION_STATUS.ACTION_ACTIVE && continuation.actionType === "MOVE" && piece.id !== continuation.pieceId) return;
+      // Bonus Action ownership blocks actions, never inspection/selection.
+      if (!canControlBonusContinuation(continuation)) {
+        setSelectedId(pieceId);
+        setHoveredCell(null);
+        return;
+      }
+      if (continuation.status === CONTINUATION_STATUS.ACTION_ACTIVE && continuation.actionType === "MOVE" && piece.id !== continuation.pieceId) {
+        setSelectedId(pieceId);
+        setHoveredCell(null);
+        return;
+      }
     }
 
     if (e.pointerType === "touch") {
@@ -9756,7 +9821,7 @@ function App() {
       }
       return;
     }
-    if (actionResolutionRef.current) return;
+    if (actionResolutionRef.current && type !== "FREE") return;
     if (type === "FREE") {
       if (!canUseFreeModeForPiece(piece)) return;
     } else if (!canUseActionForPiece(piece)) return;
@@ -10720,7 +10785,7 @@ function App() {
         defensiveAreaOverlays={defensiveAreaOverlays}
         passPreview={passPreview}
         passTargeting={actionResolution?.kind === "pass" && actionResolution.status === "targeting" && canControlActiveResolution(actionResolution)}
-        passActive={passActive}
+        passActive={passActive && canControlActiveResolution(actionResolution)}
         passTargetDistance={passTargetDistance}
         passRouteInteractive={actionResolution?.kind === "pass" && actionResolution.status === "route-selection" && canControlActiveResolution(actionResolution)}
         onSelectPassRoute={confirmPassRoute}
@@ -10820,6 +10885,7 @@ function App() {
                           || bonusActionEndIntentPending
                           || ![
                             CONTINUATION_STATUS.READY,
+                            CONTINUATION_STATUS.ACTION_ACTIVE,
                             CONTINUATION_STATUS.AWAITING_END_BONUS_ACTION,
                           ].includes(actionContinuation.status)
                           || Boolean(actionResolution)
@@ -10845,9 +10911,9 @@ function App() {
                       <button
                         type="button"
                         className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${freeBallActive ? "is-active" : ""}`}
-                        disabled={Boolean(actionResolution) || Boolean(actionContinuation)}
+                        disabled={replayModeRef.current || (Boolean(sessionCode) && pieceTeamKey(inspectedPiece) !== myTeam)}
                         aria-pressed={freeBallActive}
-                        onClick={toggleFreeBall}
+                        onClick={() => toggleFreeBall(inspectedPiece)}
                       >
                         {freeBallActive ? "FREE BALL: ON" : "FREE BALL"}
                       </button>
@@ -10856,7 +10922,7 @@ function App() {
                       <button
                         type="button"
                         className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id ? "is-active" : ""}`}
-                        disabled={!canUseFreeModeForPiece(inspectedPiece) || Boolean(actionResolution) || Boolean(actionContinuation) || (matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId !== inspectedPiece.id)}
+                        disabled={!canUseFreeModeForPiece(inspectedPiece) || (matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId !== inspectedPiece.id)}
                         aria-pressed={Boolean(matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id)}
                         onClick={() => consumeInspectorAction("FREE", inspectedPiece)}
                       >
@@ -11208,36 +11274,36 @@ function App() {
         const defender = pieces.find(piece => piece.id === interceptor?.defender?.id);
         const defenseTeam = teamKeyForPiece(defender);
         const preview = defender ? buildInterceptionRollDetails({ pending: actionResolution, defender, interceptor, natural: 2 }) : null;
-        return <div className="pass-action-prompt warning">
+        return <DraggableActionPrompt promptKey="interception-roll" className="warning">
           <strong>Interception roll required</strong>
           <span>{getPieceIdentity(defender)} ({defenseTeam === "blue" ? "Blue" : "Red"}) rolls D20. Roll {defenseTeam?.toUpperCase()}.</span>
           {preview && <span>{preview.modifierSources.map(formatModifierSource).join(" + ")}</span>}
           {preview && <span><strong>{formatTotalModifier(preview)}</strong></span>}
           {preview && <span><strong>{passTargetLabel(actionResolution.plan)}</strong></span>}
-        </div>;
+        </DraggableActionPrompt>;
       })()}
 
       {actionResolution?.kind === "pass" && actionResolution.status === "targeting" && passTargetIntentPending && (
-        <div className="pass-action-prompt waiting"><strong>Sending pass target…</strong><span>Waiting for host confirmation.</span></div>
+        <DraggableActionPrompt promptKey="pass-target-pending" className="waiting"><strong>Sending pass target…</strong><span>Waiting for host confirmation.</span></DraggableActionPrompt>
       )}
 
       {actionResolution?.kind === "pass" && ["targeting", "route-selection"].includes(actionResolution.status) && passCancelIntentPending && (
-        <div className="pass-action-prompt waiting"><strong>Cancelling pass…</strong><span>Waiting for host confirmation.</span></div>
+        <DraggableActionPrompt promptKey="pass-cancel-pending" className="waiting"><strong>Cancelling pass…</strong><span>Waiting for host confirmation.</span></DraggableActionPrompt>
       )}
 
       {pendingDelayedResolution?.kind === "pass-interception" && liveDelayedResolutionEntryId === pendingDelayedResolution.entryId && (
-        <div className="pass-action-prompt waiting"><strong>Resolving interception…</strong><span>Please wait.</span></div>
+        <DraggableActionPrompt promptKey="interception-resolving" className="waiting"><strong>Resolving interception…</strong><span>Please wait.</span></DraggableActionPrompt>
       )}
 
       {bonusActionEndIntentPending && (
-        <div className="pass-action-prompt"><strong>Ending Bonus Action…</strong><span>Waiting for host confirmation.</span></div>
+        <DraggableActionPrompt promptKey="bonus-end-pending"><strong>Ending Bonus Action…</strong><span>Waiting for host confirmation.</span></DraggableActionPrompt>
       )}
       {actionContinuation?.kind === "bonus-card-action" && (
-        <div className="pass-action-prompt bonus"><strong>Natural 20 interception</strong><span>{actionContinuation.status === CONTINUATION_STATUS.READY
+        <DraggableActionPrompt promptKey="natural-20-bonus" className="bonus"><strong>Natural 20 interception</strong><span>{actionContinuation.status === CONTINUATION_STATUS.READY
           ? `Select a ${actionContinuation.team === "blue" ? "Blue" : "Red"} player and choose one card action, or press END B.A. to decline it.`
           : actionContinuation.status === CONTINUATION_STATUS.ACTION_ACTIVE
             ? `${actionContinuation.team === "blue" ? "Blue" : "Red"} is taking the bonus ${String(actionContinuation.actionType || "card").replace("_", " ")} action.`
-            : `${actionContinuation.team === "blue" ? "Blue" : "Red"} completed the bonus action. Press END B.A. to continue.`}</span></div>
+            : `${actionContinuation.team === "blue" ? "Blue" : "Red"} completed the bonus action. Press END B.A. to continue.`}</span></DraggableActionPrompt>
       )}
 
       {passResultNotice && (

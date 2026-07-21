@@ -6,26 +6,30 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.7` |
-| Git/package version | `20.7.0` |
-| Build name | `Final_Board_v20_7_multiplayer_action_start_authority_fix` |
-| Base build | `v20.6` |
+| Sandbox version | `v20.8` |
+| Git/package version | `20.8.0` |
+| Build name | `Final_Board_v20_7_documentation_contract_consolidated` |
+| Base build | `v20.8` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.7`. The repository version is defined in `package.json` as `20.7.0`. The browser title is `Sandbox v20.7`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.8`. The repository version is defined in `package.json` as `20.8.0`. The browser title is `Sandbox v20.8`.
 
-## v20.7 release summary
+## v20.8 release summary
 
-v20.7 closes the remaining optimistic guest writes at the beginning of repeated Bonus Action chains.
+v20.8 separates player inspection from gameplay authorization, keeps Pass cursor feedback local to the player resolving Pass, makes action prompts draggable with persistent positions, preserves progressive Bonus Move until explicit `END B.A.`, and keeps Free Move / Free Ball available as team-owned safety tools in Match Mode.
 
-- Guest action starts use semantic `actionStartIntent` requests.
-- The host validates ownership, piece, action type, continuation identity, canonical revision, active-resolution compatibility, and possession.
-- Bonus Action Pass starts atomically as `BONUS_PASS_TARGETING_STARTED`.
-- Stale action-start requests are rejected and transient guest UI is restored from canonical Timeline state.
-- Invalid `before.tracker` references in interception branches were corrected.
-- Regression coverage protects repeated Natural 20 → Bonus Action → Pass chains.
+## First time here?
 
-See [`docs/MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md) for release history and [`docs/MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md) for the current authority model.
+Use this order before touching the project:
+
+1. Read this README completely.
+2. Read [`docs/DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md).
+3. Read [`docs/ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md).
+4. Read the permanent technical document for the system being changed.
+5. Inspect the relevant code and tests.
+6. Explain the proposed change and wait for approval before implementation.
+
+After approval, implement immediately. Do not repeat the plan, request approval again, or stop at an acknowledgement.
 
 ## Quick start
 
@@ -76,7 +80,7 @@ docs/
 - [`DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md): mandatory implementation and release workflow.
 - [`ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md): permanent architectural decisions and invariants.
 - [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md): current multiplayer model, intent flows, authority boundaries, cleanup rules, and open storage refactor.
-- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.7.
+- [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md): historical multiplayer fixes from v20.1 through v20.8.
 - [`ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md): generic action-resolution lifecycle.
 - [`INTERCEPTION_ENGINE.md`](docs/INTERCEPTION_ENGINE.md): interception resolver and its boundary with Pass.
 - [`RULE_SETS_EDITOR.md`](docs/RULE_SETS_EDITOR.md): editable rules, schema and runtime effects.
@@ -84,15 +88,16 @@ docs/
 
 ## Mandatory development rules
 
-Before changing code:
+- Inspect before proposing; explain before implementing; implement only after approval.
+- Once approved, execute without repeating the plan or asking for another confirmation.
+- Do not alter game design, rules, architecture, stable systems, or unrelated code unless explicitly approved.
+- A newly discovered bug is reported, not silently fixed inside another task.
+- Fix root causes; do not layer new code over failed or obsolete implementations.
+- One fact has one authoritative documentation home. Other files link to it instead of duplicating it.
+- Do not create one document per patch. Update the permanent system document and the appropriate changelog.
+- Every Match Mode change must be reviewed for Timeline and AI Analysis Export semantics.
 
-1. Read this README.
-2. Read `docs/DEVELOPMENT_WORKFLOW.md`.
-3. Read the system document relevant to the feature.
-4. Read `docs/ARCHITECTURE_DECISIONS.md` before changing architectural boundaries.
-5. For multiplayer work, read both multiplayer documents.
-
-Do not create one documentation file per patch. Update the current system document and append the release entry to the appropriate changelog. Add a new document only for a genuinely independent subsystem.
+The complete contract is in [`DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md).
 
 ## Core invariants
 
@@ -124,7 +129,10 @@ Every build must record and verify:
 - browser title in `index.html`;
 - Git/package version in `package.json`;
 - build name and base build in this README;
-- current-system documentation updates;
-- changelog/history entry;
-- tests and production build where the environment permits them;
-- no `node_modules`, `dist`, temporary files or secrets in the release archive.
+- relevant permanent documentation updates;
+- changelog/history entry when behavior or implementation changed;
+- relevant tests, full available tests, and production build where the environment permits them;
+- unchanged hashes for code files in a documentation-only build;
+- no `node_modules`, `dist`, temporary files, logs, caches, package lock, or secrets in the release archive.
+
+A version is not considered updated until the Sandbox label, browser title, package version, README record, and archive name agree. Documentation-only consolidation may retain the application version when no runtime behavior changes, but the README build name and base build must still identify the delivered archive accurately.

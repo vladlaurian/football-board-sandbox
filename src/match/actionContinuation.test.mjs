@@ -53,10 +53,12 @@ test("a ready bonus action can be explicitly declined before any card action sta
   assert.equal(ended.resumePolicy.nextTurn, 5);
 });
 
-test("an active bonus action cannot be ended until its action resolves", () => {
+test("an active bonus action may be ended explicitly after partial movement", () => {
   const ready = normalizeActionContinuation({ id: "bonus_active", team: "blue", nextTurn: 3 });
-  const active = beginContinuationAction(ready, { type: "PASS", pieceId: "A-1" });
-  assert.equal(endContinuationAction(active), null);
+  const active = beginContinuationAction(ready, { type: "MOVE", pieceId: "A-1" });
+  const endedActive = endContinuationAction(active);
+  assert.equal(endedActive.declined, false);
+  assert.equal(endedActive.endedWhileActive, true);
   const complete = completeContinuationAction(active);
   assert.equal(endContinuationAction(complete).declined, false);
 });

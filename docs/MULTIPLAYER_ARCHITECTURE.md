@@ -2,7 +2,7 @@
 
 ## Status and version
 
-This is the authoritative description of the multiplayer model in Sandbox `v20.7` / Git package `20.7.0`.
+This is the authoritative description of the multiplayer model in Sandbox `v20.8` / Git package `20.8.0`.
 
 Historical fixes are recorded in [`MULTIPLAYER_CHANGELOG.md`](MULTIPLAYER_CHANGELOG.md). Permanent cross-system decisions also appear in [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md).
 
@@ -253,3 +253,9 @@ Shot, Dribble, Cross and future actions must follow the same model:
 4. host validates and publishes canonical state;
 5. logical operations are atomic where intermediate state would be invalid;
 6. rejection and resync clear all transient UI.
+
+## Local inspection and safety controls
+
+Selection is local UI state and is never locked by the opponent's Pass or Bonus Action. Either client may inspect any player at any time, while canonical gameplay actions remain restricted to the authorized team. Pass targeting cursor feedback is shown only to the client controlling the active resolution.
+
+In multiplayer, Free Move and Free Ball remain available regardless of turn or active continuation, but each client may activate them only from a player belonging to their assigned team. Canonical board changes continue through the session Timeline authority path.

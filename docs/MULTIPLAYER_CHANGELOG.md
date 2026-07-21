@@ -1,3 +1,15 @@
+## v20.8 — Local inspection, persistent prompts, and progressive Bonus Move
+
+**Sandbox:** `v20.8`  
+**Git/package:** `20.8.0`  
+
+- Pass cursor feedback is local to the player controlling Pass.
+- Opponent Pass and Bonus Action no longer block player selection or card inspection.
+- Informational action prompts are draggable and remember their individual browser positions.
+- Bonus Move remains active after partial movement; the player stays selected and `END B.A.` remains available.
+- Free Move and Free Ball ignore turn/continuation locks while remaining limited to the local player's team in multiplayer.
+- Added the canonical documentation rule to the development workflow.
+
 # Multiplayer Changelog
 
 This file preserves the multiplayer implementation history. The current model is documented in [`MULTIPLAYER_ARCHITECTURE.md`](MULTIPLAYER_ARCHITECTURE.md).

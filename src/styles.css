@@ -7435,3 +7435,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 }
 
 .rules-modal>.modal-title{position:sticky;top:-12px;z-index:2;background:#191919;padding:4px 0 7px}.rules-actions{position:sticky;bottom:-12px;z-index:2;background:#191919;padding:7px 0 4px}
+
+.draggable-action-prompt { cursor: grab; touch-action: none; user-select: none; }
+.draggable-action-prompt:active { cursor: grabbing; }
+.draggable-action-prompt button { cursor: pointer; }

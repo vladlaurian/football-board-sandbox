@@ -6,7 +6,7 @@ This document is permanent and must remain current.
 
 Every major architectural change must add or update an ADR in this file. Do not silently replace old decisions. When a decision changes, mark the old ADR as `Superseded by ADR-XXX` and add the new decision with its context and consequences.
 
-README records release changes. This file records durable architectural decisions and their reasons.
+README records the current release. Changelogs record implementation history. This file records only durable architectural decisions and their reasons. Build names, version metadata, patch narratives, and test summaries do not belong here unless they are essential context for a still-active decision.
 
 ## ADR-001 — Editor, Inspector and Export share card rendering truth
 
@@ -77,7 +77,7 @@ README records release changes. This file records durable architectural decision
 **Decision:** Every future chat or engineer making a major architectural change must update this file in the same build. A release is not architecturally complete when durable decisions changed but this log did not.
 
 
-## ADR-007 — Separate ephemeral runtime locks from canonical session gameplay writes
+## ADR-012 — Separate ephemeral runtime locks from canonical session gameplay writes
 
 **Status:** Accepted
 
@@ -93,7 +93,7 @@ README records release changes. This file records durable architectural decision
 - Runtime subcollection documents must be deleted when ending a session.
 
 
-## ADR — v19.21: Free Ball is an administrative ball-placement flow
+## ADR-013 — Free Ball is an administrative ball-placement flow
 
 **Decision:** Match Mode Free Ball is implemented as independent transient UI state and a dedicated direct ball-placement function. It must not use player selection, player movement authorization, movement accounting, Free Move authorization, the 3/2 rule, Pass resolution, or Tracker action consumption.
 
@@ -107,7 +107,7 @@ README records release changes. This file records durable architectural decision
 - The resulting position is still recorded as canonical `BALL_MOVED` Timeline state for Undo/Redo, replay and multiplayer parity.
 - The internal Tracker property remains named `freeMode` for backward compatibility; only the visible feature name is Free Move.
 
-## ADR-012 — AI Analysis Export is a required semantic integration surface
+## ADR-014 — AI Analysis Export is a required semantic integration surface
 
 **Status:** Active
 
@@ -124,7 +124,7 @@ README records release changes. This file records durable architectural decision
 - Export schema changes require tests and a schema-version review.
 
 **Reference:** `docs/DEVELOPMENT_WORKFLOW.md`.
-## ADR-013 — Back-card stat definitions are global; card values remain local
+## ADR-015 — Back-card stat definitions are global; card values remain local
 
 **Status:** Active
 
@@ -148,7 +148,7 @@ Gameplay systems request stat values through stable IDs resolved from the global
 **Reference:** `docs/GLOBAL_BACK_STATS.md`.
 
 
-## ADR-014 — Interception resolution is independent from Pass geometry
+## ADR-016 — Interception resolution is independent from Pass geometry
 
 **Status:** Active
 
@@ -168,11 +168,11 @@ The Interception configuration owns the defender roll stat ID, standard-modifier
 
 **Reference:** `docs/INTERCEPTION_ENGINE.md`.
 
-## ADR — Shared resolution state does not imply shared UI control (v20.5)
+## ADR-017 — Shared resolution state does not imply shared UI control
 
 In multiplayer, action resolution state is canonical and visible to every client. Interactive controls are local and require ownership of the resolution team. UI components receive explicit interactivity flags, and action handlers repeat the same authority check defensively. Future Shot, Dribble, Cross and other resolution interfaces must follow this rule.
 
-## ADR — v20.6 guest dice and canonical resolution state
+## ADR-018 — Guest dice are intents and canonical snapshots drive resolution
 
 In Match multiplayer, dice input is a semantic request, not a guest Timeline transition. The host validates team ownership and the canonical pending-roll request, generates or accepts the permitted test result, and commits `DICE_ROLLED`.
 
@@ -180,17 +180,14 @@ Turn progression must be derived from the transition's canonical `before.tracker
 
 A Bonus Move is one logical transition: physical movement and continuation completion are committed together. No UI may depend on a second optimistic guest commit to unlock `END B.A.`.
 
-## ADR — v20.7 host-authoritative action starts and atomic Bonus Pass
-
-**Version record**
-
-- Sandbox version: `v20.7`
-- Git/package version: `20.7.0`
-- Base build: `v20.6`
-- Build name: `Final_Board_v20_7_multiplayer_action_start_authority_fix`
+## ADR-019 — Host-authoritative action starts and atomic Bonus Pass
 
 A multiplayer guest may choose an action locally, but may not publish the transition that starts gameplay state. Normal Pass and Bonus Action starts are semantic runtime intents. The host validates ownership, canonical revision, piece, action type, continuation identity, active resolution compatibility, and possession requirements before executing the transition and publishing Timeline.
 
 Bonus Pass activation and Pass targeting are one atomic canonical transition (`BONUS_PASS_TARGETING_STARTED`). Repeated Natural 20 → Bonus Action → Pass chains must never expose an intermediate state in which the continuation is active but Pass targeting is absent or locally owned by the guest. Stale intents are rejected and local pending state is restored from the canonical Timeline.
 
 **Historical reason:** v20.6 made dice host-authoritative but still allowed guests to commit `BONUS_CARD_ACTION_STARTED` and `PASS_TARGETING_STARTED` directly. That remaining optimistic boundary could race with host commits during repeated Bonus Action chains and leave Pass targeting stuck. v20.7 closes that boundary.
+
+## Selection is not action authorization
+
+**Decision:** Player selection and card inspection are always local UI operations. Turn ownership, Pass ownership, Bonus Action ownership, and multiplayer team ownership are enforced only when a gameplay action is attempted. A canonical action may therefore block mutation without blocking inspection.

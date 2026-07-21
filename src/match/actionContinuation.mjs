@@ -121,11 +121,13 @@ export function endContinuationAction(continuation) {
   const current = normalizeActionContinuation(continuation);
   if (!current || ![
     CONTINUATION_STATUS.READY,
+    CONTINUATION_STATUS.ACTION_ACTIVE,
     CONTINUATION_STATUS.AWAITING_END_BONUS_ACTION,
   ].includes(current.status)) return null;
   return {
     continuation: current,
     declined: current.status === CONTINUATION_STATUS.READY,
+    endedWhileActive: current.status === CONTINUATION_STATUS.ACTION_ACTIVE,
     resumePolicy: normalizeContinuationResumePolicy(current.resumePolicy, { team: current.team }),
   };
 }
