@@ -81,7 +81,7 @@ test("MatchContext is copied and frozen at creation", () => {
 });
 
 test("engine modules do not depend on UI, Firebase, or browser APIs", () => {
-  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs"];
+  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs", "singlePlayerController.mjs"];
   const forbidden = /(?:from\s+["'](?:react|firebase\/|firebase)["']|\bwindow\b|\bdocument\b|\blocalStorage\b|\bsetTimeout\b|\bsetInterval\b|\bfetch\b|\bXMLHttpRequest\b)/;
   moduleFiles.forEach(file => {
     const source = fs.readFileSync(new URL(`./${file}`, import.meta.url), "utf8");

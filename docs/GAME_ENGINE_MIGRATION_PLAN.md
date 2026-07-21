@@ -49,7 +49,7 @@ The kernel supports a pure `FREE_BALL_MOVED` transition only as its first real c
 
 ## Phase 2 — Free Ball vertical slice
 
-**Status:** Pending.
+**Status:** Complete in v20.13.0.
 
 Migrate only final administrative ball placement through `FREE_BALL_MOVED`. Arming/cancelling the visible tool stays UI-local.
 
@@ -60,6 +60,15 @@ Acceptance:
 - Undo/Redo, Replay, and AI export remain correct;
 - Editor Mode and Manual Multiplayer remain unchanged;
 - old active Match Mode Free Ball mutation path is removed.
+
+Delivered files and tests:
+
+- `src/engine/singlePlayerController.mjs`
+- `src/engine/singlePlayerController.test.mjs`
+- offline Match Mode branch of `commitFreeBallMove()` in `src/main.jsx`
+- focused command: `node --test src/engine/*.test.mjs src/timeline/aiAnalysisExport.test.mjs`
+
+The offline path now uses `FREE_BALL_MOVED -> Game Engine -> Single Player Controller -> Timeline -> applyTimelineGameState`. The existing session/manual-multiplayer branch remains deliberately unchanged.
 
 ## Phase 3 — Normal MOVE
 

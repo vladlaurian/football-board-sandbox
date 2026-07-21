@@ -6,17 +6,21 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.12.0` |
-| Git/package version | `20.12.0` |
-| Build name | `Final_Board_v20_12_0_game_engine_kernel` |
-| Base build | `v20.11.6 game_engine_architecture_foundation` |
+| Sandbox version | `v20.13.0` |
+| Git/package version | `20.13.0` |
+| Build name | `Final_Board_v20_13_0_single_player_free_ball_vertical_slice` |
+| Base build | `v20.12.0 game_engine_kernel` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.12.0`. The repository version is defined in `package.json` as `20.12.0`. The browser title is `Sandbox v20.12.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.13.0`. The repository version is defined in `package.json` as `20.13.0`. The browser title is `Sandbox v20.13.0`.
+
+## v20.13.0 release summary
+
+v20.13.0 completes Phase 2: offline Match Mode Free Ball now dispatches `FREE_BALL_MOVED` through the Single Player Controller and pure Game Engine, then records the engine event in Timeline before React renders the result. The existing `BALL_MOVED` / `movementReason: "FREE_BALL"` Timeline and AI-export semantics are preserved. Editor Mode and Manual Multiplayer retain their existing paths; Firebase and automated multiplayer are unchanged.
 
 ## v20.12.0 release summary
 
-v20.12.0 creates the Phase 1 pure Game Engine kernel. It introduces the command, event, and MatchContext contracts plus a deterministic `FREE_BALL_MOVED` engine transition and focused tests. No gameplay handler in `main.jsx` is connected to the engine yet; Firebase, automated multiplayer, Manual Multiplayer, Timeline behavior, and visible gameplay behavior remain unchanged. Phase 2 will connect only Match Mode Free Ball through this engine path.
+v20.12.0 created the Phase 1 pure Game Engine kernel, including the command, event, and MatchContext contracts plus deterministic `FREE_BALL_MOVED` tests.
 
 ## Game Engine migration foundation
 

@@ -8,6 +8,7 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import { RotateCcw, Plus, Minus, Undo2, Redo2, Edit3, X, Dices } from "lucide-react";
 import { createGameState, mergeGameState } from "./game/gameState.mjs";
+import { dispatchSinglePlayerGameCommand } from "./engine/singlePlayerController.mjs";
 import {
   isBenchReservePiece,
   normalizeFormationPlayers,
@@ -159,7 +160,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.12.0";
+const APP_VERSION = "v20.13.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5666,6 +5667,32 @@ function App() {
   function commitFreeBallMove(x, y, { fromHostIntent = false } = {}) {
     if (gameMode !== "match") return false;
     if (sessionCode && isSessionGuest && !fromHostIntent) return false;
+    if (!sessionCode) {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const ball = before.pieces.find(item => item.team === "BALL");
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        // Free Ball does not read cards or rules. The full persisted MatchContext
+        // is introduced with Match start; this phase keeps the controller contract
+        // explicit without changing current Match startup behavior.
+        context: {
+          id: gameTimelineRef.current?.recordingId || "",
+          ruleSet: before.ruleSet,
+          boardSettings: before.settings,
+        },
+        command: {
+          id: createActionEventId("free_ball_move"),
+          type: "FREE_BALL_MOVED",
+          payload: { x: Number(x), y: Number(y) },
+        },
+        label: `Ball ${ball?.label || ""} → ${toCoord(x, y)}`.trim(),
+      });
+      if (!dispatched.result.accepted) return false;
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      return true;
+    }
     const currentPieces = piecesRef.current || pieces;
     const ball = currentPieces.find(item => item.team === "BALL");
     if (!ball) return false;
