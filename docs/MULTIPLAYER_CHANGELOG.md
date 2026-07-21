@@ -1,0 +1,124 @@
+# Multiplayer Changelog
+
+This file preserves the multiplayer implementation history. The current model is documented in [`MULTIPLAYER_ARCHITECTURE.md`](MULTIPLAYER_ARCHITECTURE.md).
+
+## v20.7 — Host-authoritative action starts and atomic Bonus Pass
+
+**Sandbox:** `v20.7`  
+**Git/package:** `20.7.0`  
+**Base:** `v20.6`
+
+Problem: v20.6 made dice host-authoritative but guests could still commit `BONUS_CARD_ACTION_STARTED` and `PASS_TARGETING_STARTED`. Repeated Natural 20 → Bonus Action → Pass chains could race with host writes and leave stale targeting.
+
+Changes:
+
+- introduced semantic `actionStartIntent` for normal Pass and Bonus Action starts;
+- host validates owner, piece, action, continuation, canonical revision, active resolution and possession;
+- Bonus Pass starts atomically through `BONUS_PASS_TARGETING_STARTED`;
+- stale requests restore canonical state and clear pending UI;
+- corrected interception branches that referenced undefined `before.tracker`;
+- added tests preventing direct guest action-start commits and covering repeated Bonus Action chains.
+
+## v20.6 — Canonical dice, turn progression and Bonus Move atomicity
+
+**Sandbox:** `v20.6`  
+**Git/package:** `20.6.0`
+
+Problem evidence included guest `DICE_ROLLED`, `timeline-conflict`, optimistic rollback, `RESOLUTION_ABORTED: not host`, repeated target intents at one revision, Turn 2 regression and incomplete Bonus Move continuation.
+
+Changes:
+
+- guest dice became `diceRollIntent`; host alone commits `DICE_ROLLED`;
+- turn progression reads canonical `before.tracker`, preventing stale Turn 1 → Turn 2 fallback;
+- Bonus Move position and continuation completion are committed atomically;
+- centralized transient cleanup is used by rollback, Undo and Redo;
+- retained owner-only Pass interaction introduced in v20.5.
+
+## v20.5 — Resolution visibility separated from UI authority
+
+**Sandbox:** `v20.5`  
+**Git/package:** `20.5.0`
+
+Problem: a shared `pass targeting` resolution made target and route controls interactive on both browsers.
+
+Changes:
+
+- introduced reusable resolution ownership checks;
+- separated visible canonical resolution state from owner-only interaction;
+- protected target selection, route corners, touch, Cancel and internal handlers;
+- rejected the v20.4 broad before/after snapshot gateway because it transferred guest UI state to the host;
+- established the rule that future commands must be typed semantic requests, not client-generated snapshots.
+
+## v20.4 — Rejected generic snapshot gateway
+
+v20.4 attempted a global authority gateway by transmitting broad `before/after` states. The host adopted guest targeting state and could interact with the guest team's Pass. The build was abandoned. No v20.4 behavior is part of the current architecture.
+
+Historical lesson: authority must control canonical commits without transferring local UI ownership.
+
+## v20.3 — Bonus Action ownership and End authority
+
+Changes:
+
+- only the assigned team may select players, start Bonus Action or end it;
+- opponent and spectator controls are rejected;
+- guest `END B.A.` uses a host-authoritative intent;
+- host validates continuation identity, canonical status and team ownership;
+- repeated clicks are blocked while confirmation is pending.
+
+## v20.2 — Pass Cancel authority
+
+Problem: guest `PASS_CANCELLED` could conflict, rollback and leave a ghost target cursor.
+
+Changes:
+
+- Cancel became `passCancelIntent`;
+- host validates action/team and commits `PASS_CANCELLED`;
+- rejected target/cancel requests restore canonical state and clear local selection;
+- added pending feedback and duplicate-request prevention;
+- interception prompt displays the offensive target/statistic.
+
+## v20.1 — Pass Target authority
+
+Problem: guest target selection could optimistically create `PASS_TARGET_SELECTED` against a stale revision, causing Timeline conflict and stale targeting UI.
+
+Changes:
+
+- target selection became `passTargetIntent`;
+- host validates action, team, destination and base revision;
+- host alone commits `PASS_TARGET_SELECTED`;
+- runtime intent documents remain transport-only;
+- rollback clears selection, hover, target pending state and delayed-resolution UI.
+
+## Earlier multiplayer reliability milestones
+
+### v19.20 — Canonical-resolution diagnostics
+
+Expanded tracer diagnostics for stale Timeline or missing canonical requests without changing gameplay rules.
+
+### v19.19 — Canonical delayed-resolution state
+
+Delayed host resolution stopped relying on stale render-local `gameMode` and derived context from the canonical Timeline cursor.
+
+### v19.18 — Durable host authority during hydration
+
+Long-lived listeners and delayed timers began reading current session authority from refs instead of stale React closures.
+
+### v19.17 — Stale host-ownership closure diagnosis
+
+Confirmed that listeners mounted before owner hydration retained `isSessionHost = false`, causing every later host resolution to abort as `not host`.
+
+### v19.16 — Debug tracer and failed optimistic-commit recovery
+
+- introduced centralized trace IDs and explicit guard reasons;
+- treated runtime dice locks as advisory rather than gameplay authority;
+- rolled back a failed optimistic revision only when it was still current;
+- kept Timeline as the canonical multiplayer authority.
+
+## Documentation policy
+
+Do not create a new multiplayer document for each patch. For future releases:
+
+1. update `MULTIPLAYER_ARCHITECTURE.md` when the current model changes;
+2. append one release entry here;
+3. update permanent cross-system consequences in `ARCHITECTURE_DECISIONS.md` when required;
+4. keep README limited to orientation and the current release summary.

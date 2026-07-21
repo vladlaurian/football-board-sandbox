@@ -17,7 +17,7 @@ Pass → geometry and pass classification
 Interception → roll statistic and mathematical resolution
 ```
 
-This separation is documented in [`INTERCEPTION_ENGINE_V20.md`](INTERCEPTION_ENGINE_V20.md).
+This separation is documented in [`INTERCEPTION_ENGINE.md`](INTERCEPTION_ENGINE.md).
 
 ## Pass settings
 

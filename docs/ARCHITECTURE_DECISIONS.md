@@ -145,7 +145,7 @@ Gameplay systems request stat values through stable IDs resolved from the global
 - Editor, Inspector, and PNG export continue to share `CardPreview` as required by ADR-001.
 - Migration must create a pre-migration backup, validate common structure/presentation, and preserve every existing Value and Show state.
 
-**Reference:** `docs/GLOBAL_BACK_STATS_V19_24.md`.
+**Reference:** `docs/GLOBAL_BACK_STATS.md`.
 
 
 ## ADR-014 — Interception resolution is independent from Pass geometry
@@ -166,7 +166,7 @@ The Interception configuration owns the defender roll stat ID, standard-modifier
 - AI Analysis exports Pass and Interception configuration separately.
 - Future Long Pass work must call the same Interception resolver rather than create a Long Pass roll engine.
 
-**Reference:** `docs/INTERCEPTION_ENGINE_V20.md`.
+**Reference:** `docs/INTERCEPTION_ENGINE.md`.
 
 ## ADR — Shared resolution state does not imply shared UI control (v20.5)
 
@@ -180,6 +180,17 @@ Turn progression must be derived from the transition's canonical `before.tracker
 
 A Bonus Move is one logical transition: physical movement and continuation completion are committed together. No UI may depend on a second optimistic guest commit to unlock `END B.A.`.
 
-## v20.7 — Action-start authority boundary
+## ADR — v20.7 host-authoritative action starts and atomic Bonus Pass
 
-A multiplayer guest may choose an action locally, but may not publish the transition that starts gameplay state. Normal Pass and Bonus Action starts are semantic runtime intents. The host validates ownership and canonical revision, executes the transition, and publishes Timeline. Bonus Pass activation and targeting are one atomic canonical transition so repeated Natural 20 chains cannot expose an intermediate continuation-only state.
+**Version record**
+
+- Sandbox version: `v20.7`
+- Git/package version: `20.7.0`
+- Base build: `v20.6`
+- Build name: `Final_Board_v20_7_multiplayer_action_start_authority_fix`
+
+A multiplayer guest may choose an action locally, but may not publish the transition that starts gameplay state. Normal Pass and Bonus Action starts are semantic runtime intents. The host validates ownership, canonical revision, piece, action type, continuation identity, active resolution compatibility, and possession requirements before executing the transition and publishing Timeline.
+
+Bonus Pass activation and Pass targeting are one atomic canonical transition (`BONUS_PASS_TARGETING_STARTED`). Repeated Natural 20 → Bonus Action → Pass chains must never expose an intermediate state in which the continuation is active but Pass targeting is absent or locally owned by the guest. Stale intents are rejected and local pending state is restored from the canonical Timeline.
+
+**Historical reason:** v20.6 made dice host-authoritative but still allowed guests to commit `BONUS_CARD_ACTION_STARTED` and `PASS_TARGETING_STARTED` directly. That remaining optimistic boundary could race with host commits during repeated Bonus Action chains and leave Pass targeting stuck. v20.7 closes that boundary.
