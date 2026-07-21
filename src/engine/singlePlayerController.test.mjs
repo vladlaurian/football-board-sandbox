@@ -181,3 +181,28 @@ test("Single Player Controller does not depend on UI, Firebase, or browser APIs"
   const forbidden = /(?:from\s+["'](?:react|firebase\/|firebase)["']|\bwindow\b|\bdocument\b|\blocalStorage\b|\bsetTimeout\b|\bsetInterval\b|\bfetch\b|\bXMLHttpRequest\b)/;
   assert.equal(forbidden.test(source), false);
 });
+
+test("Single Player Controller records Free Move start, segments, and end as ordinary Undo/Redo Timeline entries", () => {
+  const start = normalMoveState();
+  const freeStart = dispatchSinglePlayerGameCommand({
+    state: start, context: normalMoveContext(),
+    command: { id: "free-start", type: "FREE_MOVE_STARTED", payload: { pieceId: "blue-1" } },
+  });
+  const freeCommit = dispatchSinglePlayerGameCommand({
+    timeline: freeStart.timeline, state: freeStart.state, context: normalMoveContext(),
+    command: { id: "free-commit", type: "FREE_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 9, y: 6 } },
+  });
+  const freeEnd = dispatchSinglePlayerGameCommand({
+    timeline: freeCommit.timeline, state: freeCommit.state, context: normalMoveContext(),
+    command: { id: "free-end", type: "FREE_MOVE_ENDED", payload: { pieceId: "blue-1" } },
+  });
+  assert.deepEqual(freeEnd.timeline.entries.map(entry => entry.type), ["FREE_MODE_STARTED", "FREE_MOVE", "FREE_MODE_ENDED"]);
+  const undoEnd = undoTimeline(freeEnd.timeline);
+  assert.equal(undoEnd.state.tracker.matchActionState.freeMode.active, true);
+  const undoMove = undoTimeline(undoEnd.timeline);
+  assert.equal(undoMove.state.pieces.find(piece => piece.id === "blue-1").x, 3);
+  const redoMove = redoTimeline(undoMove.timeline);
+  const redoEnd = redoTimeline(redoMove.timeline);
+  assert.equal(redoEnd.state.tracker.matchActionState.freeMode.active, false);
+  assert.equal(redoEnd.state.pieces.find(piece => piece.id === "blue-1").x, 9);
+});

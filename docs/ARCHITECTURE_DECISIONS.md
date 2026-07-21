@@ -332,3 +332,20 @@ UI, Controller, timers, Firebase, and future multiplayer adapters may request or
 - `movementPathRules.mjs` is the sole pure corridor implementation.
 - Normal MOVE and 3/2 enforce it in the Engine; temporary legacy Single Player Bonus/Group paths reuse the same module.
 - Editor Mode, Free Ball, and Manual Multiplayer are unchanged.
+
+## ADR-023 — Free Move is a visible, reversible administrative Engine action
+
+**Status:** Active
+
+**Decision:** In offline Single Player Match Mode, Free Move is resolved only through `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED`. It is a visible administrative correction, not a gameplay action: every start, segment, and end remains in Timeline History and participates in normal Undo/Redo, Replay, and AI export. AI export marks it `movementReason: "FREE_MODE"` and `eventSource: "MANUAL_CORRECTION"`; it never consumes Tracker economy.
+
+While Free Move is active, no other offline Match Mode action may proceed. Its selected player can move in any number of segments with no distance, axis, path, phase, Speed, or Tracker restriction, but may not finish on another player. The ball square is permitted. A Free Move changes only the selected player position: it never carries, takes, or dislodges the ball.
+
+**Reason:** The tool is a recovery route for a test-stage board state, so hiding it from history or allowing normal gameplay to interleave with it would make the canonical record misleading. Treating the correction as a normal, clearly-labelled Timeline event keeps every later state explainable and reversible while preserving its non-gameplay status.
+
+**Consequences:**
+
+- Engine-level command lock prevents migrated mechanics from bypassing the active correction.
+- UI-level lock prevents remaining legacy offline action entrances and Free Ball from interleaving.
+- Undoing an end restores active Free Move; undoing a segment restores its prior board position; Redo reapplies the same sequence.
+- Manual Multiplayer and Editor Mode remain unchanged.

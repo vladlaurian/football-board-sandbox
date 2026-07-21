@@ -294,7 +294,7 @@ test("THREE_TWO_MOVE_COMMITTED rejects a player blocking the path to the ball", 
 });
 
 test("engine modules do not depend on UI, Firebase, or browser APIs", () => {
-  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs", "movementPathRules.mjs", "normalMoveRules.mjs", "threeTwoMoveRules.mjs", "singlePlayerController.mjs"];
+  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs", "movementPathRules.mjs", "normalMoveRules.mjs", "threeTwoMoveRules.mjs", "freeMoveRules.mjs", "singlePlayerController.mjs"];
   const forbidden = /(?:from\s+["'](?:react|firebase\/|firebase)["']|\bwindow\b|\bdocument\b|\blocalStorage\b|\bsetTimeout\b|\bsetInterval\b|\bfetch\b|\bXMLHttpRequest\b)/;
   moduleFiles.forEach(file => {
     const source = fs.readFileSync(new URL(`./${file}`, import.meta.url), "utf8");
@@ -305,4 +305,65 @@ test("engine modules do not depend on UI, Firebase, or browser APIs", () => {
 test("legacy authorization overrides remain outside the Phase 3 normal-MOVE engine interception", () => {
   const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
   assert.match(source, /!useThreeTwo && !authorizationOverride && authorization\.mode === "normal"/);
+});
+
+test("FREE_MOVE commands are administrative, keep the ball fixed, and lock other Engine commands", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 3, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 3, y: 5 },
+      { id: "red-1", team: "B", x: 9, y: 5 },
+    ],
+    movementStateByPieceId: { "blue-1": { axis: "horizontal", spent: 2, distance: 2 } },
+  });
+  const started = applyGameCommand({
+    state: start, context: normalMoveContext(),
+    command: { id: "free-start", type: "FREE_MOVE_STARTED", payload: { pieceId: "blue-1" } },
+  });
+  assert.equal(started.accepted, true);
+  assert.equal(started.nextState.tracker.matchActionState.freeMode.active, true);
+  assert.equal(started.nextState.tracker.usedActions.blue, 0);
+  assert.equal(started.events[0].metadata.administrative, true);
+  assert.deepEqual(applyGameCommand({
+    state: started.nextState, context: normalMoveContext(),
+    command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "blocked-by-free"),
+  }), { accepted: false, reason: "FREE_MOVE_ACTIVE" });
+
+  const moved = applyGameCommand({
+    state: started.nextState, context: normalMoveContext(),
+    command: { id: "free-commit", type: "FREE_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 20, y: 17 } },
+  });
+  assert.equal(moved.accepted, true);
+  assert.deepEqual(moved.nextState.pieces.find(piece => piece.id === "blue-1").x, 20);
+  assert.deepEqual(moved.nextState.pieces.find(piece => piece.id === "ball"), { id: "ball", team: "BALL", x: 3, y: 5 });
+  assert.deepEqual(moved.nextState.movementStateByPieceId, start.movementStateByPieceId);
+  assert.equal(moved.events[0].metadata.movementReason, "FREE_MODE");
+  assert.equal(moved.events[0].metadata.administrative, true);
+
+  const ended = applyGameCommand({
+    state: moved.nextState, context: normalMoveContext(),
+    command: { id: "free-end", type: "FREE_MOVE_ENDED", payload: { pieceId: "blue-1" } },
+  });
+  assert.equal(ended.accepted, true);
+  assert.equal(ended.nextState.tracker.matchActionState.freeMode.active, false);
+});
+
+test("FREE_MOVE permits the ball square but rejects a second player destination", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 7, y: 7 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 2, y: 2 },
+      { id: "red-1", team: "B", x: 8, y: 8 },
+    ],
+  });
+  const started = applyGameCommand({ state: start, context: normalMoveContext(), command: { id: "free-start-ball", type: "FREE_MOVE_STARTED", payload: { pieceId: "blue-1" } } });
+  const ballSquare = applyGameCommand({ state: started.nextState, context: normalMoveContext(), command: { id: "free-ball-square", type: "FREE_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 7, y: 7 } } });
+  assert.equal(ballSquare.accepted, true);
+  assert.equal(ballSquare.nextState.pieces.find(piece => piece.id === "ball").x, 7);
+  assert.deepEqual(applyGameCommand({
+    state: ballSquare.nextState, context: normalMoveContext(),
+    command: { id: "free-occupied", type: "FREE_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 8, y: 8 } },
+  }), { accepted: false, reason: "occupied" });
 });

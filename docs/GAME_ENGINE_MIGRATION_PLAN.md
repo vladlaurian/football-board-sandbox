@@ -109,9 +109,15 @@ The direct-board confirmation is not an independent Auto Move gameplay mechanic 
 
 ## Phase 4 — Remaining movement family
 
-**Status:** In progress. 3/2 is complete in v20.17.0; Free Move and Group Move remain pending.
+**Status:** In progress. 3/2 is complete in v20.17.0; Free Move is complete in v20.19.0; Group Move remains pending.
 
-Migrate Free Move and Group Move. Audit any remaining distinct movement prompt before treating it as a separate mechanic. Split into separate builds if focused tests show this phase is too broad.
+Migrate Group Move. Audit any remaining distinct movement prompt before treating it as a separate mechanic. Split into separate builds if focused tests show this phase is too broad.
+
+### v20.19.0 — offline Single Player Free Move Engine migration
+
+Free Move now has one offline Match Mode mutation path: `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` flow through the Game Engine and Single Player Controller into Timeline. It is deliberately an administrative correction rather than a Tracker action. The three Timeline entries are ordinary reversible history, so Undo/Redo may step across them and AI export retains the correction as `FREE_MODE` with `MANUAL_CORRECTION` provenance.
+
+The Engine owns the active Free Move lock, selected-piece identity, player-only destination occupancy, player-only movement, and the guarantee that the ball never follows a Free-Moved player. While it is active, all other Engine commands are rejected. UI guards extend the same lock to remaining legacy offline Match Mode action entrances and Free Ball. Free Move retains its intended exemption from distance, path, axis, phase, and Tracker limits. Manual Multiplayer and Editor Mode remain on their existing paths.
 
 ### v20.17.0 — offline Single Player 3/2 vertical slice
 

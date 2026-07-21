@@ -164,7 +164,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.18.0";
+const APP_VERSION = "v20.19.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5669,6 +5669,7 @@ function App() {
 
   function toggleFreeBall(piece = null) {
     if (gameMode !== "match" || replayModeRef.current) return;
+    if (!sessionCode && currentTimelineTrackerSnapshot().matchActionState.freeMode?.active) return;
     if (sessionCode && (!piece || piece.team === "BALL" || pieceTeamKey(piece) !== myTeam)) return;
     setFreeBallActive(active => {
       const next = !active;
@@ -6137,7 +6138,7 @@ function App() {
     // 3/2 is an Engine-owned free action in offline Single Player. It must be
     // offered before the normal Tracker-exhaustion gate because it does not
     // consume a Tracker action.
-    if (!sessionCode && gameMode === "match" && piece.team !== "BALL") {
+    if (!sessionCode && gameMode === "match" && piece.team !== "BALL" && !matchActionState.freeMode?.active) {
       const threeTwo = getThreeTwoEligibility(piece, x, y);
       if (threeTwo.eligible) {
         setPendingThreeTwoMove({ pieceId: piece.id, x, y });
@@ -6160,7 +6161,7 @@ function App() {
 
     // The 3/2 rule is a free action, but only during this team's active phase and before its action tracker is complete.
     const threeTwo = getThreeTwoEligibility(piece, x, y);
-    if (threeTwo.eligible) {
+    if (!freeModeAuthorized && threeTwo.eligible) {
       setPendingThreeTwoMove({ pieceId: piece.id, x, y, evaluation: threeTwo });
       return true;
     }
@@ -6195,6 +6196,28 @@ function App() {
       const geometry = getMovementGeometry(piece, { x, y });
       if (geometry.kind === "same") return false;
       if (sessionCode && isSessionGuest) { void requestHostFreeMove(piece, x, y); return true; }
+      if (!sessionCode) {
+        const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+        const dispatched = dispatchSinglePlayerGameCommand({
+          timeline: gameTimelineRef.current,
+          state: before,
+          context: singlePlayerMatchContext(),
+          command: {
+            id: createActionEventId(`free_move_${piece.id}`),
+            type: GAME_COMMAND_TYPE.FREE_MOVE_COMMITTED,
+            payload: { pieceId: piece.id, x: Number(x), y: Number(y) },
+          },
+          label: `${piece.team === "A" ? "Blue" : "Red"} Free Move: ${getPieceDisplayLabel(piece)} → ${toCoord(x, y)}`,
+        });
+        if (!dispatched.result.accepted) {
+          if (dispatched.result.reason !== "same") setIllegalMoveNotice({ reason: dispatched.result.reason });
+          return false;
+        }
+        replaceGameTimeline(dispatched.timeline);
+        applyTimelineGameState(dispatched.state);
+        setSelectedId(piece.id);
+        return true;
+      }
       return commitPieceMove(piece, x, y, { legal: true, geometry, moveCost: 0, remaining: 0 });
     }
     const evaluation = authorization.mode === "group" ? evaluateGroupMove(piece, x, y) : evaluateMove(piece, x, y);
@@ -10200,6 +10223,31 @@ function App() {
   function commitFreeModeToggle(piece, { fromHostIntent = false, requestedOperation = "toggle" } = {}) {
     if (!piece || piece.team === "BALL") return false;
     if (sessionCode && isSessionGuest && !fromHostIntent) return false;
+    if (!sessionCode) {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const currentFreeMode = before.tracker.matchActionState?.freeMode || {};
+      const isSameFreePiece = Boolean(currentFreeMode.active && currentFreeMode.pieceId === piece.id);
+      if (requestedOperation === "end" && !isSameFreePiece) return false;
+      if (requestedOperation === "start" && currentFreeMode.active) return false;
+      const ending = requestedOperation === "end" || (requestedOperation === "toggle" && isSameFreePiece);
+      const team = pieceTeamKey(piece);
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`free_move_${ending ? "end" : "start"}_${piece.id}`),
+          type: ending ? GAME_COMMAND_TYPE.FREE_MOVE_ENDED : GAME_COMMAND_TYPE.FREE_MOVE_STARTED,
+          payload: { pieceId: piece.id },
+        },
+        label: `${team === "blue" ? "Blue" : "Red"} Free Move ${ending ? "OFF" : "ON"}: ${getPieceDisplayLabel(piece)}`,
+      });
+      if (!dispatched.result.accepted) return false;
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      setSelectedId(ending ? null : piece.id);
+      return true;
+    }
     const team = pieceTeamKey(piece);
     const currentTracker = currentTimelineTrackerSnapshot();
     const currentActionState = currentTracker.matchActionState;
@@ -10345,6 +10393,14 @@ function App() {
   }
 
   async function consumeInspectorAction(type, piece) {
+    const singlePlayerFreeMode = !sessionCode && currentTimelineTrackerSnapshot().matchActionState.freeMode?.active;
+    if (singlePlayerFreeMode) {
+      const activeFreePieceId = currentTimelineTrackerSnapshot().matchActionState.freeMode?.pieceId;
+      if (type === "FREE" && String(piece?.id || "") === String(activeFreePieceId || "")) {
+        commitFreeModeToggle(piece, { requestedOperation: "end" });
+      }
+      return;
+    }
     if (type === "PASS" && gameMode === "match" && !playerHasBall(piece)) {
       setIllegalMoveNotice({ reason: "pass-requires-ball" });
       return;
@@ -11501,7 +11557,7 @@ function App() {
                       <button
                         type="button"
                         className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${freeBallActive ? "is-active" : ""}`}
-                        disabled={replayModeRef.current || (Boolean(sessionCode) && pieceTeamKey(inspectedPiece) !== myTeam)}
+                        disabled={replayModeRef.current || (!sessionCode && matchActionState.freeMode?.active) || (Boolean(sessionCode) && pieceTeamKey(inspectedPiece) !== myTeam)}
                         aria-pressed={freeBallActive}
                         onClick={() => toggleFreeBall(inspectedPiece)}
                       >

@@ -168,7 +168,7 @@ consumption succeed.
 ## v19.21 integration boundary: PASS ownership and Free Ball
 
 - PASS eligibility in Match Mode is gated by the initiating player's current co-location with the `BALL` piece before the existing Pass Action Resolution flow begins. This gate does not alter Pass geometry, interception order, rolls, outcomes, or cancellation behavior. Editor/Sandbox PASS remains unrestricted.
-- Free Move is the visible name of the existing player free-placement authorization. Its internal `freeMode` state is retained for compatibility.
+- Free Move is the visible name of the existing player free-placement authorization. Its internal `freeMode` state is retained for compatibility. In offline Single Player it is now an Engine-owned administrative Timeline action: start, every placement, and end are visible to Undo/Redo, Replay, and AI export, but never consume Tracker economy. It locks all other offline Match Mode actions while active and never moves the ball.
 - Free Ball is intentionally outside the Generic Action Resolution Engine. It is a one-click administrative ball placement that consumes no Tracker action and does not create an action request, decision, roll, continuation, or player movement authorization.
 - The final ball position is nevertheless recorded as a canonical `BALL_MOVED` Timeline transition, preserving Undo/Redo, replay, export, and multiplayer state parity.
 

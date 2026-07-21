@@ -4,6 +4,7 @@ import { createGameEvent } from "./gameEvents.mjs";
 import { createMatchContext } from "./matchContext.mjs";
 import { cancelNormalMove, commitNormalMove, startNormalMove } from "./normalMoveRules.mjs";
 import { commitThreeTwoMove } from "./threeTwoMoveRules.mjs";
+import { commitFreeMove, endFreeMove, startFreeMove } from "./freeMoveRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -53,6 +54,25 @@ export function applyGameCommand({ state, context, command } = {}) {
 
   const matchContext = createMatchContext(context);
   const currentState = createGameState(state);
+  const freeMoveActive = Boolean(currentState.tracker?.matchActionState?.freeMode?.active);
+  if (freeMoveActive && ![
+    GAME_COMMAND_TYPE.FREE_MOVE_COMMITTED,
+    GAME_COMMAND_TYPE.FREE_MOVE_ENDED,
+  ].includes(normalizedCommand.type)) return rejected("FREE_MOVE_ACTIVE");
+  const freeMoveTransition = normalizedCommand.type === GAME_COMMAND_TYPE.FREE_MOVE_STARTED
+    ? startFreeMove(currentState, normalizedCommand)
+    : normalizedCommand.type === GAME_COMMAND_TYPE.FREE_MOVE_COMMITTED
+      ? commitFreeMove(currentState, normalizedCommand)
+      : normalizedCommand.type === GAME_COMMAND_TYPE.FREE_MOVE_ENDED
+        ? endFreeMove(currentState, normalizedCommand)
+        : null;
+  if (freeMoveTransition) {
+    if (!freeMoveTransition.accepted) return rejected(freeMoveTransition.reason);
+    return accepted(createGameState(freeMoveTransition.nextState), [createGameEvent({
+      ...freeMoveTransition.event,
+      commandId: normalizedCommand.id,
+    })], freeMoveTransition.timeline);
+  }
   if (normalizedCommand.type === GAME_COMMAND_TYPE.FREE_BALL_MOVED) {
     return applyFreeBallMoved(currentState, normalizedCommand);
   }

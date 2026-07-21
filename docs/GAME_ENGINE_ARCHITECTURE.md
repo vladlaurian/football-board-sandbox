@@ -98,6 +98,8 @@ Existing Timeline event names remain authoritative wherever possible, including 
 
 Physical player movement validates one shared path rule: every intermediate horizontal, vertical, or diagonal square must be free of players. Teammates and opponents block identically; the ball does not block. This is an Engine rule for migrated movement and is reused by temporary legacy Single Player movement paths until those mechanics migrate. Free Move is deliberately exempt because it is an administrative recovery tool, not a normal gameplay movement mechanic.
 
+In offline Single Player, Free Move is nevertheless an Engine-owned, visible correction. `FREE_MOVE_STARTED`, each `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` become ordinary Timeline entries, so Undo/Redo and Replay reconstruct them step by step and AI export labels them as administrative `FREE_MODE` information. It never consumes Tracker economy. While active, it locks every other offline Match Mode command; its selected player may move without normal geometry restrictions and may share the ball square, but cannot finish on another player and never carries the ball.
+
 ## 4. Ownership boundaries
 
 | Layer | Owns | Must not own |

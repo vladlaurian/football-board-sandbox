@@ -6,13 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.18.0` |
-| Git/package version | `20.18.0` |
-| Build name | `Final_Board_v20_18_0_single_player_movement_path_blocking` |
-| Base build | `v20.17.0 single_player_three_two_engine` |
+| Sandbox version | `v20.19.0` |
+| Git/package version | `20.19.0` |
+| Build name | `Final_Board_v20_19_0_single_player_free_move_engine` |
+| Base build | `v20.18.0 single_player_movement_path_blocking` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.18.0`. The repository version is defined in `package.json` as `20.18.0`. The browser title is `Sandbox v20.18.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.19.0`. The repository version is defined in `package.json` as `20.19.0`. The browser title is `Sandbox v20.19.0`.
+
+## v20.19.0 release summary
+
+v20.19.0 migrates offline Single Player Free Move into the pure Game Engine through `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED`. Free Move is an explicit administrative correction: it appears in Timeline History, Undo/Redo, Replay, and AI Analysis, where it is marked `FREE_MODE` and `MANUAL_CORRECTION`; it never consumes a Tracker action. While active it locks all other offline Match Mode actions, including Free Ball and Engine commands, until the same player ends Free Move. It has no distance, path, axis, phase, or Speed restriction; it may share the ball square but cannot finish on another player. Crucially, it moves only the selected player: the ball remains where it is, whether the player began on the ball or is later placed onto it. Editor Mode, Free Ball outside this temporary lock, and Manual Multiplayer retain their existing paths.
 
 ## v20.18.0 release summary
 

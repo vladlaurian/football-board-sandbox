@@ -128,6 +128,21 @@ test("Free Ball is explicitly identified in AI export", () => {
   assert.equal(exported.semanticTimeline[0].movements[0].isBall, true);
 });
 
+test("Free Move is exported as an explicit administrative correction without Tracker consumption", () => {
+  const before = state();
+  const after = state({ pieces: [{ ...before.pieces[0], x: 16, y: 11 }, before.pieces[1], before.pieces[2]] });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, {
+    id: "free_move_1", type: "FREE_MOVE", label: "Blue Free Move: Veer → P12", team: "blue",
+    metadata: { movementReason: "FREE_MODE", administrative: true }, before, after,
+  });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  assert.equal(exported.semanticTimeline[0].type, "MOVE");
+  assert.equal(exported.semanticTimeline[0].movementReason, "FREE_MODE");
+  assert.equal(exported.semanticTimeline[0].eventSource, "MANUAL_CORRECTION");
+  assert.equal(exported.semanticTimeline[0].actionEconomyAfter.teamActionsUsed, 0);
+});
+
 test("Three Two is explicitly identified in AI export", () => {
   const before = state();
   const after = state({ pieces: [{ ...before.pieces[0], x: 11 }, before.pieces[1], before.pieces[2]] });

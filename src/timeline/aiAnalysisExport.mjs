@@ -231,6 +231,7 @@ function semanticType(entry, trackerActions, movements) {
 }
 
 function eventSource(entry) {
+  if (entry.metadata?.administrative) return "MANUAL_CORRECTION";
   if (["CARD_ASSIGNED", "CARD_DETACHED", "CARD_DELETED", "BOARD_SETTING_CHANGED", "MATCH_MODE_ENDED"].includes(entry.type)) return "MANUAL_CORRECTION";
   return "GAMEPLAY";
 }
