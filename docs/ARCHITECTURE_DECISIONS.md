@@ -513,6 +513,19 @@ The transition may create the existing explicit pending interceptor decision or 
 - Tracker economy, ball position, possession, dice consumption, outcome resolution and later reaction advancement remain outside this boundary.
 - Manual Multiplayer retains its legacy decision path until explicitly reopened.
 
+## ADR-037 — Requested dice and Extra Roll are separate canonical inputs
+
+**Status:** Active
+
+**Decision:** In offline Single Player Match Mode, an ordinary die button may submit only an active canonical pending-roll request. `PASS_INTERCEPTION_ROLL_SUBMITTED` validates and consumes the exact unique RollEvent, then records the raw value and canonical delayed-resolution handoff. An `EXTRA_ROLL_SUBMITTED` is an explicit administrative event, not a substitute for a pending mechanic roll.
+
+**Consequences:**
+
+- The UI cannot create a gameplay die result merely because a user presses a team button; Engine validation requires the matching action, request, team, subject and reaction identity.
+- Extra Roll is visible in Timeline and AI analysis, consumes no Tracker action, has no action-resolution consequence and automatically closes its one-roll UI arm.
+- Existing delayed Pass outcome logic remains temporarily downstream, but must consume the Engine-recorded input rather than a UI-owned roll.
+- Editor Mode and Manual Multiplayer keep legacy dice controls until explicitly migrated.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

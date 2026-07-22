@@ -302,6 +302,22 @@ Delivered files and tests:
 - offline Single Player `choosePassInterceptor()` branch in `src/main.jsx`
 - focused command: `node --test src/engine/gameEngine.test.mjs src/engine/singlePlayerController.test.mjs src/rules/passEngine.test.mjs src/multiplayer/actionStartAuthority.test.mjs`
 
+### v20.28.0 — offline Single Player Pass roll submission and dice access boundary
+
+**Status:** Complete as the fifth narrow Pass slice, plus the approved administrative dice safeguard.
+
+`PASS_INTERCEPTION_ROLL_SUBMITTED` now flows through the Game Engine and Single Player Controller. It accepts only the active exact pending D20 request and its matching unique RollEvent, consumes that event once, stores the raw result in canonical MatchState, updates canonical dice display state and records the existing delayed-resolution descriptor. The legacy delayed resolver temporarily reads this canonical input and performs the existing outcome calculation. Outcome, possession, ball movement, Natural 1/Natural 20 consequences and later reaction advancement remain outside this build.
+
+Offline Match Mode dice controls are disabled unless a pending mechanic roll requests the relevant team. `EXTRA ROLL` explicitly arms one administrative random or chosen roll. It creates `EXTRA_ROLL` in Timeline and AI analysis, never consumes Tracker economy, cannot satisfy a pending action roll, and closes after use. Editor Mode and Manual Multiplayer retain their legacy dice behavior.
+
+Delivered files and tests:
+
+- `src/engine/gameCommands.mjs`, `src/engine/passStartRules.mjs`, and `src/engine/gameEngine.mjs`
+- `src/engine/gameEngine.test.mjs` and `src/engine/singlePlayerController.test.mjs`
+- offline Single Player dice routing in `src/main.jsx`
+- `src/timeline/aiAnalysisExport.mjs` and its regression test
+- focused command: `node --test src/engine/gameEngine.test.mjs src/engine/singlePlayerController.test.mjs src/timeline/aiAnalysisExport.test.mjs src/match/delayedResolution.test.mjs src/multiplayer/actionStartAuthority.test.mjs`
+
 ### v20.19.0 — offline Single Player Free Move Engine migration
 
 Free Move now has one offline Match Mode mutation path: `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` flow through the Game Engine and Single Player Controller into Timeline. It is deliberately an administrative correction rather than a Tracker action. The three Timeline entries are ordinary reversible history, so Undo/Redo may step across them and AI export retains the correction as `FREE_MODE` with `MANUAL_CORRECTION` provenance.
@@ -344,7 +360,7 @@ Acceptance:
 
 ## Phase 5 — Tracker, turns, and possession
 
-**Status:** In progress — v20.25.0–v20.27.0 complete Pass start/cancel/target/route-plan/interceptor choice only.
+**Status:** In progress — v20.25.0–v20.28.0 complete Pass start/cancel/target/route-plan/interceptor choice/raw roll input only.
 
 Migrate Match start, phase completion, turn change, possession change, action reset, and currently existing match-completion behavior.
 

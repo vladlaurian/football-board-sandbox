@@ -462,3 +462,24 @@ test("Single Player Controller records normal Pass interceptor choice as an Undo
   const redone = redoTimeline(undone.timeline);
   assert.equal(redone.state.actionResolution.pendingRoll.subjectId, "red-2");
 });
+
+test("Single Player Controller records a Pass interception roll before the delayed resolver runs", () => {
+  const state = createGameState({
+    ...normalMoveState(),
+    pieces: [...normalMoveState().pieces, { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 }],
+  });
+  const started = dispatchSinglePlayerGameCommand({ state, context: normalMoveContext(), command: { id: "controller-roll-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "controller-roll" } } });
+  const targeted = dispatchSinglePlayerGameCommand({ timeline: started.timeline, state: started.state, context: normalMoveContext(), command: { id: "controller-roll-target", type: "PASS_TARGET_SELECTED", payload: { passId: "controller-roll", x: 9, y: 5 } } });
+  const routed = dispatchSinglePlayerGameCommand({ timeline: targeted.timeline, state: targeted.state, context: normalMoveContext(), command: { id: "controller-roll-route", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "controller-roll", cornerId: "top-left" } } });
+  const pendingRoll = routed.state.actionResolution.pendingRoll;
+  const rolled = dispatchSinglePlayerGameCommand({
+    timeline: routed.timeline, state: routed.state, context: normalMoveContext(),
+    command: { id: "controller-roll-submit", type: "PASS_INTERCEPTION_ROLL_SUBMITTED", payload: { passId: "controller-roll", createdAt: 1000, rollEvent: { id: "controller-roll-event", requestId: pendingRoll.requestId, actionId: "controller-roll", team: "red", dieType: 20, natural: 11, source: "RANDOM", createdAt: 1000, subjectId: "red-1", reactionIndex: 0 } } },
+  });
+  assert.equal(rolled.timeline.entries.at(-1).type, "DICE_ROLLED");
+  assert.equal(rolled.state.actionResolution.status, "awaiting-interception-resolution");
+  const undone = undoTimeline(rolled.timeline);
+  assert.equal(undone.state.actionResolution.status, "awaiting-interception-roll");
+  const redone = redoTimeline(undone.timeline);
+  assert.equal(redone.state.actionResolution.status, "awaiting-interception-resolution");
+});

@@ -89,7 +89,7 @@ A command is an attempted action. An event is a confirmed gameplay fact emitted 
 | 3/2 | `THREE_TWO_MOVE_COMMITTED` |
 | Tracker | `TURN_PHASE_ENDED`, `TURN_CHANGED`, `POSSESSION_CHANGED` |
 | Pass | `PASS_STARTED`, `PASS_CANCELLED`, `PASS_TARGET_SELECTED`, `PASS_ROUTE_SELECTED`, `PASS_INTERCEPTOR_SELECTED` |
-| Dice and resolution | `ROLL_SUBMITTED`, `RESOLUTION_DUE` |
+| Dice and resolution | `PASS_INTERCEPTION_ROLL_SUBMITTED`, `RESOLUTION_DUE`, `EXTRA_ROLL_SUBMITTED` |
 | Bonus Action | `BONUS_ACTION_STARTED`, `BONUS_ACTION_ENDED`; typed movement: `BONUS_MOVE_STARTED`, `BONUS_MOVE_CANCELLED`, `BONUS_MOVE_COMMITTED` |
 
 Future Dribble, Shot, Tackle, and Cross commands use this same contract; they must not introduce separate UI, Timeline, Dice, or Firebase gameplay paths.
@@ -115,11 +115,11 @@ Future multiplayer identity and assigned-team authorization belong to its adapte
 
 ## 5. Delayed resolution and manual dice
 
-Manual roll remains a permanent rule. `ROLL_SUBMITTED` carries a unique RollEvent and is validated against the pending request. Chosen and random manual rolls use the same contract.
+Manual roll remains a permanent rule. `PASS_INTERCEPTION_ROLL_SUBMITTED` carries a unique RollEvent and is validated against the exact pending request. Chosen and random mechanic-requested rolls use the same contract. `EXTRA_ROLL_SUBMITTED` is the explicit administrative fallback: it records a die result without satisfying a gameplay request or consuming a Tracker action.
 
 Visible delay is presentation scheduling, not game logic:
 
-1. engine accepts `ROLL_SUBMITTED` and stores durable pending-resolution state;
+1. engine accepts `PASS_INTERCEPTION_ROLL_SUBMITTED` and stores durable pending-resolution state;
 2. Controller schedules cosmetic waiting;
 3. Controller sends `RESOLUTION_DUE`;
 4. engine revalidates action, request, event identity, and current state before resolving.

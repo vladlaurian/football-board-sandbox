@@ -1134,6 +1134,84 @@ test("PASS_INTERCEPTOR_SELECTED stays atomic and outside Tracker economy for Bon
   assert.equal(result.nextState.actionResolution.pendingRoll.subjectId, "red-2");
 });
 
+test("PASS_INTERCEPTION_ROLL_SUBMITTED consumes the exact pending roll and starts only the canonical delayed handoff", () => {
+  const rollState = createGameState({
+    ...normalMoveState(),
+    pieces: [...normalMoveState().pieces, { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 }],
+  });
+  const started = applyGameCommand({ state: rollState, context: normalMoveContext(), command: { id: "roll-submit-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "roll-submit-pass" } } });
+  const targeted = applyGameCommand({ state: started.nextState, context: normalMoveContext(), command: { id: "roll-submit-target", type: "PASS_TARGET_SELECTED", payload: { passId: "roll-submit-pass", x: 9, y: 5 } } });
+  const routed = applyGameCommand({ state: targeted.nextState, context: normalMoveContext(), command: { id: "roll-submit-route", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "roll-submit-pass", cornerId: "top-left" } } });
+  const pendingRoll = routed.nextState.actionResolution.pendingRoll;
+  const before = structuredClone(routed.nextState);
+  const result = applyGameCommand({
+    state: routed.nextState, context: normalMoveContext(),
+    command: {
+      id: "roll-submit", type: "PASS_INTERCEPTION_ROLL_SUBMITTED",
+      payload: {
+        passId: "roll-submit-pass",
+        createdAt: 1000,
+        rollEvent: { id: "roll-event-1", requestId: pendingRoll.requestId, actionId: "roll-submit-pass", team: "red", dieType: 20, natural: 13, source: "RANDOM", createdAt: 1000, subjectId: "red-1", reactionIndex: 0 },
+      },
+    },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.events[0].type, "DICE_ROLLED");
+  assert.equal(result.nextState.actionResolution.status, "awaiting-interception-resolution");
+  assert.equal(result.nextState.actionResolution.pendingRoll, null);
+  assert.equal(result.nextState.actionResolution.lastRollEvent.id, "roll-event-1");
+  assert.deepEqual(result.nextState.actionResolution.consumedEventIds, ["roll-event-1"]);
+  assert.equal(result.nextState.dice.redResult, 13);
+  assert.equal(result.events[0].metadata.delayedResolution.payload.defenderId, "red-1");
+  assert.deepEqual(result.nextState.tracker, before.tracker);
+  assert.deepEqual(result.nextState.pieces, before.pieces);
+  const submittedBefore = structuredClone(result.nextState);
+  assert.deepEqual(applyGameCommand({
+    state: result.nextState, context: normalMoveContext(),
+    command: {
+      id: "roll-submit-replay", type: "PASS_INTERCEPTION_ROLL_SUBMITTED",
+      payload: {
+        passId: "roll-submit-pass",
+        createdAt: 1001,
+        rollEvent: { id: "roll-event-1", requestId: pendingRoll.requestId, actionId: "roll-submit-pass", team: "red", dieType: 20, natural: 13, source: "RANDOM", createdAt: 1000, subjectId: "red-1", reactionIndex: 0 },
+      },
+    },
+  }), { accepted: false, reason: "PASS_NOT_INTERCEPTION_ROLLING" });
+  assert.deepEqual(result.nextState, submittedBefore);
+});
+
+test("PASS_INTERCEPTION_ROLL_SUBMITTED rejects an invalid or replayed roll without mutation", () => {
+  const rollState = createGameState({
+    ...normalMoveState(),
+    pieces: [...normalMoveState().pieces, { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 }],
+  });
+  const started = applyGameCommand({ state: rollState, context: normalMoveContext(), command: { id: "roll-reject-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "roll-reject-pass" } } });
+  const targeted = applyGameCommand({ state: started.nextState, context: normalMoveContext(), command: { id: "roll-reject-target", type: "PASS_TARGET_SELECTED", payload: { passId: "roll-reject-pass", x: 9, y: 5 } } });
+  const routed = applyGameCommand({ state: targeted.nextState, context: normalMoveContext(), command: { id: "roll-reject-route", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "roll-reject-pass", cornerId: "top-left" } } });
+  const pendingRoll = routed.nextState.actionResolution.pendingRoll;
+  const before = structuredClone(routed.nextState);
+  assert.deepEqual(applyGameCommand({
+    state: routed.nextState, context: normalMoveContext(),
+    command: { id: "roll-reject", type: "PASS_INTERCEPTION_ROLL_SUBMITTED", payload: { passId: "roll-reject-pass", createdAt: 1000, rollEvent: { id: "wrong-roll", requestId: "stale", actionId: "roll-reject-pass", team: "red", dieType: 20, natural: 13, source: "RANDOM", createdAt: 1000, subjectId: "red-1", reactionIndex: 0 } } },
+  }), { accepted: false, reason: "PASS_INTERCEPTION_ROLL_INVALID" });
+  assert.deepEqual(routed.nextState, before);
+  assert.equal(pendingRoll.subjectId, "red-1");
+});
+
+test("EXTRA_ROLL_SUBMITTED is an explicit administrative Match event and never consumes Tracker", () => {
+  const state = normalMoveState();
+  const result = applyGameCommand({
+    state, context: normalMoveContext(),
+    command: { id: "extra-roll", type: "EXTRA_ROLL_SUBMITTED", payload: { team: "blue", dieType: 12, result: 7, rollSource: "CHOSEN" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.events[0].type, "EXTRA_ROLL");
+  assert.equal(result.events[0].metadata.administrative, true);
+  assert.equal(result.nextState.dice.blueResult, 7);
+  assert.equal(result.nextState.dice.blueLastDieType, 12);
+  assert.deepEqual(result.nextState.tracker, state.tracker);
+});
+
 test("PASS_ROUTE_CONFIRMED keeps Bonus Pass atomic and outside Tracker economy", () => {
   const start = createGameState({
     ...normalMoveState(),

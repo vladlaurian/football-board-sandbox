@@ -10,7 +10,7 @@ import { cancelBonusMove, commitBonusMove, startBonusMove } from "./bonusMoveRul
 import { endBonusAction } from "./bonusActionRules.mjs";
 import { endTrackerPhase } from "./trackerPhaseRules.mjs";
 import { restartMatch, startMatch } from "./matchLifecycleRules.mjs";
-import { cancelPass, confirmPassRoute, selectPassInterceptor, selectPassTarget, startPass } from "./passStartRules.mjs";
+import { cancelPass, confirmPassRoute, selectPassInterceptor, selectPassTarget, startPass, submitPassInterceptionRoll } from "./passStartRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -51,6 +51,38 @@ function applyFreeBallMoved(state, command) {
     undoMode: "step",
     allowNoop: false,
   });
+}
+
+function applyExtraRoll(state, command) {
+  if (state.gameMode !== "match") return rejected("MATCH_MODE_REQUIRED");
+  if (state.actionResolution) return rejected("ACTION_RESOLUTION_ACTIVE");
+  const team = command.payload?.team === "blue" ? "blue" : command.payload?.team === "red" ? "red" : null;
+  const dieType = Number(command.payload?.dieType);
+  const result = Number(command.payload?.result);
+  const rollSource = command.payload?.rollSource === "CHOSEN" ? "CHOSEN" : "RANDOM";
+  if (!team || !Number.isInteger(dieType) || dieType < 2 || !Number.isInteger(result) || result < 1 || result > dieType) {
+    return rejected("EXTRA_ROLL_INVALID");
+  }
+  const dice = {
+    ...state.dice,
+    dieType,
+    blueResult: team === "blue" ? result : state.dice?.blueResult,
+    redResult: team === "red" ? result : state.dice?.redResult,
+    blueLastDieType: team === "blue" ? dieType : state.dice?.blueLastDieType,
+    redLastDieType: team === "red" ? dieType : state.dice?.redLastDieType,
+  };
+  return accepted(createGameState({ ...state, dice }), [createGameEvent({
+    type: "EXTRA_ROLL",
+    commandId: command.id,
+    team,
+    metadata: {
+      rollSource,
+      chosenResult: rollSource === "CHOSEN" ? result : null,
+      dieType,
+      result,
+      administrative: true,
+    },
+  })], { groupId: null, undoMode: "step", allowNoop: true });
 }
 
 export function applyGameCommand({ state, context, command } = {}) {
@@ -94,6 +126,7 @@ export function applyGameCommand({ state, context, command } = {}) {
     GAME_COMMAND_TYPE.PASS_TARGET_SELECTED,
     GAME_COMMAND_TYPE.PASS_ROUTE_CONFIRMED,
     GAME_COMMAND_TYPE.PASS_INTERCEPTOR_SELECTED,
+    GAME_COMMAND_TYPE.PASS_INTERCEPTION_ROLL_SUBMITTED,
     GAME_COMMAND_TYPE.PASS_CANCELLED,
   ].includes(normalizedCommand.type)) return rejected("BONUS_ACTION_ACTIVE");
   if ([GAME_COMMAND_TYPE.MATCH_STARTED, GAME_COMMAND_TYPE.MATCH_RESTARTED].includes(normalizedCommand.type)) {
@@ -145,6 +178,17 @@ export function applyGameCommand({ state, context, command } = {}) {
       ...transition.event,
       commandId: normalizedCommand.id,
     })], transition.timeline);
+  }
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.PASS_INTERCEPTION_ROLL_SUBMITTED) {
+    const transition = submitPassInterceptionRoll(currentState, matchContext, normalizedCommand);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({
+      ...transition.event,
+      commandId: normalizedCommand.id,
+    })], transition.timeline);
+  }
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.EXTRA_ROLL_SUBMITTED) {
+    return applyExtraRoll(currentState, normalizedCommand);
   }
   if (currentState.actionResolution) return rejected("ACTION_RESOLUTION_ACTIVE");
   const freeMoveTransition = normalizedCommand.type === GAME_COMMAND_TYPE.FREE_MOVE_STARTED

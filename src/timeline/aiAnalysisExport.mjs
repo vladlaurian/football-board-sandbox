@@ -298,7 +298,7 @@ function semanticEvent(entry, sequence, cardsById) {
     eventSource: eventSource(entry),
     type: semanticType(entry, trackerActions, movements),
     label: entry.label,
-    diceRoll: entry.type === "DICE_ROLLED" ? {
+    diceRoll: ["DICE_ROLLED", "EXTRA_ROLL"].includes(entry.type) ? {
       source: entry.metadata?.rollSource === "CHOSEN" ? "CHOSEN" : "RANDOM",
       chosenResult: entry.metadata?.rollSource === "CHOSEN" ? Number(entry.metadata?.chosenResult) || null : null,
       eventId: String(entry.metadata?.rollEvent?.id || "") || null,
@@ -306,6 +306,7 @@ function semanticEvent(entry, sequence, cardsById) {
       actionId: String(entry.metadata?.rollEvent?.actionId || "") || null,
       subjectId: String(entry.metadata?.rollEvent?.subjectId || "") || null,
       reactionIndex: Number.isFinite(Number(entry.metadata?.rollEvent?.reactionIndex)) ? Number(entry.metadata.rollEvent.reactionIndex) : null,
+      ...(entry.type === "EXTRA_ROLL" ? { administrative: true } : {}),
     } : null,
     team,
     phase: String(eventState?.tracker?.turnPhase || "attack"),

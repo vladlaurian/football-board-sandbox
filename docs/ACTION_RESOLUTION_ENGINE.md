@@ -184,6 +184,12 @@ Offline Single Player selects an equal-priority interceptor only through `PASS_I
 
 This transition does not consume Tracker economy, move the ball, alter possession, create a RollEvent, resolve an interception, or advance the reaction chain. Normal selection is a stepwise Timeline entry; Bonus selection remains atomic with its continuation. Manual Multiplayer retains its legacy selection path until that track is explicitly reopened.
 
+## v20.28.0 — canonical Pass interception-roll input and administrative dice boundary
+
+Offline Single Player submits an interception die only through `PASS_INTERCEPTION_ROLL_SUBMITTED`. The command carries the exact RollEvent identity and raw natural value; the Engine validates it against the current pending-roll descriptor, consumes that event once, records the raw roll, and creates the existing delayed-resolution handoff from explicit command time plus frozen MatchContext delay rules. The later resolver temporarily performs the established outcome calculation from this Engine-owned input.
+
+The roll transition does not itself resolve interception, change possession, move the ball, grant a Bonus Action or advance the reaction chain. In offline Match Mode, ordinary dice controls are therefore enabled only for an active pending mechanic roll. `EXTRA_ROLL_SUBMITTED` is a deliberately separate administrative command: it records an explicit `EXTRA_ROLL` Timeline/AI event, updates visible dice values, consumes no Tracker action and may not operate while an action resolution is active. Manual Multiplayer and Editor Mode retain legacy dice paths.
+
 ## Multiplayer canonical resolution rule added in v19.13
 
 A remote user may create an authorized pending decision or RollEvent, but only the host applies the deterministic consequence. Host scheduling must be derived from the canonical hydrated Timeline state, not exclusively from a one-time "new entry" notification. Repeated Firestore snapshots for the same entry must not restart its cosmetic delay, and an already consumed RollEvent must remain idempotent.

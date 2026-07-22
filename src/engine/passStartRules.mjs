@@ -1,7 +1,8 @@
 import { beginContinuationAction, CONTINUATION_STATUS, normalizeActionContinuation } from "../match/actionContinuation.mjs";
 import { ACTION_TRANSACTION_UNDO_MODE, createActionTransaction, transactionForActionState } from "../match/actionTransaction.mjs";
-import { createPendingDecision, createPendingRoll, withPendingDecision, withPendingRoll } from "../match/actionResolutionEngine.mjs";
+import { consumeActionEvent, createPendingDecision, createPendingRoll, createRollEvent, withPendingDecision, withPendingRoll } from "../match/actionResolutionEngine.mjs";
 import { PASS_CORNERS, applyInterceptorChoice, buildPassPlan, interceptorChoiceCandidates, passRequiresInterceptionSequence, teamKeyForPiece } from "../rules/passEngine.mjs";
+import { createDelayedResolution } from "../match/delayedResolution.mjs";
 import { activateTrackerAction, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 
@@ -327,6 +328,93 @@ export function selectPassInterceptor(state, context, command) {
     },
     timeline: {
       groupId: pending.bonusContinuationId || pending.entryId || null,
+      undoMode: pending.bonusContinuationId ? "atomic" : "step",
+      allowNoop: true,
+    },
+  };
+}
+
+export function submitPassInterceptionRoll(state, context, command) {
+  const pending = state.actionResolution;
+  const passId = passIdForCommand(command);
+  if (!pending || pending.kind !== "pass" || pending.status !== "awaiting-interception-roll" || !pending.pendingRoll) {
+    return { accepted: false, reason: "PASS_NOT_INTERCEPTION_ROLLING" };
+  }
+  if (!passId || passId !== String(pending.id || "")) return { accepted: false, reason: "PASS_NOT_INTERCEPTION_ROLLING" };
+  const interceptorIndex = Math.max(0, Math.floor(Number(pending.interceptorIndex) || 0));
+  const interceptor = pending.plan?.interceptors?.[interceptorIndex];
+  const defenderId = String(interceptor?.defender?.id || "");
+  const team = teamKeyForPiece(interceptor?.defender);
+  const rawRollEvent = command.payload?.rollEvent;
+  const rollEvent = createRollEvent({
+    id: rawRollEvent?.id,
+    requestId: rawRollEvent?.requestId,
+    actionId: rawRollEvent?.actionId,
+    team: rawRollEvent?.team,
+    dieType: rawRollEvent?.dieType,
+    natural: rawRollEvent?.natural,
+    source: rawRollEvent?.source,
+    createdAt: rawRollEvent?.createdAt,
+    subjectId: rawRollEvent?.subjectId,
+    reactionIndex: rawRollEvent?.reactionIndex,
+  });
+  if (!rollEvent || !defenderId || !team) return { accepted: false, reason: "PASS_INTERCEPTION_ROLL_INVALID" };
+  const consumed = consumeActionEvent(pending, rollEvent);
+  if (!consumed || rollEvent.team !== team || String(rollEvent.subjectId || "") !== defenderId || Number(rollEvent.reactionIndex) !== interceptorIndex) {
+    return { accepted: false, reason: "PASS_INTERCEPTION_ROLL_INVALID" };
+  }
+  const createdAt = Number(command.payload?.createdAt);
+  if (!Number.isFinite(createdAt) || createdAt < 0) return { accepted: false, reason: "PASS_INTERCEPTION_ROLL_TIME_INVALID" };
+  const resolutionTransaction = {
+    id: `resolution_${pending.id}_${command.id}`,
+    source: "roll-resolution",
+    undoMode: "atomic",
+  };
+  const delayedResolution = createDelayedResolution({
+    kind: "pass-interception",
+    actionId: pending.id,
+    team,
+    value: rollEvent.natural,
+    delayMs: Math.max(2000, Number(context?.ruleSet?.actions?.pass?.resolutionDelayMs) || 2000),
+    createdAt,
+    payload: {
+      defenderId,
+      interceptorIndex,
+      rollEvent,
+      undoTransaction: resolutionTransaction,
+    },
+  });
+  const nextResolution = {
+    ...consumed,
+    status: "awaiting-interception-resolution",
+    lastRoll: { team, value: rollEvent.natural, eventId: rollEvent.id, requestId: rollEvent.requestId },
+    lastResolution: null,
+    resolutionTransaction,
+  };
+  const dice = {
+    ...state.dice,
+    dieType: rollEvent.dieType,
+    blueResult: team === "blue" ? rollEvent.natural : state.dice?.blueResult,
+    redResult: team === "red" ? rollEvent.natural : state.dice?.redResult,
+    blueLastDieType: team === "blue" ? rollEvent.dieType : state.dice?.blueLastDieType,
+    redLastDieType: team === "red" ? rollEvent.dieType : state.dice?.redLastDieType,
+  };
+  return {
+    accepted: true,
+    nextState: { ...state, actionResolution: nextResolution, dice },
+    event: {
+      type: "DICE_ROLLED",
+      team,
+      metadata: {
+        rollSource: rollEvent.source,
+        rollEvent,
+        chosenResult: rollEvent.source === "CHOSEN" ? rollEvent.natural : null,
+        delayedResolution,
+        undoTransaction: resolutionTransaction,
+      },
+    },
+    timeline: {
+      groupId: pending.bonusContinuationId || null,
       undoMode: pending.bonusContinuationId ? "atomic" : "step",
       allowNoop: true,
     },

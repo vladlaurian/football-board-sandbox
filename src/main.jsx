@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.27.0";
+const APP_VERSION = "v20.28.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2002,6 +2002,7 @@ function App() {
   const [redDiceAnimationValue, setRedDiceAnimationValue] = useState(null);
   const [diceNotice, setDiceNotice] = useState(null);
   const [diceCooldownUntil, setDiceCooldownUntil] = useState(0);
+  const [extraRollArmed, setExtraRollArmed] = useState(false);
   // A host-controlled test aid. It changes only the source of a manual roll;
   // all downstream dice, Timeline, reaction, and multiplayer flow remains the
   // same as a normal roll.
@@ -2227,6 +2228,9 @@ function App() {
     setDicePanelVisible(true);
     setDieType(20);
   }, [actionResolution]);
+  useEffect(() => {
+    if (actionResolution || sessionCode || gameMode !== "match") setExtraRollArmed(false);
+  }, [actionResolution, gameMode, sessionCode]);
   useEffect(() => { movementStateRef.current = movementStateByPieceId; }, [movementStateByPieceId]);
   useEffect(() => { gameTimelineRef.current = gameTimeline; }, [gameTimeline]);
   useEffect(() => {
@@ -5341,7 +5345,9 @@ function App() {
     if (pending?.kind === "pass" && pending.status === "awaiting-interception-roll") {
       const interceptor = pending.plan?.interceptors?.[pending.interceptorIndex];
       if (teamKeyForPiece(interceptor?.defender) !== team) return false;
+      if (!sessionCode && gameMode === "match") return true;
     }
+    if (!sessionCode && gameMode === "match") return !pending && extraRollArmed;
     if (!sessionCode) return true;
     if (hostIntent && sessionAuthorityRef.current.isHost) return true;
     return myTeam === team;
@@ -5447,6 +5453,9 @@ function App() {
       return requestDiceRollIntent(team, chosenResult);
     }
     const forcedPassDie = actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "awaiting-interception-roll";
+    const offlineMatch = !sessionCode && gameMode === "match";
+    const extraRoll = offlineMatch && !forcedPassDie && extraRollArmed;
+    if (offlineMatch && !forcedPassDie && !extraRoll) return false;
     const rollingDieType = forcedPassDie ? 20 : dieType;
     const hasChosenResult = chosenResult !== null && chosenResult !== undefined;
     const requestedResult = hasChosenResult ? Number(chosenResult) : null;
@@ -5478,10 +5487,55 @@ function App() {
       const rollId = `${Date.now()}_${clientIdRef.current}_${team}`;
       pendingDiceRollRef.current[team] = sessionCode && gameMode !== "match" ? { rollId, result } : null;
       if (gameMode !== "match") diceSeenRollIdsRef.current[team] = rollId;
-      setResult(result);
       setAnimationValue(null);
       diceRollingRef.current[team] = false;
       setRolling(false);
+      if (offlineMatch) {
+        const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+        const now = Date.now();
+        const rollSource = hasChosenResult ? "CHOSEN" : "RANDOM";
+        const pending = actionResolutionRef.current;
+        const rollEvent = forcedPassDie ? createRollEvent({
+          id: createActionEventId(`roll_${pending?.id || "pass"}`),
+          requestId: pending?.pendingRoll?.requestId,
+          actionId: pending?.id,
+          team,
+          dieType: 20,
+          natural: result,
+          source: rollSource,
+          createdAt: now,
+          subjectId: pending?.pendingRoll?.subjectId,
+          reactionIndex: pending?.pendingRoll?.reactionIndex,
+        }) : null;
+        const dispatched = dispatchSinglePlayerGameCommand({
+          timeline: gameTimelineRef.current,
+          state: before,
+          context: singlePlayerMatchContext(),
+          command: forcedPassDie
+            ? {
+                id: createActionEventId(`pass_roll_submit_${pending?.id || ""}`),
+                type: GAME_COMMAND_TYPE.PASS_INTERCEPTION_ROLL_SUBMITTED,
+                payload: { passId: pending?.id, rollEvent, createdAt: now },
+              }
+            : {
+                id: createActionEventId(`extra_roll_${team}`),
+                type: GAME_COMMAND_TYPE.EXTRA_ROLL_SUBMITTED,
+                payload: { team, dieType: rollingDieType, result, rollSource },
+              },
+          label: forcedPassDie
+            ? `${team === "blue" ? "Blue" : "Red"} D20: ${result} (interception)${hasChosenResult ? " (chosen)" : ""}`
+            : `${team === "blue" ? "Blue" : "Red"} EXTRA D${rollingDieType}: ${result}${hasChosenResult ? " (chosen)" : ""}`,
+        });
+        if (!dispatched.result.accepted) return;
+        replaceGameTimeline(dispatched.timeline);
+        applyTimelineGameState(dispatched.state);
+        showDiceNotice(team, result, rollingDieType);
+        if (extraRoll) setExtraRollArmed(false);
+        const delayedResolution = dispatched.entry?.metadata?.delayedResolution;
+        if (delayedResolution) scheduleDelayedResolution({ ...delayedResolution, entryId: String(dispatched.entry?.id || "") });
+        return;
+      }
+      setResult(result);
       showDiceNotice(team, result, rollingDieType);
       const preparedPassRoll = preparePassInterceptionRoll(team, result);
       const traceId = preparedPassRoll
@@ -6908,7 +6962,7 @@ function App() {
     [gameTimeline, actionResolution, isReplayView],
   );
 
-  const passActive = actionResolution?.kind === "pass" && ["targeting", "route-selection", "awaiting-interceptor-choice", "awaiting-interception-roll"].includes(actionResolution.status);
+  const passActive = actionResolution?.kind === "pass" && ["targeting", "route-selection", "awaiting-interceptor-choice", "awaiting-interception-roll", "awaiting-interception-resolution"].includes(actionResolution.status);
   const passInterceptionRollRequired = actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interception-roll";
   const passTargetDistance = useMemo(() => {
     const pending = actionResolution;
@@ -10507,7 +10561,7 @@ function App() {
     const interceptor = pending?.plan?.interceptors?.[pending.interceptorIndex];
     if (
       pending?.kind !== "pass"
-      || pending.status !== "awaiting-interception-roll"
+      || !["awaiting-interception-roll", "awaiting-interception-resolution"].includes(pending.status)
       || pending.id !== request.actionId
       || Number(pending.interceptorIndex) !== Number(request.payload?.interceptorIndex)
       || String(interceptor?.defender?.id || "") !== String(request.payload?.defenderId || "")
@@ -10527,7 +10581,14 @@ function App() {
       multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "missing defender, roll value, or roll event", { traceId, hasDefender: Boolean(defender), value: request.value, hasRollEvent: Boolean(rollEvent) });
       return;
     }
-    const consumed = consumeActionEvent(pending, rollEvent);
+    const engineConsumed = pending.status === "awaiting-interception-resolution";
+    const consumed = engineConsumed
+      ? (String(pending.lastRollEvent?.id || "") === String(rollEvent.id || "")
+        && Array.isArray(pending.consumedEventIds)
+        && pending.consumedEventIds.includes(rollEvent.id)
+        ? pending
+        : null)
+      : consumeActionEvent(pending, rollEvent);
     if (!consumed) {
       multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "roll event does not match pending roll or was already consumed", { traceId, requestId: rollEvent.requestId, eventId: rollEvent.id });
       return;
@@ -12214,6 +12275,11 @@ function App() {
             <select value={passInterceptionRollRequired ? 20 : dieType} disabled={passInterceptionRollRequired} onChange={e => setDieType(Number(e.target.value))}>
               <option value={20}>D20</option><option value={12}>D12</option><option value={10}>D10</option><option value={8}>D8</option><option value={6}>D6</option><option value={4}>D4</option>
             </select>
+            {!sessionCode && gameMode === "match" && <button
+              className={extraRollArmed ? "toggle-on" : ""}
+              disabled={isReplayView || Boolean(actionResolution) || blueDieRolling || redDieRolling || diceCooldownUntil > Date.now()}
+              onClick={() => setExtraRollArmed(value => !value)}
+            >{extraRollArmed ? "CANCEL EXTRA" : "EXTRA ROLL"}</button>}
             {renderTeamRollControl("blue", { label: "Blue", className: "blue-die-button" })}
             <span className={`die-result blue-die-result ${!blueDieRolling && blueDieResult === 1 ? "die-min" : !blueDieRolling && blueDieResult === blueLastDieType ? "die-max" : ""}`}>{blueDieRolling ? (blueDiceAnimationValue ?? "—") : (blueDieResult ?? "—")}</span>
             {renderTeamRollControl("red", { label: "Red", className: "red-die-button" })}
@@ -12309,6 +12375,12 @@ function App() {
               <select value={passInterceptionRollRequired ? 20 : dieType} disabled={isReplayView || passInterceptionRollRequired} onChange={e => setDieType(Number(e.target.value))}>
                 <option value={20}>D20</option><option value={12}>D12</option><option value={10}>D10</option><option value={8}>D8</option><option value={6}>D6</option><option value={4}>D4</option>
               </select>
+              {!sessionCode && gameMode === "match" && <button
+                className={extraRollArmed ? "toggle-on" : ""}
+                disabled={isReplayView || Boolean(actionResolution) || blueDieRolling || redDieRolling || diceCooldownUntil > Date.now()}
+                onPointerDown={event => event.stopPropagation()}
+                onClick={() => setExtraRollArmed(value => !value)}
+              >{extraRollArmed ? "CANCEL EXTRA" : "EXTRA ROLL"}</button>}
             </div>
             <div className="team-dice-grid">
               <div className="team-die-card blue-team-die">

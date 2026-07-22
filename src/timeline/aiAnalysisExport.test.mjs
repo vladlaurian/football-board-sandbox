@@ -186,6 +186,25 @@ test("AI export distinguishes a deliberately chosen test roll from a random roll
   });
 });
 
+test("AI export identifies an Extra Roll as an administrative die event", () => {
+  const before = state();
+  const after = state({ dice: { ...before.dice, blueResult: 7, dieType: 12 } });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, {
+    id: "extra_roll",
+    type: "EXTRA_ROLL",
+    label: "Blue EXTRA D12: 7 (chosen)",
+    team: "blue",
+    metadata: { rollSource: "CHOSEN", chosenResult: 7, dieType: 12, result: 7, administrative: true },
+    before,
+    after,
+  });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  assert.equal(exported.semanticTimeline[0].type, "EXTRA_ROLL");
+  assert.equal(exported.semanticTimeline[0].diceRoll.administrative, true);
+  assert.equal(exported.semanticTimeline[0].diceRoll.chosenResult, 7);
+});
+
 test("AI export retains the exact interception modifier sources and cap", () => {
   const before = state({
     actionResolution: {

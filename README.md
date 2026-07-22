@@ -6,13 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.27.0` |
-| Git/package version | `20.27.0` |
-| Build name | `Final_Board_v20_27_0_pass_interceptor_choice_engine` |
-| Base build | `v20.26.1 pass_route_blockers_visual_truth` |
+| Sandbox version | `v20.28.0` |
+| Git/package version | `20.28.0` |
+| Build name | `Final_Board_v20_28_0_dice_access_pass_roll_engine` |
+| Base build | `v20.27.0 pass_interceptor_choice_engine` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.27.0`. The repository version is defined in `package.json` as `20.27.0`. The browser title is `Sandbox v20.27.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.28.0`. The repository version is defined in `package.json` as `20.28.0`. The browser title is `Sandbox v20.28.0`.
+
+## v20.28.0 release summary
+
+v20.28.0 establishes the offline Single Player Match Mode dice boundary. A Pass interception roll now enters through `PASS_INTERCEPTION_ROLL_SUBMITTED -> Game Engine -> Single Player Controller -> Timeline`. The Engine accepts only the exact pending D20 request, consumes its unique RollEvent once, records the raw result and creates the established cosmetic delayed-resolution handoff. It does not calculate the interception outcome, move the ball, change possession, apply Natural 1/Natural 20, or advance another reaction.
+
+Normal dice buttons are now unavailable in offline Match Mode unless an official pending roll requests them. `EXTRA ROLL` is the explicit administrative safety route beside the die selector: it arms one random or chosen roll, then closes automatically. Extra Roll creates a visible `EXTRA_ROLL` Timeline/AI event, consumes no Tracker action, cannot answer a pending mechanic request, and cannot resolve gameplay. Editor Mode and Manual Multiplayer retain their legacy dice controls.
 
 ## v20.27.0 release summary
 
