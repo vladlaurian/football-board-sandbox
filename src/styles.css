@@ -334,6 +334,29 @@
   cursor: grab;
 }
 
+/* v20.39 — Match Presentation Foundation.
+   This is intentionally an outer presentation layer only: it does not alter
+   pitch geometry, pieces, input hitboxes, or any game state. Future visual
+   builds can target this stable Match-only boundary without affecting Editor
+   Mode or the frozen Manual Multiplayer route. */
+.board-wrap.match-presentation {
+  isolation: isolate;
+  border-radius: 20px;
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(92, 159, 107, .16), transparent 62%),
+    linear-gradient(145deg, rgba(9, 22, 32, .92), rgba(3, 9, 14, .98));
+  box-shadow:
+    0 20px 52px rgba(0, 0, 0, .42),
+    inset 0 0 0 1px rgba(192, 222, 201, .16);
+}
+.board-wrap.match-presentation .pitch-shell {
+  border-radius: 14px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .38);
+}
+.board-wrap.match-presentation .pitch {
+  box-shadow: inset 0 0 0 1px rgba(235, 255, 239, .14);
+}
+
 .board-wrap:active {
   cursor: grabbing;
 }

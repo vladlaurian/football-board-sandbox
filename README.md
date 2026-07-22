@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.38.0` |
-| Git/package version | `20.38.0` |
-| Build name | `Final_Board_v20_38_0_card_ui_controller_boundary` |
-| Base build | `v20.37.1 card_render_back_context_fix` |
+| Sandbox version | `v20.39.0` |
+| Git/package version | `20.39.0` |
+| Build name | `Final_Board_v20_39_0_match_presentation_foundation` |
+| Base build | `v20.38.0 card_ui_controller_boundary` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.38.0`. The repository version is in `package.json` as `20.38.0`. The browser title is `Sandbox v20.38.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.39.0`. The repository version is in `package.json` as `20.39.0`. The browser title is `Sandbox v20.39.0`.
 
 ## Current release
 
-v20.38.0 completes Phase 8C.2c.2: `CardEditorPanel`, `CardsPanel` and `AssignCardModal` are explicit UI components. `main.jsx` retains only their existing controller/state adapter and the established Workspace, card-library and Manual Multiplayer callbacks.
+v20.39.0 creates the Match Presentation Foundation. `BoardCanvas` now receives an explicit presentation mode and applies the Match-only presentation boundary only for offline Single Player Match. Editor Mode and Manual Multiplayer retain the technical Editor presentation route. No pitch geometry, piece rendering, input behavior, Match rule, Engine command, Timeline behavior or Firebase behavior changes in this foundation build.
 
 No game rule, Match Engine command, Timeline behavior, Workspace persistence behavior or Manual Multiplayer behavior changed.
 

@@ -44,6 +44,7 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
     React.createElement(BoardCanvas, {
       boardWrapRef: { current: null },
       pitchRef: { current: null },
+      presentationMode: "match",
       selectedId: null,
       setHoveredCell: noop,
       startBoardPan: noop,
@@ -82,6 +83,7 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
     }),
   );
   assert.match(boardMarkup, /board-wrap/);
+  assert.match(boardMarkup, /match-presentation/);
 
   const historyMarkup = renderToStaticMarkup(
     React.createElement(HistoryPanel, {

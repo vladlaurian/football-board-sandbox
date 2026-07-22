@@ -52,6 +52,7 @@ function arcMask(side, settings, penaltyY) {
 export function BoardCanvas({
   boardWrapRef,
   pitchRef,
+  presentationMode = "editor",
   selectedId,
   activeInteractionPieceId = null,
   setHoveredCell,
@@ -113,7 +114,7 @@ export function BoardCanvas({
 
   return (
     <div
-      className={`board-wrap ${(selectedId || activeInteractionPieceId) ? "piece-selected" : ""} ${passActive ? "pass-active" : ""}`}
+      className={`board-wrap ${presentationMode === "match" ? "match-presentation" : "editor-presentation"} ${(selectedId || activeInteractionPieceId) ? "piece-selected" : ""} ${passActive ? "pass-active" : ""}`}
       ref={boardWrapRef}
       onPointerDown={startBoardPan}
       onPointerMove={moveBoardPan}

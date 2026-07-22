@@ -665,6 +665,19 @@ Editor Workspace setup is locked after an offline Match starts whenever a change
 - UI component tests render the Editor, Library and Assign boundaries without a live Firebase session;
 - no Match Engine, Timeline or automated Multiplayer ownership is introduced in the card UI.
 
+## ADR-048 — Match presentation is a view-only mode boundary
+
+**Status:** Active.
+
+**Decision:** `BoardCanvas` receives an explicit `presentationMode`. Offline Single Player Match supplies `match`; Editor Mode and the frozen Manual Multiplayer route supply the existing `editor` presentation. The mode changes only CSS presentation wrappers and must not alter board geometry, hitboxes, legal previews, commands, MatchState, Timeline or Firebase data.
+
+**Consequences:**
+
+- later 2.5D terrain, tactical figures and Match UI work can target one stable Match-only visual boundary;
+- Editor remains a precise technical workspace;
+- Manual Multiplayer can adopt the same presentation later through an explicit, separately approved route rather than being changed accidentally;
+- visual work remains reusable for a future authoritative Multiplayer implementation because it consumes rendered state only.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

@@ -2,6 +2,13 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.39.0 — Match Presentation Foundation
+
+- Added the explicit `presentationMode` boundary to `BoardCanvas`.
+- Activated its Match presentation wrapper only for offline Single Player Match; Editor Mode and the retained Manual Multiplayer path keep the Editor presentation route.
+- Added a focused render assertion for the Match presentation class.
+- Kept pitch geometry, player/ball appearance, all board input, Engine/Timeline behavior and Firebase paths unchanged. This build creates the stable visual boundary for later 2.5D presentation work.
+
 ## v20.38.0 — Phase 8C.2c.2
 
 - Extracted the Card Editor form, Cards Panel/Card Library and Assign Card modal into explicit UI components with controller props.
