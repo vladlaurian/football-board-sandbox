@@ -34,6 +34,15 @@ import { diagonalCostForDistance, getMovementGeometry, normalizeMovementState } 
 import { createDefaultScenarioSlots, normalizeScenarioSlots } from "./board/scenarioUtils.mjs";
 import { createWorkspaceSnapshot, readWorkspaceSnapshot } from "./workspace/workspaceSnapshot.mjs";
 import {
+  planWorkspaceBoardSetting,
+  planWorkspaceCardAssignment,
+  planWorkspaceCardDetachment,
+  planWorkspaceFormationApplication,
+  planWorkspaceFormationSave,
+  planWorkspaceRuleSetCommit,
+  planWorkspaceScenarioSave,
+} from "./workspace/workspaceOperations.mjs";
+import {
   createDefaultRuleSet,
   createRuleSet,
   findRuleSet,
@@ -167,7 +176,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.34.0";
+const APP_VERSION = "v20.35.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4500,38 +4509,26 @@ function App() {
 
   function updateSetting(key, value) {
     if (singlePlayerMatchWorkspaceLocked) return;
-    let cleanValue = Number(value);
-    if (key === "rows" || key === "goalWidth") {
-      cleanValue = forceOddDirectional(cleanValue, settings[key], settings[key]);
-    }
-    const next = { ...settings, [key]: cleanValue };
-
-    if (key === "cols") {
-      next.penaltyDistance = clamp(next.penaltyDistance, 1, Math.floor(cleanValue / 2));
-    }
-    if (key === "rows") {
-      next.rows = forceOddDirectional(cleanValue, settings.rows, settings.rows);
-      next.penaltyY = Math.floor(next.rows / 2);
-    }
-    if (key === "goalWidth") {
-      next.goalWidth = forceOddDirectional(cleanValue, settings.goalWidth, settings.goalWidth);
-    }
-
+    const { cleanValue, nextSettings, nextPieces } = planWorkspaceBoardSetting({
+      settings,
+      pieces: piecesRef.current || pieces,
+      key,
+      value,
+      forceOddDirectional,
+      clamp,
+      clampBoardXForY,
+      ensureBenchReserveCount,
+    });
     const beforeTimeline = captureTimelineGameState();
-    const nextPieces = ensureBenchReserveCount((piecesRef.current || pieces).map(p => ({
-      ...p,
-      y: clamp(p.y, 0, next.rows - 1),
-      x: clampBoardXForY(p.x, clamp(p.y, 0, next.rows - 1), next),
-    })), next);
-    settingsRef.current = next;
+    settingsRef.current = nextSettings;
     piecesRef.current = nextPieces;
-    setSettings(next);
+    setSettings(nextSettings);
     setPieces(nextPieces);
     recordTimelineTransition({
       type: "BOARD_SETTING_CHANGED",
       label: `Board setting ${key}: ${cleanValue}`,
       before: beforeTimeline,
-      after: captureTimelineGameState({ settings: next, pieces: nextPieces }),
+      after: captureTimelineGameState({ settings: nextSettings, pieces: nextPieces }),
     });
   }
 
@@ -4570,15 +4567,16 @@ function App() {
     const formation = getFormationById(formationId);
     pushHistory();
     setPieces(prev => {
-      const ball = prev.find(p => p.team === "BALL");
-      const others = prev.filter(p => p.team !== team && p.team !== "BALL");
-      const temp = createInitialPieces(
-        settings.cols,
-        settings.rows,
-        team === "A" ? formation : getFormationById(blueFormationId),
-        team === "B" ? formation : getFormationById(redFormationId)
-      ).filter(p => p.team === team);
-      const next = sanitizePiecesCardIds([...others, ...temp, ball].filter(Boolean), cardStateRef.current, settingsRef.current);
+      const next = planWorkspaceFormationApplication({
+        pieces: prev,
+        team,
+        formation,
+        blueFormation: getFormationById(blueFormationId),
+        redFormation: getFormationById(redFormationId),
+        settings,
+        createInitialPieces,
+        sanitizePieces: nextPieces => sanitizePiecesCardIds(nextPieces, cardStateRef.current, settingsRef.current),
+      });
       piecesRef.current = next;
       logSnapshot(`${team === "A" ? "Blue" : "Red"} formation: ${formation.name}`, next);
       return next;
@@ -4601,11 +4599,14 @@ function App() {
         return [p.label, normalizeGridPosition(x, y, settings).coord];
       });
 
-    const nextFormations = normalizeFormationSlots(formations.map(f =>
-      f.id === Number(slotId)
-        ? { id: Number(slotId), name: name.trim() || `Formație ${slotId}`, players: teamPieces }
-        : f
-    ), FORMATION_SLOTS);
+    const nextFormations = planWorkspaceFormationSave({
+      formations,
+      slotId,
+      name,
+      players: teamPieces,
+      normalizeFormationSlots,
+      baseSlots: FORMATION_SLOTS,
+    });
 
     setFormations(nextFormations);
     localStorage.setItem("football-board-formations-v18", JSON.stringify(nextFormations));
@@ -4681,12 +4682,12 @@ function App() {
     if (singlePlayerMatchWorkspaceLocked) return;
     const currentScenario = gameSituations.find(s => s.id === Number(activeSituationId));
     if (currentScenario?.snapshot && !window.confirm("Overwrite this Scenario? The existing saved Scenario will be replaced.")) return;
-    const cleanName = activeSituationName.trim() || `Scenario ${activeSituationId}`;
-    const nextSituations = gameSituations.map(s =>
-      s.id === Number(activeSituationId)
-        ? { ...s, name: cleanName, snapshot: createCurrentSnapshot() }
-        : s
-    );
+    const { cleanName, nextScenarios: nextSituations } = planWorkspaceScenarioSave({
+      scenarios: gameSituations,
+      activeSituationId,
+      name: activeSituationName,
+      snapshot: createCurrentSnapshot(),
+    });
 
     setGameSituations(nextSituations);
     localStorage.setItem("football-board-game-situations-v20", JSON.stringify(nextSituations));
@@ -4698,12 +4699,10 @@ function App() {
   const ruleSetEditingLocked = gameMode === "match" || isReplayView || (Boolean(sessionCode) && !isSessionHost);
 
   function commitRuleSetWorkspace(nextRuleSets, nextActiveRuleSet, label = "Rule Set saved") {
-    const normalizedRuleSets = normalizeRuleSets(nextRuleSets);
-    const normalizedActiveRuleSet = normalizeRuleSet(nextActiveRuleSet);
-    const activeExists = normalizedRuleSets.some(ruleSet => ruleSet.id === normalizedActiveRuleSet.id);
-    const savedRuleSets = activeExists
-      ? normalizedRuleSets
-      : [...normalizedRuleSets, normalizedActiveRuleSet];
+    const { ruleSets: savedRuleSets, activeRuleSet: normalizedActiveRuleSet } = planWorkspaceRuleSetCommit({
+      ruleSets: nextRuleSets,
+      activeRuleSet: nextActiveRuleSet,
+    });
 
     activeRuleSetRef.current = normalizedActiveRuleSet;
     setRuleSets(savedRuleSets);
@@ -7211,16 +7210,12 @@ function App() {
     const assignmentCardState = sessionCode && Object.keys(sessionLibraryByIdRef.current || {}).length
       ? buildCardStateFromSessionLibrary(sessionLibraryByIdRef.current)
       : cardStateRef.current;
-    const nextPieces = sanitizePiecesCardIds(
-      currentPieces.map(piece => {
-        if (piece.team === "BALL") return { ...piece, cardId: null };
-        if (piece.id === targetPieceId) return { ...piece, cardId };
-        if (piece.cardId === cardId) return { ...piece, cardId: null };
-        return { ...piece, cardId: piece.cardId || null };
-      }),
-      assignmentCardState,
-      settingsRef.current
-    );
+    const nextPieces = planWorkspaceCardAssignment({
+      pieces: currentPieces,
+      pieceId: targetPieceId,
+      cardId,
+      sanitizePieces: nextPieces => sanitizePiecesCardIds(nextPieces, assignmentCardState, settingsRef.current),
+    });
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
     recordTimelineTransition({
@@ -7244,13 +7239,17 @@ function App() {
     const assignmentCardState = sessionCode && Object.keys(sessionLibraryByIdRef.current || {}).length
       ? buildCardStateFromSessionLibrary(sessionLibraryByIdRef.current)
       : cardStateRef.current;
-    const nextPieces = sanitizePiecesCardIds(
-      (piecesRef.current || pieces).map(piece => piece.id === pieceId ? { ...piece, cardId: null } : { ...piece, cardId: piece.cardId || null }),
-      assignmentCardState,
-      settingsRef.current,
-      {},
-      sessionCardsByIdRef.current
-    );
+    const nextPieces = planWorkspaceCardDetachment({
+      pieces: piecesRef.current || pieces,
+      pieceId,
+      sanitizePieces: nextPieces => sanitizePiecesCardIds(
+        nextPieces,
+        assignmentCardState,
+        settingsRef.current,
+        {},
+        sessionCardsByIdRef.current
+      ),
+    });
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
     recordTimelineTransition({

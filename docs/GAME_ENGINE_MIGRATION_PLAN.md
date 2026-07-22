@@ -434,7 +434,7 @@ Acceptance:
 
 ## Phase 8 — Single Player Controller completion
 
-**Status:** In progress. Phase 8A is complete in v20.32.0, Phase 8B is complete in v20.33.0 and Phase 8C.1 is complete in v20.34.0.
+**Status:** In progress. Phase 8A is complete in v20.32.0, Phase 8B is complete in v20.33.0, Phase 8C.1 is complete in v20.34.0 and Phase 8C.2a is complete in v20.35.0.
 
 Centralize Single Player dispatch and remove remaining direct Match Mode mutation paths from `main.jsx`, preserving Editor Mode, card editing, and Manual Multiplayer.
 
@@ -466,7 +466,7 @@ No gameplay rule, Manual Multiplayer branch, Editor Workspace behavior, Firebase
 
 ### Phase 8C — Editor Workspace and persistence boundary
 
-**Status:** In progress. Phase 8C.1 is complete in v20.34.0; the Editor UI/controller extraction remains pending.
+**Status:** In progress. Phase 8C.1 is complete in v20.34.0 and Phase 8C.2a is complete in v20.35.0; the remaining visual Editor UI extraction remains pending.
 
 #### Phase 8C.1 — Workspace persistence contract
 
@@ -474,11 +474,17 @@ No gameplay rule, Manual Multiplayer branch, Editor Workspace behavior, Firebase
 
 During an active offline Match, Cloud Save, autosave and Workspace import are blocked; Workspace export uses the frozen Match-start setup. Manual Multiplayer persistence is unchanged. Focused contract tests are in `src/workspace/workspaceSnapshot.test.mjs` and are included in the normal test command.
 
-#### Phase 8C.2 — Editor Workspace UI/controller boundary
+#### Phase 8C.2a — structural Workspace operations
+
+**Status:** Complete in v20.35.0.
+
+`workspaceOperations.mjs` now plans board settings, formation application/saving, scenario save, Rule Set commit and card assignment/removal as pure operations. `main.jsx` applies the returned plan through its existing React/ref/History adapter. UI confirmation, Cloud/local persistence and the legacy Manual Multiplayer paths intentionally remain at that boundary.
+
+#### Phase 8C.2b — visual Editor UI/controller boundary
 
 **Status:** Pending.
 
-Extract Editor-only setup, scenario/formation/card profile operations and their React application adapter from `main.jsx` without routing unrestricted editor operations through Match Engine. This is the approved place for later menu/editor changes. It must preserve Editor freedom and never let workspace persistence recreate a competing active Match authority.
+Audit and extract only the visual card editor / remaining workspace UI composition whose mutation behavior is not already centralized by `updateCardState`. Do not move JSX or rename controls for appearance alone. This is the approved place for later menu/editor changes, after their exact UX requirement is known.
 
 Acceptance:
 

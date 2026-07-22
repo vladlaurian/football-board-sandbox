@@ -6,13 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.34.0` |
-| Git/package version | `20.34.0` |
-| Build name | `Final_Board_v20_34_0_phase_8c1_workspace_persistence` |
-| Base build | `v20.33.0 phase_8b_controller_gateway` |
+| Sandbox version | `v20.35.0` |
+| Git/package version | `20.35.0` |
+| Build name | `Final_Board_v20_35_0_phase_8c2_workspace_operations` |
+| Base build | `v20.34.0 phase_8c1_workspace_persistence` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.34.0`. The repository version is defined in `package.json` as `20.34.0`. The browser title is `Sandbox v20.34.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.35.0`. The repository version is defined in `package.json` as `20.35.0`. The browser title is `Sandbox v20.35.0`.
+
+## v20.35.0 Phase 8C.2 — Workspace operations boundary
+
+The structural Editor Workspace mutations now have a pure planning layer in `src/workspace/workspaceOperations.mjs`. Board settings, formation application/saving, scenario saving, Rule Set commit and card assignment/removal are calculated outside `main.jsx`, then the existing UI adapter performs only prompts, React/ref publication, History notes and the unchanged legacy Manual Multiplayer persistence calls.
+
+This is deliberately not a visual refactor of the card editor. Card appearance controls remain UI, but they already converge through the existing `updateCardState` boundary. No action rule, Match Engine command, Timeline behavior, Workspace persistence behavior or Manual Multiplayer behavior changed.
 
 ## v20.34.0 Phase 8C.1 — Workspace persistence boundary
 

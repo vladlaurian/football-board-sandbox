@@ -615,6 +615,18 @@ Editor Workspace setup is locked after an offline Match starts whenever a change
 - the Editor remains free outside Match and Manual Multiplayer Firebase remains unchanged;
 - persistence and Editor UI extraction can proceed without creating another Match authority.
 
+## ADR-044 — Structural Editor mutations are planned outside React
+
+**Status:** Active
+
+**Decision:** The structural Workspace mutations that define a future Match setup use pure Workspace operation planners. The React layer may request user confirmation, publish the accepted plan, add existing History information and invoke legacy Manual Multiplayer persistence, but does not own the underlying transformation.
+
+**Consequences:**
+
+- board settings, formations, scenario save, Rule Set commit and card assignment/removal are independently testable without browser or Firebase APIs;
+- the Match Engine remains separate because unrestricted Editor operations are not gameplay commands;
+- visual card editor controls remain where they are until a specifically justified UI extraction, avoiding cosmetic file movement.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active
