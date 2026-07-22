@@ -1,7 +1,8 @@
 import { beginContinuationAction, CONTINUATION_STATUS, normalizeActionContinuation } from "../match/actionContinuation.mjs";
 import { ACTION_TRANSACTION_UNDO_MODE, createActionTransaction, transactionForActionState } from "../match/actionTransaction.mjs";
-import { teamKeyForPiece } from "../rules/passEngine.mjs";
-import { isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
+import { createPendingDecision, createPendingRoll, withPendingDecision, withPendingRoll } from "../match/actionResolutionEngine.mjs";
+import { PASS_CORNERS, buildPassPlan, interceptorChoiceCandidates, passRequiresInterceptionSequence, teamKeyForPiece } from "../rules/passEngine.mjs";
+import { activateTrackerAction, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 
 function pieceForCommand(state, command) {
@@ -41,6 +42,42 @@ function createPassTargetingResolution({ passId, piece, team, continuationId = n
       undoMode: ACTION_TRANSACTION_UNDO_MODE.STEP,
     }),
   };
+}
+
+function routeCornerId(command) {
+  return Object.prototype.hasOwnProperty.call(command.payload || {}, "cornerId")
+    ? command.payload.cornerId
+    : undefined;
+}
+
+function validRouteCornerId(cornerId, pathMode) {
+  if (pathMode === "center-to-center") return cornerId === null;
+  return PASS_CORNERS.some(corner => corner.id === String(cornerId || ""));
+}
+
+function pendingPassInput(pending, interceptorIndex = 0) {
+  const candidates = interceptorChoiceCandidates(pending?.plan?.interceptors, interceptorIndex);
+  if (candidates.length >= 2) {
+    const team = teamKeyForPiece(candidates[0]?.defender);
+    return withPendingDecision({ ...pending, interceptorIndex }, createPendingDecision({
+      id: `pass_decision_${pending.id}_${interceptorIndex}`,
+      type: "CHOOSE_INTERCEPTOR",
+      team,
+      options: candidates.map(item => ({ id: String(item?.defender?.id || ""), defenderId: String(item?.defender?.id || "") })),
+      context: { actionId: pending.id, interceptorIndex },
+    }));
+  }
+  const interceptor = pending?.plan?.interceptors?.[interceptorIndex];
+  const team = teamKeyForPiece(interceptor?.defender);
+  return withPendingRoll({ ...pending, interceptorIndex }, createPendingRoll({
+    requestId: `pass_roll_${pending.id}_${interceptorIndex}`,
+    actionId: pending.id,
+    team,
+    dieType: 20,
+    subjectId: interceptor?.defender?.id,
+    reactionIndex: interceptorIndex,
+    context: { actionType: "PASS", reactionType: "INTERCEPTION" },
+  }));
 }
 
 export function startPass(state, command) {
@@ -122,6 +159,97 @@ export function selectPassTarget(state, context, command) {
       metadata: { passId, target: { x, y }, continuationId: bonusPass ? continuation.id : null },
     },
     timeline: { groupId: bonusPass ? continuation.id : null, undoMode: bonusPass ? "atomic" : "step", allowNoop: true },
+  };
+}
+
+export function confirmPassRoute(state, context, command) {
+  const pending = state.actionResolution;
+  const passId = passIdForCommand(command);
+  if (!pending || pending.kind !== "pass" || pending.status !== "route-selection" || !pending.target) {
+    return { accepted: false, reason: "PASS_NOT_ROUTE_SELECTING" };
+  }
+  if (!passId || passId !== String(pending.id || "")) return { accepted: false, reason: "PASS_NOT_ROUTE_SELECTING" };
+  const passer = state.pieces.find(piece => String(piece?.id || "") === String(pending.passerId || "")) || null;
+  if (!passer || passer.team === "BALL" || passer.inactive || teamKeyForPiece(passer) !== pending.team || !hasBall(state, passer)) {
+    return { accepted: false, reason: "PASSER_INVALID" };
+  }
+  const pathMode = context?.ruleSet?.actions?.pass?.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center";
+  const cornerId = routeCornerId(command);
+  if (!validRouteCornerId(cornerId, pathMode)) return { accepted: false, reason: "PASS_ROUTE_INVALID" };
+  const plan = buildPassPlan({
+    passer,
+    passerCard: context.gameplayCardsById[String(passer.cardId || "")],
+    pieces: state.pieces,
+    cardById: context.gameplayCardsById,
+    settings: context.boardSettings,
+    target: pending.target,
+    cornerId,
+    rules: context.ruleSet,
+  });
+  if (plan.originBlocked) return { accepted: false, reason: "PASS_ROUTE_ORIGIN_BLOCKED" };
+
+  const continuation = normalizeActionContinuation(state.actionContinuation);
+  const bonusPass = Boolean(pending.continuationId && continuation?.id === pending.continuationId);
+  if (pending.continuationId && (!bonusPass
+    || continuation.status !== CONTINUATION_STATUS.ACTION_ACTIVE
+    || continuation.actionType !== "PASS"
+    || continuation.pieceId !== String(passer.id)
+    || continuation.team !== pending.team)) return { accepted: false, reason: "BONUS_PASS_NOT_ACTIVE" };
+
+  const tracker = normalizeTrackerSnapshot(state.tracker);
+  const activation = bonusPass
+    ? {
+        allowed: true,
+        entry: { id: command.id, type: "PASS", pieceId: passer.id, bonus: true },
+        actionLog: tracker.actionLog,
+        usedActions: tracker.usedActions,
+        matchActionState: tracker.matchActionState,
+      }
+    : activateTrackerAction(tracker, { type: "PASS", pieceId: passer.id, team: pending.team, entryId: command.id });
+  if (!activation.allowed) return { accepted: false, reason: activation.reason || "PASS_NOT_AVAILABLE" };
+
+  const baseNext = {
+    ...pending,
+    status: "completing",
+    cornerId: plan.origin.cornerId,
+    plan,
+    entryId: activation.entry.id,
+    actionLog: activation.actionLog,
+    usedActions: activation.usedActions,
+    matchActionState: activation.matchActionState,
+    bonusContinuationId: bonusPass ? continuation.id : null,
+    pendingDecision: null,
+    pendingRoll: null,
+  };
+  const nextResolution = passRequiresInterceptionSequence(plan, pending.team)
+    ? pendingPassInput(baseNext, 0)
+    : baseNext;
+  return {
+    accepted: true,
+    nextState: {
+      ...state,
+      actionResolution: nextResolution,
+      ...(bonusPass ? {} : {
+        tracker: {
+          ...state.tracker,
+          actionLog: activation.actionLog,
+          usedActions: activation.usedActions,
+          matchActionState: activation.matchActionState,
+        },
+      }),
+    },
+    event: {
+      type: "PASS_CONFIRMED",
+      team: pending.team,
+      metadata: {
+        passId,
+        passerId: passer.id,
+        cornerId: plan.origin.cornerId,
+        status: nextResolution.status,
+        continuationId: bonusPass ? continuation.id : null,
+      },
+    },
+    timeline: { groupId: bonusPass ? continuation.id : activation.entry.id, undoMode: bonusPass ? "atomic" : "step", allowNoop: true },
   };
 }
 

@@ -473,6 +473,33 @@ Until route confirmation receives its own Engine migration, both offline route p
 - Route confirmation remains a distinct future slice because it is the actual action-consumption and resolution-entry boundary.
 - Manual Multiplayer remains unchanged.
 
+## ADR-034 — Pass route confirmation owns the plan and action-economy boundary
+
+**Status:** Active
+
+**Decision:** Offline Single Player Match Mode confirms a selected Pass route only through `PASS_ROUTE_CONFIRMED`. The Engine validates route identity and origin against the frozen path mode, rejects a blocked origin before consumption, builds the deterministic Pass plan from MatchState and MatchContext, then consumes exactly one normal Tracker action or retains Bonus Pass outside Tracker economy.
+
+The transition may create the existing explicit pending interceptor decision or pending roll request when the frozen plan requires one. It must not choose an interceptor, submit/consume a roll, resolve interception, move the ball, alter possession or create a Bonus Action.
+
+**Consequences:**
+
+- The selected origin, foot, distance, effective target, direct hit, defensive crossings and interceptor ordering are one canonical plan rather than UI-owned pre-resolution data.
+- `PASS_CONFIRMED` remains the semantic Timeline event; normal confirmation is stepwise and Bonus confirmation remains atomic with its continuation.
+- A later Engine slice may consume the declared `pendingDecision` or `pendingRoll` without recomputing a competing plan.
+- Manual Multiplayer remains unchanged.
+
+## ADR-035 — Goalkeepers cannot be selected as Pass targets
+
+**Status:** Approved, pending a dedicated target-rule amendment.
+
+**Decision:** A player whose frozen gameplay-card position is `GK` cannot be selected as a requested Pass target, irrespective of team. This is a target-selection rule, not an interception, route-origin or resolution exception.
+
+**Consequences:**
+
+- The future `PASS_TARGET_SELECTED` amendment must reject a goalkeeper square before route selection begins.
+- A goalkeeper remains a normal physical player for geometry: they may block a passing route and may be the first player hit by a route aimed at a different target.
+- The rule must not be hidden in UI-only disabled styling; Engine validation is required. Manual Multiplayer remains unchanged until that track is explicitly reopened.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

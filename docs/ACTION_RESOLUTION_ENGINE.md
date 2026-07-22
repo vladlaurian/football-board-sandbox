@@ -168,6 +168,10 @@ Offline Single Player target choice is now an Engine command, `PASS_TARGET_SELEC
 
 While that route-confirmation migration is pending, its offline preview and existing plan construction must read the active MatchContext rather than mutable editor cards, Rule Set or board settings.
 
+## v20.26.0 — canonical Pass route and plan boundary
+
+Offline Single Player confirms a chosen Pass route through `PASS_ROUTE_CONFIRMED`. The Engine validates the origin, builds the frozen plan, consumes the normal Pass action only after that validation, and stores the existing next stage. It may create a pending interceptor choice or pending roll descriptor; this merely declares the next required input and is not itself interceptor selection, rolling or resolution. The downstream legacy resolver temporarily receives that canonical plan until its own approved migrations are complete.
+
 ## Multiplayer canonical resolution rule added in v19.13
 
 A remote user may create an authorized pending decision or RollEvent, but only the host applies the deterministic consequence. Host scheduling must be derived from the canonical hydrated Timeline state, not exclusively from a one-time "new entry" notification. Repeated Firestore snapshots for the same entry must not restart its cosmetic delay, and an already consumed RollEvent must remain idempotent.

@@ -50,7 +50,11 @@ function normalMoveContext() {
   return createMatchContext({
     id: "normal-move-context",
     boardSettings: { cols: 20, rows: 12 },
-    gameplayCards: [{ id: "card-blue-1", name: "Blue 1", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] }],
+    gameplayCards: [
+      { id: "card-blue-1", name: "Blue 1", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }, { id: "stat:passing", name: "Passing", value: 13 }] },
+      { id: "card-red-1", name: "Red 1", defensiveArea: [{ dx: 2, dy: 0 }] },
+      { id: "card-red-2", name: "Red 2", defensiveArea: [{ dx: -2, dy: 0 }] },
+    ],
   });
 }
 
@@ -945,6 +949,98 @@ test("PASS_TARGET_SELECTED remains in the atomic Bonus Pass transaction without 
   assert.equal(selected.timeline.groupId, "bonus-target");
   assert.equal(selected.nextState.tracker.usedActions.blue, 0);
   assert.equal(selected.nextState.actionContinuation.status, "action-active");
+});
+
+test("PASS_ROUTE_CONFIRMED creates the canonical plan and consumes exactly one normal Tracker action", () => {
+  const started = applyGameCommand({
+    state: normalMoveState(), context: normalMoveContext(),
+    command: { id: "route-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "route-pass" } },
+  });
+  const targeted = applyGameCommand({
+    state: started.nextState, context: normalMoveContext(),
+    command: { id: "route-target", type: "PASS_TARGET_SELECTED", payload: { passId: "route-pass", x: 9, y: 5 } },
+  });
+  const confirmed = applyGameCommand({
+    state: targeted.nextState, context: normalMoveContext(),
+    command: { id: "route-confirm", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "route-pass", cornerId: "top-left" } },
+  });
+  assert.equal(confirmed.accepted, true);
+  assert.equal(confirmed.events[0].type, "PASS_CONFIRMED");
+  assert.equal(confirmed.nextState.tracker.usedActions.blue, 1);
+  assert.equal(confirmed.nextState.tracker.actionLog.blue[0].type, "PASS");
+  assert.equal(confirmed.nextState.actionResolution.status, "completing");
+  assert.equal(confirmed.nextState.actionResolution.cornerId, "top-left");
+  assert.deepEqual(confirmed.nextState.actionResolution.plan.requestedTarget, { x: 9, y: 5 });
+  assert.equal(confirmed.nextState.actionResolution.plan.passerPass, 13);
+  assert.equal(confirmed.nextState.pieces.find(piece => piece.id === "ball").x, 3);
+});
+
+test("PASS_ROUTE_CONFIRMED rejects an invalid route and a blocked origin without consuming Tracker", () => {
+  const routeSelection = applyGameCommand({
+    state: applyGameCommand({
+      state: normalMoveState(), context: normalMoveContext(),
+      command: { id: "route-invalid-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "route-invalid" } },
+    }).nextState,
+    context: normalMoveContext(),
+    command: { id: "route-invalid-target", type: "PASS_TARGET_SELECTED", payload: { passId: "route-invalid", x: 9, y: 5 } },
+  });
+  const invalidBefore = structuredClone(routeSelection.nextState);
+  assert.deepEqual(applyGameCommand({
+    state: routeSelection.nextState, context: normalMoveContext(),
+    command: { id: "route-invalid-confirm", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "route-invalid", cornerId: "unknown" } },
+  }), { accepted: false, reason: "PASS_ROUTE_INVALID" });
+  assert.deepEqual(routeSelection.nextState, invalidBefore);
+
+  const blockedState = createGameState({
+    ...routeSelection.nextState,
+    pieces: [...routeSelection.nextState.pieces, { id: "red-origin-blocker", team: "B", x: 2, y: 4 }],
+  });
+  const blockedBefore = structuredClone(blockedState);
+  assert.deepEqual(applyGameCommand({
+    state: blockedState, context: normalMoveContext(),
+    command: { id: "route-blocked-confirm", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "route-invalid", cornerId: "top-left" } },
+  }), { accepted: false, reason: "PASS_ROUTE_ORIGIN_BLOCKED" });
+  assert.deepEqual(blockedState, blockedBefore);
+});
+
+test("PASS_ROUTE_CONFIRMED enters the existing pending roll or interceptor-choice state without resolving a Pass", () => {
+  const rollState = createGameState({
+    ...normalMoveState(),
+    pieces: [...normalMoveState().pieces, { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 }],
+  });
+  const rollStarted = applyGameCommand({ state: rollState, context: normalMoveContext(), command: { id: "route-roll-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "route-roll" } } });
+  const rollTargeted = applyGameCommand({ state: rollStarted.nextState, context: normalMoveContext(), command: { id: "route-roll-target", type: "PASS_TARGET_SELECTED", payload: { passId: "route-roll", x: 9, y: 5 } } });
+  const rollConfirmed = applyGameCommand({ state: rollTargeted.nextState, context: normalMoveContext(), command: { id: "route-roll-confirm", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "route-roll", cornerId: "top-left" } } });
+  assert.equal(rollConfirmed.nextState.actionResolution.status, "awaiting-interception-roll");
+  assert.equal(rollConfirmed.nextState.actionResolution.pendingRoll.subjectId, "red-1");
+  assert.equal(rollConfirmed.nextState.pieces.find(piece => piece.id === "ball").x, 3);
+
+  const choiceState = createGameState({
+    ...normalMoveState(),
+    pieces: [...normalMoveState().pieces,
+      { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 },
+      { id: "red-2", team: "B", cardId: "card-red-2", x: 5, y: 3 },
+    ],
+  });
+  const choiceStarted = applyGameCommand({ state: choiceState, context: normalMoveContext(), command: { id: "route-choice-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "route-choice" } } });
+  const choiceTargeted = applyGameCommand({ state: choiceStarted.nextState, context: normalMoveContext(), command: { id: "route-choice-target", type: "PASS_TARGET_SELECTED", payload: { passId: "route-choice", x: 9, y: 5 } } });
+  const choiceConfirmed = applyGameCommand({ state: choiceTargeted.nextState, context: normalMoveContext(), command: { id: "route-choice-confirm", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "route-choice", cornerId: "top-left" } } });
+  assert.equal(choiceConfirmed.nextState.actionResolution.status, "awaiting-interceptor-choice");
+  assert.deepEqual(choiceConfirmed.nextState.actionResolution.pendingDecision.options.map(option => option.defenderId).sort(), ["red-1", "red-2"]);
+});
+
+test("PASS_ROUTE_CONFIRMED keeps Bonus Pass atomic and outside Tracker economy", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    actionContinuation: { id: "bonus-route", kind: "bonus-card-action", team: "blue", status: "ready", resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" } },
+  });
+  const started = applyGameCommand({ state: start, context: normalMoveContext(), command: { id: "bonus-route-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "bonus-route-pass" } } });
+  const targeted = applyGameCommand({ state: started.nextState, context: normalMoveContext(), command: { id: "bonus-route-target", type: "PASS_TARGET_SELECTED", payload: { passId: "bonus-route-pass", x: 9, y: 5 } } });
+  const confirmed = applyGameCommand({ state: targeted.nextState, context: normalMoveContext(), command: { id: "bonus-route-confirm", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "bonus-route-pass", cornerId: "top-left" } } });
+  assert.equal(confirmed.accepted, true);
+  assert.equal(confirmed.timeline.groupId, "bonus-route");
+  assert.equal(confirmed.nextState.tracker.usedActions.blue, 0);
+  assert.equal(confirmed.nextState.actionResolution.bonusContinuationId, "bonus-route");
 });
 
 test("PASS_STARTED rejects an invalid passer, a non-carrier, and an exhausted normal phase without mutating state", () => {

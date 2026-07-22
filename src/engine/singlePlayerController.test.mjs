@@ -401,3 +401,34 @@ test("Single Player Controller keeps Bonus Pass target selection in its atomic U
   assert.equal(redone.state.actionResolution.status, "route-selection");
   assert.deepEqual(redone.state.actionResolution.target, { x: 8, y: 5 });
 });
+
+test("Single Player Controller records normal Pass route confirmation as the action-consuming Undo/Redo step", () => {
+  const started = dispatchSinglePlayerGameCommand({ state: normalMoveState(), context: normalMoveContext(), command: { id: "controller-route-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "controller-route" } } });
+  const targeted = dispatchSinglePlayerGameCommand({ timeline: started.timeline, state: started.state, context: normalMoveContext(), command: { id: "controller-route-target", type: "PASS_TARGET_SELECTED", payload: { passId: "controller-route", x: 8, y: 5 } } });
+  const confirmed = dispatchSinglePlayerGameCommand({ timeline: targeted.timeline, state: targeted.state, context: normalMoveContext(), command: { id: "controller-route-confirm", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "controller-route", cornerId: "top-left" } } });
+  assert.deepEqual(confirmed.timeline.entries.map(entry => entry.type), ["PASS_TARGETING_STARTED", "PASS_TARGET_SELECTED", "PASS_CONFIRMED"]);
+  assert.equal(confirmed.state.tracker.usedActions.blue, 1);
+  const undone = undoTimeline(confirmed.timeline);
+  assert.equal(undone.state.tracker.usedActions.blue, 0);
+  assert.equal(undone.state.actionResolution.status, "route-selection");
+  const redone = redoTimeline(undone.timeline);
+  assert.equal(redone.state.tracker.usedActions.blue, 1);
+  assert.equal(redone.state.actionResolution.status, "completing");
+});
+
+test("Single Player Controller keeps Bonus Pass route confirmation in its atomic transaction", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    actionContinuation: { id: "controller-bonus-route", kind: "bonus-card-action", team: "blue", status: "ready", resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" } },
+  });
+  const started = dispatchSinglePlayerGameCommand({ state: start, context: normalMoveContext(), command: { id: "controller-bonus-route-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "controller-bonus-route-pass" } } });
+  const targeted = dispatchSinglePlayerGameCommand({ timeline: started.timeline, state: started.state, context: normalMoveContext(), command: { id: "controller-bonus-route-target", type: "PASS_TARGET_SELECTED", payload: { passId: "controller-bonus-route-pass", x: 8, y: 5 } } });
+  const confirmed = dispatchSinglePlayerGameCommand({ timeline: targeted.timeline, state: targeted.state, context: normalMoveContext(), command: { id: "controller-bonus-route-confirm", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "controller-bonus-route-pass", cornerId: "top-left" } } });
+  assert.equal(confirmed.state.tracker.usedActions.blue, 0);
+  const undone = undoAtomicTimelineTransaction(confirmed.timeline);
+  assert.equal(undone.state.actionResolution, null);
+  assert.equal(undone.state.actionContinuation.status, "ready");
+  const redone = redoAtomicTimelineTransaction(undone.timeline);
+  assert.equal(redone.state.actionResolution.status, "completing");
+  assert.equal(redone.state.tracker.usedActions.blue, 0);
+});

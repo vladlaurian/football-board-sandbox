@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.25.1";
+const APP_VERSION = "v20.26.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -10110,6 +10110,30 @@ function App() {
   function confirmPassRoute(cornerId) {
     const pending = actionResolutionRef.current;
     if (!canControlActiveResolution(pending)) return false;
+    if (!sessionCode) {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`pass_route_${pending?.id || ""}`),
+          type: GAME_COMMAND_TYPE.PASS_ROUTE_CONFIRMED,
+          payload: { passId: pending?.id, cornerId },
+        },
+        label: "Pass route confirmed",
+      });
+      if (!dispatched.result.accepted) {
+        if (dispatched.result.reason === "PASS_ROUTE_ORIGIN_BLOCKED") setIllegalMoveNotice({ reason: "pass-origin-blocked" });
+        return false;
+      }
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      setSelectedId(null);
+      setHoveredCell(null);
+      if (dispatched.state.actionResolution?.status === "completing") resolvePendingPass(dispatched.state.actionResolution.id);
+      return true;
+    }
     const activated = activatePassRoute(cornerId);
     if (!pending || !activated) return;
     const { next, activation, plan } = activated;

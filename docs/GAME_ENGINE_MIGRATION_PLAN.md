@@ -250,6 +250,26 @@ Delivered files and tests:
 - offline Single Player `commitPassTargetSelection()` and frozen route preview/plan inputs in `src/main.jsx`
 - focused command: `node --test src/engine/gameEngine.test.mjs src/engine/singlePlayerController.test.mjs src/multiplayer/actionStartAuthority.test.mjs`
 
+### v20.26.0 — offline Single Player Pass route confirmation and canonical plan
+
+**Status:** Complete as the third narrow Pass slice.
+
+`PASS_ROUTE_CONFIRMED` now flows through the pure Game Engine and Single Player Controller in offline Single Player Match Mode. It validates a matching Pass in `route-selection`, accepts only a legal origin for the frozen path mode, and rejects an opponent-blocked origin before altering action economy. The Engine invokes the existing pure `buildPassPlan()` with MatchState and immutable MatchContext, then stores the canonical plan and emits the existing `PASS_CONFIRMED` semantic event.
+
+For a normal Pass it consumes exactly one Tracker action; for a Bonus Pass it retains the existing atomic continuation and consumes no Tracker action. The command may only produce the already-established downstream state: `completing`, `awaiting-interceptor-choice`, or `awaiting-interception-roll`. Declaring `pendingDecision` or `pendingRoll` is preparation of the canonical input contract, not an interceptor choice, dice submission or resolution. Ball movement, possession, roll results, interception outcomes and Bonus Action consequences remain outside this build on their current downstream path. Manual Multiplayer remains unchanged.
+
+Approved deferred rule, deliberately not bundled here: a player card whose frozen `position` is `GK` must be rejected as a selected Pass target regardless of team. A goalkeeper remains physically present for pass geometry and may block a route or become the first player hit by a route aimed elsewhere.
+
+Delivered files and tests:
+
+- `src/engine/passStartRules.mjs`
+- `src/engine/gameCommands.mjs`
+- `src/engine/gameEngine.mjs`
+- `src/engine/gameEngine.test.mjs`
+- `src/engine/singlePlayerController.test.mjs`
+- offline Single Player `confirmPassRoute()` branch in `src/main.jsx`
+- focused command: `node --test src/engine/gameEngine.test.mjs src/engine/singlePlayerController.test.mjs src/multiplayer/actionStartAuthority.test.mjs`
+
 ### v20.19.0 — offline Single Player Free Move Engine migration
 
 Free Move now has one offline Match Mode mutation path: `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` flow through the Game Engine and Single Player Controller into Timeline. It is deliberately an administrative correction rather than a Tracker action. The three Timeline entries are ordinary reversible history, so Undo/Redo may step across them and AI export retains the correction as `FREE_MODE` with `MANUAL_CORRECTION` provenance.
@@ -292,7 +312,7 @@ Acceptance:
 
 ## Phase 5 — Tracker, turns, and possession
 
-**Status:** In progress — v20.25.0–v20.25.1 complete Pass start/cancel/target only.
+**Status:** In progress — v20.25.0–v20.26.0 complete Pass start/cancel/target/route-plan only.
 
 Migrate Match start, phase completion, turn change, possession change, action reset, and currently existing match-completion behavior.
 

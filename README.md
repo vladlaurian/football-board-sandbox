@@ -6,13 +6,21 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.25.1` |
-| Git/package version | `20.25.1` |
-| Build name | `Final_Board_v20_25_1_pass_target_engine` |
-| Base build | `v20.25.0 pass_start_cancel_engine` |
+| Sandbox version | `v20.26.0` |
+| Git/package version | `20.26.0` |
+| Build name | `Final_Board_v20_26_0_pass_route_plan_engine` |
+| Base build | `v20.25.1 pass_target_engine` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.25.1`. The repository version is defined in `package.json` as `20.25.1`. The browser title is `Sandbox v20.25.1`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.26.0`. The repository version is defined in `package.json` as `20.26.0`. The browser title is `Sandbox v20.26.0`.
+
+## v20.26.0 release summary
+
+v20.26.0 migrates offline Single Player Match Mode route confirmation through `PASS_ROUTE_CONFIRMED -> Game Engine -> Single Player Controller -> Timeline -> applyTimelineGameState`. The Engine validates the current selected Pass and route for the frozen path mode, rejects an invalid route or an origin blocked by an opponent before action consumption, and constructs the established deterministic Pass plan from MatchState plus MatchContext. The plan retains the selected origin, foot, distance, Long/Short classification, requested/effective target, first-player hit, defensive-area crossings and interceptor order.
+
+Normal Pass confirmation now consumes exactly one canonical Tracker action; Bonus Pass confirmation remains inside its atomic continuation and consumes no Tracker economy. The Engine then only declares the existing next canonical stage: `completing`, `awaiting-interceptor-choice`, or `awaiting-interception-roll`. It does not choose an interceptor, accept a die, resolve an outcome, move the ball, change possession or create/close a Bonus Action. Those remain on the legacy downstream path temporarily. Manual Multiplayer remains unchanged.
+
+An approved deferred rule is recorded but intentionally not implemented in this build: a card with position `GK` may not be selected as a Pass target, regardless of team. A goalkeeper still remains a physical player: they may block a route and may be the first player hit by a route aimed elsewhere.
 
 ## v20.25.1 release summary
 
