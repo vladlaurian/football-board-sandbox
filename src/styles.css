@@ -7598,7 +7598,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   overflow: visible;
 }
 .board-wrap.match-presentation .piece.ball.ball-held {
-  opacity: .86;
+  opacity: .54;
 }
 .board-wrap.match-presentation .board-ball-icon {
   position: relative;
@@ -7607,15 +7607,6 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 }
 .board-wrap.match-presentation .piece.inactive .match-piece-figure {
   filter: grayscale(.65) brightness(.74) drop-shadow(0 calc(var(--cell) * .08) calc(var(--cell) * .07) rgba(0, 0, 0, .46));
-}
-
-/* v20.42 — Match Interaction Feedback & Defensive Areas.
-   These are Match-only overrides of existing visual state classes. They do not
-   decide legality, ownership, selection or any action transition. */
-.board-wrap.match-presentation .selected-cell {
-  background: radial-gradient(circle, rgba(255, 230, 92, .28), rgba(255, 218, 61, .08) 64%, transparent 72%);
-  outline: 1px solid rgba(255, 236, 151, .72);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.18), 0 0 18px rgba(255, 218, 61, .26);
 }
 .board-wrap.match-presentation .piece.selected .match-piece-figure {
   filter: drop-shadow(0 0 7px rgba(255, 229, 73, .96)) drop-shadow(0 calc(var(--cell) * .08) calc(var(--cell) * .07) rgba(0, 0, 0, .46));
@@ -7729,56 +7720,18 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   filter: none;
   box-shadow: none;
 }
-.board-wrap.match-presentation .match-def-area-cell {
-  border-style: solid;
-  border-width: var(--def-top) var(--def-right) var(--def-bottom) var(--def-left);
-  border-radius: 0;
-  box-shadow: none;
-}
-.board-wrap.match-presentation .match-def-area-cell.blue {
-  background: rgba(99, 171, 255, .20);
-  border-color: rgba(176, 217, 255, .72);
-}
-.board-wrap.match-presentation .match-def-area-cell.red {
-  background: rgba(255, 111, 124, .20);
-  border-color: rgba(255, 190, 197, .72);
-}
-.board-wrap.match-presentation .match-def-area-cell.contested {
-  background:
-    linear-gradient(135deg, rgba(107,171,255,.28), rgba(107,171,255,.28) 49%, rgba(255,116,129,.28) 51%, rgba(255,116,129,.28));
-  border-color: rgba(255, 244, 190, .88);
-  box-shadow: inset 0 0 0 1px rgba(255,244,190,.20);
-}
 
 /* v20.44 — Premium Match UI & Team Highlights.
    Match-only presentation selectors preserve all existing panel structure,
    controls and state ownership. */
-.board-wrap.match-presentation .piece.ball.ball-held { opacity: .86; }
+.board-wrap.match-presentation .piece.ball.ball-held { opacity: 1; }
 .board-wrap.match-presentation .piece.ball {
-  opacity: .86;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  box-shadow: none;
+  border: 1px solid rgba(255,255,255,.88);
+  background:
+    radial-gradient(circle at 34% 26%, rgba(255,255,255,.92), transparent 20%),
+    radial-gradient(circle at 50% 52%, #ffffff 0 47%, #c6d3db 72%, #70818d 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.86), inset 0 -8px 12px rgba(47,64,74,.22), 0 4px 10px rgba(0,0,0,.48);
 }
-.board-wrap.match-presentation.selected-team-blue .piece.selected,
-.board-wrap.match-presentation.selected-team-blue .selected-cell {
-  outline-color: #9ed1ff;
-  box-shadow: 0 0 0 2px rgba(131,198,255,.54), 0 0 20px rgba(70,159,255,.72), inset 0 0 0 1px rgba(232,247,255,.30);
-}
-.board-wrap.match-presentation.selected-team-red .piece.selected,
-.board-wrap.match-presentation.selected-team-red .selected-cell {
-  outline-color: #ffb0b5;
-  box-shadow: 0 0 0 2px rgba(255,158,166,.52), 0 0 20px rgba(255,91,103,.68), inset 0 0 0 1px rgba(255,238,239,.28);
-}
-.board-wrap.match-presentation.selected-team-ball .piece.selected,
-.board-wrap.match-presentation.selected-team-ball .selected-cell {
-  outline-color: #f3fbff;
-  box-shadow: 0 0 0 2px rgba(230,242,250,.54), 0 0 18px rgba(210,231,244,.62), inset 0 0 0 1px rgba(255,255,255,.42);
-}
-.board-wrap.match-presentation.selected-team-blue .selected-cell { background: radial-gradient(circle, rgba(88,169,255,.28), rgba(48,127,229,.08) 64%, transparent 72%); }
-.board-wrap.match-presentation.selected-team-red .selected-cell { background: radial-gradient(circle, rgba(255,104,116,.28), rgba(211,57,68,.08) 64%, transparent 72%); }
-.board-wrap.match-presentation.selected-team-ball .selected-cell { background: radial-gradient(circle, rgba(226,243,252,.28), rgba(166,203,224,.08) 64%, transparent 72%); }
 .match-ui-presentation .tracker-panel,
 .match-ui-presentation .history-panel,
 .match-ui-presentation .dice-panel {
@@ -7872,30 +7825,6 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
     inset 0 1px 0 rgba(255,255,255,.50),
     inset 0 -18px 20px rgba(0,0,0,.26);
 }
-.board-wrap.match-presentation.selected-team-red .piece.selected,
-.board-wrap.match-presentation.selected-team-red .selected-cell {
-  outline-color: #ff747b;
-  box-shadow: 0 0 0 2px rgba(255,88,98,.58), 0 0 20px rgba(255,48,62,.70), inset 0 0 0 1px rgba(255,234,235,.30);
-}
-.board-wrap.match-presentation.selected-team-red .selected-cell { background: radial-gradient(circle, rgba(255,83,94,.30), rgba(209,31,44,.09) 64%, transparent 72%); }
-.board-wrap.match-presentation .match-def-area-cell {
-  border-style: solid;
-  border-width: var(--def-top) var(--def-right) var(--def-bottom) var(--def-left);
-  box-shadow: inset 0 0 0 1px rgba(244,250,252,.13);
-}
-.board-wrap.match-presentation .match-def-area-cell.blue {
-  background: rgb(83 162 255 / var(--blue-def-alpha));
-  border-color: rgba(166, 214, 255, .80);
-}
-.board-wrap.match-presentation .match-def-area-cell.red {
-  background: rgb(241 57 70 / var(--red-def-alpha));
-  border-color: rgba(255, 161, 168, .84);
-}
-.board-wrap.match-presentation .match-def-area-cell.contested {
-  background: linear-gradient(135deg, rgb(83 162 255 / var(--blue-def-alpha)), rgb(83 162 255 / var(--blue-def-alpha)) 49%, rgb(241 57 70 / var(--red-def-alpha)) 51%, rgb(241 57 70 / var(--red-def-alpha)));
-  border-color: rgba(238, 246, 250, .88);
-  box-shadow: inset 0 0 0 1px rgba(238,246,250,.20);
-}
 
 /* v20.45.1 — final Match presentation correction.
    This block only corrects visual hierarchy and keeps existing Match input,
@@ -7903,31 +7832,6 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .board-wrap.match-presentation .piece:not(.ball),
 .board-wrap.match-presentation .piece.ball {
   border-radius: 50%;
-}
-.board-wrap.match-presentation .match-def-area-cell {
-  box-shadow: none;
-}
-.board-wrap.match-presentation .match-def-area-cell.blue {
-  --def-rgb: 166 214 255;
-  border-top-color: rgb(var(--def-rgb) / var(--def-top-alpha));
-  border-right-color: rgb(var(--def-rgb) / var(--def-right-alpha));
-  border-bottom-color: rgb(var(--def-rgb) / var(--def-bottom-alpha));
-  border-left-color: rgb(var(--def-rgb) / var(--def-left-alpha));
-}
-.board-wrap.match-presentation .match-def-area-cell.red {
-  --def-rgb: 255 161 168;
-  border-top-color: rgb(var(--def-rgb) / var(--def-top-alpha));
-  border-right-color: rgb(var(--def-rgb) / var(--def-right-alpha));
-  border-bottom-color: rgb(var(--def-rgb) / var(--def-bottom-alpha));
-  border-left-color: rgb(var(--def-rgb) / var(--def-left-alpha));
-}
-.board-wrap.match-presentation .match-def-area-cell.contested {
-  --def-rgb: 238 246 250;
-  border-top-color: rgb(var(--def-rgb) / var(--def-top-alpha));
-  border-right-color: rgb(var(--def-rgb) / var(--def-right-alpha));
-  border-bottom-color: rgb(var(--def-rgb) / var(--def-bottom-alpha));
-  border-left-color: rgb(var(--def-rgb) / var(--def-left-alpha));
-  box-shadow: none;
 }
 .match-ui-presentation .card-inspector .inspector-piece-primary-actions button,
 .match-ui-presentation .card-inspector .inspector-piece-line .team-action-btn,
@@ -7965,9 +7869,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   font-weight: 400;
 }
 
-/* v20.46 — individual defensive-area ownership.
-   Match presentation now draws each player's own defensive geometry. The
-   source square is only a visual anchor; rules remain derived upstream. */
+/* v20.46 — individual defensive-area ownership. */
 .match-ball-icon {
   display: block;
   width: 100%;
@@ -7985,29 +7887,71 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   height: 72px;
   flex: 0 0 72px;
 }
-.board-wrap.match-presentation .match-def-area-cell.blue {
-  background: rgba(83, 162, 255, .15);
-}
-.board-wrap.match-presentation .match-def-area-cell.red {
-  background: rgba(241, 57, 70, .15);
-}
-.board-wrap.match-presentation .match-def-area-cell.blue {
-  --def-rgb: 166 214 255;
-  border-top-color: rgb(var(--def-rgb) / var(--def-top-alpha));
-  border-right-color: rgb(var(--def-rgb) / var(--def-right-alpha));
-  border-bottom-color: rgb(var(--def-rgb) / var(--def-bottom-alpha));
-  border-left-color: rgb(var(--def-rgb) / var(--def-left-alpha));
+/* v20.46.3 — Single Player Match defensive rendering cleanup.
+   Fill and outline are separate view-only layers. Occupied coordinates receive
+   combined fill only; per-area contours are rendered only on empty cells. */
+.board-wrap.match-presentation .player-hitbox,
+.board-wrap.match-presentation .ball-hitbox {
+  background: transparent;
+  border: 0;
+  outline: 0;
   box-shadow: none;
 }
-.board-wrap.match-presentation .match-def-area-cell.def-area-player-square {
-  border-width: 0;
+.board-wrap.match-presentation .player-hitbox::before,
+.board-wrap.match-presentation .player-hitbox::after,
+.board-wrap.match-presentation .ball-hitbox::before,
+.board-wrap.match-presentation .ball-hitbox::after {
+  content: none;
+}
+.board-wrap.match-presentation .match-def-area-fill,
+.board-wrap.match-presentation .match-def-area-outline {
+  position: absolute;
+  width: var(--cell);
+  height: var(--cell);
+  border-radius: 0;
+  pointer-events: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.board-wrap.match-presentation .match-def-area-fill {
+  z-index: 3;
+  border: 0;
+  outline: 0;
+}
+.board-wrap.match-presentation .match-def-area-fill.blue { background: rgba(83, 162, 255, .15); }
+.board-wrap.match-presentation .match-def-area-fill.red { background: rgba(241, 57, 70, .15); }
+.board-wrap.match-presentation .match-def-area-fill.contested {
+  background: linear-gradient(135deg, rgba(83,162,255,.19), rgba(83,162,255,.19) 49%, rgba(241,57,70,.19) 51%, rgba(241,57,70,.19));
+}
+.board-wrap.match-presentation .match-def-area-outline {
+  z-index: 4;
+  background: transparent;
+  border-style: solid;
+  border-width: var(--def-top) var(--def-right) var(--def-bottom) var(--def-left);
+}
+.board-wrap.match-presentation .match-def-area-outline.blue { border-color: rgba(166, 214, 255, .80); }
+.board-wrap.match-presentation .match-def-area-outline.red { border-color: rgba(255, 161, 168, .84); }
+.board-wrap.match-presentation .def-area-player-fill {
+  border: 0;
+  outline: 0;
   box-shadow: none;
 }
-.board-wrap.match-presentation .match-def-area-cell.red {
-  --def-rgb: 255 161 168;
-  border-top-color: rgb(var(--def-rgb) / var(--def-top-alpha));
-  border-right-color: rgb(var(--def-rgb) / var(--def-right-alpha));
-  border-bottom-color: rgb(var(--def-rgb) / var(--def-bottom-alpha));
-  border-left-color: rgb(var(--def-rgb) / var(--def-left-alpha));
-  box-shadow: none;
+
+.board-wrap.match-presentation.selected-team-blue .piece.selected {
+  outline-color: #9ed1ff;
+  box-shadow: 0 0 0 2px rgba(131,198,255,.54), 0 0 20px rgba(70,159,255,.72), inset 0 0 0 1px rgba(232,247,255,.30);
 }
+.board-wrap.match-presentation.selected-team-red .piece.selected {
+  outline-color: #ff747b;
+  box-shadow: 0 0 0 2px rgba(255,88,98,.58), 0 0 20px rgba(255,48,62,.70), inset 0 0 0 1px rgba(255,234,235,.30);
+}
+.board-wrap.match-presentation.selected-team-ball .piece.selected {
+  outline-color: #f3fbff;
+  box-shadow: 0 0 0 2px rgba(230,242,250,.54), 0 0 18px rgba(210,231,244,.62), inset 0 0 0 1px rgba(255,255,255,.42);
+}
+.board-wrap.match-presentation .piece.ball {
+  width: calc(var(--cell) * .6);
+  height: calc(var(--cell) * .6);
+  opacity: 1;
+}
+

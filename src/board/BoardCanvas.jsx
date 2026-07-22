@@ -119,26 +119,63 @@ export function BoardCanvas({
     existing.cells.push(cell);
     defensiveAreasByOwner.set(ownerId, existing);
   });
+
+  // Match Presentation uses a local render model only. Defensive geometry and
+  // ownership still come from the existing overlays; this only separates the
+  // combined fill from the per-area outline so an occupied square can never
+  // acquire its own rectangular tile or be boxed in by neighbouring borders.
   const matchDefensiveAreas = Array.from(defensiveAreasByOwner.values()).map(area => {
     const cellsByCoordinate = new Map();
-    area.cells.forEach(cell => cellsByCoordinate.set(`${cell.x}:${cell.y}`, cell));
-    const hasOwnerCell = (x, y) => cellsByCoordinate.has(`${x}:${y}`);
-    return {
-      ...area,
-      includesOwnerSquare: hasOwnerCell(area.ownerX, area.ownerY),
-      cells: Array.from(cellsByCoordinate.values()).map(cell => ({
-        ...cell,
-        isPlayerSquare: playerSquareKeys.has(`${Number(cell.x)}:${Number(cell.y)}`),
-        edges: {
-          top: !hasOwnerCell(cell.x, cell.y - 1),
-          right: !hasOwnerCell(cell.x + 1, cell.y),
-          bottom: !hasOwnerCell(cell.x, cell.y + 1),
-          left: !hasOwnerCell(cell.x - 1, cell.y),
-        },
-      })),
-    };
+    area.cells.forEach(cell => cellsByCoordinate.set(`${Number(cell.x)}:${Number(cell.y)}`, cell));
+    return { ...area, cellsByCoordinate };
   });
-  const matchDefensiveAreaOverlays = matchDefensiveAreas.flatMap(area => area.cells);
+
+  const matchFillCellsByCoordinate = new Map();
+  const includeMatchFill = (x, y, team) => {
+    const key = `${Number(x)}:${Number(y)}`;
+    const existing = matchFillCellsByCoordinate.get(key) || {
+      id: `match-fill-${key}`,
+      x: Number(x),
+      y: Number(y),
+      teams: new Set(),
+    };
+    existing.teams.add(team);
+    matchFillCellsByCoordinate.set(key, existing);
+  };
+
+  matchDefensiveAreas.forEach(area => {
+    area.cellsByCoordinate.forEach(cell => includeMatchFill(cell.x, cell.y, area.team));
+    // Some defensive geometries intentionally omit the owner's coordinate.
+    // Match still needs coverage beneath that puck, but never a separate tile.
+    includeMatchFill(area.ownerX, area.ownerY, area.team);
+  });
+
+  const matchDefensiveFillCells = Array.from(matchFillCellsByCoordinate.values()).map(cell => ({
+    ...cell,
+    teamClass: cell.teams.size > 1 ? "contested" : cell.teams.has("A") ? "blue" : "red",
+    isPlayerSquare: playerSquareKeys.has(`${cell.x}:${cell.y}`),
+  }));
+
+  const matchDefensiveOutlineCells = matchDefensiveAreas.flatMap(area => {
+    const hasAreaCell = (x, y) => area.cellsByCoordinate.has(`${Number(x)}:${Number(y)}`);
+    return Array.from(area.cellsByCoordinate.values())
+      .filter(cell => !playerSquareKeys.has(`${Number(cell.x)}:${Number(cell.y)}`))
+      .map(cell => {
+        const x = Number(cell.x);
+        const y = Number(cell.y);
+        const neighbourIsOccupied = (nx, ny) => playerSquareKeys.has(`${nx}:${ny}`);
+        return {
+          ...cell,
+          id: `match-outline-${area.ownerId}-${x}:${y}`,
+          edges: {
+            top: !hasAreaCell(x, y - 1) && !neighbourIsOccupied(x, y - 1),
+            right: !hasAreaCell(x + 1, y) && !neighbourIsOccupied(x + 1, y),
+            bottom: !hasAreaCell(x, y + 1) && !neighbourIsOccupied(x, y + 1),
+            left: !hasAreaCell(x - 1, y) && !neighbourIsOccupied(x - 1, y),
+          },
+        };
+      });
+  });
   const boxTop = Math.floor((settings.rows - settings.boxWidth) / 2);
   const smallTop = Math.floor((settings.rows - settings.smallWidth) / 2);
   const goalTop = Math.floor((settings.rows - settings.goalWidth) / 2);
@@ -261,7 +298,25 @@ export function BoardCanvas({
             return <div key={corner} className={`corner-mask corner-${corner}`} style={{ width: `calc(${settings.cornerArcRadius} * var(--cell))`, height: `calc(${settings.cornerArcRadius} * var(--cell))` }}><div className="corner-circle" style={{ [horizontal]: `calc(-${settings.cornerArcRadius} * var(--cell))`, [vertical]: `calc(-${settings.cornerArcRadius} * var(--cell))`, width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`, height: `calc(${settings.cornerArcRadius * 2} * var(--cell))` }} /></div>;
           })}
 
-          {(isMatchPresentation ? matchDefensiveAreaOverlays : defensiveAreaOverlays).map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"} ${isMatchPresentation ? "match-def-area-cell" : ""} ${cell.isPlayerSquare ? "def-area-player-square" : ""}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))`, ...(isMatchPresentation ? { "--def-top": cell.isPlayerSquare ? "0" : cell.edges.top ? "2px" : "1px", "--def-right": cell.isPlayerSquare ? "0" : cell.edges.right ? "2px" : "1px", "--def-bottom": cell.isPlayerSquare ? "0" : cell.edges.bottom ? "2px" : "1px", "--def-left": cell.isPlayerSquare ? "0" : cell.edges.left ? "2px" : "1px", "--def-top-alpha": cell.isPlayerSquare ? 0 : cell.edges.top ? .92 : .10, "--def-right-alpha": cell.isPlayerSquare ? 0 : cell.edges.right ? .92 : .10, "--def-bottom-alpha": cell.isPlayerSquare ? 0 : cell.edges.bottom ? .92 : .10, "--def-left-alpha": cell.isPlayerSquare ? 0 : cell.edges.left ? .92 : .10 } : {}) }} />)}
+          {isMatchPresentation ? <>
+            {matchDefensiveFillCells.map(cell => <div
+              key={cell.id}
+              className={`def-area-board-cell match-def-area-fill ${cell.teamClass} ${cell.isPlayerSquare ? "def-area-player-fill" : ""}`}
+              style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }}
+            />)}
+            {matchDefensiveOutlineCells.map(cell => <div
+              key={cell.id}
+              className={`def-area-board-cell match-def-area-outline ${cell.team === "A" ? "blue" : "red"}`}
+              style={{
+                left: `calc(${cell.x} * var(--cell))`,
+                top: `calc(${cell.y} * var(--cell))`,
+                "--def-top": cell.edges.top ? "2px" : "0",
+                "--def-right": cell.edges.right ? "2px" : "0",
+                "--def-bottom": cell.edges.bottom ? "2px" : "0",
+                "--def-left": cell.edges.left ? "2px" : "0",
+              }}
+            />)}
+          </> : defensiveAreaOverlays.map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
 
           {passPreview?.lines?.length > 0 && <svg className="pass-preview-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
             {passPreview.lines.map(line => <g key={line.id} className={`pass-preview-line ${line.status || (line.risk ? "risk" : "clear")} ${line.selected ? "route-selected" : ""}`}>
@@ -297,7 +352,7 @@ export function BoardCanvas({
             const normalizedPiece = withBoardPosition(piece, settings);
             const groupMoveStatus = groupMovePieceStatusById[piece.id] || "";
             return <div key={piece.id} data-coord={normalizedPiece.coord} title={`${getPieceDisplayLabel(piece)} ${normalizedPiece.coord}${piece.cardId ? " · Card attached" : ""}${piece.inactive ? " · INACTIVE" : ""}`} className={`piece-hitbox ${isBall ? "ball-hitbox" : "player-hitbox"}`} style={{ left: `calc(${piece.x} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})`, top: `calc(${piece.y} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})` }} onPointerDown={event => onPiecePointerDown(piece.id, event)} onDoubleClick={() => openEdit(piece)}>
-              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${selectedId === piece.id ? "selected" : ""} ${activeInteractionPieceId === piece.id && selectedId !== piece.id ? "interaction-active" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""} ${hasPossession ? "has-possession" : ""} ${ballHeld ? "ball-held" : ""} ${groupMoveStatus ? `group-move-${groupMoveStatus}` : ""}`}>{isBall ? <MatchBallIcon className="board-ball-icon" /> : <><span className="piece-label">{getPieceDisplayLabel(piece)}</span>{groupMoveStatus === "ineligible" && <span className="group-move-lock" aria-label="Not eligible for Group Move">🔒</span>}</>}</div>
+              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${selectedId === piece.id ? "selected" : ""} ${activeInteractionPieceId === piece.id && selectedId !== piece.id ? "interaction-active" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""} ${hasPossession ? "has-possession" : ""} ${ballHeld ? "ball-held" : ""} ${groupMoveStatus ? `group-move-${groupMoveStatus}` : ""}`}>{isBall ? <><MatchBallIcon className="board-ball-icon" /></> : <><span className="piece-label">{getPieceDisplayLabel(piece)}</span>{groupMoveStatus === "ineligible" && <span className="group-move-lock" aria-label="Not eligible for Group Move">🔒</span>}</>}</div>
             </div>;
           })}
         </div>
