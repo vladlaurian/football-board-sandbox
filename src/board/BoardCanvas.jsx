@@ -139,7 +139,6 @@ export function BoardCanvas({
     };
   });
   const matchDefensiveAreaOverlays = matchDefensiveAreas.flatMap(area => area.cells);
-  const matchDefensiveAreaSources = matchDefensiveAreas.filter(area => !area.includesOwnerSquare);
   const boxTop = Math.floor((settings.rows - settings.boxWidth) / 2);
   const smallTop = Math.floor((settings.rows - settings.smallWidth) / 2);
   const goalTop = Math.floor((settings.rows - settings.goalWidth) / 2);
@@ -189,7 +188,7 @@ export function BoardCanvas({
           <div className="center-dot" style={{ left: `calc(${centerX} * var(--cell) - var(--cell) * .08 + 1px)`, top: `calc((${centerDotY} + .5) * var(--cell) - var(--cell) * .08)` }} />
 
           {selectedPiece && <>
-            <div className="selected-cell" style={{ left: `calc(${Math.floor(selectedPiece.x)} * var(--cell))`, top: `calc(${Math.floor(selectedPiece.y)} * var(--cell))` }} />
+            {!isMatchPresentation && <div className="selected-cell" style={{ left: `calc(${Math.floor(selectedPiece.x)} * var(--cell))`, top: `calc(${Math.floor(selectedPiece.y)} * var(--cell))` }} />}
             {selectedMovementAxis && <div className="selected-axis-badge" style={{ left: `calc((${selectedPiece.x} + .82) * var(--cell))`, top: `calc((${selectedPiece.y} + .08) * var(--cell))` }}>{movementAxisSymbol(selectedMovementAxis)}</div>}
           </>}
 
@@ -262,7 +261,6 @@ export function BoardCanvas({
             return <div key={corner} className={`corner-mask corner-${corner}`} style={{ width: `calc(${settings.cornerArcRadius} * var(--cell))`, height: `calc(${settings.cornerArcRadius} * var(--cell))` }}><div className="corner-circle" style={{ [horizontal]: `calc(-${settings.cornerArcRadius} * var(--cell))`, [vertical]: `calc(-${settings.cornerArcRadius} * var(--cell))`, width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`, height: `calc(${settings.cornerArcRadius * 2} * var(--cell))` }} /></div>;
           })}
 
-          {isMatchPresentation && matchDefensiveAreaSources.map(area => <div key={`${area.ownerId}-source`} className={`def-area-owner-source ${area.team === "A" ? "blue" : "red"}`} style={{ left: `calc(${area.ownerX} * var(--cell))`, top: `calc(${area.ownerY} * var(--cell))` }} />)}
           {(isMatchPresentation ? matchDefensiveAreaOverlays : defensiveAreaOverlays).map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"} ${isMatchPresentation ? "match-def-area-cell" : ""} ${cell.isPlayerSquare ? "def-area-player-square" : ""}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))`, ...(isMatchPresentation ? { "--def-top": cell.isPlayerSquare ? "0" : cell.edges.top ? "2px" : "1px", "--def-right": cell.isPlayerSquare ? "0" : cell.edges.right ? "2px" : "1px", "--def-bottom": cell.isPlayerSquare ? "0" : cell.edges.bottom ? "2px" : "1px", "--def-left": cell.isPlayerSquare ? "0" : cell.edges.left ? "2px" : "1px", "--def-top-alpha": cell.isPlayerSquare ? 0 : cell.edges.top ? .92 : .10, "--def-right-alpha": cell.isPlayerSquare ? 0 : cell.edges.right ? .92 : .10, "--def-bottom-alpha": cell.isPlayerSquare ? 0 : cell.edges.bottom ? .92 : .10, "--def-left-alpha": cell.isPlayerSquare ? 0 : cell.edges.left ? .92 : .10 } : {}) }} />)}
 
           {passPreview?.lines?.length > 0 && <svg className="pass-preview-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
@@ -299,7 +297,7 @@ export function BoardCanvas({
             const normalizedPiece = withBoardPosition(piece, settings);
             const groupMoveStatus = groupMovePieceStatusById[piece.id] || "";
             return <div key={piece.id} data-coord={normalizedPiece.coord} title={`${getPieceDisplayLabel(piece)} ${normalizedPiece.coord}${piece.cardId ? " · Card attached" : ""}${piece.inactive ? " · INACTIVE" : ""}`} className={`piece-hitbox ${isBall ? "ball-hitbox" : "player-hitbox"}`} style={{ left: `calc(${piece.x} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})`, top: `calc(${piece.y} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})` }} onPointerDown={event => onPiecePointerDown(piece.id, event)} onDoubleClick={() => openEdit(piece)}>
-              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${selectedId === piece.id ? "selected" : ""} ${activeInteractionPieceId === piece.id && selectedId !== piece.id ? "interaction-active" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""} ${hasPossession ? "has-possession" : ""} ${ballHeld ? "ball-held" : ""} ${groupMoveStatus ? `group-move-${groupMoveStatus}` : ""}`}>{isBall ? <>{isMatchPresentation && <span className="match-ball-aura" aria-hidden="true" />}<MatchBallIcon className="board-ball-icon" /></> : <><span className="piece-label">{getPieceDisplayLabel(piece)}</span>{groupMoveStatus === "ineligible" && <span className="group-move-lock" aria-label="Not eligible for Group Move">🔒</span>}</>}</div>
+              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${selectedId === piece.id ? "selected" : ""} ${activeInteractionPieceId === piece.id && selectedId !== piece.id ? "interaction-active" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""} ${hasPossession ? "has-possession" : ""} ${ballHeld ? "ball-held" : ""} ${groupMoveStatus ? `group-move-${groupMoveStatus}` : ""}`}>{isBall ? <MatchBallIcon className="board-ball-icon" /> : <><span className="piece-label">{getPieceDisplayLabel(piece)}</span>{groupMoveStatus === "ineligible" && <span className="group-move-lock" aria-label="Not eligible for Group Move">🔒</span>}</>}</div>
             </div>;
           })}
         </div>

@@ -1,14 +1,13 @@
 # Release Changelog
 
-## v20.46.3 — Match Pucks Without Square Chrome
-
-- Neutralized Match-only wrapper, card, selected, interaction, pseudo-element and defensive-source paint paths that could expose a rectangular frame around players.
-- Hid the square selected-cell treatment only in Single Player Match; selection remains on the circular puck itself.
-- Kept player-occupied defensive cells fill-only while preserving tactical perimeters on empty cells.
-- Rendered the Match ball as a plain white 60%-cell puck at 0.85 opacity with no aura or rectangular chrome.
-- Preserved Editor Mode, Manual Multiplayer, geometry, rules, Engine, MatchState, Timeline and defensive-area calculation.
-
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
+
+## v20.46.3 — Match puck square source removal
+
+- Removed the Match-only `def-area-owner-source` tile from `BoardCanvas`; the previous source tile was a real full-cell rectangle underneath every defensive-area owner and was the direct cause of the visible square around player pucks.
+- Stopped rendering the legacy `selected-cell` rectangle in Single Player Match Presentation. Editor Mode and Manual Multiplayer keep the existing selected-cell path unchanged.
+- Removed the unused Match ball aura node and styling. The Match ball remains the existing simple white circular vector puck at 60% of a cell, with a restrained opacity of 0.86.
+- Kept defensive-area geometry, calculated cells, Engine, MatchState and defensive rules unchanged. Existing defensive overlay cells still render their fill and empty-cell perimeter exactly from the same calculated data.
 
 ## v20.46.2 — Player Area Underlay
 
