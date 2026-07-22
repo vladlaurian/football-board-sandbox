@@ -2,6 +2,12 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.42.0 — Match Interaction Feedback & Defensive Areas
+
+- Added Match-only glass-like styling to the existing selection, movement legality, axis/cost badge, Pass route and Group Move feedback classes.
+- Added Match-only translucent Blue/Red defensive-area overlays with restrained borders so the grass and grid remain visible.
+- Added no state, command, geometry, DOM interaction or rules change. Editor Mode and Manual Multiplayer retain the prior visual route.
+
 ## v20.41.1 — Match piece scale and possession clarity
 
 - Enlarged only the Match-only tactical figure drawing from 84% to 94% of its existing logical cell; the player hitbox remains unchanged.

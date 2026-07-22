@@ -1,6 +1,6 @@
-# Continuation prompt — v20.41.1
+# Historical continuation prompt — v20.41.1
 
-Continue the Football Board Sandbox from `v20.41.1`.
+This completed handoff was superseded by `v20.42.0` after Match Interaction Feedback & Defensive Areas verification.
 
 ## Mandatory constraints
 

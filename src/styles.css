@@ -7615,3 +7615,79 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .board-wrap.match-presentation .piece.inactive .match-piece-figure {
   filter: grayscale(.65) brightness(.74) drop-shadow(0 calc(var(--cell) * .08) calc(var(--cell) * .07) rgba(0, 0, 0, .46));
 }
+
+/* v20.42 — Match Interaction Feedback & Defensive Areas.
+   These are Match-only overrides of existing visual state classes. They do not
+   decide legality, ownership, selection or any action transition. */
+.board-wrap.match-presentation .selected-cell {
+  background: radial-gradient(circle, rgba(255, 230, 92, .28), rgba(255, 218, 61, .08) 64%, transparent 72%);
+  outline: 1px solid rgba(255, 236, 151, .72);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.18), 0 0 18px rgba(255, 218, 61, .26);
+}
+.board-wrap.match-presentation .piece.selected .match-piece-figure {
+  filter: drop-shadow(0 0 7px rgba(255, 229, 73, .96)) drop-shadow(0 calc(var(--cell) * .08) calc(var(--cell) * .07) rgba(0, 0, 0, .46));
+}
+.board-wrap.match-presentation .piece.interaction-active {
+  outline-color: #fff1a8;
+  box-shadow: 0 0 0 2px rgba(255, 240, 168, .48), 0 0 20px rgba(255, 224, 64, .52);
+}
+.board-wrap.match-presentation .destination-cell-highlight.legal {
+  background: radial-gradient(circle, rgba(91, 255, 172, .31), rgba(51, 228, 133, .11) 65%, transparent 73%);
+  outline-color: rgba(150, 255, 202, .94);
+  box-shadow: inset 0 0 0 1px rgba(220,255,235,.22), 0 0 16px rgba(61,255,140,.36);
+}
+.board-wrap.match-presentation .destination-cell-highlight.illegal {
+  background: radial-gradient(circle, rgba(255, 108, 112, .34), rgba(225, 56, 66, .12) 65%, transparent 73%);
+  outline-color: rgba(255, 164, 166, .96);
+  box-shadow: inset 0 0 0 1px rgba(255,235,235,.18), 0 0 16px rgba(255,86,95,.32);
+}
+.board-wrap.match-presentation .movement-cost-badge,
+.board-wrap.match-presentation .selected-axis-badge {
+  border-color: rgba(255,255,255,.36);
+  background: rgba(14, 28, 39, .72);
+  box-shadow: 0 5px 16px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.16);
+  backdrop-filter: blur(8px) saturate(1.15);
+}
+.board-wrap.match-presentation .movement-cost-badge { color: #eafff1; }
+.board-wrap.match-presentation .movement-cost-badge.illegal { color: #ffe6e6; background: rgba(89, 23, 29, .72); }
+.board-wrap.match-presentation .pass-preview-line.clear line { stroke: #8dffc0; filter: drop-shadow(0 0 6px rgba(92,255,167,.86)); }
+.board-wrap.match-presentation .pass-preview-line.risk line { stroke: #ff999e; filter: drop-shadow(0 0 6px rgba(255,99,108,.82)); }
+.board-wrap.match-presentation .pass-preview-line.blocked line { stroke: #c0cad2; filter: drop-shadow(0 0 4px rgba(185,198,210,.56)); }
+.board-wrap.match-presentation .pass-route-badge {
+  border-width: 1px;
+  box-shadow: 0 8px 20px rgba(0,0,0,.40), inset 0 1px 0 rgba(255,255,255,.20);
+  backdrop-filter: blur(10px) saturate(1.1);
+}
+.board-wrap.match-presentation .pass-route-badge.clear { background: rgba(18, 111, 66, .72); border-color: rgba(157,255,196,.80); }
+.board-wrap.match-presentation .pass-route-badge.risk { background: rgba(142, 41, 48, .74); border-color: rgba(255,182,184,.80); }
+.board-wrap.match-presentation .pass-route-badge.blocked { background: rgba(73, 85, 96, .72); border-color: rgba(215,225,233,.68); }
+.board-wrap.match-presentation .piece.group-move-eligible {
+  outline-color: #eaff91;
+  box-shadow: 0 0 0 2px rgba(234,255,145,.30), 0 0 18px rgba(211,255,96,.66);
+}
+.board-wrap.match-presentation .piece.group-move-ineligible {
+  outline-color: rgba(216,225,230,.88);
+  box-shadow: 0 0 0 2px rgba(27,39,48,.68), 0 0 11px rgba(0,0,0,.28);
+}
+.board-wrap.match-presentation .group-move-lock {
+  padding: 1px;
+  border-radius: 50%;
+  background: rgba(18, 29, 37, .68);
+  backdrop-filter: blur(4px);
+}
+.board-wrap.match-presentation .piece.inactive {
+  box-shadow: 0 0 0 1px rgba(227,238,242,.30), 0 5px 14px rgba(0,0,0,.30);
+}
+.board-wrap.match-presentation .def-area-board-cell {
+  border-color: rgba(255,255,255,.26);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), inset 0 0 0 1px rgba(255,255,255,.05);
+  backdrop-filter: blur(1.5px) saturate(1.08);
+}
+.board-wrap.match-presentation .def-area-board-cell.blue {
+  background: linear-gradient(145deg, rgba(112,183,255,.22), rgba(38,108,205,.15));
+  border-color: rgba(190,223,255,.40);
+}
+.board-wrap.match-presentation .def-area-board-cell.red {
+  background: linear-gradient(145deg, rgba(255,145,155,.22), rgba(195,48,62,.15));
+  border-color: rgba(255,205,210,.40);
+}
