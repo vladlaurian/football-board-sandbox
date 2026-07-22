@@ -391,6 +391,18 @@ In offline Single Player, an active Bonus Action blocks End Turn, Free Move, Fre
 - Group Move may end normally through End Turn and is cleared canonically. Free Move, Bonus Action and active action-resolution continue to block phase closure.
 - Editor Mode and Manual Multiplayer retain their existing paths.
 
+## ADR-028 — Inactive-phase card controls are presentation-only locks
+
+**Status:** Active
+
+**Decision:** In offline Single Player Match Mode, the card action row is disabled for a team outside the canonical Tracker phase. This applies only to gameplay actions: Move, Group Move, Pass, Shot, Cross, Dribble and Tackling. Selection and inspection never depend on phase ownership. Free Move, Free Ball, INACTIVE and card-flip flows remain outside this presentation lock. A canonical Bonus Action remains an explicit exception for its owner.
+
+**Consequences:**
+
+- The UI no longer suggests that the inactive team can begin a normal action.
+- No game rule, Tracker state or Engine transition changes in this build.
+- Manual Multiplayer remains untouched.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.22.0";
+const APP_VERSION = "v20.22.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -11894,6 +11894,7 @@ function App() {
                     const groupMoveActive = hasValidGroupMoveAuthorization(team);
                     const continuation = currentBonusContinuationForTeam(team);
                     const foreignContinuationActive = actionContinuation?.kind === "bonus-card-action" && actionContinuation.team !== team;
+                    const inactiveSinglePlayerPhase = !sessionCode && gameMode === "match" && !isTeamPhaseActive(team);
                     const pendingPass = actionResolution?.kind === "pass" ? actionResolution : null;
                     const isPassCancel = type === "PASS"
                       && pendingPass?.passerId === inspectedPiece.id
@@ -11934,6 +11935,7 @@ function App() {
                         : bonusActionAvailable
                           ? type === "GROUP_MOVE"
                           : Boolean(continuation)
+                            || inactiveSinglePlayerPhase
                             || !canUseActionForPiece(inspectedPiece)
                             || matchActionState.freeMode?.active
                             || (type === "PASS" && gameMode === "match" && !playerHasBall(inspectedPiece))

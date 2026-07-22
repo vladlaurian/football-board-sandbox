@@ -149,6 +149,12 @@ Both offline Single Player entrances use the same Engine commands: card MOVE sta
 
 Attack closure changes only `turnPhase` to defense. Defense closure automatically begins the next numbered turn when one remains: it resets Tracker action logs/economy, per-piece Move authorization, Group Move state, and movement state, then returns to attack. The existing starting/attacking team is preserved. At the configured final turn, defense closure reaches `complete` without creating another numbered turn. Tracker numbered controls are presentation-only in offline Match Mode; Editor Mode and Manual Multiplayer retain existing behavior. The `PHASE_ENDED` semantic Timeline event carries `automaticTurnAdvance` and `startedTurn` metadata for History, replay and AI export. UI presents the non-canonical `TURN X` popup after the committed state is applied.
 
+### v20.22.1 — inactive-phase action presentation lock
+
+**Status:** Complete.
+
+The offline Single Player Match Mode Inspector now derives card-action availability from canonical Tracker phase ownership. Outside the active phase, Move, Group Move, Pass, Shot, Cross, Dribble and Tackling are disabled. This is deliberately UI presentation only because the migrated Engine commands already validate ownership. Selection and inspection remain unrestricted for both teams; Free Move, Free Ball, INACTIVE and card-flip flows are intentionally excluded. Canonical Bonus Action ownership remains the only normal-action exception. Manual Multiplayer remains unchanged.
+
 ### v20.19.0 — offline Single Player Free Move Engine migration
 
 Free Move now has one offline Match Mode mutation path: `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` flow through the Game Engine and Single Player Controller into Timeline. It is deliberately an administrative correction rather than a Tracker action. The three Timeline entries are ordinary reversible history, so Undo/Redo may step across them and AI export retains the correction as `FREE_MODE` with `MANUAL_CORRECTION` provenance.

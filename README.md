@@ -6,13 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.22.0` |
-| Git/package version | `20.22.0` |
-| Build name | `Final_Board_v20_22_0_phase_engine_auto_turn` |
-| Base build | `v20.21.1 bonus_move_engine_tracker_clarity` |
+| Sandbox version | `v20.22.1` |
+| Git/package version | `20.22.1` |
+| Build name | `Final_Board_v20_22_1_inactive_phase_card_lock` |
+| Base build | `v20.22.0 phase_engine_auto_turn` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.22.0`. The repository version is defined in `package.json` as `20.22.0`. The browser title is `Sandbox v20.22.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.22.1`. The repository version is defined in `package.json` as `20.22.1`. The browser title is `Sandbox v20.22.1`.
+
+## v20.22.1 release summary
+
+v20.22.1 aligns offline Single Player card controls with canonical Tracker phase ownership. When a team is not active in the current Tracker phase, its gameplay card actions (Move, Group Move, Pass, Shot, Cross, Dribble and Tackling) are visibly disabled. Player selection and inspection remain available for both teams. Free Move, Free Ball, the INACTIVE control, and card-flip flows remain available as before. A canonical Bonus Action remains the deliberate exception: its owner may select its permitted individual action even when normal Tracker phase ownership differs. Manual Multiplayer is unchanged.
 
 ## v20.22.0 release summary
 
