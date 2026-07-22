@@ -164,6 +164,9 @@ import { HistoryPanel } from "./match/HistoryPanel.jsx";
 import { TrackerPanel } from "./tracker/TrackerPanel.jsx";
 import { CardPreview } from "./cards/CardPreview.jsx";
 import { CardVisualCanvas } from "./cards/CardVisualCanvas.jsx";
+import { CardEditorPanel } from "./cards/CardEditorPanel.jsx";
+import { CardsPanel } from "./cards/CardsPanel.jsx";
+import { AssignCardModal } from "./cards/AssignCardModal.jsx";
 import "./styles.css";
 
 const firebaseConfig = {
@@ -183,7 +186,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.37.1";
+const APP_VERSION = "v20.38.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -8355,33 +8358,25 @@ function App() {
     );
   }
 
-  function CardEditor({ card }) {
-    if (!card) return <div className="empty-panel">Alege sau creează un card.</div>;
-    return (
-      <div className="card-editor">
-        <div className="card-editor-previews">
-          <div><div className="card-preview-label">Front</div><div className="card-render-shell"><CardPreview card={card} team="neutral" side="front" showLayoutZones={true} renderContext={cardPreviewRenderContext} /></div></div>
-          <div><div className="card-preview-label">Back</div><div className="card-render-shell"><CardPreview card={card} team="neutral" side="back" showLayoutZones={true} renderContext={cardPreviewRenderContext} /></div></div>
-        </div>
-        <div className="card-editor-controls">
-        {CardLayoutEditor({ card })}
-        <label>Name<input value={card.name} onChange={e => updateCardField(card.id, "name", e.target.value)} /></label>
-        <div className="card-edit-section compact-color-row"><strong>Header Front</strong>{renderColorPicker(card, "headerFront", "Color")}{renderTextStyleControls(card, "headerFront", false, { panelAlign: "front" })}</div>
-        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Front</strong>{renderColorPicker(card, "positionFront", "Color")}{renderTextStyleControls(card, "positionFront", false, { panelAlign: "front" })}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
-        <StarMenuEditor card={card} />
-        <div className="card-edit-section compact-color-row"><strong>Header Back</strong>{renderColorPicker(card, "headerBack", "Color")}{renderTextStyleControls(card, "headerBack", false, { panelAlign: "front" })}</div>
-        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Position Back</strong>{renderColorPicker(card, "positionBack", "Color")}{renderTextStyleControls(card, "positionBack", false, { panelAlign: "front" })}</div><select value={card.position} onChange={e => updateCardField(card.id, "position", e.target.value)}>{CARD_POSITION_OPTIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Attributes</strong></div>{SectionTitleEditor({ card, titleKey: "attributes", colorKey: "attributesTitle", label: "Title" })}{AttributeListEditor({ card, section: "passiveAttributes", title: "Attributes", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "attributes", "Text Color")}{renderTextStyleControls(card, "attributes", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "attributesValue", "Numbers Color")}{renderTextStyleControls(card, "attributesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Bonuses</strong></div>{SectionTitleEditor({ card, titleKey: "bonuses", colorKey: "bonusesTitle", label: "Title" })}{AttributeListEditor({ card, section: "bonuses", title: "Bonuses", hideHeader: true, toolbarLeft: <>{renderColorPicker(card, "bonuses", "Text Color")}{renderTextStyleControls(card, "bonuses", false, { panelAlign: "left", buttonLabel: "Text" })}{renderColorPicker(card, "bonusesValue", "Numbers Color")}{renderTextStyleControls(card, "bonusesValue", false, { panelAlign: "left", buttonLabel: "Numbers", numbersMode: true })}</> })}</div>
-        <div className="card-edit-section editor-position-section"><div className="card-edit-section-title"><strong>Preferred Foot</strong>{renderColorPicker(card, "preferredFoot", "Color")}{renderTextStyleControls(card, "preferredFoot", false, { panelAlign: "left", buttonLabel: "Text", hideLine: true, fontSizeMin: 20 })}</div><select value={PREFERRED_FOOT_OPTIONS.includes(card.preferredFoot) ? card.preferredFoot : "Right"} onChange={e => updateCardField(card.id, "preferredFoot", e.target.value)}>{PREFERRED_FOOT_OPTIONS.map(foot => <option key={foot} value={foot}>{foot}</option>)}</select></div>
-        <div className="card-edit-section special-ability-editor"><div className="card-edit-section-title"><strong>Special Ability</strong></div>{SectionTitleEditor({ card, titleKey: "specialAbility", colorKey: "specialAbilityTitle", label: "Title" })}<div className="special-text-toolbar">{renderColorPicker(card, "specialAbility", "Text Color")}{renderTextStyleControls(card, "specialAbility", false, { panelAlign: "left", inlinePanel: true })}</div><textarea className="special-ability-textarea" value={card.specialAbility || ""} onChange={e => updateCardField(card.id, "specialAbility", e.target.value)} placeholder="Write special ability text..." /></div>
-        <div className="card-edit-section"><div className="card-edit-section-title"><strong>Defensive Area</strong>{renderColorPicker(card, "defensiveArea", "Grid")}{renderColorPicker(card, "defensiveAreaActive", "Selected Area")}<DefensiveGridAdjustControl card={card} /><OpponentGoalTextControl card={card} /></div>{SectionTitleEditor({ card, titleKey: "defensiveArea", colorKey: "defensiveAreaTitle", label: "Title" })}{DefensiveAreaEditor({ card })}</div>
-        </div>
-      </div>
-    );
+  function renderCardEditor(card) {
+    return <CardEditorPanel card={card} controller={{
+      renderContext: cardPreviewRenderContext,
+      renderLayoutEditor: current => <CardLayoutEditor card={current} />,
+      renderColorPicker,
+      renderTextStyleControls,
+      renderStarMenu: current => <StarMenuEditor card={current} />,
+      renderSectionTitleEditor: (current, titleKey, colorKey, label) => <SectionTitleEditor card={current} titleKey={titleKey} colorKey={colorKey} label={label} />,
+      renderAttributeListEditor: (current, section, title, toolbarLeft) => <AttributeListEditor card={current} section={section} title={title} hideHeader={true} toolbarLeft={toolbarLeft} />,
+      renderDefensiveGridAdjustControl: current => <DefensiveGridAdjustControl card={current} />,
+      renderOpponentGoalTextControl: current => <OpponentGoalTextControl card={current} />,
+      renderDefensiveAreaEditor: current => <DefensiveAreaEditor card={current} />,
+      updateCardField,
+      positionOptions: CARD_POSITION_OPTIONS,
+      preferredFootOptions: PREFERRED_FOOT_OPTIONS,
+    }} />;
   }
 
-  function CardsPanel() {
+  function buildCardsPanelController() {
     const editingCard = editingCardId ? cardById[editingCardId] : null;
     const teamKey = cardsView === "red" ? "red" : "blue";
     const themeOptions = editingCard && hasCustomGraphics(editingCard) ? [...CARD_THEMES, CUSTOM_CARD_THEME] : CARD_THEMES;
@@ -8400,109 +8395,70 @@ function App() {
       }));
     };
 
-    return (
-      <div className="cards-panel">
-        <div className="cards-panel-head"><strong>Player Cards</strong><div>
-          <select value={selectedTheme} onChange={e => setCardThemeSelection(editingCardId, e.target.value)} disabled={!editingCardId}>{themeOptions.map(theme => <option key={theme} value={theme}>{theme}</option>)}</select>
-          <select value={graphicImportSide} onChange={e => setGraphicImportSide(e.target.value)} disabled={!editingCardId} title="Choose which side to import"><option value="front">Front</option><option value="back">Back</option><option value="both">Both</option></select>
-          <button onClick={startGraphicImport} disabled={!editingCardId}>Import Graphic</button>
-          <button onClick={deleteSelectedGraphic} disabled={!editingCardId || !hasCustomGraphics(editingCard)}>Delete Graphic</button>
-          <select value={exportCardId} onChange={e => setExportCardId(e.target.value)} disabled={!cardState.cards.length}>{cardState.cards.length === 0 ? <option value="">No cards</option> : cardState.cards.map(card => <option key={card.id} value={card.id}>{card.name} ({card.position})</option>)}</select>
-          <button onClick={exportSelectedCard}>Export Selected JSON</button>
-          <label className="import-btn">Import JSON<input type="file" accept="application/json" onChange={e => { importCardBackup(e.target.files?.[0]); e.target.value = ""; }} /></label>
-          <button onClick={() => exportSelectedCardPng("front")} disabled={!cardState.cards.length}>Export Front PNG</button>
-          <button onClick={() => exportSelectedCardPng("back")} disabled={!cardState.cards.length}>Export Back PNG</button>
-          <input ref={graphicFrontInputRef} type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" className="hidden-file-input" onChange={e => { handleFrontGraphicFile(e.target.files?.[0]); e.target.value = ""; }} />
-          <input ref={graphicBackInputRef} type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" className="hidden-file-input" onChange={e => { handleBackGraphicFile(e.target.files?.[0]); e.target.value = ""; }} />
-          <button onClick={() => setCardsPanelOpen(false)}>×</button></div></div>
-        <div className="cards-tabs"><button className={cardsView === "library" ? "toggle-on" : ""} onClick={() => setCardsView("library")}>Card Library</button><button className={cardsView === "blue" ? "toggle-on" : ""} onClick={() => setCardsView("blue")}>Blue Team</button><button className={cardsView === "red" ? "toggle-on" : ""} onClick={() => setCardsView("red")}>Red Team</button></div>
-        {cardsView === "library" ? (
-          <div className="cards-layout">
-            <div className="card-library-list"><div className="card-library-actions"><button className="create-card-btn" disabled={singlePlayerMatchWorkspaceLocked} onClick={() => createCardFromPosition("ST")}>+ Create</button><button className="sort-card-btn" onClick={sortCardsByPosition} disabled={singlePlayerMatchWorkspaceLocked || cardState.cards.length < 2}>Sort</button><select className="filter-card-select" value={libraryPositionFilter} onChange={e => setLibraryPositionFilter(e.target.value)} disabled={cardState.cards.length === 0}><option value="ALL">Filter: All</option>{libraryPositionOptions.map(position => <option key={position} value={position}>{position}</option>)}</select></div>{visibleLibraryCards.map(card => <div key={card.id} className={`library-row ${editingCardId === card.id ? "selected" : ""}`} onClick={() => { if (!singlePlayerMatchWorkspaceLocked) setEditingCardId(card.id); }}><span><b>{card.name}</b><small>{card.position}</small></span><div><button disabled={singlePlayerMatchWorkspaceLocked} onClick={(e) => { e.stopPropagation(); cloneCard(card.id); }}>Clone</button><button disabled={singlePlayerMatchWorkspaceLocked} onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }}>Delete</button></div></div>)}{visibleLibraryCards.length === 0 && <div className="library-empty">No cards for this filter.</div>}</div>
-            {CardEditor({ card: editingCard })}
-          </div>
-        ) : (
-          <div className={`team-roster ${teamKey}`}>
-            <div className="roster-title">Starting IX</div>
-            <div className="team-layout">{rosterSlots[teamKey].starting.map((slot) => <div key={slot.id} className="team-slot"><div><strong>{slot.position}</strong>{slot.cardId && <small>{cardById[slot.cardId]?.name || "Missing card"}</small>}</div><div className="slot-actions"><button disabled={!canAssignPiece(pieces.find(piece => piece.id === slot.pieceId))} onClick={() => setAssignTarget({ type: "team", team: teamKey, pieceId: slot.pieceId })}>Assign</button>{slot.cardId && <>{!sessionCode && <button onClick={() => setEditingCardId(slot.cardId) || setCardsView("library")}>Edit</button>}<button disabled={!canAssignPiece(pieces.find(piece => piece.id === slot.pieceId))} onClick={() => removePieceCard(slot.pieceId)}>Remove</button></>}</div></div>)}</div>
-            <div className="roster-title substitutes-title">Substitutes</div>
-            <div className="team-layout substitutes-layout">{rosterSlots[teamKey].substitutes.map((slot) => <div key={slot.id} className="team-slot substitute"><div><strong>{slot.position}</strong>{slot.cardId && <small>{cardById[slot.cardId]?.name || "Missing card"}</small>}</div><div className="slot-actions"><button disabled={!canAssignPiece(pieces.find(piece => piece.id === slot.pieceId))} onClick={() => setAssignTarget({ type: "team", team: teamKey, pieceId: slot.pieceId })}>Assign</button>{slot.cardId && <>{!sessionCode && <button onClick={() => setEditingCardId(slot.cardId) || setCardsView("library")}>Edit</button>}<button disabled={!canAssignPiece(pieces.find(piece => piece.id === slot.pieceId))} onClick={() => removePieceCard(slot.pieceId)}>Remove</button></>}</div></div>)}</div>
-          </div>
-        )}
-      </div>
-    );
+    return {
+      editingCard,
+      editingCardId,
+      cardsView,
+      cardState,
+      cardById,
+      rosterSlots,
+      pieces,
+      sessionCode,
+      workspaceLocked: singlePlayerMatchWorkspaceLocked,
+      themeOptions,
+      selectedTheme,
+      graphicImportSide,
+      exportCardId,
+      libraryPositionFilter,
+      libraryPositionOptions,
+      visibleLibraryCards,
+      renderCardEditor,
+      getCardThemeSelection: value => setCardThemeSelection(editingCardId, value),
+      setGraphicImportSide,
+      setExportCardId,
+      setLibraryPositionFilter,
+      setCardsView,
+      setEditingCardId,
+      close: () => setCardsPanelOpen(false),
+      startGraphicImport,
+      deleteSelectedGraphic,
+      canDeleteGraphic: Boolean(editingCard && hasCustomGraphics(editingCard)),
+      exportSelectedCard,
+      importCardBackup,
+      exportSelectedCardPng,
+      graphicFrontInputRef,
+      graphicBackInputRef,
+      handleFrontGraphicFile,
+      handleBackGraphicFile,
+      createCardFromPosition,
+      sortCardsByPosition,
+      cloneCard,
+      deleteCard,
+      canAssignPiece,
+      setAssignTarget,
+      removePieceCard,
+    };
   }
 
-  function AssignCardModal() {
-    if (!assignTarget) return null;
-    const assignCards = visibleAssignCards || [];
-    const selectedPreviewCard = assignCards.find(card => card.id === assignPreviewCardId) || assignCards[0] || null;
-    const getAssignedTeamForCard = (cardId) => {
-      const assignedPiece = (pieces || []).find(piece => piece.cardId === cardId && piece.team !== "BALL");
-      if (!assignedPiece) return null;
-      if (assignedPiece.team === "A") return "blue";
-      if (assignedPiece.team === "B") return "red";
-      return "assigned";
+  function buildAssignCardModalController() {
+    return {
+      isOpen: Boolean(assignTarget),
+      assignCards: visibleAssignCards || [],
+      activeAssignCards: activeAssignCards || [],
+      assignPreviewCardId,
+      assignPreviewSide,
+      assignPositionFilter,
+      assignPositionOptions,
+      pieces: pieces || [],
+      renderContext: cardPreviewRenderContext,
+      normalizeFrontStars,
+      close: () => setAssignTarget(null),
+      setAssignSortByPosition,
+      setAssignPositionFilter,
+      setAssignPreviewCardId,
+      setAssignPreviewSide,
+      assignCard,
     };
-    const renderAssignStars = (card) => {
-      const count = Math.max(0, Math.min(5, Number(normalizeFrontStars(card?.starsFront).count) || 0));
-      return count ? "★".repeat(count) : "—";
-    };
-    return (
-      <div className="modal-backdrop" onPointerDown={() => setAssignTarget(null)}>
-        <div className="assign-modal assign-modal-wide" onPointerDown={e => e.stopPropagation()}>
-          <div className="modal-title"><strong>Assign Card</strong><button className="icon-btn" onClick={() => setAssignTarget(null)}><X size={18} /></button></div>
-          {assignCards.length === 0 ? (
-            <p>Nu există carduri încă. Creează unul în Card Library.</p>
-          ) : (
-            <div className="assign-picker-layout">
-              <div className="assign-list-panel">
-                <div className="assign-card-actions">
-                  <button type="button" className="sort-card-btn" onClick={() => setAssignSortByPosition(true)} disabled={(activeAssignCards || []).length < 2}>Sort</button>
-                  <select className="filter-card-select" value={assignPositionFilter} onChange={e => setAssignPositionFilter(e.target.value)} disabled={(activeAssignCards || []).length === 0}>
-                    <option value="ALL">Filter: All</option>
-                    {assignPositionOptions.map(position => <option key={position} value={position}>{position}</option>)}
-                  </select>
-                </div>
-                <div className="assign-list">
-                {assignCards.map(card => {
-                  const assignedTeam = getAssignedTeamForCard(card.id);
-                  return (
-                    <button
-                      key={card.id}
-                      type="button"
-                      className={`assign-card-row ${assignPreviewCardId === card.id ? "selected" : ""}`}
-                      onClick={() => { setAssignPreviewCardId(card.id); setAssignPreviewSide("front"); }}
-                    >
-                      <span className={`assign-status-dot ${assignedTeam || "free"}`} aria-hidden="true" />
-                      <span className="assign-card-row-main"><b>{card.name}</b><small>{card.position}</small></span>
-                      <span className="assign-card-stars" aria-label={`${renderAssignStars(card)} stars`}>{renderAssignStars(card)}</span>
-                    </button>
-                  );
-                })}
-                  {assignCards.length === 0 && <div className="library-empty">No cards for this filter.</div>}
-                </div>
-              </div>
-              <div className="assign-preview-panel">
-                {selectedPreviewCard ? (
-                  <>
-                    <div className="assign-preview-card-shell">
-                      <CardPreview card={selectedPreviewCard} team="neutral" side={assignPreviewSide} renderContext={cardPreviewRenderContext} />
-                    </div>
-                    <div className="assign-preview-actions">
-                      <button type="button" onClick={() => setAssignPreviewSide(side => side === "front" ? "back" : "front")}>Flip</button>
-                      <button type="button" className="assign-confirm-btn" onClick={() => assignCard(selectedPreviewCard.id)}>Assign</button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="assign-empty-preview">Alege un card din listă.</div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
   }
 
 
@@ -11678,7 +11634,7 @@ function App() {
       </div>
       )}
 
-      {cardsPanelOpen && !lockUI && CardsPanel()}
+      {cardsPanelOpen && !lockUI && <CardsPanel controller={buildCardsPanelController()} />}
 
       <div className="board-and-inspector">
       <BoardCanvas
@@ -12151,7 +12107,7 @@ function App() {
         </div>
       )}
 
-      {AssignCardModal()}
+      <AssignCardModal controller={buildAssignCardModalController()} />
 
       {pendingEditorModeExit && (
         <div className="modal-backdrop match-exit-backdrop">

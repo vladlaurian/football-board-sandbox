@@ -466,7 +466,7 @@ No gameplay rule, Manual Multiplayer branch, Editor Workspace behavior, Firebase
 
 ### Phase 8C — Editor Workspace and persistence boundary
 
-**Status:** In progress. Phase 8C.1 is complete in v20.34.0, Phase 8C.2a is complete in v20.35.0, Phase 8C.2b is complete in v20.36.0 and Phase 8C.2c.1 is complete in v20.37.0; the remaining Editor form/panel UI extraction remains pending.
+**Status:** Complete. Phase 8C.1 is complete in v20.34.0, Phase 8C.2a is complete in v20.35.0, Phase 8C.2b is complete in v20.36.0, and Phase 8C.2c is complete in v20.38.0.
 
 #### Phase 8C.1 — Workspace persistence contract
 
@@ -488,7 +488,7 @@ During an active offline Match, Cloud Save, autosave and Workspace import are bl
 
 #### Phase 8C.2c — visual Card Editor UI/controller boundary
 
-**Status:** In progress. Phase 8C.2c.1 is complete in v20.37.0.
+**Status:** Complete in v20.38.0.
 
 ##### Phase 8C.2c.1 — Card render boundary
 
@@ -498,9 +498,9 @@ v20.37.1 corrects a missing Back-card numeric-text helper in that render context
 
 ##### Phase 8C.2c.2 — Card Editor form and panel boundary
 
-**Status:** Pending.
+**Status:** Complete in v20.38.0.
 
-Extract the Card Editor form, Card Library panel and Assign Card modal through a documented UI controller-prop boundary. Do not move JSX or rename controls merely for appearance. The already-centralized `updateCardState` path is not itself a reason to move code; the component extraction must reduce `main.jsx` ownership without introducing a second card-data path, Firebase path or Match rule path.
+`CardEditorPanel.jsx`, `CardsPanel.jsx` and `AssignCardModal.jsx` now own those UI surfaces. Each receives a controller prop supplied by `main.jsx`; it contains existing visible data, UI selections and callbacks only. Workspace/card-library operations, state publication, browser file inputs and retained Manual Multiplayer synchronization remain at the application-shell boundary. No component owns a second Card State, Firebase path or Match rule path.
 
 Acceptance:
 

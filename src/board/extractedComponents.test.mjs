@@ -36,6 +36,9 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   const { TrackerPanel } = await server.ssrLoadModule("/src/tracker/TrackerPanel.jsx");
   const { CardPreview } = await server.ssrLoadModule("/src/cards/CardPreview.jsx");
   const { CardVisualCanvas } = await server.ssrLoadModule("/src/cards/CardVisualCanvas.jsx");
+  const { CardEditorPanel } = await server.ssrLoadModule("/src/cards/CardEditorPanel.jsx");
+  const { CardsPanel } = await server.ssrLoadModule("/src/cards/CardsPanel.jsx");
+  const { AssignCardModal } = await server.ssrLoadModule("/src/cards/AssignCardModal.jsx");
 
   const boardMarkup = renderToStaticMarkup(
     React.createElement(BoardCanvas, {
@@ -189,4 +192,39 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
     }),
   );
   assert.match(cardBackMarkup, /Passing/);
+
+  const editorCard = { id: "card-1", name: "Victor", position: "GK", preferredFoot: "Right", theme: "Style 1", graphics: {}, passiveAttributes: [], bonuses: [] };
+  const editorController = {
+    renderContext: cardRenderContext,
+    renderLayoutEditor: noop,
+    renderColorPicker: noop,
+    renderTextStyleControls: noop,
+    renderStarMenu: noop,
+    renderSectionTitleEditor: noop,
+    renderAttributeListEditor: noop,
+    renderDefensiveGridAdjustControl: noop,
+    renderOpponentGoalTextControl: noop,
+    renderDefensiveAreaEditor: noop,
+    updateCardField: noop,
+    positionOptions: ["GK"],
+    preferredFootOptions: ["Right", "Left"],
+  };
+  const editorMarkup = renderToStaticMarkup(React.createElement(CardEditorPanel, { card: editorCard, controller: editorController }));
+  assert.match(editorMarkup, /card-editor/);
+  assert.match(editorMarkup, /card-front/);
+  assert.match(editorMarkup, /card-back/);
+
+  const panelMarkup = renderToStaticMarkup(React.createElement(CardsPanel, {
+    controller: {
+      editingCard: editorCard, editingCardId: editorCard.id, cardsView: "library", cardState: { cards: [editorCard] }, cardById: { [editorCard.id]: editorCard }, rosterSlots: { blue: { starting: [], substitutes: [] }, red: { starting: [], substitutes: [] } }, pieces: [], sessionCode: "", workspaceLocked: false, themeOptions: ["Style 1"], selectedTheme: "Style 1", graphicImportSide: "front", exportCardId: editorCard.id, libraryPositionFilter: "ALL", libraryPositionOptions: ["GK"], visibleLibraryCards: [editorCard], renderCardEditor: () => React.createElement("div", { className: "editor-slot" }), getCardThemeSelection: noop, setGraphicImportSide: noop, setExportCardId: noop, setLibraryPositionFilter: noop, setCardsView: noop, setEditingCardId: noop, close: noop, startGraphicImport: noop, deleteSelectedGraphic: noop, canDeleteGraphic: false, exportSelectedCard: noop, importCardBackup: noop, exportSelectedCardPng: noop, graphicFrontInputRef: { current: null }, graphicBackInputRef: { current: null }, handleFrontGraphicFile: noop, handleBackGraphicFile: noop, createCardFromPosition: noop, sortCardsByPosition: noop, cloneCard: noop, deleteCard: noop, canAssignPiece: () => true, setAssignTarget: noop, removePieceCard: noop,
+    },
+  }));
+  assert.match(panelMarkup, /cards-panel/);
+  assert.match(panelMarkup, /Card Library/);
+
+  const assignMarkup = renderToStaticMarkup(React.createElement(AssignCardModal, {
+    controller: { isOpen: true, assignCards: [editorCard], activeAssignCards: [editorCard], assignPreviewCardId: editorCard.id, assignPreviewSide: "back", assignPositionFilter: "ALL", assignPositionOptions: ["GK"], pieces: [], renderContext: cardRenderContext, normalizeFrontStars: () => ({ count: 0 }), close: noop, setAssignSortByPosition: noop, setAssignPositionFilter: noop, setAssignPreviewCardId: noop, setAssignPreviewSide: noop, assignCard: noop },
+  }));
+  assert.match(assignMarkup, /assign-modal/);
+  assert.match(assignMarkup, /card-back/);
 });

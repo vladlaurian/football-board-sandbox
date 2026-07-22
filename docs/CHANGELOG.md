@@ -2,6 +2,12 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.38.0 — Phase 8C.2c.2
+
+- Extracted the Card Editor form, Cards Panel/Card Library and Assign Card modal into explicit UI components with controller props.
+- Retained every existing Workspace operation, card-library mutation path, browser file action and Manual Multiplayer synchronization at the `main.jsx` controller boundary.
+- Added component render coverage for all three UI surfaces, including the Card Editor Front/Back previews and Assign preview.
+
 ## v20.37.1 — Card render Back-context correction
 
 - Restored the missing Back-card numeric-text presentation helper in the extracted Canvas context.

@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.37.1` |
-| Git/package version | `20.37.1` |
-| Build name | `Final_Board_v20_37_1_card_render_back_context_fix` |
-| Base build | `v20.37.0 phase_8c2c1_card_render_boundary` |
+| Sandbox version | `v20.38.0` |
+| Git/package version | `20.38.0` |
+| Build name | `Final_Board_v20_38_0_card_ui_controller_boundary` |
+| Base build | `v20.37.1 card_render_back_context_fix` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.37.1`. The repository version is in `package.json` as `20.37.1`. The browser title is `Sandbox v20.37.1`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.38.0`. The repository version is in `package.json` as `20.38.0`. The browser title is `Sandbox v20.38.0`.
 
 ## Current release
 
-v20.37.1 is a narrow correction to v20.37.0: the extracted Canvas now receives the Back-card numeric-text presentation helper. Without it, opening a card rendered Front successfully but crashed while rendering Back. The focused component test now renders both Front and Back.
+v20.38.0 completes Phase 8C.2c.2: `CardEditorPanel`, `CardsPanel` and `AssignCardModal` are explicit UI components. `main.jsx` retains only their existing controller/state adapter and the established Workspace, card-library and Manual Multiplayer callbacks.
 
 No game rule, Match Engine command, Timeline behavior, Workspace persistence behavior or Manual Multiplayer behavior changed.
 
@@ -72,7 +72,7 @@ src/
 docs/
   active architecture, rule and workflow contracts
   CHANGELOG.md
-  NEXT_CHAT_PROMPT_v20_35_0.md
+  NEXT_CHAT_PROMPT_v20_38_0.md
   history/      non-active handoff history
 ```
 
@@ -92,7 +92,7 @@ docs/
 | [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md) | Frozen legacy automated-multiplayer model; reference only until reopening is approved. |
 | [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md) | Historical Multiplayer fixes and rejected approaches. |
 | [`CHANGELOG.md`](docs/CHANGELOG.md) | Compact release history. |
-| [`NEXT_CHAT_PROMPT_v20_37_1.md`](docs/NEXT_CHAT_PROMPT_v20_37_1.md) | The one active handoff for a new chat. |
+| [`NEXT_CHAT_PROMPT_v20_38_0.md`](docs/NEXT_CHAT_PROMPT_v20_38_0.md) | The one active handoff for a new chat. |
 
 ## Mandatory development rules
 
