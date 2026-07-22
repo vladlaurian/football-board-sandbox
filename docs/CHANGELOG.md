@@ -2,6 +2,12 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.41.1 — Match piece scale and possession clarity
+
+- Enlarged only the Match-only tactical figure drawing from 84% to 94% of its existing logical cell; the player hitbox remains unchanged.
+- Added the Match-only `ball-held` presentation class from the existing ball/player coordinate overlap and renders that ball at partial opacity.
+- Kept Editor, Manual Multiplayer, Engine, Timeline, rules and all interaction ordering unchanged.
+
 ## v20.41.0 — Match Pieces 2.5D
 
 - Added Match-only CSS tactical figures inside the existing player piece elements, with team kit, silhouette, shadow and readable label treatment.

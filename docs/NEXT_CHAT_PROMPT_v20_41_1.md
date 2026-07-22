@@ -1,6 +1,6 @@
-# Historical continuation prompt — v20.41.0
+# Continuation prompt — v20.41.1
 
-This completed handoff was superseded by `v20.41.1` after the piece-scale and possession-clarity correction.
+Continue the Football Board Sandbox from `v20.41.1`.
 
 ## Mandatory constraints
 
@@ -15,23 +15,23 @@ This completed handoff was superseded by `v20.41.1` after the piece-scale and po
 - Single Player Match uses Game Engine, pure Controller, Timeline and one UI command gateway. The active Timeline cursor owns MatchState; MatchContext freezes gameplay inputs at Match start.
 - Manual Multiplayer was audited as a frozen hybrid legacy system. Retain its working manual lifecycle and synchronization; do not change it before a separate approved clean-room phase.
 - `BoardCanvas` has a view-only `presentationMode`: offline Single Player Match supplies `match`; Editor and frozen Manual Multiplayer supply `editor`.
-- Match Pitch & Venue and Match Pieces 2.5D are paint-only layers within that boundary. The player figure, ball aura and possession class must not alter a piece's position, hitbox, label, selection, Engine state or Timeline.
+- Match Pitch & Venue and Match Pieces 2.5D are paint-only layers within that boundary. Tactical figures draw at 94% of their existing cell, but their hitboxes remain the original cell-sized wrappers. A ball sharing a player coordinate receives only the `ball-held` opacity treatment; it remains independently selectable by its established hitbox.
 
 ## Next direction, subject to a fresh narrow proposal
 
 Continue the approved Match Presentation Mode 2.5D roadmap. The next candidate is interaction feedback presentation: refine only selection, legal/illegal movement, Pass paths, Group Move eligibility and inactive treatment so they remain more legible over the new Match visuals. Preserve their current classes, state conditions and behavior; do not modify Engine/rules, Editor or Manual Multiplayer. Inspect and propose before implementation.
 
-## v20.41.0 verification
+## v20.41.1 verification
 
-- BoardCanvas render coverage asserts Match figure, ball aura and possession markup.
+- BoardCanvas render coverage asserts Match figure, possession, `ball-held` and ball-aura markup.
 - Full verification is required before delivery: `npm test` and `npm run build`.
 
-## Exact manual tests for v20.41.0
+## Exact manual tests for v20.41.1
 
-1. In Editor Mode, confirm pieces and ball retain the prior puck-style rendering and all normal behavior.
-2. In Single Player Match, confirm blue/red tactical figures, their labels, shadows, ball aura and possession emphasis render correctly.
-3. Select a player, move from card and board, then Cancel where applicable. Click/touch targets must remain exactly as before.
-4. Put a player and ball on the same square through normal gameplay or Free tools. Both must remain selectable by their established targets; the player receives only a visual possession emphasis.
-5. Verify INACTIVE, selected, active interaction, Group Move eligible/ineligible and lock states remain legible.
-6. Test Pass, Group Move, Free Move, Free Ball, Bonus Action, Undo/Redo and End Turn.
-7. Create or join an ordinary Manual Multiplayer session. It must retain its old puck presentation and manual behavior. Do not test or alter automated multiplayer behavior.
+1. In Editor Mode, confirm pieces and ball retain the v20.41.0 puck appearance and normal interaction.
+2. In Single Player Match, confirm tactical figures are visibly larger but their silhouette stays within each logical square.
+3. Place the ball on a player through normal gameplay or Free tools. The ball must be translucent enough to identify the player's team and position label beneath it.
+4. Confirm ball and player remain separately selectable by their established targets; test Move and Free Ball from that shared square.
+5. Verify selected, INACTIVE, Group Move eligible/ineligible and lock states remain legible.
+6. Test Pass, Group Move, Bonus Action, Undo/Redo and End Turn.
+7. Create or join an ordinary Manual Multiplayer session. Its old puck presentation and manual behavior must remain unchanged. Do not test or alter automated multiplayer behavior.

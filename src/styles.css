@@ -7523,6 +7523,8 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
    Figures are paint-only children inside the existing piece element. The
    parent hitbox, label, position and state classes stay authoritative. */
 .board-wrap.match-presentation .piece:not(.ball) {
+  width: calc(var(--cell) * .94) !important;
+  height: calc(var(--cell) * .94) !important;
   overflow: visible;
   border: 0;
   background: transparent;
@@ -7594,6 +7596,9 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .board-wrap.match-presentation .piece.ball {
   position: relative;
   overflow: visible;
+}
+.board-wrap.match-presentation .piece.ball.ball-held {
+  opacity: .54;
 }
 .match-ball-aura {
   position: absolute;

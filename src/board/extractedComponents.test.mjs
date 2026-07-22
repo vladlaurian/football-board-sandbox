@@ -86,6 +86,7 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   assert.match(boardMarkup, /match-presentation/);
   assert.match(boardMarkup, /match-piece-figure/);
   assert.match(boardMarkup, /has-possession/);
+  assert.match(boardMarkup, /ball-held/);
   assert.match(boardMarkup, /match-ball-aura/);
 
   const historyMarkup = renderToStaticMarkup(
