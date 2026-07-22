@@ -1,5 +1,15 @@
 # Changelog
 
+## v20.46.6 — Match defensive contour geometry correction
+
+- Single Player Match Presentation only.
+- Defensive contour segments are now calculated exclusively from each area's geometry, independent of player occupancy.
+- Occupied cells no longer become holes in the contour model.
+- A player inside an area receives no local square because internal sides remain absent.
+- Genuine exterior sides remain visible beside a player (for example the goalkeeper's left/right sides, isolated RW perimeter, and team-area boundaries passing beside opposing players).
+- Blue/red overlap fill behavior from v20.46.4/v20.46.5 is preserved.
+- No Engine, MatchState, defensive geometry, Editor Mode, or Manual Multiplayer changes.
+
 ## v20.46.5 — Match defensive contour topology correction
 
 - Corrected the v20.46.4 visual regression in Single Player Match Presentation.
@@ -168,3 +178,4 @@ This is the compact release history. Current architecture and rules are document
 
 - Built and corrected the Host Authority, semantic-intent and Interaction Layer approach.
 - Automated Multiplayer is now frozen while the Single Player architecture is completed. Detailed historical entries and rejected approaches remain in [`MULTIPLAYER_CHANGELOG.md`](MULTIPLAYER_CHANGELOG.md).
+

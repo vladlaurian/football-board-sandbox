@@ -6,19 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.46.2` |
-| Git/package version | `20.46.2` |
-| Build name | `Final_Board_v20_46_2_player_area_underlay` |
-| Base build | `v20.46.1 ball_and_owner_square_correction` |
+| Sandbox version | `v20.46.6` |
+| Git/package version | `20.46.6` |
+| Build name | `Final_Board_v20_46_6_match_geometry_contours` |
+| Base build | `v20.46.5 match_contour_topology_fix` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.46.2`. The repository version is in `package.json` as `20.46.2`. The browser title is `Sandbox v20.46.2`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.46.6`. The repository version is in `package.json` as `20.46.6`. The browser title is `Sandbox v20.46.6`.
 
 ## Current release
 
-v20.46.2 makes the player-underlay rule absolute: any square occupied by a player shows defensive-area fill only, with no defensive border from any overlapping area. The ball is a premium white puck, as requested. All layout controls, interactions, Engine/Timeline behavior, Editor and Manual Multiplayer remain unchanged.
+v20.46.6 calculates Match defensive contours exclusively from each area's geometry. Player occupancy neither creates a hole nor suppresses a genuine exterior segment: interior players remain unboxed, while real perimeter sides beside GK, RW, LM, RWB or any other occupied cell remain visible. The natural Blue/Red overlap fills are preserved.
 
-No game rule, Match Engine command, Timeline behavior, Workspace persistence behavior or Manual Multiplayer behavior changed.
+No game rule, Match Engine command, Timeline behavior, Workspace persistence behavior, defensive geometry, Editor Mode or Manual Multiplayer behavior changed.
 
 Older releases are summarized in [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Their durable technical consequences live in the appropriate architecture and subsystem documents, not in this README.
 

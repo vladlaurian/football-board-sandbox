@@ -121,9 +121,8 @@ export function BoardCanvas({
   });
 
   // Match Presentation uses a local render model only. Defensive geometry and
-  // ownership still come from the existing overlays; this only separates the
-  // combined fill from the per-area outline so an occupied square can never
-  // acquire its own rectangular tile or be boxed in by neighbouring borders.
+  // ownership still come from the existing overlays; fill and per-area outline
+  // are separated so player occupancy never changes the area's true contour.
   const matchDefensiveAreas = Array.from(defensiveAreasByOwner.values()).map(area => {
     const cellsByCoordinate = new Map();
     area.cells.forEach(cell => cellsByCoordinate.set(`${Number(cell.x)}:${Number(cell.y)}`, cell));
@@ -163,30 +162,36 @@ export function BoardCanvas({
   );
 
   const matchDefensiveOutlineCells = matchDefensiveAreas.flatMap(area => {
+    // Contours are calculated only from the area's geometry. Player occupancy
+    // must not create holes or suppress genuine exterior segments. If the raw
+    // geometry omits the owner's coordinate, synthesize it into the local
+    // render topology so only its true exterior sides are drawn.
+    const topologyCellsByCoordinate = new Map(area.cellsByCoordinate);
     const ownerCoordinateKey = `${Number(area.ownerX)}:${Number(area.ownerY)}`;
-    // Some defensive geometries omit the owner's occupied coordinate from the
-    // raw cells. It still belongs to the area's topology, otherwise adjacent
-    // cells wrongly draw an internal box around the player.
-    const hasAreaCell = (x, y) => {
-      const key = `${Number(x)}:${Number(y)}`;
-      return key === ownerCoordinateKey || area.cellsByCoordinate.has(key);
-    };
-    return Array.from(area.cellsByCoordinate.values())
-      .filter(cell => !playerSquareKeys.has(`${Number(cell.x)}:${Number(cell.y)}`))
-      .map(cell => {
-        const x = Number(cell.x);
-        const y = Number(cell.y);
-        return {
-          ...cell,
-          id: `match-outline-${area.ownerId}-${x}:${y}`,
-          edges: {
-            top: !hasAreaCell(x, y - 1),
-            right: !hasAreaCell(x + 1, y),
-            bottom: !hasAreaCell(x, y + 1),
-            left: !hasAreaCell(x - 1, y),
-          },
-        };
+    if (!topologyCellsByCoordinate.has(ownerCoordinateKey)) {
+      topologyCellsByCoordinate.set(ownerCoordinateKey, {
+        id: `match-outline-owner-${area.ownerId}`,
+        ownerId: area.ownerId,
+        team: area.team,
+        x: Number(area.ownerX),
+        y: Number(area.ownerY),
       });
+    }
+    const hasAreaCell = (x, y) => topologyCellsByCoordinate.has(`${Number(x)}:${Number(y)}`);
+    return Array.from(topologyCellsByCoordinate.values()).map(cell => {
+      const x = Number(cell.x);
+      const y = Number(cell.y);
+      return {
+        ...cell,
+        id: `match-outline-${area.ownerId}-${x}:${y}`,
+        edges: {
+          top: !hasAreaCell(x, y - 1),
+          right: !hasAreaCell(x + 1, y),
+          bottom: !hasAreaCell(x, y + 1),
+          left: !hasAreaCell(x - 1, y),
+        },
+      };
+    });
   });
   const boxTop = Math.floor((settings.rows - settings.boxWidth) / 2);
   const smallTop = Math.floor((settings.rows - settings.smallWidth) / 2);
