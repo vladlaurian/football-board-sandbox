@@ -332,6 +332,15 @@ Delivered files and tests:
 - `natural-20-interception` is deliberately rejected without mutation and remains on the temporary legacy downstream branch. It is the next and final Pass consequence slice because it creates/replaces a Bonus Action continuation.
 - Manual Multiplayer remains unchanged. The History panel is presentation-only and now scrolls to keep the active Timeline cursor visible after live steps, Undo/Redo and replay navigation.
 
+### v20.31.0 — offline Single Player Natural 20 Pass consequence
+
+**Status:** Complete as the final Pass slice.
+
+- `PASS_CONSEQUENCE_DUE` now accepts the deterministic `natural-20-interception` outcome, validates its Pass/RollEvent identity, moves the ball to the interceptor and creates the existing ready Bonus Action continuation in canonical MatchState.
+- Tracker state is intentionally not reset at the instant of interception. The continuation's existing `advance-turn` resume policy takes effect only at `BONUS_ACTION_ENDED`, preserving the approved rule that Natural 20 gives one complete Bonus Action before the new turn begins.
+- A Natural 20 during an existing Bonus Action replaces that continuation and records the prior continuation as the new origin's `parentContinuationId`; the result event records the superseded identity. The continuation ID is deterministic from Pass and RollEvent identity.
+- The existing roll-resolution undo transaction spans DICE, frozen interception result and `PASS_NATURAL_20`; the granted Bonus Action remains a later independent atomic transaction. Manual Multiplayer is unchanged.
+
 `PASS_INTERCEPTION_ROLL_SUBMITTED` now flows through the Game Engine and Single Player Controller. It accepts only the active exact pending D20 request and its matching unique RollEvent, consumes that event once, stores the raw result in canonical MatchState, updates canonical dice display state and records the existing delayed-resolution descriptor. The legacy delayed resolver temporarily reads this canonical input and performs the existing outcome calculation. Outcome, possession, ball movement, Natural 1/Natural 20 consequences and later reaction advancement remain outside this build.
 
 Offline Match Mode dice controls are disabled unless a pending mechanic roll requests the relevant team. `EXTRA ROLL` explicitly arms one administrative random or chosen roll. It creates `EXTRA_ROLL` in Timeline and AI analysis, never consumes Tracker economy, cannot satisfy a pending action roll, and closes after use. Editor Mode and Manual Multiplayer retain their legacy dice behavior.
@@ -386,7 +395,7 @@ Acceptance:
 
 ## Phase 5 — Tracker, turns, and possession
 
-**Status:** In progress — v20.25.0–v20.30.0 complete Pass start/cancel/target/route-plan/interceptor choice/raw roll input/deterministic mathematical result and all ordinary consequences. Natural 20 Bonus Action consequence remains deferred.
+**Status:** Complete for the current offline Single Player Pass rule set.
 
 Migrate Match start, phase completion, turn change, possession change, action reset, and currently existing match-completion behavior.
 
@@ -411,7 +420,7 @@ Acceptance:
 
 ## Phase 7 — Dice, Interception, and Bonus Action
 
-**Status:** In progress — all ordinary Pass roll/consequence branches are Engine-owned; Natural 20 Bonus Action consequence remains.
+**Status:** Complete for the current offline Single Player Pass/Interception/Bonus Action flow. Future mechanics require their own Engine-first vertical slices.
 
 Migrate RollEvent submission, delayed resolution, Natural 1/20, interception outcome, possession consequence, Bonus continuation, completion/decline, and atomic Undo.
 
@@ -425,7 +434,7 @@ Acceptance:
 
 ## Phase 8 — Single Player Controller completion
 
-**Status:** Pending.
+**Status:** Next architectural audit — identify and extract remaining offline Single Player direct Match Mode mutation paths before starting new mechanics.
 
 Centralize Single Player dispatch and remove remaining direct Match Mode mutation paths from `main.jsx`, preserving Editor Mode, card editing, and Manual Multiplayer.
 

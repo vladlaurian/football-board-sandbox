@@ -210,6 +210,12 @@ Offline Single Player now sends `PASS_CONSEQUENCE_DUE` after either a confirmed 
 
 Natural 1 remains a global interception invariant: the current interceptor misses and the next eligible interceptor receives the cumulative `-1` penalty in canonical `actionResolution`. When no interceptor remains, the same command completes the Pass. A completed Bonus Pass advances its canonical continuation to `awaiting-end-bonus-action` without consuming Tracker economy. `natural-20-interception` is deliberately rejected by this command and remains the one deferred Pass-consequence branch, because it creates or replaces a Bonus Action continuation.
 
+## v20.31.0 — canonical Natural 20 Pass consequence
+
+`PASS_CONSEQUENCE_DUE` now accepts the frozen `natural-20-interception` result as the final Pass branch. It validates the same current Pass and RollEvent identity, moves the ball to the canonical interceptor, clears `actionResolution`, and creates a ready `bonus-card-action` continuation for the interceptor's team. Tracker possession, action economy, movement state and current turn deliberately remain unchanged at this point: `END B.A.` alone applies the continuation's existing `advance-turn` policy.
+
+The continuation identity is deterministically derived from the Pass and RollEvent identities. If a prior Bonus Action exists, it is replaced rather than resumed; the new origin records its `parentContinuationId` and the event metadata records the superseded continuation. The roll, calculation and Natural 20 consequence share the existing resolution undo transaction. Pass is therefore now fully Engine-owned in offline Single Player from initiation through every current consequence.
+
 ## Multiplayer canonical resolution rule added in v19.13
 
 A remote user may create an authorized pending decision or RollEvent, but only the host applies the deterministic consequence. Host scheduling must be derived from the canonical hydrated Timeline state, not exclusively from a one-time "new entry" notification. Repeated Firestore snapshots for the same entry must not restart its cosmetic delay, and an already consumed RollEvent must remain idempotent.

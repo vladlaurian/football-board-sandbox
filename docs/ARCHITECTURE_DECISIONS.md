@@ -560,6 +560,19 @@ Extra Roll is administrative rather than a Bonus card action. An active Bonus Ac
 - Natural 1's next-interceptor penalty is durable canonical state, rather than a UI calculation.
 - Manual Multiplayer keeps its legacy downstream route, including its existing Natural 20 handling, until that mode receives a separately approved audit.
 
+## ADR-040 — Natural 20 grants a deterministic replacement continuation
+
+**Status:** Active
+
+**Decision:** The existing `PASS_CONSEQUENCE_DUE` command owns Natural 20 after the frozen interception result. It creates the Bonus Action continuation from a deterministic Pass/RollEvent-derived identity, moves the ball to the interceptor and defers the Tracker turn/possession transition to the established `END B.A.` resume policy.
+
+**Consequences:**
+
+- Natural 20 is not a UI-created exception and no Engine randomness or clock value participates in MatchState.
+- A Natural 20 occurring during another Bonus Action replaces that continuation; its origin records the parent and Timeline records the superseded identity.
+- Roll, frozen result and granted continuation remain one atomic resolution transaction; the granted Bonus Action remains its own later atomic action transaction.
+- Manual Multiplayer remains untouched.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

@@ -508,3 +508,34 @@ test("Single Player Controller records Engine-owned Pass interception math as an
   const redone = redoTimeline(undone.timeline);
   assert.equal(redone.state.actionResolution.status, "interception-resolved");
 });
+
+test("Single Player Controller keeps Natural 20's roll, result, and Bonus Action consequence atomic", () => {
+  const state = createGameState({
+    ...normalMoveState(),
+    pieces: [...normalMoveState().pieces, { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 }],
+  });
+  const started = dispatchSinglePlayerGameCommand({ state, context: normalMoveContext(), command: { id: "controller-natural-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "controller-natural" } } });
+  const targeted = dispatchSinglePlayerGameCommand({ timeline: started.timeline, state: started.state, context: normalMoveContext(), command: { id: "controller-natural-target", type: "PASS_TARGET_SELECTED", payload: { passId: "controller-natural", x: 9, y: 5 } } });
+  const routed = dispatchSinglePlayerGameCommand({ timeline: targeted.timeline, state: targeted.state, context: normalMoveContext(), command: { id: "controller-natural-route", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "controller-natural", cornerId: "top-left" } } });
+  const pendingRoll = routed.state.actionResolution.pendingRoll;
+  const rolled = dispatchSinglePlayerGameCommand({
+    timeline: routed.timeline, state: routed.state, context: normalMoveContext(),
+    command: { id: "controller-natural-roll", type: "PASS_INTERCEPTION_ROLL_SUBMITTED", payload: { passId: "controller-natural", createdAt: 1000, rollEvent: { id: "controller-natural-event", requestId: pendingRoll.requestId, actionId: "controller-natural", team: "red", dieType: 20, natural: 20, source: "RANDOM", createdAt: 1000, subjectId: "red-1", reactionIndex: 0 } } },
+  });
+  const resolved = dispatchSinglePlayerGameCommand({
+    timeline: rolled.timeline, state: rolled.state, context: normalMoveContext(),
+    command: { id: "controller-natural-result", type: "PASS_INTERCEPTION_RESOLUTION_DUE", payload: { passId: "controller-natural", rollEventId: "controller-natural-event" } },
+  });
+  const granted = dispatchSinglePlayerGameCommand({
+    timeline: resolved.timeline, state: resolved.state, context: normalMoveContext(),
+    command: { id: "controller-natural-consequence", type: "PASS_CONSEQUENCE_DUE", payload: { passId: "controller-natural", rollEventId: "controller-natural-event" } },
+  });
+  assert.equal(granted.entry.type, "PASS_NATURAL_20");
+  assert.equal(granted.state.actionContinuation.team, "red");
+  const undone = undoAtomicTimelineTransaction(granted.timeline);
+  assert.equal(undone.state.actionResolution.status, "awaiting-interception-roll");
+  assert.equal(undone.state.actionContinuation, null);
+  const redone = redoAtomicTimelineTransaction(undone.timeline);
+  assert.equal(redone.state.actionResolution, null);
+  assert.equal(redone.state.actionContinuation.team, "red");
+});

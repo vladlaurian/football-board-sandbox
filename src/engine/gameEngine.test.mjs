@@ -1336,7 +1336,7 @@ test("PASS_CONSEQUENCE_DUE carries Natural 1's minus one to the next interceptor
   assert.equal(result.nextState.actionResolution.naturalOnePenalty, -1);
 });
 
-test("PASS_CONSEQUENCE_DUE completes the atomic Bonus Pass and defers Natural 20 unchanged", () => {
+test("PASS_CONSEQUENCE_DUE completes the atomic Bonus Pass and creates Natural 20's deferred Bonus Action", () => {
   const bonusState = createGameState({
     ...normalMoveState(),
     actionContinuation: { id: "bonus-complete", kind: "bonus-card-action", team: "blue", status: "ready", resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" } },
@@ -1356,12 +1356,38 @@ test("PASS_CONSEQUENCE_DUE completes the atomic Bonus Pass and defers Natural 20
     pieces: [...normalMoveState().pieces, { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 }],
   });
   const { context, resolved } = resolvedPassInterception(interceptedState, "natural-twenty-pass", 20);
-  const before = structuredClone(resolved.nextState);
-  assert.deepEqual(applyGameCommand({
+  const naturalTwenty = applyGameCommand({
     state: resolved.nextState, context,
     command: { id: "natural-twenty-consequence", type: "PASS_CONSEQUENCE_DUE", payload: { passId: "natural-twenty-pass", rollEventId: "natural-twenty-pass-roll-event" } },
-  }), { accepted: false, reason: "PASS_NATURAL_TWENTY_DEFERRED" });
-  assert.deepEqual(resolved.nextState, before);
+  });
+  assert.equal(naturalTwenty.accepted, true);
+  assert.equal(naturalTwenty.events[0].type, "PASS_NATURAL_20");
+  assert.deepEqual(naturalTwenty.nextState.pieces.find(piece => piece.id === "ball"), { id: "ball", team: "BALL", x: 5, y: 7 });
+  assert.equal(naturalTwenty.nextState.actionResolution, null);
+  assert.equal(naturalTwenty.nextState.actionContinuation.team, "red");
+  assert.equal(naturalTwenty.nextState.actionContinuation.status, "ready");
+  assert.equal(naturalTwenty.nextState.actionContinuation.resumePolicy.nextTurn, 2);
+  assert.equal(naturalTwenty.nextState.actionContinuation.origin.reason, "NATURAL_20");
+  assert.deepEqual(naturalTwenty.nextState.tracker, resolved.nextState.tracker);
+  assert.equal(naturalTwenty.events[0].metadata.undoTransaction.id, resolved.nextState.actionResolution.resolutionTransaction.id);
+});
+
+test("Natural 20 replaces an interrupted Bonus Action and records the continuation chain", () => {
+  const state = createGameState({
+    ...normalMoveState(),
+    pieces: [...normalMoveState().pieces, { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 }],
+    actionContinuation: { id: "bonus-blue", kind: "bonus-card-action", team: "blue", status: "ready", resumePolicy: { type: "advance-turn", team: "blue", nextTurn: 2, phase: "attack" } },
+  });
+  const { context, resolved } = resolvedPassInterception(state, "replacement-natural-twenty", 20);
+  const result = applyGameCommand({
+    state: resolved.nextState, context,
+    command: { id: "replacement-natural-twenty-consequence", type: "PASS_CONSEQUENCE_DUE", payload: { passId: "replacement-natural-twenty", rollEventId: "replacement-natural-twenty-roll-event" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.nextState.actionContinuation.team, "red");
+  assert.equal(result.nextState.actionContinuation.origin.parentContinuationId, "bonus-blue");
+  assert.equal(result.events[0].metadata.bonusAction.supersededContinuationId, "bonus-blue");
+  assert.equal(result.nextState.actionContinuation.resumePolicy.nextTurn, 2);
 });
 
 test("EXTRA_ROLL_SUBMITTED is an explicit administrative Match event and never consumes Tracker", () => {

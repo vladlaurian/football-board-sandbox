@@ -6,13 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.30.0` |
-| Git/package version | `20.30.0` |
-| Build name | `Final_Board_v20_30_0_pass_ordinary_consequences_history_follow` |
+| Sandbox version | `v20.31.0` |
+| Git/package version | `20.31.0` |
+| Build name | `Final_Board_v20_31_0_pass_natural_twenty_engine` |
 | Base build | `v20.27.0 pass_interceptor_choice_engine` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.30.0`. The repository version is defined in `package.json` as `20.30.0`. The browser title is `Sandbox v20.30.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.31.0`. The repository version is defined in `package.json` as `20.31.0`. The browser title is `Sandbox v20.31.0`.
+
+## v20.31.0 Natural 20 Pass consequence
+
+v20.31.0 completes the offline Single Player Pass Engine migration. `PASS_CONSEQUENCE_DUE` now also owns `natural-20-interception`: it moves the ball to the interceptor, closes the Pass resolution and creates the canonical Bonus Action continuation. Tracker possession and the next numbered turn remain deliberately unchanged until `END B.A.`, which continues to apply the existing continuation resume policy.
+
+If Natural 20 interrupts an existing Bonus Action, the Engine replaces that continuation and records its `parentContinuationId` plus the superseded continuation identity in Timeline/AI metadata. The unique continuation ID is derived deterministically from the Pass and RollEvent; no Engine clock or randomness is used. The dice roll, frozen result and Natural 20 consequence remain one atomic Undo/Redo transaction. Manual Multiplayer retains its legacy path unchanged.
 
 ## v20.30.0 Pass ordinary consequences and History follow
 

@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.30.0";
+const APP_VERSION = "v20.31.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -10470,6 +10470,8 @@ function App() {
       ? pending?.plan?.directHit ? "Pass intercepted directly" : `Pass completed to ${toCoord(pending?.plan?.target?.x, pending?.plan?.target?.y)}`
       : outcome === "interception"
         ? "Pass intercepted"
+        : outcome === "natural-20-interception"
+          ? "Natural 20 interception — Bonus Action"
         : outcome === "pass-continues"
           ? "Interception missed — Pass continues"
           : "Pass consequence applied";
@@ -10541,7 +10543,7 @@ function App() {
   }
 
   function resolveRecordedPassInterception(pending) {
-    if (!sessionCode && pending?.status === "interception-resolved" && pending.lastResolution?.outcome !== "natural-20-interception") {
+    if (!sessionCode && pending?.status === "interception-resolved") {
       dispatchPassConsequence(pending);
       return;
     }
