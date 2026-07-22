@@ -89,7 +89,7 @@ A command is an attempted action. An event is a confirmed gameplay fact emitted 
 | 3/2 | `THREE_TWO_MOVE_COMMITTED` |
 | Tracker | `TURN_PHASE_ENDED`, `TURN_CHANGED`, `POSSESSION_CHANGED` |
 | Pass | `PASS_STARTED`, `PASS_CANCELLED`, `PASS_TARGET_SELECTED`, `PASS_ROUTE_SELECTED`, `PASS_INTERCEPTOR_SELECTED` |
-| Dice and resolution | `PASS_INTERCEPTION_ROLL_SUBMITTED`, `RESOLUTION_DUE`, `EXTRA_ROLL_SUBMITTED` |
+| Dice and resolution | `PASS_INTERCEPTION_ROLL_SUBMITTED`, `PASS_INTERCEPTION_RESOLUTION_DUE`, `RESOLUTION_DUE`, `EXTRA_ROLL_SUBMITTED` |
 | Bonus Action | `BONUS_ACTION_STARTED`, `BONUS_ACTION_ENDED`; typed movement: `BONUS_MOVE_STARTED`, `BONUS_MOVE_CANCELLED`, `BONUS_MOVE_COMMITTED` |
 
 Future Dribble, Shot, Tackle, and Cross commands use this same contract; they must not introduce separate UI, Timeline, Dice, or Firebase gameplay paths.
@@ -121,8 +121,9 @@ Visible delay is presentation scheduling, not game logic:
 
 1. engine accepts `PASS_INTERCEPTION_ROLL_SUBMITTED` and stores durable pending-resolution state;
 2. Controller schedules cosmetic waiting;
-3. Controller sends `RESOLUTION_DUE`;
-4. engine revalidates action, request, event identity, and current state before resolving.
+3. Controller sends `PASS_INTERCEPTION_RESOLUTION_DUE` in offline Single Player;
+4. engine revalidates action and consumed RollEvent identity, then records the deterministic mathematical result;
+5. later Pass consequences remain a separate transition until their migration is approved.
 
 Undo, Redo, reload, replay, and future multiplayer must reconstruct or reject obsolete scheduling safely. A stale timer is never authority.
 

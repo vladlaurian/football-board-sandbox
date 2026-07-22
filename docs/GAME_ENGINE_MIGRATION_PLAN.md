@@ -310,6 +310,15 @@ Delivered files and tests:
 
 **Status:** Complete. No migration scope changed: this is a one-line React Hook declaration-order correction for v20.28.0. It restores application mount and changes neither MatchState, MatchContext, Engine, Timeline, game rules nor Manual Multiplayer.
 
+### v20.29.0 — offline Single Player Pass interception mathematical result
+
+**Status:** Complete as the sixth narrow Pass slice.
+
+- `PASS_INTERCEPTION_RESOLUTION_DUE` verifies the consumed canonical RollEvent and produces the frozen deterministic result in Engine.
+- `PASS_INTERCEPTION_RESOLVED` is a Timeline/Undo/Redo/AI-visible state transition containing the full resolution details.
+- Ball movement, possession/turn transition, Bonus Action, reaction advancement and Pass completion remain intentionally outside this slice.
+- `EXTRA ROLL` was aligned visually with the die selector without changing its administrative contract.
+
 `PASS_INTERCEPTION_ROLL_SUBMITTED` now flows through the Game Engine and Single Player Controller. It accepts only the active exact pending D20 request and its matching unique RollEvent, consumes that event once, stores the raw result in canonical MatchState, updates canonical dice display state and records the existing delayed-resolution descriptor. The legacy delayed resolver temporarily reads this canonical input and performs the existing outcome calculation. Outcome, possession, ball movement, Natural 1/Natural 20 consequences and later reaction advancement remain outside this build.
 
 Offline Match Mode dice controls are disabled unless a pending mechanic roll requests the relevant team. `EXTRA ROLL` explicitly arms one administrative random or chosen roll. It creates `EXTRA_ROLL` in Timeline and AI analysis, never consumes Tracker economy, cannot satisfy a pending action roll, and closes after use. Editor Mode and Manual Multiplayer retain their legacy dice behavior.
@@ -364,7 +373,7 @@ Acceptance:
 
 ## Phase 5 — Tracker, turns, and possession
 
-**Status:** In progress — v20.25.0–v20.28.0 complete Pass start/cancel/target/route-plan/interceptor choice/raw roll input only.
+**Status:** In progress — v20.25.0–v20.29.0 complete Pass start/cancel/target/route-plan/interceptor choice/raw roll input/deterministic mathematical result only.
 
 Migrate Match start, phase completion, turn change, possession change, action reset, and currently existing match-completion behavior.
 

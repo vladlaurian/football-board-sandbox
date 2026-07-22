@@ -1198,6 +1198,40 @@ test("PASS_INTERCEPTION_ROLL_SUBMITTED rejects an invalid or replayed roll witho
   assert.equal(pendingRoll.subjectId, "red-1");
 });
 
+test("PASS_INTERCEPTION_RESOLUTION_DUE records the frozen deterministic result without applying Pass consequences", () => {
+  const rollState = createGameState({
+    ...normalMoveState(),
+    pieces: [...normalMoveState().pieces, { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 }],
+  });
+  const started = applyGameCommand({ state: rollState, context: normalMoveContext(), command: { id: "resolution-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "resolution-pass" } } });
+  const targeted = applyGameCommand({ state: started.nextState, context: normalMoveContext(), command: { id: "resolution-target", type: "PASS_TARGET_SELECTED", payload: { passId: "resolution-pass", x: 9, y: 5 } } });
+  const routed = applyGameCommand({ state: targeted.nextState, context: normalMoveContext(), command: { id: "resolution-route", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "resolution-pass", cornerId: "top-left" } } });
+  const pendingRoll = routed.nextState.actionResolution.pendingRoll;
+  const rolled = applyGameCommand({
+    state: routed.nextState, context: normalMoveContext(),
+    command: { id: "resolution-roll", type: "PASS_INTERCEPTION_ROLL_SUBMITTED", payload: { passId: "resolution-pass", createdAt: 1000, rollEvent: { id: "resolution-roll-event", requestId: pendingRoll.requestId, actionId: "resolution-pass", team: "red", dieType: 20, natural: 20, source: "RANDOM", createdAt: 1000, subjectId: "red-1", reactionIndex: 0 } } },
+  });
+  const before = structuredClone(rolled.nextState);
+  const resolved = applyGameCommand({
+    state: rolled.nextState, context: normalMoveContext(),
+    command: { id: "resolution-due", type: "PASS_INTERCEPTION_RESOLUTION_DUE", payload: { passId: "resolution-pass", rollEventId: "resolution-roll-event" } },
+  });
+  assert.equal(resolved.accepted, true);
+  assert.equal(resolved.events[0].type, "PASS_INTERCEPTION_RESOLVED");
+  assert.equal(resolved.nextState.actionResolution.status, "interception-resolved");
+  assert.equal(resolved.nextState.actionResolution.lastResolution.outcome, "natural-20-interception");
+  assert.equal(resolved.nextState.actionResolution.lastResolution.natural, 20);
+  assert.deepEqual(resolved.nextState.pieces, before.pieces);
+  assert.deepEqual(resolved.nextState.tracker, before.tracker);
+  assert.equal(resolved.nextState.actionContinuation, before.actionContinuation);
+  const after = structuredClone(resolved.nextState);
+  assert.deepEqual(applyGameCommand({
+    state: resolved.nextState, context: normalMoveContext(),
+    command: { id: "resolution-replay", type: "PASS_INTERCEPTION_RESOLUTION_DUE", payload: { passId: "resolution-pass", rollEventId: "resolution-roll-event" } },
+  }), { accepted: false, reason: "PASS_NOT_INTERCEPTION_RESOLVING" });
+  assert.deepEqual(resolved.nextState, after);
+});
+
 test("EXTRA_ROLL_SUBMITTED is an explicit administrative Match event and never consumes Tracker", () => {
   const state = normalMoveState();
   const result = applyGameCommand({

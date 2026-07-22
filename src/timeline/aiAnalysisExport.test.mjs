@@ -241,6 +241,16 @@ test("AI export retains the exact interception modifier sources and cap", () => 
   assert.equal(exported.semanticTimeline[0].resolution.pass.interceptorOrder[0].priorityReason, "defender-choice-equal-distance");
 });
 
+test("AI export identifies an Engine-owned interception math result before Pass consequences", () => {
+  const before = state({ actionResolution: { kind: "pass", status: "awaiting-interception-resolution", plan: { interceptors: [] }, lastRollEvent: { id: "roll-1", natural: 12 } } });
+  const after = state({ actionResolution: { ...before.actionResolution, status: "interception-resolved", lastResolution: { natural: 12, total: 16, outcome: "interception", passerPass: 14, rawModifier: 4, modifier: 4, modifierCap: 4, capped: false } } });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, { id: "interception-resolved", type: "PASS_INTERCEPTION_RESOLVED", label: "Interception result", team: "red", metadata: { interceptionResolution: after.actionResolution.lastResolution }, before, after });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  assert.equal(exported.semanticTimeline[0].explicitOutcome, "INTERCEPTION_ROLL_RESOLVED");
+  assert.equal(exported.semanticTimeline[0].resolution.interceptionRoll.outcome, "interception");
+});
+
 test("AI export retains a pending bonus-action continuation without adding Tracker economy", () => {
   const before = state();
   const after = state({

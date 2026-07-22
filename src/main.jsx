@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.28.1";
+const APP_VERSION = "v20.29.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -6962,7 +6962,7 @@ function App() {
     [gameTimeline, actionResolution, isReplayView],
   );
 
-  const passActive = actionResolution?.kind === "pass" && ["targeting", "route-selection", "awaiting-interceptor-choice", "awaiting-interception-roll", "awaiting-interception-resolution"].includes(actionResolution.status);
+  const passActive = actionResolution?.kind === "pass" && ["targeting", "route-selection", "awaiting-interceptor-choice", "awaiting-interception-roll", "awaiting-interception-resolution", "interception-resolved"].includes(actionResolution.status);
   const passInterceptionRollRequired = actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interception-roll";
   const passTargetDistance = useMemo(() => {
     const pending = actionResolution;
@@ -10596,6 +10596,28 @@ function App() {
     // Validation succeeded. Clear the cosmetic wait only now; an invalid or
     // stale local ref must not permanently suppress a canonical retry.
     cancelDelayedResolutionTimer();
+    if (!sessionCode && gameMode === "match" && engineConsumed) {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`pass_resolution_due_${pending.id}`),
+          type: GAME_COMMAND_TYPE.PASS_INTERCEPTION_RESOLUTION_DUE,
+          payload: { passId: pending.id, rollEventId: rollEvent.id },
+        },
+        label: `${getPieceDisplayLabel(defender)} interception result`,
+      });
+      if (!dispatched.result.accepted) {
+        multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "engine rejected canonical interception result", { traceId, actionId: pending.id, reason: dispatched.result.reason });
+        return;
+      }
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      resolveRecordedPassInterception(dispatched.state.actionResolution);
+      return;
+    }
     // Multiplayer resolution is host-authoritative. Recompute from the
     // canonical action plan and its frozen Interception rules instead of
     // trusting a client-precomputed result carried in the dice event.
@@ -12276,7 +12298,7 @@ function App() {
               <option value={20}>D20</option><option value={12}>D12</option><option value={10}>D10</option><option value={8}>D8</option><option value={6}>D6</option><option value={4}>D4</option>
             </select>
             {!sessionCode && gameMode === "match" && <button
-              className={extraRollArmed ? "toggle-on" : ""}
+              className={`extra-roll-button${extraRollArmed ? " toggle-on" : ""}`}
               disabled={isReplayView || Boolean(actionResolution) || blueDieRolling || redDieRolling || diceCooldownUntil > Date.now()}
               onClick={() => setExtraRollArmed(value => !value)}
             >{extraRollArmed ? "CANCEL EXTRA" : "EXTRA ROLL"}</button>}
@@ -12376,7 +12398,7 @@ function App() {
                 <option value={20}>D20</option><option value={12}>D12</option><option value={10}>D10</option><option value={8}>D8</option><option value={6}>D6</option><option value={4}>D4</option>
               </select>
               {!sessionCode && gameMode === "match" && <button
-                className={extraRollArmed ? "toggle-on" : ""}
+                className={`extra-roll-button${extraRollArmed ? " toggle-on" : ""}`}
                 disabled={isReplayView || Boolean(actionResolution) || blueDieRolling || redDieRolling || diceCooldownUntil > Date.now()}
                 onPointerDown={event => event.stopPropagation()}
                 onClick={() => setExtraRollArmed(value => !value)}

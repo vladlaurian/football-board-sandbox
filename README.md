@@ -6,13 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.28.1` |
-| Git/package version | `20.28.1` |
-| Build name | `Final_Board_v20_28_1_startup_regression_correction` |
+| Sandbox version | `v20.29.0` |
+| Git/package version | `20.29.0` |
+| Build name | `Final_Board_v20_29_0_pass_interception_resolution_engine` |
 | Base build | `v20.27.0 pass_interceptor_choice_engine` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.28.1`. The repository version is defined in `package.json` as `20.28.1`. The browser title is `Sandbox v20.28.1`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.29.0`. The repository version is defined in `package.json` as `20.29.0`. The browser title is `Sandbox v20.29.0`.
+
+## v20.29.0 release summary
+
+v20.29.0 makes the deterministic mathematical result of one Pass interception roll Engine-owned in offline Single Player. After the existing cosmetic delay, `PASS_INTERCEPTION_RESOLUTION_DUE` validates the already consumed canonical RollEvent, reads only the frozen Pass plan and MatchContext card/rule data, then records `PASS_INTERCEPTION_RESOLVED` with the exact natural, modifiers, cap, totals and outcome. It changes no board piece, possession, Tracker state, turn, follow-up interceptor, Pass completion or Bonus Action. Those consequences deliberately remain in the legacy downstream resolver for the next migration slices.
+
+`EXTRA ROLL` now visually matches the die selector: the same height, typography, border, radius and dark control styling, while retaining an adaptive text width.
 
 ## v20.28.1 startup regression correction
 

@@ -6677,6 +6677,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .dice-panel-body { display: flex; flex-direction: column; gap: 12px; }
 .dice-toolbar { display:flex; align-items:center; justify-content:center; gap:8px; }
 .dice-toolbar select { height:34px; padding:6px; line-height:20px; border-radius:8px; border:1px solid rgba(255,255,255,.2); background:#222; color:white; }
+.dice-box .extra-roll-button, .dice-toolbar .extra-roll-button { height:34px; padding:6px; line-height:20px; border-radius:8px; border:1px solid rgba(255,255,255,.2); background:#222; color:white; font:inherit; }
 .team-dice-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .team-die-card { min-width:0; padding:12px; border-radius:12px; display:flex; flex-direction:column; align-items:center; gap:9px; border:1px solid rgba(255,255,255,.2); }
 .team-die-card strong { font-size:12px; line-height:14px; letter-spacing:.8px; }

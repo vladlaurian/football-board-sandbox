@@ -530,6 +530,19 @@ The transition may create the existing explicit pending interceptor decision or 
 
 The Extra Roll reset effect is presentation-only. Its Hook dependency expressions must be declared only after every referenced state value exists in component initialization order. This correction preserves ADR-037 exactly; it does not create a new gameplay decision.
 
+## ADR-038 — Pass roll calculation precedes Pass consequence migration
+
+**Status:** Active
+
+**Decision:** `PASS_INTERCEPTION_RESOLUTION_DUE` owns only the deterministic calculation for a consumed Pass interception RollEvent. The Engine stores `lastResolution` and the explicit outcome before any state consequence is applied.
+
+**Consequences:**
+
+- The dice result, frozen rules and frozen gameplay-card values now have one authoritative mathematical interpretation.
+- Timeline, Undo/Redo and AI export can inspect the actual result independently of later ball or turn changes.
+- Ball movement, possession, turn change, Bonus Action, next interceptor and Pass completion remain separate migration boundaries; they must not be silently folded into the calculation command.
+- Manual Multiplayer remains unchanged.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

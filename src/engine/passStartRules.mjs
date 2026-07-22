@@ -1,8 +1,9 @@
 import { beginContinuationAction, CONTINUATION_STATUS, normalizeActionContinuation } from "../match/actionContinuation.mjs";
 import { ACTION_TRANSACTION_UNDO_MODE, createActionTransaction, transactionForActionState } from "../match/actionTransaction.mjs";
 import { consumeActionEvent, createPendingDecision, createPendingRoll, createRollEvent, withPendingDecision, withPendingRoll } from "../match/actionResolutionEngine.mjs";
-import { PASS_CORNERS, applyInterceptorChoice, buildPassPlan, interceptorChoiceCandidates, passRequiresInterceptionSequence, teamKeyForPiece } from "../rules/passEngine.mjs";
+import { PASS_CORNERS, applyInterceptorChoice, buildPassPlan, cardStat, interceptorChoiceCandidates, passRequiresInterceptionSequence, teamKeyForPiece } from "../rules/passEngine.mjs";
 import { createDelayedResolution } from "../match/delayedResolution.mjs";
+import { resolveInterception } from "../rules/interceptionEngine.mjs";
 import { activateTrackerAction, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 
@@ -417,6 +418,115 @@ export function submitPassInterceptionRoll(state, context, command) {
       groupId: pending.bonusContinuationId || null,
       undoMode: pending.bonusContinuationId ? "atomic" : "step",
       allowNoop: true,
+    },
+  };
+}
+
+function interceptionOrderLabel(orderModifier) {
+  const value = Number(orderModifier) || 0;
+  if (value === 0) return "first interceptor";
+  if (value === 1) return "second interceptor";
+  if (value === 2) return "third interceptor";
+  if (value === 3) return "fourth interceptor";
+  return `${value + 1}th interceptor`;
+}
+
+function buildInterceptionResolution({ pending, defender, context }) {
+  const interceptor = pending?.plan?.interceptors?.[pending?.interceptorIndex];
+  const plan = pending?.plan || {};
+  const rules = plan.interceptionRules || {};
+  const defenderRollStatId = rules.defenderRollStatId || "stat:interception";
+  const interception = cardStat(context?.gameplayCardsById?.[String(defender.cardId || "")], defenderRollStatId);
+  const orderModifier = rules.useProgressiveBonus === false ? 0 : (Number(interceptor?.orderModifier) || 0);
+  const nonDominantPenalty = rules.useStandardModifiers === false || plan.foot?.dominant ? 0 : 1;
+  const previousNaturalOnePenalty = rules.useStandardModifiers === false ? 0 : (Number(pending.naturalOnePenalty) || 0);
+  const attackerTargetValue = Number(plan.attackerTargetValue ?? plan.passerPass) || 0;
+  const roll = resolveInterception({
+    natural: Number(pending.lastRollEvent?.natural),
+    defenderStatValue: interception,
+    attackerTargetValue,
+    progressiveBonus: orderModifier,
+    standardModifier: nonDominantPenalty,
+    previousNaturalOnePenalty,
+    modifierCap: rules.modifierCap ?? 4,
+    equalRollOutcome: rules.equalRollOutcome || "pass-succeeds",
+  });
+  const modifierSources = [
+    { label: "Interception", value: interception, source: "card" },
+    { label: "Advantage", value: orderModifier, source: "interceptor-order", detail: interceptionOrderLabel(orderModifier) },
+    ...(nonDominantPenalty ? [{ label: "Advantage", value: nonDominantPenalty, source: "non-preferred-foot", detail: "non-preferred foot" }] : []),
+    ...(previousNaturalOnePenalty ? [{ label: "Disadvantage", value: previousNaturalOnePenalty, source: "previous-natural-1", detail: "previous Natural 1" }] : []),
+  ];
+  const appliedModifierSources = !roll.capped
+    ? modifierSources
+    : (() => {
+        const direction = Number(roll.modifier) >= 0 ? 1 : -1;
+        let remaining = Math.abs(Number(roll.modifier) || 0);
+        return modifierSources.reduce((applied, source) => {
+          const value = Number(source.value) || 0;
+          if (remaining <= 0 || value * direction <= 0) return applied;
+          const visibleValue = direction * Math.min(Math.abs(value), remaining);
+          remaining -= Math.abs(visibleValue);
+          return [...applied, { ...source, value: visibleValue }];
+        }, []);
+      })();
+  return {
+    ...roll,
+    passerPass: attackerTargetValue,
+    attackerTargetValue,
+    attackerTargetStatId: plan.attackerTargetStatId || "stat:passing",
+    defenderRollStatId,
+    interception,
+    orderModifier,
+    nonDominantPenalty,
+    previousNaturalOnePenalty,
+    modifierSources,
+    appliedModifierSources,
+  };
+}
+
+export function resolvePassInterception(state, context, command) {
+  const pending = state.actionResolution;
+  const passId = passIdForCommand(command);
+  const rollEventId = String(command.payload?.rollEventId || "").trim();
+  if (!pending || pending.kind !== "pass" || pending.status !== "awaiting-interception-resolution") {
+    return { accepted: false, reason: "PASS_NOT_INTERCEPTION_RESOLVING" };
+  }
+  if (!passId || passId !== String(pending.id || "") || !rollEventId || rollEventId !== String(pending.lastRollEvent?.id || "")) {
+    return { accepted: false, reason: "PASS_INTERCEPTION_RESOLUTION_STALE" };
+  }
+  if (!Array.isArray(pending.consumedEventIds) || !pending.consumedEventIds.includes(rollEventId)) {
+    return { accepted: false, reason: "PASS_INTERCEPTION_RESOLUTION_STALE" };
+  }
+  const interceptorIndex = Math.max(0, Math.floor(Number(pending.interceptorIndex) || 0));
+  const interceptor = pending.plan?.interceptors?.[interceptorIndex];
+  const defenderId = String(interceptor?.defender?.id || "");
+  const defender = state.pieces.find(piece => String(piece?.id || "") === defenderId) || null;
+  const team = teamKeyForPiece(defender);
+  if (!defender || !team || team !== pending.lastRollEvent?.team || !context?.gameplayCardsById?.[String(defender.cardId || "")]) {
+    return { accepted: false, reason: "PASS_INTERCEPTION_RESOLUTION_CONTEXT_INVALID" };
+  }
+  const resolution = buildInterceptionResolution({ pending, defender, context });
+  const nextResolution = { ...pending, status: "interception-resolved", lastResolution: resolution };
+  return {
+    accepted: true,
+    nextState: { ...state, actionResolution: nextResolution },
+    event: {
+      type: "PASS_INTERCEPTION_RESOLVED",
+      team,
+      metadata: {
+        passId,
+        defenderId,
+        interceptorIndex,
+        rollEventId,
+        interceptionResolution: resolution,
+        undoTransaction: pending.resolutionTransaction || null,
+      },
+    },
+    timeline: {
+      groupId: pending.bonusContinuationId || pending.entryId || null,
+      undoMode: pending.bonusContinuationId ? "atomic" : "step",
+      allowNoop: false,
     },
   };
 }

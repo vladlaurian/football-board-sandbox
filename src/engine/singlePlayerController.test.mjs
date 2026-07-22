@@ -483,3 +483,28 @@ test("Single Player Controller records a Pass interception roll before the delay
   const redone = redoTimeline(undone.timeline);
   assert.equal(redone.state.actionResolution.status, "awaiting-interception-resolution");
 });
+
+test("Single Player Controller records Engine-owned Pass interception math as an independently reversible step", () => {
+  const state = createGameState({
+    ...normalMoveState(),
+    pieces: [...normalMoveState().pieces, { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 }],
+  });
+  const started = dispatchSinglePlayerGameCommand({ state, context: normalMoveContext(), command: { id: "controller-resolution-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "controller-resolution" } } });
+  const targeted = dispatchSinglePlayerGameCommand({ timeline: started.timeline, state: started.state, context: normalMoveContext(), command: { id: "controller-resolution-target", type: "PASS_TARGET_SELECTED", payload: { passId: "controller-resolution", x: 9, y: 5 } } });
+  const routed = dispatchSinglePlayerGameCommand({ timeline: targeted.timeline, state: targeted.state, context: normalMoveContext(), command: { id: "controller-resolution-route", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "controller-resolution", cornerId: "top-left" } } });
+  const pendingRoll = routed.state.actionResolution.pendingRoll;
+  const rolled = dispatchSinglePlayerGameCommand({
+    timeline: routed.timeline, state: routed.state, context: normalMoveContext(),
+    command: { id: "controller-resolution-roll", type: "PASS_INTERCEPTION_ROLL_SUBMITTED", payload: { passId: "controller-resolution", createdAt: 1000, rollEvent: { id: "controller-resolution-event", requestId: pendingRoll.requestId, actionId: "controller-resolution", team: "red", dieType: 20, natural: 8, source: "RANDOM", createdAt: 1000, subjectId: "red-1", reactionIndex: 0 } } },
+  });
+  const resolved = dispatchSinglePlayerGameCommand({
+    timeline: rolled.timeline, state: rolled.state, context: normalMoveContext(),
+    command: { id: "controller-resolution-due", type: "PASS_INTERCEPTION_RESOLUTION_DUE", payload: { passId: "controller-resolution", rollEventId: "controller-resolution-event" } },
+  });
+  assert.equal(resolved.timeline.entries.at(-1).type, "PASS_INTERCEPTION_RESOLVED");
+  assert.equal(resolved.state.actionResolution.status, "interception-resolved");
+  const undone = undoTimeline(resolved.timeline);
+  assert.equal(undone.state.actionResolution.status, "awaiting-interception-resolution");
+  const redone = redoTimeline(undone.timeline);
+  assert.equal(redone.state.actionResolution.status, "interception-resolved");
+});

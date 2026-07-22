@@ -194,6 +194,12 @@ The roll transition does not itself resolve interception, change possession, mov
 
 No action-resolution contract changed. This build only relocates the Extra Roll UI reset effect below the `sessionCode` state declaration so React can mount the application without a temporal-dead-zone exception.
 
+## v20.29.0 — canonical Pass interception mathematical result
+
+After the existing cosmetic wait, offline Single Player sends `PASS_INTERCEPTION_RESOLUTION_DUE`. The Engine accepts it only while the current Pass is `awaiting-interception-resolution`, the declared Pass ID and RollEvent ID match the consumed canonical input, and the selected defender still exists in frozen MatchContext. It calculates the exact generic interception result from the frozen Pass plan, frozen Interception rules and frozen defender card, then records `PASS_INTERCEPTION_RESOLVED` and changes only `actionResolution` to `interception-resolved` with `lastResolution`.
+
+This slice deliberately does not move the ball, apply possession or turn changes, create a Bonus Action, advance another interceptor, or complete the Pass. The existing downstream resolver temporarily reads the Engine-owned `lastResolution` and performs those old consequences. AI export now records this intermediate deterministic outcome explicitly.
+
 ## Multiplayer canonical resolution rule added in v19.13
 
 A remote user may create an authorized pending decision or RollEvent, but only the host applies the deterministic consequence. Host scheduling must be derived from the canonical hydrated Timeline state, not exclusively from a one-time "new entry" notification. Repeated Firestore snapshots for the same entry must not restart its cosmetic delay, and an already consumed RollEvent must remain idempotent.
