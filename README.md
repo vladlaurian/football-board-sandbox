@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.45.0` |
-| Git/package version | `20.45.0` |
-| Build name | `Final_Board_v20_45_0_match_tactical_clarity` |
-| Base build | `v20.44.0 premium_match_ui_team_highlights` |
+| Sandbox version | `v20.45.1` |
+| Git/package version | `20.45.1` |
+| Build name | `Final_Board_v20_45_1_final_match_presentation_correction` |
+| Base build | `v20.45.0 match_tactical_clarity` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.45.0`. The repository version is in `package.json` as `20.45.0`. The browser title is `Sandbox v20.45.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.45.1`. The repository version is in `package.json` as `20.45.1`. The browser title is `Sandbox v20.45.1`.
 
 ## Current release
 
-v20.45.0 refines Match tactical readability: Tracker turns now visibly separate current, completed and future turns; card controls use the same Match glass route; possession uses a white/silver halo; Red uses a truer red treatment; and defensive overlays preserve each cell while increasing opacity by same-team coverage. There are deliberately no numeric overlap labels in this first version. All layout controls, interactions, Engine/Timeline behavior, Editor and Manual Multiplayer remain unchanged.
+v20.45.1 is the final agreed Match presentation correction before returning to architecture and mechanics: defensive-cell seams are subordinate to outer-area borders, team card controls retain premium Blue/Red identity, pucks and ball are true circles, and Tracker controls receive the requested label/weight/rounded-control treatment. All layout controls, interactions, Engine/Timeline behavior, Editor and Manual Multiplayer remain unchanged.
 
 No game rule, Match Engine command, Timeline behavior, Workspace persistence behavior or Manual Multiplayer behavior changed.
 
@@ -72,7 +72,7 @@ src/
 docs/
   active architecture, rule and workflow contracts
   CHANGELOG.md
-  NEXT_CHAT_PROMPT_v20_45_0.md
+  NEXT_CHAT_PROMPT_v20_45_1.md
   history/      non-active handoff history
 ```
 
@@ -92,7 +92,7 @@ docs/
 | [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md) | Frozen legacy automated-multiplayer model; reference only until reopening is approved. |
 | [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md) | Historical Multiplayer fixes and rejected approaches. |
 | [`CHANGELOG.md`](docs/CHANGELOG.md) | Compact release history. |
-| [`NEXT_CHAT_PROMPT_v20_45_0.md`](docs/NEXT_CHAT_PROMPT_v20_45_0.md) | The one active handoff for a new chat. |
+| [`NEXT_CHAT_PROMPT_v20_45_1.md`](docs/NEXT_CHAT_PROMPT_v20_45_1.md) | The one active handoff for a new chat. |
 
 ## Mandatory development rules
 

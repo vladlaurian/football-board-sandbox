@@ -186,7 +186,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.45.0";
+const APP_VERSION = "v20.45.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -11723,7 +11723,7 @@ function App() {
                     {inspectedCard && canControlPieceStatus(inspectedPiece) && (
                       <button
                         type="button"
-                        className={`inspector-flip-request-btn piece-status-btn ${inspectedPiece.inactive ? "activate" : "deactivate"}`}
+                        className={`inspector-flip-request-btn piece-status-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${inspectedPiece.inactive ? "activate" : "deactivate"}`}
                         onClick={() => togglePieceInactive(inspectedPiece.id)}
                       >
                         {inspectedPiece.inactive ? "ACTIVE" : "INACTIVE"}

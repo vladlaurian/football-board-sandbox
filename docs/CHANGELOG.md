@@ -2,6 +2,13 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.45.1 — Final Match Presentation Correction
+
+- Restored premium team-colored Blue/Red card controls with rounded corners; action controls remain in their established team family instead of a neutral glass override.
+- Corrected Match pucks and ball to true circular geometry, so the possession halo is centered and circular; the ball aura uses the same white/silver family.
+- Made defensive cell seams deliberately more subdued than continuous outside-area edges while retaining intensity by same-team coverage and without numeric labels.
+- Changed the Tracker label to `Start Game`, kept its existing bold treatment, and aligned `Change Possession` with `Reset Trackers` typography. These are visual/label changes only; existing callbacks and behavior are unchanged.
+
 ## v20.45.0 — Match Tactical Clarity
 
 - Made Match Tracker turns clearly distinguish completed, current and upcoming states without changing turn state or controls.

@@ -52,9 +52,9 @@ export function TrackerPanel({
       {!minimized && (
         <div className="tracker-panel-body">
           <div className="tracker-main-actions">
-            <button className="tracker-primary-button" onClick={onStartOrRestart} disabled={readOnly}>{gameStarted ? "Restart Game" : "Start Game"}</button>
-            <button className="tracker-primary-button" onClick={onChangePossession} disabled={readOnly || !gameStarted}>Change Possession</button>
-            <button onClick={onReset} disabled={readOnly || !gameStarted}>Reset Trackers</button>
+            <button className="tracker-primary-button tracker-start-button" onClick={onStartOrRestart} disabled={readOnly}>Start Game</button>
+            <button className="tracker-change-possession-button" onClick={onChangePossession} disabled={readOnly || !gameStarted}>Change Possession</button>
+            <button className="tracker-reset-button" onClick={onReset} disabled={readOnly || !gameStarted}>Reset Trackers</button>
           </div>
           <div className="tracker-team-grid">
             {["blue", "red"].map(team => {
