@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.24.1";
+const APP_VERSION = "v20.25.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -9788,6 +9788,28 @@ function App() {
       void requestHostActionStart({ mode: "normal-pass", actionType: "PASS", piece, continuationId: null });
       return null;
     }
+    if (!sessionCode) {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const team = pieceTeamKey(piece);
+      const passId = createActionEventId(`pass_start_${piece.id}`);
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`pass_start_command_${piece.id}`),
+          type: GAME_COMMAND_TYPE.PASS_STARTED,
+          payload: { pieceId: piece.id, passId },
+        },
+        label: `${team === "blue" ? "Blue" : "Red"}${continuationId ? " bonus" : ""} PASS: choose target for ${getPieceDisplayLabel(piece)}`,
+      });
+      if (!dispatched.result.accepted) return null;
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      setSelectedId(piece.id);
+      setHoveredCell(null);
+      return dispatched.state.actionResolution;
+    }
     const pending = buildPassTargetingResolution(piece, { continuationId });
     const team = pieceTeamKey(piece);
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
@@ -9805,6 +9827,26 @@ function App() {
 
   function commitPassCancellation(pending = actionResolutionRef.current) {
     if (!isPassPreviewCancellable(pending)) return false;
+    if (!sessionCode) {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`pass_cancel_${pending.id}`),
+          type: GAME_COMMAND_TYPE.PASS_CANCELLED,
+          payload: { passId: pending.id },
+        },
+        label: "Pass cancelled before route confirmation",
+      });
+      if (!dispatched.result.accepted) return false;
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      setSelectedId(null);
+      setHoveredCell(null);
+      return true;
+    }
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
     const currentContinuation = actionContinuationRef.current;
     const nextContinuation = pending.continuationId && currentContinuation?.id === pending.continuationId
@@ -10665,6 +10707,11 @@ function App() {
         return;
       }
       if (continuation.status !== CONTINUATION_STATUS.READY || type === "GROUP_MOVE" || type === "FREE" || !canControlPieceStatus(piece)) return;
+      if (!sessionCode && type === "PASS") {
+        cancelFreeBall();
+        beginPassTargeting(piece, { continuationId: continuation.id });
+        return;
+      }
       const started = type === "MOVE" && !sessionCode
         ? startBonusMove(piece)
         : beginBonusCardAction(type, piece, { startPassAtomically: type === "PASS" });

@@ -314,3 +314,50 @@ test("Single Player Controller records Group Move zone confirmation and each pla
   const redoneMove = redoTimeline(redoneZone.timeline);
   assert.equal(redoneMove.state.pieces.find(piece => piece.id === "blue-1").x, 7);
 });
+
+test("Single Player Controller records normal Pass targeting and cancellation as separate Undo/Redo steps", () => {
+  const started = dispatchSinglePlayerGameCommand({
+    state: normalMoveState(), context: normalMoveContext(),
+    command: { id: "controller-pass-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "controller-pass" } },
+  });
+  const cancelled = dispatchSinglePlayerGameCommand({
+    timeline: started.timeline, state: started.state, context: normalMoveContext(),
+    command: { id: "controller-pass-cancel", type: "PASS_CANCELLED", payload: { passId: "controller-pass" } },
+  });
+  assert.deepEqual(cancelled.timeline.entries.map(entry => entry.type), ["PASS_TARGETING_STARTED", "PASS_CANCELLED"]);
+  const undoCancel = undoTimeline(cancelled.timeline);
+  assert.equal(undoCancel.state.actionResolution.id, "controller-pass");
+  const undoStart = undoTimeline(undoCancel.timeline);
+  assert.equal(undoStart.state.actionResolution, null);
+  const redoStart = redoTimeline(undoStart.timeline);
+  const redoCancel = redoTimeline(redoStart.timeline);
+  assert.equal(redoCancel.state.actionResolution, null);
+});
+
+test("Single Player Controller keeps Bonus Pass start and cancellation in one atomic transaction", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    actionContinuation: {
+      id: "controller-bonus-pass",
+      kind: "bonus-card-action",
+      team: "blue",
+      status: "ready",
+      resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" },
+    },
+  });
+  const started = dispatchSinglePlayerGameCommand({
+    state: start, context: normalMoveContext(),
+    command: { id: "controller-bonus-pass-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "controller-bonus-pass-targeting" } },
+  });
+  const cancelled = dispatchSinglePlayerGameCommand({
+    timeline: started.timeline, state: started.state, context: normalMoveContext(),
+    command: { id: "controller-bonus-pass-cancel", type: "PASS_CANCELLED", payload: { passId: "controller-bonus-pass-targeting" } },
+  });
+  assert.deepEqual(cancelled.timeline.entries.map(entry => entry.type), ["BONUS_PASS_TARGETING_STARTED", "PASS_CANCELLED"]);
+  const undone = undoAtomicTimelineTransaction(cancelled.timeline);
+  assert.equal(undone.state.actionResolution, null);
+  assert.equal(undone.state.actionContinuation.status, "ready");
+  const redone = redoAtomicTimelineTransaction(undone.timeline);
+  assert.equal(redone.state.actionResolution, null);
+  assert.equal(redone.state.actionContinuation.status, "ready");
+});

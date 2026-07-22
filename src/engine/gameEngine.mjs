@@ -10,6 +10,7 @@ import { cancelBonusMove, commitBonusMove, startBonusMove } from "./bonusMoveRul
 import { endBonusAction } from "./bonusActionRules.mjs";
 import { endTrackerPhase } from "./trackerPhaseRules.mjs";
 import { restartMatch, startMatch } from "./matchLifecycleRules.mjs";
+import { cancelPass, startPass } from "./passStartRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -89,6 +90,8 @@ export function applyGameCommand({ state, context, command } = {}) {
     GAME_COMMAND_TYPE.BONUS_MOVE_CANCELLED,
     GAME_COMMAND_TYPE.BONUS_MOVE_COMMITTED,
     GAME_COMMAND_TYPE.BONUS_ACTION_ENDED,
+    GAME_COMMAND_TYPE.PASS_STARTED,
+    GAME_COMMAND_TYPE.PASS_CANCELLED,
   ].includes(normalizedCommand.type)) return rejected("BONUS_ACTION_ACTIVE");
   if ([GAME_COMMAND_TYPE.MATCH_STARTED, GAME_COMMAND_TYPE.MATCH_RESTARTED].includes(normalizedCommand.type)) {
     const transition = normalizedCommand.type === GAME_COMMAND_TYPE.MATCH_RESTARTED
@@ -100,6 +103,23 @@ export function applyGameCommand({ state, context, command } = {}) {
       commandId: normalizedCommand.id,
     })], transition.timeline);
   }
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.PASS_STARTED) {
+    const transition = startPass(currentState, normalizedCommand);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({
+      ...transition.event,
+      commandId: normalizedCommand.id,
+    })], transition.timeline);
+  }
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.PASS_CANCELLED) {
+    const transition = cancelPass(currentState, normalizedCommand);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({
+      ...transition.event,
+      commandId: normalizedCommand.id,
+    })], transition.timeline);
+  }
+  if (currentState.actionResolution) return rejected("ACTION_RESOLUTION_ACTIVE");
   const freeMoveTransition = normalizedCommand.type === GAME_COMMAND_TYPE.FREE_MOVE_STARTED
     ? startFreeMove(currentState, normalizedCommand)
     : normalizedCommand.type === GAME_COMMAND_TYPE.FREE_MOVE_COMMITTED

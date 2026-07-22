@@ -6,13 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.24.1` |
-| Git/package version | `20.24.1` |
-| Build name | `Final_Board_v20_24_1_restart_regression_correction` |
-| Base build | `v20.24.0 match_lifecycle_boundary` |
+| Sandbox version | `v20.25.0` |
+| Git/package version | `20.25.0` |
+| Build name | `Final_Board_v20_25_0_pass_start_cancel_engine` |
+| Base build | `v20.24.1 restart_regression_correction` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.24.1`. The repository version is defined in `package.json` as `20.24.1`. The browser title is `Sandbox v20.24.1`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.25.0`. The repository version is defined in `package.json` as `20.25.0`. The browser title is `Sandbox v20.25.0`.
+
+## v20.25.0 release summary
+
+v20.25.0 begins the Pass migration with one intentionally narrow offline Single Player Match Mode slice: starting and cancelling a Pass. `PASS_STARTED` now validates the canonical MatchState (Match started, phase ownership or ready Bonus Action, valid active ball carrier, available normal action, and no active resolution), then creates canonical `actionResolution` targeting state and emits the existing `PASS_TARGETING_STARTED` or `BONUS_PASS_TARGETING_STARTED` semantic event. It does not consume a Tracker action, select a target, choose a route, roll dice, resolve interception, or move the ball.
+
+`PASS_CANCELLED` now clears only a cancellable canonical targeting/route-selection resolution. For Bonus Pass it restores the same Bonus Action to ready without consuming Tracker economy; normal Pass remains a normal stepwise Timeline action. Bonus Pass start and cancellation remain one atomic Undo/Redo transaction. While an Engine-created Pass resolution is active, unrelated Engine commands are rejected. The offline UI now dispatches these two commands; Manual Multiplayer retains its existing host/guest and direct mutation paths. Target selection, route creation, interceptor choice, dice, resolution and possession remain explicitly outside this build.
 
 ## v20.24.1 release summary
 

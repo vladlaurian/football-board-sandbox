@@ -817,3 +817,84 @@ test("a pre-movement normal MOVE locks every Engine command except commit or can
   assert.equal(cancelled.accepted, true);
   assert.equal(cancelled.nextState.tracker.usedActions.blue, 0);
 });
+
+test("PASS_STARTED creates canonical targeting without consuming Tracker, and PASS_CANCELLED restores the normal action state", () => {
+  const start = normalMoveState();
+  const started = applyGameCommand({
+    state: start,
+    context: normalMoveContext(),
+    command: { id: "pass-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "pass-1" } },
+  });
+  assert.equal(started.accepted, true);
+  assert.equal(started.nextState.actionResolution.id, "pass-1");
+  assert.equal(started.nextState.actionResolution.status, "targeting");
+  assert.equal(started.nextState.tracker.usedActions.blue, 0);
+  assert.equal(started.events[0].type, "PASS_TARGETING_STARTED");
+  assert.deepEqual(applyGameCommand({
+    state: started.nextState,
+    context: normalMoveContext(),
+    command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "blocked-by-pass-targeting"),
+  }), { accepted: false, reason: "ACTION_RESOLUTION_ACTIVE" });
+  const cancelled = applyGameCommand({
+    state: started.nextState,
+    context: normalMoveContext(),
+    command: { id: "pass-cancel", type: "PASS_CANCELLED", payload: { passId: "pass-1" } },
+  });
+  assert.equal(cancelled.accepted, true);
+  assert.equal(cancelled.nextState.actionResolution, null);
+  assert.equal(cancelled.nextState.tracker.usedActions.blue, 0);
+  assert.equal(cancelled.events[0].type, "PASS_CANCELLED");
+});
+
+test("PASS_STARTED and PASS_CANCELLED preserve a ready Bonus Action without touching Tracker", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    actionContinuation: {
+      id: "bonus-pass-1",
+      kind: "bonus-card-action",
+      team: "blue",
+      status: "ready",
+      resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" },
+    },
+  });
+  const started = applyGameCommand({
+    state: start,
+    context: normalMoveContext(),
+    command: { id: "bonus-pass-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "bonus-pass-targeting" } },
+  });
+  assert.equal(started.accepted, true);
+  assert.equal(started.events[0].type, "BONUS_PASS_TARGETING_STARTED");
+  assert.equal(started.nextState.actionContinuation.status, "action-active");
+  assert.equal(started.nextState.actionContinuation.actionType, "PASS");
+  assert.equal(started.nextState.actionResolution.continuationId, "bonus-pass-1");
+  assert.equal(started.nextState.tracker.usedActions.blue, 0);
+  const cancelled = applyGameCommand({
+    state: started.nextState,
+    context: normalMoveContext(),
+    command: { id: "bonus-pass-cancel", type: "PASS_CANCELLED", payload: { passId: "bonus-pass-targeting" } },
+  });
+  assert.equal(cancelled.accepted, true);
+  assert.equal(cancelled.nextState.actionResolution, null);
+  assert.equal(cancelled.nextState.actionContinuation.status, "ready");
+  assert.equal(cancelled.nextState.actionContinuation.actionType, null);
+  assert.equal(cancelled.nextState.tracker.usedActions.blue, 0);
+  const move = applyGameCommand({
+    state: cancelled.nextState,
+    context: normalMoveContext(),
+    command: normalMoveCommand("BONUS_MOVE_STARTED", {}, "bonus-move-after-pass-cancel"),
+  });
+  assert.equal(move.accepted, true);
+});
+
+test("PASS_STARTED rejects an invalid passer, a non-carrier, and an exhausted normal phase without mutating state", () => {
+  const start = normalMoveState();
+  for (const [state, command, reason] of [
+    [start, { id: "pass-no-piece", type: "PASS_STARTED", payload: { pieceId: "missing", passId: "p" } }, "PASSER_INVALID"],
+    [createGameState({ ...start, pieces: start.pieces.map(piece => piece.id === "ball" ? { ...piece, x: 4 } : piece) }), { id: "pass-no-ball", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "p" } }, "PASS_REQUIRES_BALL"],
+    [createGameState({ ...start, tracker: { ...start.tracker, usedActions: { blue: 5, red: 0 } } }), { id: "pass-exhausted", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "p" } }, "ACTIONS_COMPLETE_END_TURN"],
+  ]) {
+    const before = structuredClone(state);
+    assert.deepEqual(applyGameCommand({ state, context: normalMoveContext(), command }), { accepted: false, reason });
+    assert.deepEqual(state, before);
+  }
+});

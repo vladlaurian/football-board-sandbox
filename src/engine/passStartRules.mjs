@@ -1,0 +1,125 @@
+import { beginContinuationAction, CONTINUATION_STATUS, normalizeActionContinuation } from "../match/actionContinuation.mjs";
+import { ACTION_TRANSACTION_UNDO_MODE, createActionTransaction, transactionForActionState } from "../match/actionTransaction.mjs";
+import { teamKeyForPiece } from "../rules/passEngine.mjs";
+import { isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
+import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
+
+function pieceForCommand(state, command) {
+  const pieceId = String(command.payload?.pieceId || "");
+  return state.pieces.find(piece => String(piece?.id || "") === pieceId) || null;
+}
+
+function hasBall(state, piece) {
+  return state.pieces.some(item => item?.team === "BALL" && Number(item.x) === Number(piece.x) && Number(item.y) === Number(piece.y));
+}
+
+function passIdForCommand(command) {
+  return String(command.payload?.passId || "").trim();
+}
+
+function createPassTargetingResolution({ passId, piece, team, continuationId = null, transaction = null }) {
+  return {
+    id: passId,
+    kind: "pass",
+    status: "targeting",
+    passerId: piece.id,
+    team,
+    target: null,
+    cornerId: null,
+    naturalOnePenalty: 0,
+    interceptorIndex: 0,
+    pendingDecision: null,
+    pendingRoll: null,
+    consumedEventIds: [],
+    lastRollEvent: null,
+    continuationId,
+    transaction: transaction || createActionTransaction({
+      id: passId,
+      actionType: "PASS",
+      team,
+      source: "pass",
+      undoMode: ACTION_TRANSACTION_UNDO_MODE.STEP,
+    }),
+  };
+}
+
+export function startPass(state, command) {
+  if (state.gameMode !== "match") return { accepted: false, reason: "MATCH_MODE_REQUIRED" };
+  if (state.actionResolution) return { accepted: false, reason: "ACTION_RESOLUTION_ACTIVE" };
+  const piece = pieceForCommand(state, command);
+  const passId = passIdForCommand(command);
+  if (!piece || piece.team === "BALL" || piece.inactive) return { accepted: false, reason: "PASSER_INVALID" };
+  if (!passId) return { accepted: false, reason: "PASS_ID_REQUIRED" };
+  const team = teamKeyForPiece(piece);
+  if (!team || !hasBall(state, piece)) return { accepted: false, reason: "PASS_REQUIRES_BALL" };
+
+  const tracker = normalizeTrackerSnapshot(state.tracker);
+  if (!tracker.gameStarted || tracker.currentTurn < 1) return { accepted: false, reason: "MATCH_NOT_STARTED" };
+  const continuation = normalizeActionContinuation(state.actionContinuation);
+  const bonusPass = continuation?.kind === "bonus-card-action";
+  let nextContinuation = continuation;
+  if (bonusPass) {
+    if (continuation.team !== team || continuation.status !== CONTINUATION_STATUS.READY) return { accepted: false, reason: "BONUS_PASS_NOT_READY" };
+    nextContinuation = beginContinuationAction(continuation, { type: "PASS", pieceId: piece.id });
+    if (!nextContinuation) return { accepted: false, reason: "BONUS_PASS_NOT_READY" };
+  } else {
+    if (!isTeamActiveForTrackerPhase(tracker, team)) return { accepted: false, reason: "WAIT_ACTIVE_TEAM" };
+    if (trackerActionStatusForTeam(tracker, team).exhausted) return { accepted: false, reason: "ACTIONS_COMPLETE_END_TURN" };
+  }
+
+  const transaction = bonusPass ? transactionForActionState(nextContinuation) : null;
+  const pending = createPassTargetingResolution({
+    passId,
+    piece,
+    team,
+    continuationId: bonusPass ? nextContinuation.id : null,
+    transaction,
+  });
+  return {
+    accepted: true,
+    nextState: {
+      ...state,
+      actionResolution: pending,
+      ...(bonusPass ? { actionContinuation: nextContinuation } : {}),
+    },
+    event: {
+      type: bonusPass ? "BONUS_PASS_TARGETING_STARTED" : "PASS_TARGETING_STARTED",
+      team,
+      metadata: { passId, passerId: piece.id, continuationId: bonusPass ? nextContinuation.id : null },
+    },
+    timeline: { groupId: bonusPass ? nextContinuation.id : null, undoMode: bonusPass ? "atomic" : "step", allowNoop: true },
+  };
+}
+
+export function cancelPass(state, command) {
+  const pending = state.actionResolution;
+  const passId = passIdForCommand(command);
+  if (!pending || pending.kind !== "pass" || !["targeting", "route-selection"].includes(pending.status)) {
+    return { accepted: false, reason: "PASS_NOT_CANCELLABLE" };
+  }
+  if (!passId || passId !== String(pending.id || "")) return { accepted: false, reason: "PASS_NOT_CANCELLABLE" };
+  const continuation = normalizeActionContinuation(state.actionContinuation);
+  const bonusPass = Boolean(pending.continuationId && continuation?.id === pending.continuationId);
+  const nextContinuation = bonusPass ? {
+    ...continuation,
+    status: CONTINUATION_STATUS.READY,
+    actionType: null,
+    pieceId: null,
+    movementStarted: false,
+    transaction: { ...continuation.transaction, actionType: "BONUS_ACTION" },
+  } : continuation;
+  return {
+    accepted: true,
+    nextState: {
+      ...state,
+      actionResolution: null,
+      ...(bonusPass ? { actionContinuation: nextContinuation } : {}),
+    },
+    event: {
+      type: "PASS_CANCELLED",
+      team: pending.team,
+      metadata: { passId, continuationId: bonusPass ? nextContinuation.id : null },
+    },
+    timeline: { groupId: bonusPass ? nextContinuation.id : null, undoMode: bonusPass ? "atomic" : "step", allowNoop: true },
+  };
+}

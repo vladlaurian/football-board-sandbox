@@ -212,6 +212,26 @@ Delivered files and tests:
 - offline Match Mode branch of `startTrackedGame()` in `src/main.jsx`
 - focused command: `node --test src/engine/*.test.mjs src/match/*.test.mjs src/timeline/*.test.mjs src/tracker/*.test.mjs`
 
+### v20.25.0 — offline Single Player Pass start/cancel Engine migration
+
+**Status:** Complete as the first deliberately narrow Pass slice.
+
+`PASS_STARTED` and `PASS_CANCELLED` now flow through the pure Game Engine and Single Player Controller in offline Single Player Match Mode. Start validates canonical MatchState: started Match, valid active ball carrier, active normal phase with a remaining action or a ready owned Bonus Action, and no existing action resolution. It creates the established targeting-shaped canonical Pass resolution and emits the existing `PASS_TARGETING_STARTED` or `BONUS_PASS_TARGETING_STARTED` semantic event. It deliberately does not consume Tracker economy or perform any physical or dice resolution.
+
+Cancel accepts only the established cancellable targeting or route-selection state. It clears normal Pass resolution stepwise; for Bonus Pass it restores the canonical continuation to ready within the existing atomic transaction. The Engine rejects unrelated commands while such a resolution exists. Offline UI entry/cancel now dispatches these commands. Manual Multiplayer remains exactly on its pre-existing path.
+
+Deliberately not migrated: target selection, route confirmation and plan creation, interceptor choice, pending decision/roll, dice submission, delayed resolution, interception outcome, possession and final Pass completion. They remain the next Pass slices rather than hidden in this build.
+
+Delivered files and tests:
+
+- `src/engine/passStartRules.mjs`
+- `src/engine/gameCommands.mjs`
+- `src/engine/gameEngine.mjs`
+- `src/engine/gameEngine.test.mjs`
+- `src/engine/singlePlayerController.test.mjs`
+- offline Single Player branches of `beginPassTargeting()` and `commitPassCancellation()` in `src/main.jsx`
+- focused command: `node --test src/engine/gameEngine.test.mjs src/engine/singlePlayerController.test.mjs src/multiplayer/actionStartAuthority.test.mjs`
+
 ### v20.19.0 — offline Single Player Free Move Engine migration
 
 Free Move now has one offline Match Mode mutation path: `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` flow through the Game Engine and Single Player Controller into Timeline. It is deliberately an administrative correction rather than a Tracker action. The three Timeline entries are ordinary reversible history, so Undo/Redo may step across them and AI export retains the correction as `FREE_MODE` with `MANUAL_CORRECTION` provenance.
@@ -254,7 +274,7 @@ Acceptance:
 
 ## Phase 5 — Tracker, turns, and possession
 
-**Status:** Pending.
+**Status:** In progress — v20.25.0 completes Pass start/cancel only.
 
 Migrate Match start, phase completion, turn change, possession change, action reset, and currently existing match-completion behavior.
 
@@ -272,8 +292,8 @@ Migrate Pass start/cancel, target, route, plan creation, interceptor choice, pen
 
 Acceptance:
 
-- `main.jsx` no longer creates or mutates Pass resolution directly;
-- Cancel Pass acts from canonical action state;
+- each completed Pass slice removes its corresponding offline Match Mode direct mutation path from `main.jsx`;
+- start and Cancel Pass act from canonical action state;
 - existing geometry and eligibility remain unchanged;
 - Timeline and AI semantic coverage remains intact.
 

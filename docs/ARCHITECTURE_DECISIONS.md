@@ -445,6 +445,19 @@ Restart uses the same canonical lifecycle reset as Match start, but deliberately
 - A later dedicated Editor Workspace ↔ Match boundary audit may formalize setup and snapshot behavior; it must not migrate unrestricted editor manipulation into Match Engine by default.
 - Manual Multiplayer remains unchanged.
 
+## ADR-032 — Pass begins and cancels through canonical action resolution
+
+**Status:** Active
+
+**Decision:** Offline Single Player Match Mode begins Pass only through `PASS_STARTED` and cancels its pre-resolution state only through `PASS_CANCELLED`. The Engine owns the legality check and targeting-shaped `actionResolution`; it emits existing Pass Timeline semantics and never consumes Tracker economy merely for opening or cancelling targeting. A Bonus Pass transitions its owned ready continuation to active on start and back to ready on cancellation inside the continuation's atomic Timeline transaction.
+
+**Consequences:**
+
+- An Engine-created Pass resolution blocks unrelated Engine commands until it is cancelled or a later approved Pass slice resolves it.
+- UI selection, hover and visual targeting remain transient presentation. They cannot create or clear canonical Pass resolution directly in offline Match Mode.
+- Target selection, geometry/route, interceptor choice, dice, delayed resolution, interception, possession and completion remain separate migration slices. They must use this same resolution rather than create a second Pass state path.
+- Manual Multiplayer remains unchanged until the frozen multiplayer track is explicitly reopened.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

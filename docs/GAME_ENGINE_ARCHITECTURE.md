@@ -82,7 +82,7 @@ A command is an attempted action. An event is a confirmed gameplay fact emitted 
 
 | Family | Commands |
 |---|---|
-| Match | `MATCH_STARTED`, `MATCH_ENDED` |
+| Match | `MATCH_STARTED`, `MATCH_RESTARTED` |
 | Administrative ball placement | `FREE_BALL_MOVED` |
 | Normal movement | `MOVE_STARTED`, `MOVE_CANCELLED`, `MOVE_COMMITTED` |
 | Special movement | `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, `FREE_MOVE_ENDED`, `GROUP_MOVE_ZONE_CONFIRMED`, `GROUP_MOVE_PLAYER_COMMITTED`, `AUTO_MOVE_CONFIRMED` |
