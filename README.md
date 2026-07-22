@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.46.1` |
-| Git/package version | `20.46.1` |
-| Build name | `Final_Board_v20_46_1_ball_and_owner_square_correction` |
-| Base build | `v20.46.0 individual_defensive_areas` |
+| Sandbox version | `v20.46.2` |
+| Git/package version | `20.46.2` |
+| Build name | `Final_Board_v20_46_2_player_area_underlay` |
+| Base build | `v20.46.1 ball_and_owner_square_correction` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.46.1`. The repository version is in `package.json` as `20.46.1`. The browser title is `Sandbox v20.46.1`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.46.2`. The repository version is in `package.json` as `20.46.2`. The browser title is `Sandbox v20.46.2`.
 
 ## Current release
 
-v20.46.1 corrects two visual regressions in the approved individual-area presentation: the ball is now a conventional spherical football SVG, and a player's occupied square is fill-only with no local defensive-area border. All layout controls, interactions, Engine/Timeline behavior, Editor and Manual Multiplayer remain unchanged.
+v20.46.2 makes the player-underlay rule absolute: any square occupied by a player shows defensive-area fill only, with no defensive border from any overlapping area. The ball is a premium white puck, as requested. All layout controls, interactions, Engine/Timeline behavior, Editor and Manual Multiplayer remain unchanged.
 
 No game rule, Match Engine command, Timeline behavior, Workspace persistence behavior or Manual Multiplayer behavior changed.
 
@@ -72,7 +72,7 @@ src/
 docs/
   active architecture, rule and workflow contracts
   CHANGELOG.md
-  NEXT_CHAT_PROMPT_v20_46_1.md
+  NEXT_CHAT_PROMPT_v20_46_2.md
   history/      non-active handoff history
 ```
 
@@ -92,7 +92,7 @@ docs/
 | [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md) | Frozen legacy automated-multiplayer model; reference only until reopening is approved. |
 | [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md) | Historical Multiplayer fixes and rejected approaches. |
 | [`CHANGELOG.md`](docs/CHANGELOG.md) | Compact release history. |
-| [`NEXT_CHAT_PROMPT_v20_46_1.md`](docs/NEXT_CHAT_PROMPT_v20_46_1.md) | The one active handoff for a new chat. |
+| [`NEXT_CHAT_PROMPT_v20_46_2.md`](docs/NEXT_CHAT_PROMPT_v20_46_2.md) | The one active handoff for a new chat. |
 
 ## Mandatory development rules
 

@@ -2,6 +2,12 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.46.2 — Player Area Underlay
+
+- Made defensive presentation treat every player-occupied board square as fill-only: no defensive perimeter, inner seam, border or shadow may surround a puck, even when another area overlaps that square.
+- Simplified the ball to a premium white puck with no football pattern.
+- Preserved individual defensive-area ownership/perimeters elsewhere, gameplay rules, Engine, Timeline, Editor and Manual Multiplayer behavior.
+
 ## v20.46.1 — Ball & Owner-Square Correction
 
 - Replaced the abstract vector mark with a conventional white spherical football and black pentagon patches; it remains a fixed-ratio shared SVG for Board and Inspector.

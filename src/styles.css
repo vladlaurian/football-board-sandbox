@@ -8023,7 +8023,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   border-left-color: rgb(var(--def-rgb) / var(--def-left-alpha));
   box-shadow: none;
 }
-.board-wrap.match-presentation .match-def-area-cell.def-area-owner-square {
+.board-wrap.match-presentation .match-def-area-cell.def-area-player-square {
   border-width: 0;
   box-shadow: none;
 }

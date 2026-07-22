@@ -101,13 +101,18 @@ export function BoardCanvas({
 }) {
   const isMatchPresentation = presentationMode === "match";
   const ballPiece = pieces.find(piece => piece.team === "BALL");
+  const playerSquareKeys = new Set(pieces
+    .filter(piece => piece.team !== "BALL")
+    .map(piece => `${Number(piece.x)}:${Number(piece.y)}`));
   const defensiveAreasByOwner = new Map();
   defensiveAreaOverlays.forEach(cell => {
     const ownerId = cell.ownerId || cell.id;
+    const ownerX = Number(cell.ownerX);
+    const ownerY = Number(cell.ownerY);
     const existing = defensiveAreasByOwner.get(ownerId) || {
       ownerId,
-      ownerX: Number.isFinite(cell.ownerX) ? cell.ownerX : cell.x,
-      ownerY: Number.isFinite(cell.ownerY) ? cell.ownerY : cell.y,
+      ownerX: Number.isFinite(ownerX) ? ownerX : Number(cell.x),
+      ownerY: Number.isFinite(ownerY) ? ownerY : Number(cell.y),
       team: cell.team,
       cells: [],
     };
@@ -123,7 +128,7 @@ export function BoardCanvas({
       includesOwnerSquare: hasOwnerCell(area.ownerX, area.ownerY),
       cells: Array.from(cellsByCoordinate.values()).map(cell => ({
         ...cell,
-        isOwnerSquare: cell.x === area.ownerX && cell.y === area.ownerY,
+        isPlayerSquare: playerSquareKeys.has(`${Number(cell.x)}:${Number(cell.y)}`),
         edges: {
           top: !hasOwnerCell(cell.x, cell.y - 1),
           right: !hasOwnerCell(cell.x + 1, cell.y),
@@ -258,7 +263,7 @@ export function BoardCanvas({
           })}
 
           {isMatchPresentation && matchDefensiveAreaSources.map(area => <div key={`${area.ownerId}-source`} className={`def-area-owner-source ${area.team === "A" ? "blue" : "red"}`} style={{ left: `calc(${area.ownerX} * var(--cell))`, top: `calc(${area.ownerY} * var(--cell))` }} />)}
-          {(isMatchPresentation ? matchDefensiveAreaOverlays : defensiveAreaOverlays).map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"} ${isMatchPresentation ? "match-def-area-cell" : ""} ${cell.isOwnerSquare ? "def-area-owner-square" : ""}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))`, ...(isMatchPresentation ? { "--def-top": cell.isOwnerSquare ? "0" : cell.edges.top ? "2px" : "1px", "--def-right": cell.isOwnerSquare ? "0" : cell.edges.right ? "2px" : "1px", "--def-bottom": cell.isOwnerSquare ? "0" : cell.edges.bottom ? "2px" : "1px", "--def-left": cell.isOwnerSquare ? "0" : cell.edges.left ? "2px" : "1px", "--def-top-alpha": cell.isOwnerSquare ? 0 : cell.edges.top ? .92 : .10, "--def-right-alpha": cell.isOwnerSquare ? 0 : cell.edges.right ? .92 : .10, "--def-bottom-alpha": cell.isOwnerSquare ? 0 : cell.edges.bottom ? .92 : .10, "--def-left-alpha": cell.isOwnerSquare ? 0 : cell.edges.left ? .92 : .10 } : {}) }} />)}
+          {(isMatchPresentation ? matchDefensiveAreaOverlays : defensiveAreaOverlays).map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"} ${isMatchPresentation ? "match-def-area-cell" : ""} ${cell.isPlayerSquare ? "def-area-player-square" : ""}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))`, ...(isMatchPresentation ? { "--def-top": cell.isPlayerSquare ? "0" : cell.edges.top ? "2px" : "1px", "--def-right": cell.isPlayerSquare ? "0" : cell.edges.right ? "2px" : "1px", "--def-bottom": cell.isPlayerSquare ? "0" : cell.edges.bottom ? "2px" : "1px", "--def-left": cell.isPlayerSquare ? "0" : cell.edges.left ? "2px" : "1px", "--def-top-alpha": cell.isPlayerSquare ? 0 : cell.edges.top ? .92 : .10, "--def-right-alpha": cell.isPlayerSquare ? 0 : cell.edges.right ? .92 : .10, "--def-bottom-alpha": cell.isPlayerSquare ? 0 : cell.edges.bottom ? .92 : .10, "--def-left-alpha": cell.isPlayerSquare ? 0 : cell.edges.left ? .92 : .10 } : {}) }} />)}
 
           {passPreview?.lines?.length > 0 && <svg className="pass-preview-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
             {passPreview.lines.map(line => <g key={line.id} className={`pass-preview-line ${line.status || (line.risk ? "risk" : "clear")} ${line.selected ? "route-selected" : ""}`}>
