@@ -6,19 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.36.0` |
-| Git/package version | `20.36.0` |
-| Build name | `Final_Board_v20_36_0_phase_8c2b_card_library_operations` |
-| Base build | `v20.35.0 documentation_consolidation` |
+| Sandbox version | `v20.37.0` |
+| Git/package version | `20.37.0` |
+| Build name | `Final_Board_v20_37_0_phase_8c2c1_card_render_boundary` |
+| Base build | `v20.36.0 phase_8c2b_card_library_operations` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.36.0`. The repository version is in `package.json` as `20.36.0`. The browser title is `Sandbox v20.36.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.37.0`. The repository version is in `package.json` as `20.37.0`. The browser title is `Sandbox v20.37.0`.
 
 ## Current release
 
-Phase 8C.2b extracts pure structural Card Library operations into `src/workspace/cardLibraryOperations.mjs`: card save/upsert, clone preparation, deletion with piece detachment, and Reset Cards. `main.jsx` keeps UI confirmation, generated ID/time values, React/ref publication, History and legacy Manual Multiplayer synchronization.
+Phase 8C.2c.1 extracts the reusable visual card renderer into `src/cards/CardVisualCanvas.jsx`. The component owns card-zone rendering, visual layout drag/resize presentation, special-text fit and defensive-area preview. `main.jsx` supplies the same presentation helpers and existing layout-edit callbacks through `CardPreview` render context.
 
-The visual Card Editor remains unchanged in `main.jsx`. Its field, layout, color and presentation edits already converge through `updateCardState`; moving them now would be cosmetic. No game rule, Match Engine command, Timeline behavior, Workspace persistence behavior or Manual Multiplayer behavior changed.
+Card Editor forms, Card Library panel and Assign Card modal remain for the next approved UI boundary. No game rule, Match Engine command, Timeline behavior, Workspace persistence behavior or Manual Multiplayer behavior changed.
 
 Older releases are summarized in [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Their durable technical consequences live in the appropriate architecture and subsystem documents, not in this README.
 
@@ -92,7 +92,7 @@ docs/
 | [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md) | Frozen legacy automated-multiplayer model; reference only until reopening is approved. |
 | [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md) | Historical Multiplayer fixes and rejected approaches. |
 | [`CHANGELOG.md`](docs/CHANGELOG.md) | Compact release history. |
-| [`NEXT_CHAT_PROMPT_v20_36_0.md`](docs/NEXT_CHAT_PROMPT_v20_36_0.md) | The one active handoff for a new chat. |
+| [`NEXT_CHAT_PROMPT_v20_37_0.md`](docs/NEXT_CHAT_PROMPT_v20_37_0.md) | The one active handoff for a new chat. |
 
 ## Mandatory development rules
 

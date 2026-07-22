@@ -55,7 +55,7 @@ test("Workspace Rule Set plan retains the chosen active Rule Set", () => {
   assert.equal(planned.ruleSets.some(ruleSet => ruleSet.id === "rules-test"), true);
 });
 
-test("Card Library upsert and clone preserve card data while removing inline graphics", () => {
+test("Card Library clone preserves imported graphics while removing temporary inline copies", () => {
   const initial = { cards: [{ id: "card-1", name: "Player", graphics: { frontLocalDataUrl: "data:image/png;base64,abc", remote: "https://example.test/front.png" }, artwork: { customDataUrl: "data:image/png;base64,def" } }] };
   const saved = planCardLibraryUpsert({ cardState: initial, card: { ...initial.cards[0], name: "Player One" } });
   assert.equal(saved.cards[0].name, "Player One");

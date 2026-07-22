@@ -466,7 +466,7 @@ No gameplay rule, Manual Multiplayer branch, Editor Workspace behavior, Firebase
 
 ### Phase 8C — Editor Workspace and persistence boundary
 
-**Status:** In progress. Phase 8C.1 is complete in v20.34.0, Phase 8C.2a is complete in v20.35.0 and Phase 8C.2b is complete in v20.36.0; the remaining visual Editor UI extraction remains pending.
+**Status:** In progress. Phase 8C.1 is complete in v20.34.0, Phase 8C.2a is complete in v20.35.0, Phase 8C.2b is complete in v20.36.0 and Phase 8C.2c.1 is complete in v20.37.0; the remaining Editor form/panel UI extraction remains pending.
 
 #### Phase 8C.1 — Workspace persistence contract
 
@@ -488,9 +488,17 @@ During an active offline Match, Cloud Save, autosave and Workspace import are bl
 
 #### Phase 8C.2c — visual Card Editor UI/controller boundary
 
+**Status:** In progress. Phase 8C.2c.1 is complete in v20.37.0.
+
+##### Phase 8C.2c.1 — Card render boundary
+
+`src/cards/CardVisualCanvas.jsx` now owns the shared visual card canvas, its local layout-interaction presentation, special-text fitting and defensive-area preview. `CardPreview` passes the established render context through to Canvas. `main.jsx` still supplies pure presentation helpers plus the existing layout-change callbacks; it retains no Canvas JSX or DOM interaction code.
+
+##### Phase 8C.2c.2 — Card Editor form and panel boundary
+
 **Status:** Pending.
 
-Audit and extract only visual Card Editor composition with a clear UI boundary. Do not move JSX or rename controls merely for appearance. The already-centralized `updateCardState` path is not itself a reason to move code; a component extraction must demonstrably reduce `main.jsx` ownership without introducing a second card-data path.
+Extract the Card Editor form, Card Library panel and Assign Card modal through a documented UI controller-prop boundary. Do not move JSX or rename controls merely for appearance. The already-centralized `updateCardState` path is not itself a reason to move code; the component extraction must reduce `main.jsx` ownership without introducing a second card-data path, Firebase path or Match rule path.
 
 Acceptance:
 

@@ -62,7 +62,7 @@ export function CardPreview({
         {graphicUrl ? <img className="card-custom-graphic" src={graphicUrl} crossOrigin="anonymous" alt="" /> : null}
       </div>
       <div className={`card-preview-content-layer ${showLayoutZones ? "layout-editing" : ""}`}>
-        <VisualCanvas card={card} side={shownSide} showZones={showLayoutZones} selectedLayout={selectedLayout} onSelectLayout={onSelectLayout} />
+        <VisualCanvas card={card} side={shownSide} showZones={showLayoutZones} selectedLayout={selectedLayout} onSelectLayout={onSelectLayout} renderContext={renderContext} />
       </div>
       {flippable && (
         <button

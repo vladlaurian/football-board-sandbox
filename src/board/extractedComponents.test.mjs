@@ -35,6 +35,7 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   const { HistoryPanel } = await server.ssrLoadModule("/src/match/HistoryPanel.jsx");
   const { TrackerPanel } = await server.ssrLoadModule("/src/tracker/TrackerPanel.jsx");
   const { CardPreview } = await server.ssrLoadModule("/src/cards/CardPreview.jsx");
+  const { CardVisualCanvas } = await server.ssrLoadModule("/src/cards/CardVisualCanvas.jsx");
 
   const boardMarkup = renderToStaticMarkup(
     React.createElement(BoardCanvas, {
@@ -136,25 +137,42 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   assert.match(trackerMarkup, /tracker-panel/);
   assert.match(trackerMarkup, /MV/);
 
-  const VisualCanvas = ({ card, side }) => React.createElement("div", { className: "test-card-canvas", "data-side": side }, card.name);
+  const cardRenderContext = {
+    appTheme: "Style 1",
+    customCardTheme: "Custom",
+    getCardTheme: card => card.theme,
+    cardTextColors: () => ({ header: "#ffffff", headerFront: "#ffffff", headerBack: "#ffffff", positionFront: "#ffffff", positionBack: "#ffffff" }),
+    safeColor: value => value || "#ffffff",
+    colorToRgbTriplet: () => "255, 255, 255",
+    VisualCanvas: CardVisualCanvas,
+    normalizeCardVisualLayout: () => ({ front: { header: { x: 0, y: 0, w: 100, h: 20 }, position: { x: 0, y: 20, w: 100, h: 20 }, attributes: { x: 0, y: 40, w: 100, h: 20 } }, back: {} }),
+    effectiveTextStylesForCard: () => ({}),
+    zoneTextStyleVars: () => ({}),
+    normalizeFrontStars: () => ({ count: 0 }),
+    zoneTextStyleVarsStable: () => ({}),
+    cardLayoutTitle: () => "",
+    zonePairDistanceVarsStable: () => ({}),
+    normalizeStatValue: value => value,
+    PREFERRED_FOOT_OPTIONS: ["Right", "Left"],
+    defensiveGridAdjustStyle: () => ({}),
+    opponentGoalStyleVarsStable: () => ({}),
+    normalizeCustomZones: () => [],
+    clamp: value => value,
+    updateCardVisualLayoutBox: noop,
+    updateCardCustomZoneBox: noop,
+    areaHasCell: () => false,
+    selectedLayout: null,
+    onSelectLayout: noop,
+  };
   const cardPreviewMarkup = renderToStaticMarkup(
     React.createElement(CardPreview, {
       card: { id: "card-1", name: "Victor", position: "GK", theme: "Style 1", graphics: {} },
       side: "front",
       team: "blue",
-      renderContext: {
-        appTheme: "Style 1",
-        customCardTheme: "Custom",
-        getCardTheme: card => card.theme,
-        cardTextColors: () => ({}),
-        safeColor: value => value || "#ffffff",
-        colorToRgbTriplet: () => "255, 255, 255",
-        VisualCanvas,
-        selectedLayout: null,
-        onSelectLayout: noop,
-      },
+      renderContext: cardRenderContext,
     }),
   );
   assert.match(cardPreviewMarkup, /card-preview card-front theme-style-1 blue/);
-  assert.match(cardPreviewMarkup, /test-card-canvas/);
+  assert.match(cardPreviewMarkup, /card-visual-canvas/);
+  assert.match(cardPreviewMarkup, /Victor/);
 });

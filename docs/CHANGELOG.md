@@ -2,6 +2,11 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.37.0 — Phase 8C.2c.1
+
+- Extracted the shared visual card renderer, layout interaction presentation, special-text fit and defensive-area preview from `main.jsx`.
+- Preserved the existing `CardPreview` presentation contract and all layout-edit callbacks.
+
 ## v20.36.0 — Phase 8C.2b
 
 - Added pure structural Card Library planners for save/upsert, clone preparation, deletion with puck detachment and Reset Cards.

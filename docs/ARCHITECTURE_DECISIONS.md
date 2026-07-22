@@ -639,6 +639,18 @@ Editor Workspace setup is locked after an offline Match starts whenever a change
 - The visual Card Editor remains an existing UI surface until a separately justified component boundary is approved. Its field/layout controls continue through `updateCardState`; no second card-data mutation path is introduced.
 - Card Library transformations are testable without React, Firebase, browser clock or randomness.
 
+## ADR-046 — Shared card rendering is a UI component boundary
+
+**Status:** Active.
+
+**Decision:** `CardVisualCanvas` is the shared presentation renderer for Editor previews, Inspector, Assign Card preview and PNG export. It owns only visual rendering and local pointer/resize presentation. Its caller supplies presentation helpers and existing layout-change callbacks through the `CardPreview` render context.
+
+**Consequences:**
+
+- The same card-zone rendering path remains in every surface; no second renderer is introduced.
+- Canvas cannot own card-library mutation, Timeline, Firebase, Match rules or Manual Multiplayer synchronization.
+- `main.jsx` no longer owns Canvas JSX or its DOM interaction implementation. Card Editor form and panel extraction remain a separate later UI boundary.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active
