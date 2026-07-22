@@ -6,13 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.23.0` |
-| Git/package version | `20.23.0` |
-| Build name | `Final_Board_v20_23_0_bonus_action_closure_engine` |
-| Base build | `v20.22.1 inactive_phase_card_lock` |
+| Sandbox version | `v20.24.0` |
+| Git/package version | `20.24.0` |
+| Build name | `Final_Board_v20_24_0_match_lifecycle_boundary` |
+| Base build | `v20.23.0 bonus_action_closure_engine` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.23.0`. The repository version is defined in `package.json` as `20.23.0`. The browser title is `Sandbox v20.23.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.24.0`. The repository version is defined in `package.json` as `20.24.0`. The browser title is `Sandbox v20.24.0`.
+
+## v20.24.0 release summary
+
+v20.24.0 migrates offline Single Player Match start through `MATCH_STARTED -> Game Engine -> Single Player Controller -> Timeline -> applyTimelineGameState`. The Engine now validates Match Mode, a valid starting team, and that the Match has not already started. It creates the canonical playable first turn, clears stale interaction state, and emits the existing `MATCH_STARTED` semantic event. The Controller deliberately preserves the established Timeline convention: cursor zero is already the playable opening board while History retains the Match Started audit entry.
+
+The build also adds a presentation-only `MATCH OVER` popup after an Engine-produced state reaches `complete`. It is triggered only by a live offline final-phase closure or final Bonus Action closure; loading a replay, Undo/Redo, or Manual Multiplayer does not show it. No halftime, extra-time, penalty, score, or Match-rule model is introduced.
 
 ## v20.23.0 release summary
 

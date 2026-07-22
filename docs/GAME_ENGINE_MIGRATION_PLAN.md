@@ -174,6 +174,27 @@ Delivered files and tests:
 - offline Match Mode branch of `endBonusAction()` in `src/main.jsx`
 - focused command: `node --test src/engine/*.test.mjs src/match/*.test.mjs src/timeline/*.test.mjs src/tracker/*.test.mjs`
 
+### v20.24.0 — offline Single Player Match start Engine migration and Match Over presentation
+
+**Status:** Complete.
+
+`MATCH_STARTED` now creates the playable offline Match Mode opening state through the Game Engine and Single Player Controller. The Engine validates Match Mode, chosen team and non-started state, then sets canonical turn one, attack phase, empty Tracker economy/action state, empty movement state, and no residual resolution or Bonus Action. A second start is rejected without mutation.
+
+The Controller intentionally creates the Timeline baseline from the Engine-produced playable state, then appends the existing no-op `MATCH_STARTED` audit event. This preserves the established contract that Timeline cursor zero is playable rather than a pre-match board. The frozen MatchContext is created before dispatch and becomes active only if the Engine accepts the start. Manual Multiplayer retains its existing direct start path.
+
+`MATCH OVER` is a non-canonical UI notice. It appears only after the live offline result of `TRACKER_PHASE_ENDED` or `BONUS_ACTION_ENDED` has `turnPhase: complete`; it never appears merely because a replay, Undo, Redo, or loaded state renders a completed Match.
+
+Delivered files and tests:
+
+- `src/engine/matchLifecycleRules.mjs`
+- `src/engine/gameCommands.mjs`
+- `src/engine/gameEngine.mjs`
+- `src/engine/singlePlayerController.mjs`
+- `src/engine/gameEngine.test.mjs`
+- `src/engine/singlePlayerController.test.mjs`
+- offline Match Mode branch of `startTrackedGame()` and Match Over notice in `src/main.jsx`
+- focused command: `node --test src/engine/*.test.mjs src/match/*.test.mjs src/timeline/*.test.mjs src/tracker/*.test.mjs`
+
 ### v20.19.0 — offline Single Player Free Move Engine migration
 
 Free Move now has one offline Match Mode mutation path: `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` flow through the Game Engine and Single Player Controller into Timeline. It is deliberately an administrative correction rather than a Tracker action. The three Timeline entries are ordinary reversible history, so Undo/Redo may step across them and AI export retains the correction as `FREE_MODE` with `MANUAL_CORRECTION` provenance.

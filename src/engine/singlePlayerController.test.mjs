@@ -3,7 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 import { createGameState } from "../game/gameState.mjs";
 import { redoAtomicTimelineTransaction, redoTimeline, undoAtomicTimelineTransaction, undoTimeline } from "../timeline/timelineEngine.mjs";
-import { dispatchSinglePlayerGameCommand, dispatchSinglePlayerGameCommandSequence } from "./singlePlayerController.mjs";
+import { dispatchSinglePlayerGameCommand, dispatchSinglePlayerGameCommandSequence, dispatchSinglePlayerMatchStart } from "./singlePlayerController.mjs";
 
 function matchState() {
   return createGameState({
@@ -82,6 +82,27 @@ test("Single Player Controller leaves Timeline untouched when engine rejects com
   assert.deepEqual(dispatched.result, { accepted: false, reason: "BALL_POSITION_UNCHANGED" });
   assert.equal(dispatched.timeline.entries.length, 0);
   assert.deepEqual(dispatched.state, start);
+});
+
+test("Single Player Controller retains a playable cursor-zero baseline for MATCH_STARTED", () => {
+  const start = createGameState({ ...matchState(), tracker: { gameStarted: false, currentTurn: 0 } });
+  const dispatched = dispatchSinglePlayerMatchStart({
+    state: start,
+    context: {},
+    command: { id: "controller-match-start", type: "MATCH_STARTED", payload: { team: "red" } },
+    label: "Match started: Red attacks",
+  });
+  assert.equal(dispatched.result.accepted, true);
+  assert.equal(dispatched.timeline.entries.length, 1);
+  assert.equal(dispatched.entry.type, "MATCH_STARTED");
+  assert.equal(dispatched.state.tracker.gameStarted, true);
+  assert.equal(dispatched.state.tracker.startingTeam, "red");
+  const initial = dispatched.timeline.initialState;
+  assert.equal(initial.tracker.gameStarted, true);
+  assert.equal(initial.tracker.currentTurn, 1);
+  const cursorZero = undoTimeline(dispatched.timeline);
+  assert.equal(cursorZero.state.tracker.gameStarted, true);
+  assert.equal(cursorZero.state.tracker.currentTurn, 1);
 });
 
 test("Single Player Controller preserves Undo/Redo for progressive normal MOVE segments", () => {

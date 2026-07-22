@@ -417,6 +417,20 @@ An `advance-turn` resume policy resets only the next numbered turn and makes its
 - The `TURN X` popup remains UI-only and is displayed only after Engine-produced state starts a valid next turn.
 - Manual Multiplayer keeps its existing End B.A. intent/host path and is intentionally outside this migration.
 
+## ADR-030 — Match start is an Engine transition; Match Over is presentation
+
+**Status:** Active
+
+**Decision:** Offline Single Player Match start is requested only by `MATCH_STARTED`. The Engine validates the selected opening team and an unstarted Match, creates the canonical playable turn-one state, resets temporary gameplay state, and emits the existing Match Started semantic event. The Controller initializes Timeline from that Engine-produced state and records the audit event as a no-op, preserving the established playable cursor-zero baseline.
+
+`MATCH OVER` is intentionally not stored in MatchState. It is a transient UI notice shown only after a live Engine-produced result enters `turnPhase: complete`. Replaying, loading, Undoing, or Redoing a completed Match must not create a popup.
+
+**Consequences:**
+
+- The Match lifecycle has Engine-owned opening and closing boundaries without prematurely adding halves, extra time, penalties, score, or other match-format rules.
+- A future Match Lifecycle build may add periods to MatchState and Engine transitions without reintroducing UI-owned Match start/final state.
+- Manual Multiplayer retains its existing Match-start and final presentation behavior.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

@@ -38,6 +38,36 @@ export function dispatchSinglePlayerGameCommand({ timeline = null, state, contex
 }
 
 /**
+ * Match start is intentionally recorded against an already-playable Timeline
+ * baseline. Cursor zero therefore remains the first legal board state while
+ * History still contains the semantic MATCH_STARTED audit entry.
+ */
+export function dispatchSinglePlayerMatchStart({ state, context, command, label = "Match started" } = {}) {
+  const before = createGameState(state);
+  const result = applyGameCommand({ state: before, context, command });
+  if (!result.accepted) return { result, timeline: null, state: before, entry: null };
+  const event = result.events?.[0];
+  if (!event) throw new Error("Accepted match start did not produce a semantic event.");
+  const baseline = createTimeline(result.nextState);
+  const timeline = commitTimelineEntry(baseline, {
+    id: event.commandId,
+    type: event.type,
+    label: String(label || event.type),
+    team: event.team,
+    groupId: null,
+    metadata: event.metadata || {},
+    before: result.nextState,
+    after: result.nextState,
+  }, { allowNoop: true });
+  return {
+    result,
+    timeline,
+    state: timelineStateAt(timeline, timeline.cursor),
+    entry: timeline.entries[timeline.cursor - 1] || null,
+  };
+}
+
+/**
  * Evaluates a small dependent command sequence before its caller publishes the
  * resulting Timeline. This is used when one UI confirmation represents more
  * than one gameplay transition, such as starting MOVE and making its first

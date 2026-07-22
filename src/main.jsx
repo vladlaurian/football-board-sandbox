@@ -10,7 +10,7 @@ import { RotateCcw, Plus, Minus, Undo2, Redo2, Edit3, X, Dices } from "lucide-re
 import { createGameState, mergeGameState } from "./game/gameState.mjs";
 import { GAME_COMMAND_TYPE } from "./engine/gameCommands.mjs";
 import { createMatchContext } from "./engine/matchContext.mjs";
-import { dispatchSinglePlayerGameCommand, dispatchSinglePlayerGameCommandSequence } from "./engine/singlePlayerController.mjs";
+import { dispatchSinglePlayerGameCommand, dispatchSinglePlayerGameCommandSequence, dispatchSinglePlayerMatchStart } from "./engine/singlePlayerController.mjs";
 import { firstPlayerBlockingMovementPath } from "./engine/movementPathRules.mjs";
 import { evaluateThreeTwoMove } from "./engine/threeTwoMoveRules.mjs";
 import { evaluateGroupMovePieceEligibility, evaluateGroupMovePlayer } from "./engine/groupMoveRules.mjs";
@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.23.0";
+const APP_VERSION = "v20.24.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2105,6 +2105,7 @@ function App() {
   const [pendingTurnChange, setPendingTurnChange] = useState(null);
   const [turnAdvanceNotice, setTurnAdvanceNotice] = useState(false);
   const [startedTurnNotice, setStartedTurnNotice] = useState(null);
+  const [matchOverNotice, setMatchOverNotice] = useState(false);
   const [pendingThreeTwoMove, setPendingThreeTwoMove] = useState(null);
   const [groupMoveZoneDraft, setGroupMoveZoneDraft] = useState(null);
   const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
@@ -10983,6 +10984,7 @@ function App() {
     applyTimelineGameState(dispatched.state);
     const startedTurn = dispatched.result.events?.[0]?.metadata?.startedTurn;
     if (Number.isInteger(startedTurn)) setStartedTurnNotice(startedTurn);
+    if (dispatched.state.tracker?.turnPhase === "complete") setMatchOverNotice(true);
   }
 
   function commitEndBonusAction(continuation) {
@@ -11093,6 +11095,7 @@ function App() {
       applyTimelineGameState(dispatched.state);
       const startedTurn = dispatched.result.events?.[0]?.metadata?.startedTurn;
       if (Number.isInteger(startedTurn)) setStartedTurnNotice(startedTurn);
+      if (dispatched.state.tracker?.turnPhase === "complete") setMatchOverNotice(true);
       return;
     }
     if (sessionCode && !sessionAuthorityRef.current.isHost) {
@@ -11104,6 +11107,31 @@ function App() {
 
   function startTrackedGame(team) {
     if (trackerReadOnly) return;
+    if (!sessionCode) {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const context = createMatchContext({
+        id: gameTimelineRef.current?.recordingId || `single-player-${Date.now()}`,
+        ruleSet: before.ruleSet,
+        boardSettings: before.settings,
+        gameplayCards: captureAvailableMatchCards(),
+      });
+      const dispatched = dispatchSinglePlayerMatchStart({
+        state: before,
+        context,
+        command: { id: createActionEventId(`match_start_${team}`), type: GAME_COMMAND_TYPE.MATCH_STARTED, payload: { team } },
+        label: `Match started: ${team === "blue" ? "Blue" : "Red"} attacks`,
+      });
+      if (!dispatched.result.accepted) {
+        if (dispatched.result.reason) setIllegalMoveNotice({ reason: dispatched.result.reason });
+        return;
+      }
+      matchContextRef.current = context;
+      matchPlayableStartEstablishedRef.current = true;
+      setTrackerStartChoiceOpen(false);
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      return;
+    }
     const beforeTimeline = captureTimelineGameState();
     const emptyTurn = createEmptyTrackerTurnState();
     const { usedActions, actionLog: emptyLog, matchActionState: emptyMatchState } = emptyTurn;
@@ -12391,6 +12419,18 @@ function App() {
             <div className="turn-confirm-message">Turn {startedTurnNotice} begins.</div>
             <div className="modal-actions turn-confirm-actions">
               <button onClick={() => setStartedTurnNotice(null)}>OK</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {matchOverNotice && (
+        <div className="modal-backdrop turn-confirm-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setMatchOverNotice(false); }}>
+          <div className="modal turn-confirm-modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="modal-title"><strong>MATCH OVER</strong></div>
+            <div className="turn-confirm-message">The match is complete.</div>
+            <div className="modal-actions turn-confirm-actions">
+              <button onClick={() => setMatchOverNotice(false)}>OK</button>
             </div>
           </div>
         </div>

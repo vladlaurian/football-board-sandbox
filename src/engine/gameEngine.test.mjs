@@ -113,6 +113,56 @@ test("MatchContext is copied and frozen at creation", () => {
   assert.equal(Object.isFrozen(context.gameplayCardsById["card-1"]), true);
 });
 
+test("MATCH_STARTED creates the canonical playable first turn and clears stale interaction state", () => {
+  const start = createGameState({
+    gameMode: "match",
+    pieces: [{ id: "ball", team: "BALL", x: 4, y: 5 }],
+    movementStateByPieceId: { "blue-1": { spent: 2 } },
+    actionResolution: { id: "stale-pass", kind: "pass" },
+    actionContinuation: { id: "stale-bonus", kind: "bonus-card-action", team: "blue", status: "ready" },
+    tracker: {
+      gameStarted: false,
+      currentTurn: 0,
+      usedActions: { blue: 3, red: 2 },
+      actionLog: { blue: [{ id: "old", type: "MOVE" }], red: [] },
+      matchActionState: { freeMode: { active: true, pieceId: "blue-1", team: "blue" } },
+      turnPhase: "complete",
+      settings: { attackActions: 5, defenseActions: 4, turns: 20 },
+    },
+  });
+  const result = applyGameCommand({
+    state: start,
+    context: {},
+    command: { id: "match-start-blue", type: "MATCH_STARTED", payload: { team: "blue" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.nextState.tracker.gameStarted, true);
+  assert.equal(result.nextState.tracker.startingTeam, "blue");
+  assert.equal(result.nextState.tracker.currentTurn, 1);
+  assert.equal(result.nextState.tracker.turnPhase, "attack");
+  assert.deepEqual(result.nextState.tracker.usedActions, { red: 0, blue: 0 });
+  assert.deepEqual(result.nextState.movementStateByPieceId, {});
+  assert.equal(result.nextState.actionResolution, null);
+  assert.equal(result.nextState.actionContinuation, null);
+  assert.equal(result.events[0].type, "MATCH_STARTED");
+  assert.deepEqual(result.events[0].metadata, { startingTeam: "blue", startedTurn: 1 });
+});
+
+test("MATCH_STARTED rejects invalid teams, editor mode, and a second start without mutating MatchState", () => {
+  const start = createGameState({ ...matchState(), tracker: { gameStarted: false } });
+  const before = structuredClone(start);
+  assert.deepEqual(applyGameCommand({
+    state: start, context: {}, command: { id: "match-start-invalid", type: "MATCH_STARTED", payload: { team: "green" } },
+  }), { accepted: false, reason: "MATCH_START_TEAM_INVALID" });
+  assert.deepEqual(start, before);
+  assert.deepEqual(applyGameCommand({
+    state: createGameState({ ...start, gameMode: "editor" }), context: {}, command: { id: "match-start-editor", type: "MATCH_STARTED", payload: { team: "blue" } },
+  }), { accepted: false, reason: "MATCH_MODE_REQUIRED" });
+  assert.deepEqual(applyGameCommand({
+    state: normalMoveState(), context: {}, command: { id: "match-start-again", type: "MATCH_STARTED", payload: { team: "blue" } },
+  }), { accepted: false, reason: "MATCH_ALREADY_STARTED" });
+});
+
 test("NORMAL_MOVE commands activate, cancel, and refund one Tracker action", () => {
   const start = normalMoveState();
   const activated = applyGameCommand({
@@ -507,7 +557,7 @@ test("THREE_TWO_MOVE_COMMITTED rejects a player blocking the path to the ball", 
 });
 
 test("engine modules do not depend on UI, Firebase, or browser APIs", () => {
-  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs", "movementPathRules.mjs", "normalMoveRules.mjs", "threeTwoMoveRules.mjs", "freeMoveRules.mjs", "groupMoveRules.mjs", "bonusActionRules.mjs", "singlePlayerController.mjs"];
+  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs", "matchLifecycleRules.mjs", "movementPathRules.mjs", "normalMoveRules.mjs", "threeTwoMoveRules.mjs", "freeMoveRules.mjs", "groupMoveRules.mjs", "bonusActionRules.mjs", "singlePlayerController.mjs"];
   const forbidden = /(?:from\s+["'](?:react|firebase\/|firebase)["']|\bwindow\b|\bdocument\b|\blocalStorage\b|\bsetTimeout\b|\bsetInterval\b|\bfetch\b|\bXMLHttpRequest\b)/;
   moduleFiles.forEach(file => {
     const source = fs.readFileSync(new URL(`./${file}`, import.meta.url), "utf8");
