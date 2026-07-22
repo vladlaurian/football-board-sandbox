@@ -6,21 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.46.2` |
-| Git/package version | `20.46.2` |
-| Build name | `Final_Board_v20_46_2_player_area_underlay` |
-| Base build | `v20.46.1 ball_and_owner_square_correction` |
+| Sandbox version | `v20.46.3` |
+| Git/package version | `20.46.3` |
+| Build name | `Final_Board_v20_46_3_match_pucks_no_square` |
+| Base build | `v20.46.2 player_area_underlay` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.46.2`. The repository version is in `package.json` as `20.46.2`. The browser title is `Sandbox v20.46.2`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.46.3`. The repository version is in `package.json` as `20.46.3`. The browser title is `Sandbox v20.46.3`.
 
 ## Current release
 
-v20.46.2 makes the player-underlay rule absolute: any square occupied by a player shows defensive-area fill only, with no defensive border from any overlapping area. The ball is a premium white puck, as requested. All layout controls, interactions, Engine/Timeline behavior, Editor and Manual Multiplayer remain unchanged.
+v20.46.3 hardens the Single Player Match presentation boundary so player and ball wrappers cannot expose rectangular card, selection, interaction, shadow or defensive-cell chrome. Player pucks remain circular, player-occupied defensive cells remain fill-only, empty defensive cells retain tactical perimeters, and the Match ball is a smaller plain white puck at 85% opacity with no aura.
 
-No game rule, Match Engine command, Timeline behavior, Workspace persistence behavior or Manual Multiplayer behavior changed.
-
-Older releases are summarized in [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Their durable technical consequences live in the appropriate architecture and subsystem documents, not in this README.
+Editor Mode, Manual Multiplayer, geometry, rules, Engine, MatchState, Timeline and defensive calculation remain unchanged.
 
 ## First time here?
 
@@ -92,7 +90,7 @@ docs/
 | [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md) | Frozen legacy automated-multiplayer model; reference only until reopening is approved. |
 | [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md) | Historical Multiplayer fixes and rejected approaches. |
 | [`CHANGELOG.md`](docs/CHANGELOG.md) | Compact release history. |
-| [`NEXT_CHAT_PROMPT_v20_46_2.md`](docs/NEXT_CHAT_PROMPT_v20_46_2.md) | The one active handoff for a new chat. |
+| [`NEXT_CHAT_PROMPT_v20_46_3.md`](docs/NEXT_CHAT_PROMPT_v20_46_3.md) | The one active handoff for a new chat. |
 
 ## Mandatory development rules
 

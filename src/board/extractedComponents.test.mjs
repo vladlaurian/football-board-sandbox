@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
@@ -96,6 +97,8 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   assert.match(boardMarkup, /match-def-area-cell/);
   assert.match(boardMarkup, /def-area-owner-source/);
   assert.match(boardMarkup, /def-area-player-square/);
+  assert.match(boardMarkup, /player-hitbox/);
+  assert.match(boardMarkup, /ball-hitbox/);
   assert.match(boardMarkup, /--def-top-alpha:0\.92/);
 
   const historyMarkup = renderToStaticMarkup(
@@ -242,4 +245,13 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   }));
   assert.match(assignMarkup, /assign-modal/);
   assert.match(assignMarkup, /card-back/);
+});
+
+
+test("Single Player Match CSS isolates circular pieces and removes player-square chrome", async () => {
+  const css = await readFile(new URL("../styles.css", import.meta.url), "utf8");
+  assert.match(css, /\.board-wrap\.match-presentation \.selected-cell \{\s*display: none;/);
+  assert.match(css, /\.board-wrap\.match-presentation \.match-def-area-cell\.def-area-player-square,[\s\S]*?border: 0 !important;[\s\S]*?box-shadow: none !important;/);
+  assert.match(css, /\.board-wrap\.match-presentation \.piece\.ball \{[\s\S]*?width: calc\(var\(--cell\) \* \.6\) !important;[\s\S]*?opacity: \.85;/);
+  assert.match(css, /\.board-wrap\.match-presentation \.match-ball-aura \{\s*display: none;/);
 });

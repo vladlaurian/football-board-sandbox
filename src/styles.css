@@ -8035,3 +8035,51 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   border-left-color: rgb(var(--def-rgb) / var(--def-left-alpha));
   box-shadow: none;
 }
+
+/* v20.46.3 — Single Player Match piece/ball shape isolation.
+   Match hitboxes remain unchanged, but no legacy card, selection or interaction
+   paint may expose a rectangular wrapper around a player or the ball. */
+.board-wrap.match-presentation .player-hitbox,
+.board-wrap.match-presentation .ball-hitbox {
+  background: transparent;
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+.board-wrap.match-presentation .selected-cell {
+  display: none;
+}
+.board-wrap.match-presentation .piece:not(.ball) {
+  border-radius: 50%;
+}
+.board-wrap.match-presentation .piece:not(.ball).has-card,
+.board-wrap.match-presentation .piece:not(.ball).selected,
+.board-wrap.match-presentation .piece:not(.ball).interaction-active,
+.board-wrap.match-presentation .piece:not(.ball).group-move-eligible,
+.board-wrap.match-presentation .piece:not(.ball).group-move-ineligible {
+  border-radius: 50%;
+  background-clip: padding-box;
+}
+.board-wrap.match-presentation .piece:not(.ball)::before,
+.board-wrap.match-presentation .piece:not(.ball)::after,
+.board-wrap.match-presentation .piece.ball::before,
+.board-wrap.match-presentation .piece.ball::after {
+  content: none !important;
+  display: none !important;
+}
+.board-wrap.match-presentation .match-def-area-cell.def-area-player-square,
+.board-wrap.match-presentation .def-area-owner-source {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+.board-wrap.match-presentation .piece.ball {
+  width: calc(var(--cell) * .6) !important;
+  height: calc(var(--cell) * .6) !important;
+  border-radius: 50%;
+  opacity: .85;
+  outline: 0;
+}
+.board-wrap.match-presentation .match-ball-aura {
+  display: none;
+}
