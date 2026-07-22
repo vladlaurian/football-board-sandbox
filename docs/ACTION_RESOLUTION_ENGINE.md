@@ -200,6 +200,10 @@ After the existing cosmetic wait, offline Single Player sends `PASS_INTERCEPTION
 
 This slice deliberately does not move the ball, apply possession or turn changes, create a Bonus Action, advance another interceptor, or complete the Pass. The existing downstream resolver temporarily reads the Engine-owned `lastResolution` and performs those old consequences. AI export now records this intermediate deterministic outcome explicitly.
 
+## v20.29.1 — Extra Roll remains administrative during Bonus Action
+
+`EXTRA_ROLL_SUBMITTED` is permitted during an active Bonus Action because it is a one-roll administrative safeguard, not a card action. It updates only canonical dice/Timeline state and leaves the active Bonus Action intact. This restores the same automatic one-roll closure and Undo/Redo behavior that Extra Roll has outside Bonus Action.
+
 ## Multiplayer canonical resolution rule added in v19.13
 
 A remote user may create an authorized pending decision or RollEvent, but only the host applies the deterministic consequence. Host scheduling must be derived from the canonical hydrated Timeline state, not exclusively from a one-time "new entry" notification. Repeated Firestore snapshots for the same entry must not restart its cosmetic delay, and an already consumed RollEvent must remain idempotent.

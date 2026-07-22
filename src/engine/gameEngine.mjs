@@ -129,6 +129,7 @@ export function applyGameCommand({ state, context, command } = {}) {
     GAME_COMMAND_TYPE.PASS_INTERCEPTION_ROLL_SUBMITTED,
     GAME_COMMAND_TYPE.PASS_INTERCEPTION_RESOLUTION_DUE,
     GAME_COMMAND_TYPE.PASS_CANCELLED,
+    GAME_COMMAND_TYPE.EXTRA_ROLL_SUBMITTED,
   ].includes(normalizedCommand.type)) return rejected("BONUS_ACTION_ACTIVE");
   if ([GAME_COMMAND_TYPE.MATCH_STARTED, GAME_COMMAND_TYPE.MATCH_RESTARTED].includes(normalizedCommand.type)) {
     const transition = normalizedCommand.type === GAME_COMMAND_TYPE.MATCH_RESTARTED

@@ -319,6 +319,10 @@ Delivered files and tests:
 - Ball movement, possession/turn transition, Bonus Action, reaction advancement and Pass completion remain intentionally outside this slice.
 - `EXTRA ROLL` was aligned visually with the die selector without changing its administrative contract.
 
+### v20.29.1 — Bonus Action Extra Roll correction
+
+**Status:** Complete. `EXTRA_ROLL_SUBMITTED` was accidentally excluded from the active Bonus Action command allow-list. It is now explicitly allowed as an administrative Timeline event for either team, without consuming or changing the Bonus Action.
+
 `PASS_INTERCEPTION_ROLL_SUBMITTED` now flows through the Game Engine and Single Player Controller. It accepts only the active exact pending D20 request and its matching unique RollEvent, consumes that event once, stores the raw result in canonical MatchState, updates canonical dice display state and records the existing delayed-resolution descriptor. The legacy delayed resolver temporarily reads this canonical input and performs the existing outcome calculation. Outcome, possession, ball movement, Natural 1/Natural 20 consequences and later reaction advancement remain outside this build.
 
 Offline Match Mode dice controls are disabled unless a pending mechanic roll requests the relevant team. `EXTRA ROLL` explicitly arms one administrative random or chosen roll. It creates `EXTRA_ROLL` in Timeline and AI analysis, never consumes Tracker economy, cannot satisfy a pending action roll, and closes after use. Editor Mode and Manual Multiplayer retain their legacy dice behavior.

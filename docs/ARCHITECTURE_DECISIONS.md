@@ -543,6 +543,10 @@ The Extra Roll reset effect is presentation-only. Its Hook dependency expression
 - Ball movement, possession, turn change, Bonus Action, next interceptor and Pass completion remain separate migration boundaries; they must not be silently folded into the calculation command.
 - Manual Multiplayer remains unchanged.
 
+## Implementation note — v20.29.1 Extra Roll and Bonus Action
+
+Extra Roll is administrative rather than a Bonus card action. An active Bonus Action must block unrelated gameplay commands but must not block `EXTRA_ROLL_SUBMITTED`; the command leaves its continuation untouched.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

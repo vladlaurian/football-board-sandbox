@@ -1246,6 +1246,27 @@ test("EXTRA_ROLL_SUBMITTED is an explicit administrative Match event and never c
   assert.deepEqual(result.nextState.tracker, state.tracker);
 });
 
+test("EXTRA_ROLL_SUBMITTED remains available during a Bonus Action without changing it", () => {
+  const state = normalMoveState({
+    actionContinuation: {
+      id: "bonus-extra-roll",
+      kind: "bonus-card-action",
+      team: "red",
+      status: "ready",
+      resumePolicy: { type: "resume-phase", team: "red", phase: "attack" },
+    },
+  });
+  const result = applyGameCommand({
+    state, context: normalMoveContext(),
+    command: { id: "bonus-extra-roll", type: "EXTRA_ROLL_SUBMITTED", payload: { team: "blue", dieType: 20, result: 9, rollSource: "RANDOM" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.events[0].type, "EXTRA_ROLL");
+  assert.equal(result.nextState.dice.blueResult, 9);
+  assert.deepEqual(result.nextState.actionContinuation, state.actionContinuation);
+  assert.deepEqual(result.nextState.tracker, state.tracker);
+});
+
 test("PASS_ROUTE_CONFIRMED keeps Bonus Pass atomic and outside Tracker economy", () => {
   const start = createGameState({
     ...normalMoveState(),

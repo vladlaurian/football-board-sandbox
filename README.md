@@ -6,13 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.29.0` |
-| Git/package version | `20.29.0` |
-| Build name | `Final_Board_v20_29_0_pass_interception_resolution_engine` |
+| Sandbox version | `v20.29.1` |
+| Git/package version | `20.29.1` |
+| Build name | `Final_Board_v20_29_1_bonus_extra_roll_correction` |
 | Base build | `v20.27.0 pass_interceptor_choice_engine` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.29.0`. The repository version is defined in `package.json` as `20.29.0`. The browser title is `Sandbox v20.29.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.29.1`. The repository version is defined in `package.json` as `20.29.1`. The browser title is `Sandbox v20.29.1`.
+
+## v20.29.1 Bonus Action Extra Roll correction
+
+v20.29.1 corrects a command-authorisation omission in v20.29.0. `EXTRA_ROLL_SUBMITTED` is an administrative safety command and is now explicitly permitted while a Bonus Action is active. It does not consume, end, alter or replace that Bonus Action. This restores the intended one-roll UI closure, canonical die result, History and Undo/Redo for either team during a Bonus Action.
 
 ## v20.29.0 release summary
 
