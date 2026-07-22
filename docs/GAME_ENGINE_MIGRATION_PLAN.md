@@ -133,9 +133,13 @@ The board derives active-team candidate marking from exported pure Group Move el
 
 While an offline Single Player Bonus Action is present, the Engine rejects unrelated gameplay commands and UI disables End Turn, Free Move, Free Ball, normal actions, and Group Move. 3/2 remains a separate free rule: its owner may use it during Bonus Action even outside the Tracker's active phase. Existing 3/2 validation and no-Tracker economy remain unchanged. Manual Multiplayer remains unchanged.
 
-### v20.21.1 — mandatory next build: Bonus MOVE Engine migration
+### v20.21.1 — offline Single Player Bonus MOVE Engine migration
 
-Bonus MOVE must be migrated separately through typed Engine commands and Timeline. It must preserve progressive Speed/axis/path behavior, permit `END B.A.` with unused Speed, allow cancellation only before the first physical movement, and never consume Tracker. It must support two equivalent offline Single Player UI entrances: card MOVE and direct board selection plus destination. The direct-board entrance is required and must not be omitted.
+**Status:** Complete.
+
+Bonus MOVE now uses `BONUS_MOVE_STARTED`, `BONUS_MOVE_CANCELLED`, and `BONUS_MOVE_COMMITTED` through the Game Engine and Single Player Controller into Timeline. `actionContinuation` owns the active Bonus MOVE identity and its `movementStarted` flag; this flag permits `CANCEL MOVE` only before the first physical segment. The Engine owns Bonus Action owner validation, Speed, progressive segments, first-axis lock, path blocking, occupied destinations, ball carry, and rejection safety. It never activates or changes Tracker state.
+
+Both offline Single Player entrances use the same Engine commands: card MOVE starts the action and exposes Cancel before the first segment; direct board selection plus legal destination evaluates a start-and-commit sequence before publishing either Timeline transition. Direct board movement therefore has no artificial Cancel interval after the player has physically moved. `END B.A.` remains the only normal closure and may end the action with unused Speed. 3/2 remains independent before or during Bonus MOVE. Manual Multiplayer remains unchanged.
 
 ### v20.19.0 — offline Single Player Free Move Engine migration
 

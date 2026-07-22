@@ -176,6 +176,41 @@ test("Single Player Controller publishes direct-board normal MOVE only when star
   assert.equal(rejected.state.tracker.usedActions.blue, 0);
 });
 
+test("Single Player Controller publishes direct-board Bonus MOVE only when its start and first segment both succeed", () => {
+  const start = createGameState({ ...normalMoveState(),
+    actionContinuation: {
+      id: "bonus-direct-1",
+      kind: "bonus-card-action",
+      team: "blue",
+      status: "ready",
+      resumePolicy: { type: "advance-turn", team: "blue", nextTurn: 2 },
+    },
+  });
+  const complete = dispatchSinglePlayerGameCommandSequence({
+    state: start,
+    context: normalMoveContext(),
+    commands: [
+      { command: { id: "bonus-direct-start", type: "BONUS_MOVE_STARTED", payload: { pieceId: "blue-1" } }, label: "Bonus MOVE" },
+      { command: { id: "bonus-direct-commit", type: "BONUS_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 5, y: 5 } }, label: "Bonus MOVE segment" },
+    ],
+  });
+  assert.equal(complete.accepted, true);
+  assert.deepEqual(complete.timeline.entries.map(entry => entry.type), ["BONUS_MOVE_STARTED", "BONUS_MOVE_COMMITTED"]);
+  assert.equal(complete.state.tracker.usedActions.blue, 0);
+  assert.equal(complete.state.actionContinuation.movementStarted, true);
+
+  const rejected = dispatchSinglePlayerGameCommandSequence({
+    state: start,
+    context: normalMoveContext(),
+    commands: [
+      { command: { id: "bonus-direct-start-bad", type: "BONUS_MOVE_STARTED", payload: { pieceId: "blue-1" } }, label: "Bonus MOVE" },
+      { command: { id: "bonus-direct-commit-bad", type: "BONUS_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 20, y: 5 } }, label: "Bonus MOVE segment" },
+    ],
+  });
+  assert.equal(rejected.accepted, false);
+  assert.equal(rejected.timeline.entries.length, 0);
+});
+
 test("Single Player Controller does not depend on UI, Firebase, or browser APIs", () => {
   const source = fs.readFileSync(new URL("./singlePlayerController.mjs", import.meta.url), "utf8");
   const forbidden = /(?:from\s+["'](?:react|firebase\/|firebase)["']|\bwindow\b|\bdocument\b|\blocalStorage\b|\bsetTimeout\b|\bsetInterval\b|\bfetch\b|\bXMLHttpRequest\b)/;

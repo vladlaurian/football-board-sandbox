@@ -7135,7 +7135,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 }
 .tracker-team.blue .tracker-action-dots button.used { background: #247fe0 !important; border-color: #8ec5ff !important; }
 .tracker-team.red .tracker-action-dots button.used { background: #d93f3f !important; border-color: #ffaaaa !important; }
-.tracker-action-dots button:not(.used) { background: transparent !important; }
+.tracker-action-dots button:not(.used) { background: rgba(164,174,187,.32) !important; border-color: currentColor !important; opacity: 1 !important; }
 
 .inspector-piece-line {
   align-items: flex-start;

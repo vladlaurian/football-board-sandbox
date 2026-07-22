@@ -362,7 +362,20 @@ In offline Single Player, an active Bonus Action blocks End Turn, Free Move, Fre
 
 - Timeline and AI Export retain Bonus Action origin and replacement-chain provenance.
 - Manual Multiplayer retains its existing Bonus Action path until explicitly reopened.
-- Bonus MOVE requires its own Engine migration, including its mandatory direct-board entry; it must not be added ad hoc to this foundation build.
+- Bonus MOVE is now a typed Engine transition with the same canonical path from card and direct-board entrances; Manual Multiplayer still retains its legacy path.
+
+## ADR-026 — Bonus MOVE is a canonical progressive Engine action
+
+**Status:** Active
+
+**Decision:** Offline Single Player Bonus MOVE is resolved only through `BONUS_MOVE_STARTED`, `BONUS_MOVE_CANCELLED`, and `BONUS_MOVE_COMMITTED`. Its active piece and `movementStarted` state live in canonical `actionContinuation`, never in Tracker or transient UI. Card MOVE and direct-board player selection plus destination use these same commands; direct board start and first movement are evaluated before either Timeline transition is published.
+
+**Consequences:**
+
+- The Engine owns ownership, cancellation before first physical movement, Speed, axis, path, destination occupancy, and ball carry.
+- Bonus MOVE does not consume Tracker economy and remains active until `END B.A.`, including after a partial segment.
+- 3/2 remains independent before or during Bonus MOVE.
+- Manual Multiplayer and Editor Mode retain their existing behavior.
 
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 

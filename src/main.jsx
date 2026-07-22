@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.21.0";
+const APP_VERSION = "v20.21.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -6171,16 +6171,13 @@ function App() {
     const continuation = actionContinuationRef.current;
     if (continuation?.kind === "bonus-card-action") {
       if (!canControlBonusContinuation(continuation)) return false;
-      if (continuation.status !== CONTINUATION_STATUS.ACTION_ACTIVE || continuation.actionType !== "MOVE" || continuation.pieceId !== piece.id || continuation.team !== pieceTeamKey(piece)) return false;
-      const evaluation = evaluateMove(piece, x, y);
-      if (!evaluation.legal) {
-        if (evaluation.reason !== "same") setIllegalMoveNotice(evaluation);
-        return false;
+      if (!sessionCode && continuation.status === CONTINUATION_STATUS.READY && continuation.team === pieceTeamKey(piece)) {
+        return commitDirectBoardBonusMove(piece, x, y);
       }
-      return commitPieceMove(piece, x, y, evaluation, {
-        authorizationOverride: { allowed: true, mode: "bonus" },
-        completeBonus: false,
-      });
+      if (!sessionCode && continuation.status === CONTINUATION_STATUS.ACTION_ACTIVE && continuation.actionType === "MOVE" && continuation.pieceId === piece.id && continuation.team === pieceTeamKey(piece)) {
+        return commitBonusMoveSegment(piece, x, y);
+      }
+      return false;
     }
 
     const phaseTeam = piece.team === "BALL" ? null : pieceTeamKey(piece);
@@ -9652,6 +9649,88 @@ function App() {
     return next;
   }
 
+  function startBonusMove(piece) {
+    if (sessionCode) return beginBonusCardAction("MOVE", piece);
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`bonus_move_start_${piece.id}`), type: GAME_COMMAND_TYPE.BONUS_MOVE_STARTED, payload: { pieceId: piece.id } },
+      label: `${pieceTeamKey(piece) === "blue" ? "Blue" : "Red"} bonus MOVE: ${getPieceDisplayLabel(piece)}`,
+    });
+    if (!dispatched.result.accepted) return false;
+    replaceGameTimeline(dispatched.timeline);
+    applyTimelineGameState(dispatched.state);
+    setSelectedId(piece.id);
+    setHoveredCell(null);
+    return true;
+  }
+
+  function cancelBonusMove(piece) {
+    if (sessionCode) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`bonus_move_cancel_${piece.id}`), type: GAME_COMMAND_TYPE.BONUS_MOVE_CANCELLED, payload: { pieceId: piece.id } },
+      label: `${pieceTeamKey(piece) === "blue" ? "Blue" : "Red"} bonus MOVE cancelled: ${getPieceDisplayLabel(piece)}`,
+    });
+    if (!dispatched.result.accepted) return false;
+    replaceGameTimeline(dispatched.timeline);
+    applyTimelineGameState(dispatched.state);
+    setSelectedId(null);
+    setHoveredCell(null);
+    return true;
+  }
+
+  function commitBonusMoveSegment(piece, x, y) {
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`bonus_move_commit_${piece.id}`), type: GAME_COMMAND_TYPE.BONUS_MOVE_COMMITTED, payload: { pieceId: piece.id, x: Number(x), y: Number(y) } },
+      label: `${pieceTeamKey(piece) === "blue" ? "Blue" : "Red"} bonus MOVE: ${getPieceDisplayLabel(piece)} → ${toCoord(x, y)}`,
+    });
+    if (!dispatched.result.accepted) {
+      if (dispatched.result.reason !== "same") setIllegalMoveNotice({ reason: dispatched.result.reason });
+      return false;
+    }
+    replaceGameTimeline(dispatched.timeline);
+    applyTimelineGameState(dispatched.state);
+    return true;
+  }
+
+  function commitDirectBoardBonusMove(piece, x, y) {
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const team = pieceTeamKey(piece);
+    const startId = createActionEventId(`bonus_move_start_${piece.id}`);
+    const dispatched = dispatchSinglePlayerGameCommandSequence({
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      commands: [
+        {
+          command: { id: startId, type: GAME_COMMAND_TYPE.BONUS_MOVE_STARTED, payload: { pieceId: piece.id } },
+          label: `${team === "blue" ? "Blue" : "Red"} bonus MOVE: ${getPieceDisplayLabel(piece)}`,
+        },
+        {
+          command: { id: createActionEventId(`bonus_move_commit_${piece.id}`), type: GAME_COMMAND_TYPE.BONUS_MOVE_COMMITTED, payload: { pieceId: piece.id, x: Number(x), y: Number(y) } },
+          label: `${team === "blue" ? "Blue" : "Red"} bonus MOVE: ${getPieceDisplayLabel(piece)} → ${toCoord(x, y)}`,
+        },
+      ],
+    });
+    if (!dispatched.accepted) {
+      if (dispatched.result.reason !== "same") setIllegalMoveNotice({ reason: dispatched.result.reason });
+      return false;
+    }
+    replaceGameTimeline(dispatched.timeline);
+    applyTimelineGameState(dispatched.state);
+    return true;
+  }
+
   function completeBonusCardAction({ actionType, pieceId } = {}) {
     const current = actionContinuationRef.current;
     const next = completeContinuationAction(current);
@@ -10576,8 +10655,14 @@ function App() {
     const continuation = currentBonusContinuationForTeam(pieceTeamKey(piece));
     if (continuation) {
       if (!canControlBonusContinuation(continuation)) return;
+      if (!sessionCode && type === "MOVE" && continuation.status === CONTINUATION_STATUS.ACTION_ACTIVE && continuation.actionType === "MOVE" && continuation.pieceId === piece.id && !continuation.movementStarted) {
+        cancelBonusMove(piece);
+        return;
+      }
       if (continuation.status !== CONTINUATION_STATUS.READY || type === "GROUP_MOVE" || type === "FREE" || !canControlPieceStatus(piece)) return;
-      const started = beginBonusCardAction(type, piece, { startPassAtomically: type === "PASS" });
+      const started = type === "MOVE" && !sessionCode
+        ? startBonusMove(piece)
+        : beginBonusCardAction(type, piece, { startPassAtomically: type === "PASS" });
       if (!started) return;
       if (type === "PASS") {
         // Bonus PASS start and targeting are one canonical host commit.
@@ -11786,6 +11871,11 @@ function App() {
                       && activeNormalMove.active
                       && activeNormalMove.kind === "normal-move"
                       && String(activeNormalMove.pieceId || "") === String(inspectedPiece.id);
+                    const isBonusMoveCancel = type === "MOVE"
+                      && continuation?.status === CONTINUATION_STATUS.ACTION_ACTIVE
+                      && continuation.actionType === "MOVE"
+                      && String(continuation.pieceId || "") === String(inspectedPiece.id)
+                      && !continuation.movementStarted;
                     const currentMovement = movementStateByPieceId[inspectedPiece.id] || {};
                     const currentSpeed = getPieceSpeed(inspectedPiece);
                     const hasRemainingNormalMove = Boolean(
@@ -11796,7 +11886,9 @@ function App() {
                     );
                     const passLocksActions = Boolean(pendingPass) && !isPassCancel;
                     const bonusActionAvailable = continuation?.status === CONTINUATION_STATUS.READY;
-                    const disabled = isPassCancel
+                    const disabled = isBonusMoveCancel
+                      ? false
+                      : isPassCancel
                       ? passCancelIntentPending
                       : isMoveCancel
                         ? actionStartIntentPending
@@ -11813,7 +11905,7 @@ function App() {
                             || groupMoveActive
                             || (type === "MOVE" && pieceState.moveUsed && !hasRemainingNormalMove)
                             || (type === "GROUP_MOVE" && status.remaining !== 1 && !trackerComplete);
-                    const label = isPassCancel ? "CANCEL PASS" : isMoveCancel ? "CANCEL MOVE" : type.replace("GROUP_MOVE", "GROUP MOVE");
+                    const label = isPassCancel ? "CANCEL PASS" : (isMoveCancel || isBonusMoveCancel) ? "CANCEL MOVE" : type.replace("GROUP_MOVE", "GROUP MOVE");
                     const actionLocked = trackerComplete && !isPassCancel && !isMoveCancel;
                     return <button className={`team-action-btn ${team} ${type === "GROUP_MOVE" ? "group-move-btn" : ""} ${actionLocked ? "action-locked" : ""}`} key={type} type="button" disabled={disabled} aria-disabled={actionLocked || disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{label}</button>;
                   })}

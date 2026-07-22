@@ -109,6 +109,7 @@ export function normalizeActionContinuation(value) {
     }),
     actionType: value.actionType ? String(value.actionType) : null,
     pieceId: value.pieceId ? String(value.pieceId) : null,
+    movementStarted: Boolean(value.movementStarted),
     transaction,
   };
 }
@@ -148,6 +149,7 @@ export function beginContinuationAction(continuation, { type, pieceId } = {}) {
     status: CONTINUATION_STATUS.ACTION_ACTIVE,
     actionType: String(type),
     pieceId: String(pieceId),
+    movementStarted: false,
     transaction: { ...current.transaction, actionType: String(type) },
   };
 }

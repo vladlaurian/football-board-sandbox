@@ -6,13 +6,21 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.21.0` |
-| Git/package version | `20.21.0` |
-| Build name | `Final_Board_v20_21_0_bonus_action_foundation` |
-| Base build | `v20.20.1 group_move_ui_turn_closure` |
+| Sandbox version | `v20.21.1` |
+| Git/package version | `20.21.1` |
+| Build name | `Final_Board_v20_21_1_bonus_move_engine_tracker_clarity` |
+| Base build | `v20.21.0 bonus_action_foundation` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.21.0`. The repository version is defined in `package.json` as `20.21.0`. The browser title is `Sandbox v20.21.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.21.1`. The repository version is defined in `package.json` as `20.21.1`. The browser title is `Sandbox v20.21.1`.
+
+## v20.21.1 release summary
+
+v20.21.1 completes the offline Single Player Bonus MOVE migration. `BONUS_MOVE_STARTED`, `BONUS_MOVE_CANCELLED`, and `BONUS_MOVE_COMMITTED` now flow through the Game Engine and Single Player Controller into Timeline. The Engine owns Bonus Action ownership, cancellation before the first physical segment, Speed, progressive segments, first-axis lock, path blocking, occupied destinations, and ball carry. Bonus MOVE never adds a Tracker action and remains active until `END B.A.`; unused Speed is allowed.
+
+Card MOVE and direct-board player selection plus destination are equivalent offline Single Player entrances. A direct-board destination starts and commits Bonus MOVE atomically, so it has no pre-move Cancel interval. Card-started Bonus MOVE displays `CANCEL MOVE` only before its first physical segment. 3/2 remains independent before or during Bonus MOVE. Manual Multiplayer remains unchanged.
+
+Tracker's empty action circles now use the same visible outline as active circles with a muted grey fill. They remain disabled and cannot be completed manually.
 
 ## v20.21.0 release summary
 

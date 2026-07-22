@@ -148,6 +148,12 @@ Both outcomes apply the same serialized `resumePolicy`. The distinction must rem
 
 Every Bonus Action also carries a structured origin alongside its legacy source string: source action, outcome, reason, source Timeline entry, and optional parent continuation ID. If an exceptional result creates a new Bonus Action while another exists, the new continuation replaces the old one atomically. The old resume policy must not execute; the parent link preserves the chain for Timeline and AI analysis. Bonus Action is outside Tracker economy. In offline Single Player it blocks End Turn and administrative Free Move/Free Ball; 3/2 remains an independent free rule for the continuation owner.
 
+## v20.21.1 — Bonus MOVE command boundary
+
+Offline Single Player Bonus MOVE is no longer a UI-owned placement path. `BONUS_MOVE_STARTED`, `BONUS_MOVE_CANCELLED`, and `BONUS_MOVE_COMMITTED` are typed Engine commands. The active `actionContinuation` records the selected piece and `movementStarted`, so Cancel is possible only before the first physical segment. The Engine validates the same physical rules as normal Move: Speed, accumulated cost, axis, path blocking, occupied destination, and ball carry. It does not create or alter a Tracker action.
+
+The card starts Bonus MOVE through `BONUS_MOVE_STARTED`; board selection plus destination evaluates start and first commit as one dependent command sequence. Either route produces canonical Timeline state. Bonus MOVE remains active after partial movement until `END B.A.`; 3/2 may still occur independently before or during it. Manual Multiplayer is outside this migration.
+
 ## Pass migration in v19.11
 
 Pass remains responsible for its current geometry and rules. It uses explicit pending decisions, pending roll requests and unique roll events. This is the reference implementation for future automated actions.

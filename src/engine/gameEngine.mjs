@@ -6,6 +6,7 @@ import { cancelNormalMove, commitNormalMove, startNormalMove } from "./normalMov
 import { commitThreeTwoMove } from "./threeTwoMoveRules.mjs";
 import { commitFreeMove, endFreeMove, startFreeMove } from "./freeMoveRules.mjs";
 import { commitGroupMovePlayer, confirmGroupMoveZone } from "./groupMoveRules.mjs";
+import { cancelBonusMove, commitBonusMove, startBonusMove } from "./bonusMoveRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -63,7 +64,12 @@ export function applyGameCommand({ state, context, command } = {}) {
     GAME_COMMAND_TYPE.FREE_MOVE_ENDED,
   ].includes(normalizedCommand.type)) return rejected("FREE_MOVE_ACTIVE");
   if (groupMoveActive && normalizedCommand.type !== GAME_COMMAND_TYPE.GROUP_MOVE_PLAYER_COMMITTED) return rejected("GROUP_MOVE_ACTIVE");
-  if (bonusActionActive && normalizedCommand.type !== GAME_COMMAND_TYPE.THREE_TWO_MOVE_COMMITTED) return rejected("BONUS_ACTION_ACTIVE");
+  if (bonusActionActive && ![
+    GAME_COMMAND_TYPE.THREE_TWO_MOVE_COMMITTED,
+    GAME_COMMAND_TYPE.BONUS_MOVE_STARTED,
+    GAME_COMMAND_TYPE.BONUS_MOVE_CANCELLED,
+    GAME_COMMAND_TYPE.BONUS_MOVE_COMMITTED,
+  ].includes(normalizedCommand.type)) return rejected("BONUS_ACTION_ACTIVE");
   const freeMoveTransition = normalizedCommand.type === GAME_COMMAND_TYPE.FREE_MOVE_STARTED
     ? startFreeMove(currentState, normalizedCommand)
     : normalizedCommand.type === GAME_COMMAND_TYPE.FREE_MOVE_COMMITTED
@@ -106,6 +112,20 @@ export function applyGameCommand({ state, context, command } = {}) {
       ...normalMoveTransition.event,
       commandId: normalizedCommand.id,
     })], normalMoveTransition.timeline);
+  }
+  const bonusMoveTransition = normalizedCommand.type === GAME_COMMAND_TYPE.BONUS_MOVE_STARTED
+    ? startBonusMove(currentState, normalizedCommand)
+    : normalizedCommand.type === GAME_COMMAND_TYPE.BONUS_MOVE_CANCELLED
+      ? cancelBonusMove(currentState, normalizedCommand)
+      : normalizedCommand.type === GAME_COMMAND_TYPE.BONUS_MOVE_COMMITTED
+        ? commitBonusMove(currentState, matchContext, normalizedCommand)
+        : null;
+  if (bonusMoveTransition) {
+    if (!bonusMoveTransition.accepted) return rejected(bonusMoveTransition.reason);
+    return accepted(createGameState(bonusMoveTransition.nextState), [createGameEvent({
+      ...bonusMoveTransition.event,
+      commandId: normalizedCommand.id,
+    })], bonusMoveTransition.timeline);
   }
   if (normalizedCommand.type === GAME_COMMAND_TYPE.THREE_TWO_MOVE_COMMITTED) {
     const transition = commitThreeTwoMove(currentState, matchContext, normalizedCommand);

@@ -300,6 +300,68 @@ test("Bonus Action locks unrelated Engine commands while retaining Three Two", (
   }), { accepted: false, reason: "BONUS_ACTION_ACTIVE" });
 });
 
+test("BONUS_MOVE is Engine-owned, never consumes Tracker, and may continue until End B.A.", () => {
+  const start = normalMoveState({
+    actionContinuation: {
+      id: "bonus-move-1",
+      kind: "bonus-card-action",
+      team: "blue",
+      status: "ready",
+      source: "natural-20-interception",
+      resumePolicy: { type: "advance-turn", team: "blue", nextTurn: 2 },
+    },
+  });
+  const started = applyGameCommand({
+    state: start,
+    context: normalMoveContext(),
+    command: normalMoveCommand("BONUS_MOVE_STARTED", {}, "bonus-move-start"),
+  });
+  assert.equal(started.accepted, true);
+  assert.equal(started.nextState.actionContinuation.status, "action-active");
+  assert.equal(started.nextState.actionContinuation.movementStarted, false);
+  assert.equal(started.nextState.tracker.usedActions.blue, 0);
+
+  const first = applyGameCommand({
+    state: started.nextState,
+    context: normalMoveContext(),
+    command: normalMoveCommand("BONUS_MOVE_COMMITTED", { x: 5, y: 5 }, "bonus-move-first"),
+  });
+  assert.equal(first.accepted, true);
+  assert.equal(first.nextState.pieces.find(piece => piece.id === "blue-1").x, 5);
+  assert.equal(first.nextState.actionContinuation.movementStarted, true);
+  assert.equal(first.nextState.tracker.usedActions.blue, 0);
+
+  const second = applyGameCommand({
+    state: first.nextState,
+    context: normalMoveContext(),
+    command: normalMoveCommand("BONUS_MOVE_COMMITTED", { x: 7, y: 5 }, "bonus-move-second"),
+  });
+  assert.equal(second.accepted, true);
+  assert.equal(second.nextState.pieces.find(piece => piece.id === "blue-1").x, 7);
+  assert.equal(second.nextState.movementStateByPieceId["blue-1"].spent, 4);
+  assert.equal(second.nextState.tracker.usedActions.blue, 0);
+});
+
+test("BONUS_MOVE can cancel only before its first physical segment", () => {
+  const ready = normalMoveState({
+    actionContinuation: {
+      id: "bonus-move-cancel",
+      kind: "bonus-card-action",
+      team: "blue",
+      status: "ready",
+      resumePolicy: { type: "advance-turn", team: "blue", nextTurn: 2 },
+    },
+  });
+  const started = applyGameCommand({ state: ready, context: normalMoveContext(), command: normalMoveCommand("BONUS_MOVE_STARTED") });
+  const cancelled = applyGameCommand({ state: started.nextState, context: normalMoveContext(), command: normalMoveCommand("BONUS_MOVE_CANCELLED") });
+  assert.equal(cancelled.accepted, true);
+  assert.equal(cancelled.nextState.actionContinuation.status, "ready");
+
+  const moved = applyGameCommand({ state: started.nextState, context: normalMoveContext(), command: normalMoveCommand("BONUS_MOVE_COMMITTED", { x: 4, y: 5 }) });
+  const rejected = applyGameCommand({ state: moved.nextState, context: normalMoveContext(), command: normalMoveCommand("BONUS_MOVE_CANCELLED") });
+  assert.deepEqual(rejected, { accepted: false, reason: "BONUS_MOVE_NOT_CANCELLABLE" });
+});
+
 test("THREE_TWO_MOVE_COMMITTED rejects an occupied ball square, reuse, and inactive phase without mutation", () => {
   const base = createGameState({
     ...normalMoveState(),
