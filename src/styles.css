@@ -7691,3 +7691,68 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   background: linear-gradient(145deg, rgba(255,145,155,.22), rgba(195,48,62,.15));
   border-color: rgba(255,205,210,.40);
 }
+
+/* v20.43 — Premium tactical pucks and defensive-area clarity.
+   The pucks reuse the existing piece wrappers and labels. Defensive cells are
+   deduplicated before rendering; only a continuous area's outside edges draw. */
+.board-wrap.match-presentation .piece:not(.ball) {
+  border: 1px solid rgba(255,255,255,.76);
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.44),
+    inset 0 -18px 20px rgba(0,0,0,.26),
+    0 5px 12px rgba(0,0,0,.42);
+}
+.board-wrap.match-presentation .piece.team-a {
+  background:
+    radial-gradient(circle at 34% 26%, rgba(255,255,255,.62), transparent 18%),
+    radial-gradient(circle at 50% 46%, #4ca3ff 0 40%, #1765c7 69%, #082f70 100%);
+}
+.board-wrap.match-presentation .piece.team-b {
+  background:
+    radial-gradient(circle at 34% 26%, rgba(255,255,255,.62), transparent 18%),
+    radial-gradient(circle at 50% 46%, #ff767c 0 40%, #c52f3a 69%, #701019 100%);
+}
+.board-wrap.match-presentation .piece-label {
+  margin-top: 0;
+  padding: 0;
+  background: transparent;
+  font-size: calc(var(--cell) * .27);
+  font-weight: 950;
+  letter-spacing: .015em;
+  text-shadow: 0 2px 3px rgba(0,0,0,.84), 0 0 2px rgba(0,0,0,.72);
+}
+.board-wrap.match-presentation .piece.has-possession {
+  box-shadow:
+    0 0 0 2px rgba(255,229,91,.88),
+    0 0 17px rgba(255,218,60,.66),
+    inset 0 1px 0 rgba(255,255,255,.50),
+    inset 0 -18px 20px rgba(0,0,0,.26);
+}
+.board-wrap.match-presentation .piece.selected .match-piece-figure,
+.board-wrap.match-presentation .piece.inactive .match-piece-figure,
+.board-wrap.match-presentation .piece.has-possession .match-piece-head,
+.board-wrap.match-presentation .piece.has-possession .match-piece-body {
+  filter: none;
+  box-shadow: none;
+}
+.board-wrap.match-presentation .match-def-area-cell {
+  border-style: solid;
+  border-width: var(--def-top) var(--def-right) var(--def-bottom) var(--def-left);
+  border-radius: 0;
+  box-shadow: none;
+}
+.board-wrap.match-presentation .match-def-area-cell.blue {
+  background: rgba(99, 171, 255, .20);
+  border-color: rgba(176, 217, 255, .72);
+}
+.board-wrap.match-presentation .match-def-area-cell.red {
+  background: rgba(255, 111, 124, .20);
+  border-color: rgba(255, 190, 197, .72);
+}
+.board-wrap.match-presentation .match-def-area-cell.contested {
+  background:
+    linear-gradient(135deg, rgba(107,171,255,.28), rgba(107,171,255,.28) 49%, rgba(255,116,129,.28) 51%, rgba(255,116,129,.28));
+  border-color: rgba(255, 244, 190, .88);
+  box-shadow: inset 0 0 0 1px rgba(255,244,190,.20);
+}

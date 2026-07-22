@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.42.0` |
-| Git/package version | `20.42.0` |
-| Build name | `Final_Board_v20_42_0_match_interaction_feedback` |
-| Base build | `v20.41.1 match_piece_scale_possession` |
+| Sandbox version | `v20.43.0` |
+| Git/package version | `20.43.0` |
+| Build name | `Final_Board_v20_43_0_premium_pucks_defensive_clarity` |
+| Base build | `v20.42.0 match_interaction_feedback` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.42.0`. The repository version is in `package.json` as `20.42.0`. The browser title is `Sandbox v20.42.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.43.0`. The repository version is in `package.json` as `20.43.0`. The browser title is `Sandbox v20.43.0`.
 
 ## Current release
 
-v20.42.0 adds Match Interaction Feedback & Defensive Areas on the existing presentation boundary: existing visual states receive clearer glass-like Match styling, including selection, Move, Pass, Group Move, INACTIVE and translucent Blue/Red defensive overlays. Their conditions, geometry, hitboxes and all gameplay behavior remain unchanged. Editor Mode and Manual Multiplayer retain their existing presentation.
+v20.43.0 restores a square-grid tactical identity in Match Mode: the figure drawing is replaced by premium tactical pucks inside the existing piece elements, and defensive overlays are deduplicated into continuous visual regions with outside-only borders and a neutral contested-cell style. Rules, positions, hitboxes, labels, Engine, Timeline, Editor and Manual Multiplayer behavior remain unchanged.
 
 No game rule, Match Engine command, Timeline behavior, Workspace persistence behavior or Manual Multiplayer behavior changed.
 

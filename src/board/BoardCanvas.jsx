@@ -81,7 +81,7 @@ export function BoardCanvas({
   measureEnd,
   measureType,
   rulerMarkers,
-  defensiveAreaOverlays,
+  defensiveAreaOverlays = [],
   passPreview,
   passTargeting,
   passActive,
@@ -101,6 +101,32 @@ export function BoardCanvas({
 }) {
   const isMatchPresentation = presentationMode === "match";
   const ballPiece = pieces.find(piece => piece.team === "BALL");
+  const defensiveCellsByCoordinate = new Map();
+  defensiveAreaOverlays.forEach(cell => {
+    const key = `${cell.x}:${cell.y}`;
+    const existing = defensiveCellsByCoordinate.get(key) || { x: cell.x, y: cell.y, teams: new Set() };
+    existing.teams.add(cell.team);
+    defensiveCellsByCoordinate.set(key, existing);
+  });
+  const matchDefensiveAreaOverlays = Array.from(defensiveCellsByCoordinate.values()).map(cell => {
+    const teams = Array.from(cell.teams);
+    const team = teams.length === 1 ? teams[0] : "BOTH";
+    const hasSameTeam = (x, y) => defensiveCellsByCoordinate.get(`${x}:${y}`)?.teams.has(team);
+    return {
+      id: `${cell.x}-${cell.y}-${team}`,
+      x: cell.x,
+      y: cell.y,
+      team,
+      edges: team === "BOTH"
+        ? { top: true, right: true, bottom: true, left: true }
+        : {
+            top: !hasSameTeam(cell.x, cell.y - 1),
+            right: !hasSameTeam(cell.x + 1, cell.y),
+            bottom: !hasSameTeam(cell.x, cell.y + 1),
+            left: !hasSameTeam(cell.x - 1, cell.y),
+          },
+    };
+  });
   const boxTop = Math.floor((settings.rows - settings.boxWidth) / 2);
   const smallTop = Math.floor((settings.rows - settings.smallWidth) / 2);
   const goalTop = Math.floor((settings.rows - settings.goalWidth) / 2);
@@ -223,7 +249,7 @@ export function BoardCanvas({
             return <div key={corner} className={`corner-mask corner-${corner}`} style={{ width: `calc(${settings.cornerArcRadius} * var(--cell))`, height: `calc(${settings.cornerArcRadius} * var(--cell))` }}><div className="corner-circle" style={{ [horizontal]: `calc(-${settings.cornerArcRadius} * var(--cell))`, [vertical]: `calc(-${settings.cornerArcRadius} * var(--cell))`, width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`, height: `calc(${settings.cornerArcRadius * 2} * var(--cell))` }} /></div>;
           })}
 
-          {defensiveAreaOverlays.map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
+          {(isMatchPresentation ? matchDefensiveAreaOverlays : defensiveAreaOverlays).map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : cell.team === "B" ? "red" : "contested"} ${isMatchPresentation ? "match-def-area-cell" : ""}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))`, ...(isMatchPresentation ? { "--def-top": cell.edges.top ? "1px" : "0", "--def-right": cell.edges.right ? "1px" : "0", "--def-bottom": cell.edges.bottom ? "1px" : "0", "--def-left": cell.edges.left ? "1px" : "0" } : {}) }} />)}
 
           {passPreview?.lines?.length > 0 && <svg className="pass-preview-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
             {passPreview.lines.map(line => <g key={line.id} className={`pass-preview-line ${line.status || (line.risk ? "risk" : "clear")} ${line.selected ? "route-selected" : ""}`}>
@@ -259,7 +285,7 @@ export function BoardCanvas({
             const normalizedPiece = withBoardPosition(piece, settings);
             const groupMoveStatus = groupMovePieceStatusById[piece.id] || "";
             return <div key={piece.id} data-coord={normalizedPiece.coord} title={`${getPieceDisplayLabel(piece)} ${normalizedPiece.coord}${piece.cardId ? " · Card attached" : ""}${piece.inactive ? " · INACTIVE" : ""}`} className={`piece-hitbox ${isBall ? "ball-hitbox" : "player-hitbox"}`} style={{ left: `calc(${piece.x} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})`, top: `calc(${piece.y} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})` }} onPointerDown={event => onPiecePointerDown(piece.id, event)} onDoubleClick={() => openEdit(piece)}>
-              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${selectedId === piece.id ? "selected" : ""} ${activeInteractionPieceId === piece.id && selectedId !== piece.id ? "interaction-active" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""} ${hasPossession ? "has-possession" : ""} ${ballHeld ? "ball-held" : ""} ${groupMoveStatus ? `group-move-${groupMoveStatus}` : ""}`}>{isBall ? <>{isMatchPresentation && <span className="match-ball-aura" aria-hidden="true" />}<MatchBallIcon className="board-ball-icon" /></> : <>{isMatchPresentation && <span className="match-piece-figure" aria-hidden="true"><span className="match-piece-head" /><span className="match-piece-body" /><span className="match-piece-legs" /></span>}<span className="piece-label">{getPieceDisplayLabel(piece)}</span>{groupMoveStatus === "ineligible" && <span className="group-move-lock" aria-label="Not eligible for Group Move">🔒</span>}</>}</div>
+              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${selectedId === piece.id ? "selected" : ""} ${activeInteractionPieceId === piece.id && selectedId !== piece.id ? "interaction-active" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""} ${hasPossession ? "has-possession" : ""} ${ballHeld ? "ball-held" : ""} ${groupMoveStatus ? `group-move-${groupMoveStatus}` : ""}`}>{isBall ? <>{isMatchPresentation && <span className="match-ball-aura" aria-hidden="true" />}<MatchBallIcon className="board-ball-icon" /></> : <><span className="piece-label">{getPieceDisplayLabel(piece)}</span>{groupMoveStatus === "ineligible" && <span className="group-move-lock" aria-label="Not eligible for Group Move">🔒</span>}</>}</div>
             </div>;
           })}
         </div>

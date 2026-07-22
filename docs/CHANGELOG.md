@@ -2,6 +2,13 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.43.0 — Premium tactical pucks and defensive-area clarity
+
+- Replaced Match-only CSS player figures with premium tactical pucks in the existing piece elements; position labels, hitboxes and state classes remain unchanged.
+- Deduplicated defensive-overlay cells only for Match presentation, draws only continuous-region outside edges, and gives Blue/Red overlap a distinct neutral contested-cell treatment.
+- Retained the previous Editor and Manual Multiplayer rendering path without changing defensive-area rule calculation.
+- Extended BoardCanvas render coverage for the Match defensive-area aggregation and contested cells.
+
 ## v20.42.0 — Match Interaction Feedback & Defensive Areas
 
 - Added Match-only glass-like styling to the existing selection, movement legality, axis/cost badge, Pass route and Group Move feedback classes.
