@@ -150,11 +150,17 @@ export function BoardCanvas({
     includeMatchFill(area.ownerX, area.ownerY, area.team);
   });
 
-  const matchDefensiveFillCells = Array.from(matchFillCellsByCoordinate.values()).map(cell => ({
-    ...cell,
-    teamClass: cell.teams.size > 1 ? "contested" : cell.teams.has("A") ? "blue" : "red",
-    isPlayerSquare: playerSquareKeys.has(`${cell.x}:${cell.y}`),
-  }));
+  // Render one translucent fill per team on a shared coordinate. Where blue
+  // and red areas overlap, the two original team fills blend naturally instead
+  // of being replaced by an artificial diagonal contested tile.
+  const matchDefensiveFillCells = Array.from(matchFillCellsByCoordinate.values()).flatMap(cell =>
+    Array.from(cell.teams).map(team => ({
+      ...cell,
+      id: `${cell.id}-${team}`,
+      teamClass: team === "A" ? "blue" : "red",
+      isPlayerSquare: playerSquareKeys.has(`${cell.x}:${cell.y}`),
+    }))
+  );
 
   const matchDefensiveOutlineCells = matchDefensiveAreas.flatMap(area => {
     const hasAreaCell = (x, y) => area.cellsByCoordinate.has(`${Number(x)}:${Number(y)}`);
@@ -163,15 +169,14 @@ export function BoardCanvas({
       .map(cell => {
         const x = Number(cell.x);
         const y = Number(cell.y);
-        const neighbourIsOccupied = (nx, ny) => playerSquareKeys.has(`${nx}:${ny}`);
         return {
           ...cell,
           id: `match-outline-${area.ownerId}-${x}:${y}`,
           edges: {
-            top: !hasAreaCell(x, y - 1) && !neighbourIsOccupied(x, y - 1),
-            right: !hasAreaCell(x + 1, y) && !neighbourIsOccupied(x + 1, y),
-            bottom: !hasAreaCell(x, y + 1) && !neighbourIsOccupied(x, y + 1),
-            left: !hasAreaCell(x - 1, y) && !neighbourIsOccupied(x - 1, y),
+            top: !hasAreaCell(x, y - 1),
+            right: !hasAreaCell(x + 1, y),
+            bottom: !hasAreaCell(x, y + 1),
+            left: !hasAreaCell(x - 1, y),
           },
         };
       });

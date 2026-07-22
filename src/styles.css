@@ -7920,9 +7920,6 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 }
 .board-wrap.match-presentation .match-def-area-fill.blue { background: rgba(83, 162, 255, .15); }
 .board-wrap.match-presentation .match-def-area-fill.red { background: rgba(241, 57, 70, .15); }
-.board-wrap.match-presentation .match-def-area-fill.contested {
-  background: linear-gradient(135deg, rgba(83,162,255,.19), rgba(83,162,255,.19) 49%, rgba(241,57,70,.19) 51%, rgba(241,57,70,.19));
-}
 .board-wrap.match-presentation .match-def-area-outline {
   z-index: 4;
   background: transparent;

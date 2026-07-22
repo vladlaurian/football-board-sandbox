@@ -2,6 +2,13 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.46.4 — Match overlap blend and closed contours
+
+- Preserved the v20.46.3 Match-only fill/outline separation and puck cleanup.
+- Replaced the artificial diagonal contested-cell treatment with separate Blue and Red translucent fill layers on shared coordinates, restoring the natural overlap appearance.
+- Restored complete per-area perimeter edges beside occupied coordinates; player-occupied cells themselves still render no local defensive outline.
+- Kept Engine, MatchState, defensive geometry, Editor Mode and Manual Multiplayer unchanged.
+
 ## v20.46.3 — Match occupied-square render cleanup
 
 - Replaced the Match-only defensive-area DOM path with separate combined-fill and per-owner outline layers derived from the existing calculated overlays.
