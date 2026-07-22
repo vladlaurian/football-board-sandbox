@@ -35,6 +35,6 @@ An active Match is saved/exported only as a Match Recording, whose Timeline and 
 
 ## Workspace operations boundary
 
-`src/workspace/workspaceOperations.mjs` owns the pure planning of structural Workspace mutations: board settings, formations, scenario save, Rule Set commit and card assignment/removal. `main.jsx` supplies application-specific normalizers, then remains responsible only for UI confirmation, React/ref application, History and the frozen Manual Multiplayer branch.
+`src/workspace/workspaceOperations.mjs` owns the pure planning of structural Workspace mutations: board settings, formations, scenario save, Rule Set commit and card assignment/removal. `src/workspace/cardLibraryOperations.mjs` owns card-library save/upsert, clone preparation, deletion with card detachment and Reset Cards. `main.jsx` supplies application-specific normalizers and generated IDs/timestamps, then remains responsible only for UI confirmation, React/ref application, History and the frozen Manual Multiplayer branch.
 
 The visual card editor is not moved merely for file organization. Its many controls already pass through `updateCardState`; it is deferred until a later approved UI-focused extraction.

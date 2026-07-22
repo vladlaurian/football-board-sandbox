@@ -1,6 +1,8 @@
-# Multiplayer Architecture
+# Multiplayer Architecture — frozen legacy reference
 
 ## Status and version
+
+**Status: frozen.** Automated Multiplayer development, Host Authority repair and synchronization work are paused until the Single Player Game Engine migration and Phase 9 audit explicitly reopen them. Manual Multiplayer remains retained and unchanged.
 
 This is the authoritative description of the multiplayer model in Sandbox `v20.11.6` / Git package `20.11.6`.
 

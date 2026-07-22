@@ -6,6 +6,12 @@ import {
   planWorkspaceRuleSetCommit,
   planWorkspaceScenarioSave,
 } from "./workspaceOperations.mjs";
+import {
+  planCardLibraryClone,
+  planCardLibraryDeletion,
+  planCardLibraryUpsert,
+  planWorkspaceCardReset,
+} from "./cardLibraryOperations.mjs";
 
 test("Workspace board setting mutation returns one normalized board setup", () => {
   const planned = planWorkspaceBoardSetting({
@@ -47,4 +53,43 @@ test("Workspace Rule Set plan retains the chosen active Rule Set", () => {
   const planned = planWorkspaceRuleSetCommit({ ruleSets: [], activeRuleSet: { id: "rules-test", name: "Test" } });
   assert.equal(planned.activeRuleSet.id, "rules-test");
   assert.equal(planned.ruleSets.some(ruleSet => ruleSet.id === "rules-test"), true);
+});
+
+test("Card Library upsert and clone preserve card data while removing inline graphics", () => {
+  const initial = { cards: [{ id: "card-1", name: "Player", graphics: { frontLocalDataUrl: "data:image/png;base64,abc", remote: "https://example.test/front.png" }, artwork: { customDataUrl: "data:image/png;base64,def" } }] };
+  const saved = planCardLibraryUpsert({ cardState: initial, card: { ...initial.cards[0], name: "Player One" } });
+  assert.equal(saved.cards[0].name, "Player One");
+
+  const cloned = planCardLibraryClone({
+    cardState: saved,
+    sourceCard: saved.cards[0],
+    nextId: "card-2",
+    timestamp: "2026-07-22T00:00:00.000Z",
+    isInlineImageDataUrl: value => String(value || "").startsWith("data:image/"),
+  });
+  assert.equal(cloned.clonedCard.id, "card-2");
+  assert.equal(cloned.clonedCard.graphics.frontLocalDataUrl, "");
+  assert.equal(cloned.clonedCard.graphics.remote, "https://example.test/front.png");
+  assert.equal(cloned.clonedCard.artwork.customDataUrl, "");
+  assert.equal(cloned.cardState.cards.length, 2);
+});
+
+test("Card Library deletion detaches only the deleted card and resets legacy assignment metadata", () => {
+  const planned = planCardLibraryDeletion({
+    cardState: { cards: [{ id: "card-1" }, { id: "card-2" }], teams: { old: true }, assignments: { old: true } },
+    pieces: [{ id: "a", cardId: "card-1" }, { id: "b", cardId: "card-2" }, { id: "ball", team: "BALL", cardId: null }],
+    cardId: "card-1",
+    resetTeams: { blue: [], red: [] },
+    sanitizePieces: value => value,
+  });
+  assert.deepEqual(planned.cardState.cards.map(card => card.id), ["card-2"]);
+  assert.equal(planned.pieces.find(piece => piece.id === "a").cardId, null);
+  assert.equal(planned.pieces.find(piece => piece.id === "b").cardId, "card-2");
+  assert.deepEqual(planned.cardState.teams, { blue: [], red: [] });
+  assert.deepEqual(planned.cardState.assignments, {});
+});
+
+test("Workspace card reset detaches every card without changing the pieces themselves", () => {
+  const planned = planWorkspaceCardReset({ pieces: [{ id: "a", team: "A", cardId: "card-1" }, { id: "ball", team: "BALL", cardId: null }] });
+  assert.deepEqual(planned, [{ id: "a", team: "A", cardId: null }, { id: "ball", team: "BALL", cardId: null }]);
 });

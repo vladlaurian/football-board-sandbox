@@ -61,9 +61,9 @@
 - Free Move and Free Ball ignore turn/continuation locks while remaining limited to the local player's team in multiplayer.
 - Added the canonical documentation rule to the development workflow.
 
-# Multiplayer Changelog
+# Multiplayer Changelog — frozen legacy history
 
-This file preserves the multiplayer implementation history. The current model is documented in [`MULTIPLAYER_ARCHITECTURE.md`](MULTIPLAYER_ARCHITECTURE.md).
+This file preserves the multiplayer implementation history. It is not an active implementation plan: automated Multiplayer is frozen while the Single Player Game Engine migration is open. The retained legacy model is documented in [`MULTIPLAYER_ARCHITECTURE.md`](MULTIPLAYER_ARCHITECTURE.md).
 
 ## v20.7 — Host-authoritative action starts and atomic Bonus Pass
 

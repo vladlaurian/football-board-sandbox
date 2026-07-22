@@ -434,7 +434,7 @@ Acceptance:
 
 ## Phase 8 — Single Player Controller completion
 
-**Status:** In progress. Phase 8A is complete in v20.32.0, Phase 8B is complete in v20.33.0, Phase 8C.1 is complete in v20.34.0 and Phase 8C.2a is complete in v20.35.0.
+**Status:** In progress. Phase 8A is complete in v20.32.0, Phase 8B is complete in v20.33.0, Phase 8C.1 is complete in v20.34.0, Phase 8C.2a is complete in v20.35.0 and Phase 8C.2b is complete in v20.36.0.
 
 Centralize Single Player dispatch and remove remaining direct Match Mode mutation paths from `main.jsx`, preserving Editor Mode, card editing, and Manual Multiplayer.
 
@@ -466,7 +466,7 @@ No gameplay rule, Manual Multiplayer branch, Editor Workspace behavior, Firebase
 
 ### Phase 8C — Editor Workspace and persistence boundary
 
-**Status:** In progress. Phase 8C.1 is complete in v20.34.0 and Phase 8C.2a is complete in v20.35.0; the remaining visual Editor UI extraction remains pending.
+**Status:** In progress. Phase 8C.1 is complete in v20.34.0, Phase 8C.2a is complete in v20.35.0 and Phase 8C.2b is complete in v20.36.0; the remaining visual Editor UI extraction remains pending.
 
 #### Phase 8C.1 — Workspace persistence contract
 
@@ -480,11 +480,17 @@ During an active offline Match, Cloud Save, autosave and Workspace import are bl
 
 `workspaceOperations.mjs` now plans board settings, formation application/saving, scenario save, Rule Set commit and card assignment/removal as pure operations. `main.jsx` applies the returned plan through its existing React/ref/History adapter. UI confirmation, Cloud/local persistence and the legacy Manual Multiplayer paths intentionally remain at that boundary.
 
-#### Phase 8C.2b — visual Editor UI/controller boundary
+#### Phase 8C.2b — structural Card Library boundary
+
+**Status:** Complete in v20.36.0.
+
+`cardLibraryOperations.mjs` now plans Card Library upsert, clone preparation, deletion with affected-piece detachment and Reset Cards as pure operations. Caller-supplied dependencies retain the existing inline-image policy, generated ID/time values and piece sanitation. `main.jsx` remains the UI/confirmation/History/legacy-sync adapter; visual card fields and layout controls remain unchanged.
+
+#### Phase 8C.2c — visual Card Editor UI/controller boundary
 
 **Status:** Pending.
 
-Audit and extract only the visual card editor / remaining workspace UI composition whose mutation behavior is not already centralized by `updateCardState`. Do not move JSX or rename controls for appearance alone. This is the approved place for later menu/editor changes, after their exact UX requirement is known.
+Audit and extract only visual Card Editor composition with a clear UI boundary. Do not move JSX or rename controls merely for appearance. The already-centralized `updateCardState` path is not itself a reason to move code; a component extraction must demonstrably reduce `main.jsx` ownership without introducing a second card-data path.
 
 Acceptance:
 

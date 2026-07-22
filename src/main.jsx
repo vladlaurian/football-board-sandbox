@@ -43,6 +43,12 @@ import {
   planWorkspaceScenarioSave,
 } from "./workspace/workspaceOperations.mjs";
 import {
+  planCardLibraryClone,
+  planCardLibraryDeletion,
+  planCardLibraryUpsert,
+  planWorkspaceCardReset,
+} from "./workspace/cardLibraryOperations.mjs";
+import {
   createDefaultRuleSet,
   createRuleSet,
   findRuleSet,
@@ -176,7 +182,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.35.0";
+const APP_VERSION = "v20.36.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4799,7 +4805,7 @@ function App() {
     if (!window.confirm("Detach all cards from all pucks?")) return;
 
     pushHistory();
-    const cleared = currentPieces.map(piece => ({ ...piece, cardId: null }));
+    const cleared = planWorkspaceCardReset({ pieces: currentPieces });
     piecesRef.current = cleared;
     setPieces(cleared);
     if (gameMode !== "match" && user && sessionCode && sessionHydratedRef.current) {
@@ -7079,10 +7085,7 @@ function App() {
   function saveCard(card) {
     if (singlePlayerMatchWorkspaceLocked) return;
     const nextCard = { ...card, updatedAt: new Date().toISOString() };
-    updateCardState(prev => ({
-      ...prev,
-      cards: prev.cards.some(c => c.id === nextCard.id) ? prev.cards.map(c => c.id === nextCard.id ? nextCard : c) : [...prev.cards, nextCard],
-    }));
+    updateCardState(prev => planCardLibraryUpsert({ cardState: prev, card: nextCard }));
   }
 
   function createCardFromPosition(position = "ST") {
@@ -7098,45 +7101,31 @@ function App() {
     if (singlePlayerMatchWorkspaceLocked) return;
     const source = cardById[cardId];
     if (!source) return;
-    const sourceGraphics = source.graphics || {};
-    const cloneGraphics = { ...sourceGraphics };
-    ["frontExportDataUrl", "backExportDataUrl", "frontLocalDataUrl", "backLocalDataUrl"].forEach(key => {
-      if (isInlineImageDataUrl(cloneGraphics[key])) cloneGraphics[key] = "";
+    const timestamp = new Date().toISOString();
+    const { cardState: nextCardState } = planCardLibraryClone({
+      cardState: cardStateRef.current,
+      sourceCard: source,
+      nextId: `card_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      timestamp,
+      isInlineImageDataUrl,
     });
-    const sourceArtwork = source.artwork || {};
-    const cloneArtwork = isInlineImageDataUrl(sourceArtwork.customDataUrl)
-      ? { ...sourceArtwork, customDataUrl: "" }
-      : sourceArtwork;
-    const clone = {
-      ...source,
-      id: `card_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-      name: `${source.name} Copy`,
-      graphics: cloneGraphics,
-      artwork: cloneArtwork,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    updateCardState(prev => ({ ...prev, cards: [...prev.cards, clone] }));
+    updateCardState(() => nextCardState);
   }
 
   function deleteCard(cardId) {
     if (singlePlayerMatchWorkspaceLocked) return;
     if (!window.confirm("Ștergi cardul? Va fi scos și din echipe/pucuri.")) return;
     const beforeTimeline = captureTimelineGameState();
-    const nextCardState = {
-      ...cardStateRef.current,
-      cards: (cardStateRef.current.cards || []).filter(c => c.id !== cardId),
-      teams: createDefaultCardState().teams,
-      assignments: {},
-    };
-    cardStateRef.current = normalizeCardState(nextCardState);
+    const planned = planCardLibraryDeletion({
+      cardState: cardStateRef.current,
+      pieces: piecesRef.current,
+      cardId,
+      resetTeams: createDefaultCardState().teams,
+      sanitizePieces: (nextPieces, nextCardState) => sanitizePiecesCardIds(nextPieces, nextCardState, settingsRef.current),
+    });
+    cardStateRef.current = normalizeCardState(planned.cardState);
     updateCardState(() => cardStateRef.current);
-
-    const nextPieces = sanitizePiecesCardIds(
-      piecesRef.current.map(piece => piece.cardId === cardId ? { ...piece, cardId: null } : piece),
-      cardStateRef.current,
-      settingsRef.current
-    );
+    const nextPieces = planned.pieces;
     piecesRef.current = nextPieces;
     setPieces(nextPieces);
     recordTimelineTransition({

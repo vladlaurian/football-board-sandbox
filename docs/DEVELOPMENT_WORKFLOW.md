@@ -111,6 +111,8 @@ Each fact must have one authoritative home. Other documents should link to that 
 | Global back-card stat schema and card-local values | `GLOBAL_BACK_STATS.md` |
 | Command-driven MatchState, MatchContext, Engine, Controller, Timeline, and persistence boundaries | `GAME_ENGINE_ARCHITECTURE.md` |
 | Temporary Game Engine migration phase/checklist | `GAME_ENGINE_MIGRATION_PLAN.md` |
+| Future-Match WorkspaceSnapshot and structural Workspace-operation boundary | `WORKSPACE_PERSISTENCE.md` |
+| Compact release history | `CHANGELOG.md` |
 
 Rules:
 
@@ -119,6 +121,7 @@ Rules:
 - A new permanent document is allowed only for a genuinely independent subsystem with its own stable contract.
 - Temporary `*_PLAN.md` files are allowed only for a genuinely open large migration. Delete them after completion and preserve permanent consequences in the appropriate source of truth.
 - Changelogs contain history; architecture documents describe the current model; ADRs contain durable decisions. Do not mix these roles.
+- Keep only the current `NEXT_CHAT_PROMPT_*.md` at the top level of `docs/`. Move completed prompts to `docs/history/handoffs/`; they remain evidence, not active instructions.
 - The README or an ADR may summarize and link, but must not become a second full copy of a subsystem specification.
 
 ## 9. Build identity and version synchronization

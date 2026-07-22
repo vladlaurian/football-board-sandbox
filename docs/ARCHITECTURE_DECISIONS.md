@@ -627,6 +627,18 @@ Editor Workspace setup is locked after an offline Match starts whenever a change
 - the Match Engine remains separate because unrestricted Editor operations are not gameplay commands;
 - visual card editor controls remain where they are until a specifically justified UI extraction, avoiding cosmetic file movement.
 
+## ADR-045 — Structural Card Library operations are separate from Card Editor presentation
+
+**Status:** Active.
+
+**Decision:** Card Library save/upsert, clone preparation, deletion with puck detachment and Reset Cards are pure Workspace operations. Their callers supply generated IDs/timestamps, inline-artwork classification and application-specific piece sanitation. React owns only confirmation, visual selection, publication, History and retained Manual Multiplayer synchronization.
+
+**Consequences:**
+
+- Card deletion remains one structural operation that returns both the next library and the detached board pieces; it cannot leave a puck pointing at the removed card.
+- The visual Card Editor remains an existing UI surface until a separately justified component boundary is approved. Its field/layout controls continue through `updateCardState`; no second card-data mutation path is introduced.
+- Card Library transformations are testable without React, Firebase, browser clock or randomness.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active
