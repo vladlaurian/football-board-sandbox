@@ -1,3 +1,13 @@
+# Changelog
+
+## v20.46.5 — Match defensive contour topology correction
+
+- Corrected the v20.46.4 visual regression in Single Player Match Presentation.
+- Defensive-area owner coordinates now remain part of the area topology even when the raw geometry omits that occupied coordinate.
+- Adjacent cells no longer reconstruct a local square around LB, CB, GK, RW, or other area owners.
+- The real external contour of each defensive area remains closed, and Blue/Red overlap fill behavior from v20.46.4 is preserved.
+- No Engine, MatchState, defensive geometry, Editor Mode, or Manual Multiplayer behavior changed.
+
 # Release Changelog
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.

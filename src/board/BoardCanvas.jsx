@@ -163,7 +163,14 @@ export function BoardCanvas({
   );
 
   const matchDefensiveOutlineCells = matchDefensiveAreas.flatMap(area => {
-    const hasAreaCell = (x, y) => area.cellsByCoordinate.has(`${Number(x)}:${Number(y)}`);
+    const ownerCoordinateKey = `${Number(area.ownerX)}:${Number(area.ownerY)}`;
+    // Some defensive geometries omit the owner's occupied coordinate from the
+    // raw cells. It still belongs to the area's topology, otherwise adjacent
+    // cells wrongly draw an internal box around the player.
+    const hasAreaCell = (x, y) => {
+      const key = `${Number(x)}:${Number(y)}`;
+      return key === ownerCoordinateKey || area.cellsByCoordinate.has(key);
+    };
     return Array.from(area.cellsByCoordinate.values())
       .filter(cell => !playerSquareKeys.has(`${Number(cell.x)}:${Number(cell.y)}`))
       .map(cell => {
