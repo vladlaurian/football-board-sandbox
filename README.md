@@ -6,13 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.25.0` |
-| Git/package version | `20.25.0` |
-| Build name | `Final_Board_v20_25_0_pass_start_cancel_engine` |
-| Base build | `v20.24.1 restart_regression_correction` |
+| Sandbox version | `v20.25.1` |
+| Git/package version | `20.25.1` |
+| Build name | `Final_Board_v20_25_1_pass_target_engine` |
+| Base build | `v20.25.0 pass_start_cancel_engine` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.25.0`. The repository version is defined in `package.json` as `20.25.0`. The browser title is `Sandbox v20.25.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.25.1`. The repository version is defined in `package.json` as `20.25.1`. The browser title is `Sandbox v20.25.1`.
+
+## v20.25.1 release summary
+
+v20.25.1 migrates only offline Single Player Match Mode target choice through `PASS_TARGET_SELECTED -> Game Engine -> Single Player Controller -> Timeline -> applyTimelineGameState`. The Engine accepts only the current canonical targeting Pass with matching identity and an integer board coordinate inside the frozen MatchContext board. It records the existing `PASS_TARGET_SELECTED` semantic event, stores the requested target and enters `route-selection`. It does not consume Tracker economy, reject an occupied target, construct a Pass plan, select a route, roll, resolve interception, move the ball or change possession.
+
+The route preview and the still-legacy route-plan calculation now read Rule Set, board settings and gameplay-card data from the active MatchContext in offline Single Player. A card, rule or board-editor change made after Match start can therefore no longer alter the routes shown or calculated for that active match. Route confirmation itself remains deliberately outside the Engine until its separately approved slice. Normal target choice remains stepwise in History; a Bonus Pass target remains inside its existing atomic Bonus Action transaction. Manual Multiplayer remains unchanged.
 
 ## v20.25.0 release summary
 

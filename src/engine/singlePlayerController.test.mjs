@@ -42,7 +42,7 @@ function normalMoveState() {
 }
 
 function normalMoveContext() {
-  return { gameplayCards: [{ id: "card-blue-1", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] }] };
+  return { boardSettings: { cols: 20, rows: 12 }, gameplayCards: [{ id: "card-blue-1", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] }] };
 }
 
 test("Single Player Controller records engine Free Ball result in Timeline and supports Undo/Redo", () => {
@@ -334,6 +334,24 @@ test("Single Player Controller records normal Pass targeting and cancellation as
   assert.equal(redoCancel.state.actionResolution, null);
 });
 
+test("Single Player Controller records Pass target selection as its own ordinary Undo/Redo step", () => {
+  const started = dispatchSinglePlayerGameCommand({
+    state: normalMoveState(), context: normalMoveContext(),
+    command: { id: "controller-target-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "controller-target" } },
+  });
+  const selected = dispatchSinglePlayerGameCommand({
+    timeline: started.timeline, state: started.state, context: normalMoveContext(),
+    command: { id: "controller-target-select", type: "PASS_TARGET_SELECTED", payload: { passId: "controller-target", x: 8, y: 5 } },
+  });
+  assert.deepEqual(selected.timeline.entries.map(entry => entry.type), ["PASS_TARGETING_STARTED", "PASS_TARGET_SELECTED"]);
+  assert.deepEqual(selected.state.actionResolution.target, { x: 8, y: 5 });
+  const undone = undoTimeline(selected.timeline);
+  assert.equal(undone.state.actionResolution.status, "targeting");
+  const redone = redoTimeline(undone.timeline);
+  assert.equal(redone.state.actionResolution.status, "route-selection");
+  assert.deepEqual(redone.state.actionResolution.target, { x: 8, y: 5 });
+});
+
 test("Single Player Controller keeps Bonus Pass start and cancellation in one atomic transaction", () => {
   const start = createGameState({
     ...normalMoveState(),
@@ -360,4 +378,26 @@ test("Single Player Controller keeps Bonus Pass start and cancellation in one at
   const redone = redoAtomicTimelineTransaction(undone.timeline);
   assert.equal(redone.state.actionResolution, null);
   assert.equal(redone.state.actionContinuation.status, "ready");
+});
+
+test("Single Player Controller keeps Bonus Pass target selection in its atomic Undo/Redo transaction", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    actionContinuation: { id: "controller-bonus-target", kind: "bonus-card-action", team: "blue", status: "ready", resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" } },
+  });
+  const started = dispatchSinglePlayerGameCommand({
+    state: start, context: normalMoveContext(),
+    command: { id: "controller-bonus-target-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "controller-bonus-target-pass" } },
+  });
+  const selected = dispatchSinglePlayerGameCommand({
+    timeline: started.timeline, state: started.state, context: normalMoveContext(),
+    command: { id: "controller-bonus-target-select", type: "PASS_TARGET_SELECTED", payload: { passId: "controller-bonus-target-pass", x: 8, y: 5 } },
+  });
+  assert.deepEqual(selected.timeline.entries.map(entry => entry.type), ["BONUS_PASS_TARGETING_STARTED", "PASS_TARGET_SELECTED"]);
+  const undone = undoAtomicTimelineTransaction(selected.timeline);
+  assert.equal(undone.state.actionResolution, null);
+  assert.equal(undone.state.actionContinuation.status, "ready");
+  const redone = redoAtomicTimelineTransaction(undone.timeline);
+  assert.equal(redone.state.actionResolution.status, "route-selection");
+  assert.deepEqual(redone.state.actionResolution.target, { x: 8, y: 5 });
 });

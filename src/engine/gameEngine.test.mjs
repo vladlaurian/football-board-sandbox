@@ -49,6 +49,7 @@ function normalMoveState(overrides = {}) {
 function normalMoveContext() {
   return createMatchContext({
     id: "normal-move-context",
+    boardSettings: { cols: 20, rows: 12 },
     gameplayCards: [{ id: "card-blue-1", name: "Blue 1", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] }],
   });
 }
@@ -884,6 +885,66 @@ test("PASS_STARTED and PASS_CANCELLED preserve a ready Bonus Action without touc
     command: normalMoveCommand("BONUS_MOVE_STARTED", {}, "bonus-move-after-pass-cancel"),
   });
   assert.equal(move.accepted, true);
+});
+
+test("PASS_TARGET_SELECTED is canonical, keeps an occupied target legal, and does not consume Tracker", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 3, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 3, y: 5 },
+      { id: "red-on-target", team: "B", x: 9, y: 7 },
+    ],
+  });
+  const started = applyGameCommand({
+    state: start, context: normalMoveContext(),
+    command: { id: "pass-target-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "pass-target-1" } },
+  });
+  const selected = applyGameCommand({
+    state: started.nextState, context: normalMoveContext(),
+    command: { id: "pass-target-select", type: "PASS_TARGET_SELECTED", payload: { passId: "pass-target-1", x: 9, y: 7 } },
+  });
+  assert.equal(selected.accepted, true);
+  assert.equal(selected.nextState.actionResolution.status, "route-selection");
+  assert.deepEqual(selected.nextState.actionResolution.target, { x: 9, y: 7 });
+  assert.equal(selected.nextState.actionResolution.plan, undefined);
+  assert.equal(selected.nextState.tracker.usedActions.blue, 0);
+  assert.equal(selected.events[0].type, "PASS_TARGET_SELECTED");
+});
+
+test("PASS_TARGET_SELECTED rejects stale, non-integer, and out-of-bounds targets without mutation", () => {
+  const started = applyGameCommand({
+    state: normalMoveState(), context: normalMoveContext(),
+    command: { id: "pass-target-reject-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "pass-target-reject" } },
+  });
+  for (const [command, reason] of [
+    [{ id: "pass-target-wrong-id", type: "PASS_TARGET_SELECTED", payload: { passId: "other", x: 5, y: 5 } }, "PASS_NOT_TARGETING"],
+    [{ id: "pass-target-fraction", type: "PASS_TARGET_SELECTED", payload: { passId: "pass-target-reject", x: 5.5, y: 5 } }, "PASS_TARGET_INVALID"],
+    [{ id: "pass-target-off-board", type: "PASS_TARGET_SELECTED", payload: { passId: "pass-target-reject", x: 20, y: 5 } }, "PASS_TARGET_OUT_OF_BOUNDS"],
+  ]) {
+    const before = structuredClone(started.nextState);
+    assert.deepEqual(applyGameCommand({ state: started.nextState, context: normalMoveContext(), command }), { accepted: false, reason });
+    assert.deepEqual(started.nextState, before);
+  }
+});
+
+test("PASS_TARGET_SELECTED remains in the atomic Bonus Pass transaction without touching Tracker", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    actionContinuation: { id: "bonus-target", kind: "bonus-card-action", team: "blue", status: "ready", resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" } },
+  });
+  const started = applyGameCommand({
+    state: start, context: normalMoveContext(),
+    command: { id: "bonus-target-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "bonus-target-pass" } },
+  });
+  const selected = applyGameCommand({
+    state: started.nextState, context: normalMoveContext(),
+    command: { id: "bonus-target-select", type: "PASS_TARGET_SELECTED", payload: { passId: "bonus-target-pass", x: 7, y: 5 } },
+  });
+  assert.equal(selected.accepted, true);
+  assert.equal(selected.timeline.groupId, "bonus-target");
+  assert.equal(selected.nextState.tracker.usedActions.blue, 0);
+  assert.equal(selected.nextState.actionContinuation.status, "action-active");
 });
 
 test("PASS_STARTED rejects an invalid passer, a non-carrier, and an exhausted normal phase without mutating state", () => {

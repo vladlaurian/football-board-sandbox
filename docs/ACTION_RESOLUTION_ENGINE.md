@@ -162,6 +162,12 @@ Offline Single Player phase closure is now a typed Engine transition: `TRACKER_P
 
 Pass remains responsible for its current geometry and rules. It uses explicit pending decisions, pending roll requests and unique roll events. This is the reference implementation for future automated actions.
 
+## v20.25.1 — canonical Pass target boundary
+
+Offline Single Player target choice is now an Engine command, `PASS_TARGET_SELECTED`. It advances only `targeting -> route-selection` after checking the current Pass identity and frozen-board coordinate. It never consumes Tracker economy or evaluates route geometry. A requested occupied square remains legal because only the later route plan determines a first physical hit and effective endpoint. Route confirmation and downstream resolution remain separate migrations.
+
+While that route-confirmation migration is pending, its offline preview and existing plan construction must read the active MatchContext rather than mutable editor cards, Rule Set or board settings.
+
 ## Multiplayer canonical resolution rule added in v19.13
 
 A remote user may create an authorized pending decision or RollEvent, but only the host applies the deterministic consequence. Host scheduling must be derived from the canonical hydrated Timeline state, not exclusively from a one-time "new entry" notification. Repeated Firestore snapshots for the same entry must not restart its cosmetic delay, and an already consumed RollEvent must remain idempotent.

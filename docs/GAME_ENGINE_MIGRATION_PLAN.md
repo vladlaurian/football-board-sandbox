@@ -232,6 +232,24 @@ Delivered files and tests:
 - offline Single Player branches of `beginPassTargeting()` and `commitPassCancellation()` in `src/main.jsx`
 - focused command: `node --test src/engine/gameEngine.test.mjs src/engine/singlePlayerController.test.mjs src/multiplayer/actionStartAuthority.test.mjs`
 
+### v20.25.1 — offline Single Player Pass target Engine migration and frozen route input
+
+**Status:** Complete as the second narrow Pass slice.
+
+`PASS_TARGET_SELECTED` now flows through the pure Game Engine and Single Player Controller in offline Single Player Match Mode. The Engine accepts only a canonical Pass in `targeting` state with its matching pass identity and an integer coordinate inside the immutable MatchContext board. It stores the requested target and enters `route-selection`, retaining the existing Timeline event name. It deliberately does not consume a normal Tracker action, reject an occupied requested target, construct a plan, select a route, open an interceptor choice or roll, or alter the ball/possession.
+
+The offline route preview and remaining legacy `buildPassPlan()` call now use frozen MatchContext Rule Set, board geometry and gameplay-card projections rather than mutable editor data. This closes the active-match card/rule/editor drift without prematurely migrating route confirmation. Normal target selection remains a stepwise Timeline entry. Bonus Pass target selection retains the existing continuation group and atomic Undo/Redo transaction. Manual Multiplayer remains unchanged.
+
+Delivered files and tests:
+
+- `src/engine/passStartRules.mjs`
+- `src/engine/gameCommands.mjs`
+- `src/engine/gameEngine.mjs`
+- `src/engine/gameEngine.test.mjs`
+- `src/engine/singlePlayerController.test.mjs`
+- offline Single Player `commitPassTargetSelection()` and frozen route preview/plan inputs in `src/main.jsx`
+- focused command: `node --test src/engine/gameEngine.test.mjs src/engine/singlePlayerController.test.mjs src/multiplayer/actionStartAuthority.test.mjs`
+
 ### v20.19.0 — offline Single Player Free Move Engine migration
 
 Free Move now has one offline Match Mode mutation path: `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` flow through the Game Engine and Single Player Controller into Timeline. It is deliberately an administrative correction rather than a Tracker action. The three Timeline entries are ordinary reversible history, so Undo/Redo may step across them and AI export retains the correction as `FREE_MODE` with `MANUAL_CORRECTION` provenance.
@@ -274,7 +292,7 @@ Acceptance:
 
 ## Phase 5 — Tracker, turns, and possession
 
-**Status:** In progress — v20.25.0 completes Pass start/cancel only.
+**Status:** In progress — v20.25.0–v20.25.1 complete Pass start/cancel/target only.
 
 Migrate Match start, phase completion, turn change, possession change, action reset, and currently existing match-completion behavior.
 

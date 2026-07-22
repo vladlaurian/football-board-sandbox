@@ -10,7 +10,7 @@ import { cancelBonusMove, commitBonusMove, startBonusMove } from "./bonusMoveRul
 import { endBonusAction } from "./bonusActionRules.mjs";
 import { endTrackerPhase } from "./trackerPhaseRules.mjs";
 import { restartMatch, startMatch } from "./matchLifecycleRules.mjs";
-import { cancelPass, startPass } from "./passStartRules.mjs";
+import { cancelPass, selectPassTarget, startPass } from "./passStartRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -91,6 +91,7 @@ export function applyGameCommand({ state, context, command } = {}) {
     GAME_COMMAND_TYPE.BONUS_MOVE_COMMITTED,
     GAME_COMMAND_TYPE.BONUS_ACTION_ENDED,
     GAME_COMMAND_TYPE.PASS_STARTED,
+    GAME_COMMAND_TYPE.PASS_TARGET_SELECTED,
     GAME_COMMAND_TYPE.PASS_CANCELLED,
   ].includes(normalizedCommand.type)) return rejected("BONUS_ACTION_ACTIVE");
   if ([GAME_COMMAND_TYPE.MATCH_STARTED, GAME_COMMAND_TYPE.MATCH_RESTARTED].includes(normalizedCommand.type)) {
@@ -113,6 +114,14 @@ export function applyGameCommand({ state, context, command } = {}) {
   }
   if (normalizedCommand.type === GAME_COMMAND_TYPE.PASS_CANCELLED) {
     const transition = cancelPass(currentState, normalizedCommand);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({
+      ...transition.event,
+      commandId: normalizedCommand.id,
+    })], transition.timeline);
+  }
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.PASS_TARGET_SELECTED) {
+    const transition = selectPassTarget(currentState, matchContext, normalizedCommand);
     if (!transition.accepted) return rejected(transition.reason);
     return accepted(createGameState(transition.nextState), [createGameEvent({
       ...transition.event,

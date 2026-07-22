@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.25.0";
+const APP_VERSION = "v20.25.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -6845,17 +6845,21 @@ function App() {
     if (pending?.kind !== "pass" || !pending.passerId || !pending.target) return null;
     const passer = pieces.find(piece => piece.id === pending.passerId);
     if (!passer) return null;
-    const rules = activeRuleSet.actions?.pass || {};
+    const frozenMatchContext = !sessionCode && gameMode === "match" ? singlePlayerMatchContext() : null;
+    const previewRuleSet = frozenMatchContext?.ruleSet || activeRuleSet;
+    const previewSettings = frozenMatchContext?.boardSettings || settings;
+    const previewCardsById = frozenMatchContext?.gameplayCardsById || cardById;
+    const rules = previewRuleSet.actions?.pass || {};
     const cornerIds = rules.pathMode === "center-to-center" ? [null] : PASS_CORNERS.map(corner => corner.id);
     const plans = cornerIds.map(cornerId => buildPassPlan({
       passer,
-      passerCard: cardById[passer.cardId],
+      passerCard: previewCardsById[passer.cardId],
       pieces,
-      cardById,
-      settings,
+      cardById: previewCardsById,
+      settings: previewSettings,
       target: pending.target,
       cornerId,
-      rules: activeRuleSet,
+      rules: previewRuleSet,
     }));
     const validPlans = plans.filter(plan => !plan.originBlocked);
     const chosen = validPlans.find(plan => plan.origin.cornerId === pending.cornerId) || validPlans[0] || plans[0];
@@ -6885,7 +6889,7 @@ function App() {
         risk: Boolean(plan.interceptors?.length),
       })) : [],
     };
-  }, [actionResolution, pieces, cardById, settings, activeRuleSet]);
+  }, [actionResolution, pieces, cardById, settings, activeRuleSet, gameMode, sessionCode]);
 
   const pendingDelayedResolution = useMemo(
     () => isReplayView ? null : delayedResolutionAtCursor(gameTimeline, actionResolution),
@@ -9908,6 +9912,28 @@ function App() {
 
   function commitPassTargetSelection(x, y, pending = actionResolutionRef.current) {
     if (pending?.kind !== "pass" || pending.status !== "targeting") return false;
+    if (!sessionCode) {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`pass_target_${pending.id}`),
+          type: GAME_COMMAND_TYPE.PASS_TARGET_SELECTED,
+          payload: { passId: pending.id, x: Number(x), y: Number(y) },
+        },
+        label: `Pass target selected: ${toCoord(x, y)}`,
+      });
+      if (!dispatched.result.accepted) return false;
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      setHoveredCell(null);
+      if (singlePlayerMatchContext().ruleSet.actions?.pass?.pathMode === "center-to-center") {
+        confirmPassRoute(null);
+      }
+      return true;
+    }
     const next = { ...pending, target: { x: Number(x), y: Number(y) }, status: "route-selection" };
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
     setLiveActionResolution(next);
@@ -9972,15 +9998,19 @@ function App() {
     if (pending?.kind !== "pass" || pending.status !== "route-selection" || !pending.target) return null;
     const passer = (piecesRef.current || pieces).find(piece => piece.id === pending.passerId);
     if (!passer) return null;
+    const frozenMatchContext = !sessionCode ? singlePlayerMatchContext() : null;
+    const passRuleSet = frozenMatchContext?.ruleSet || activeRuleSetRef.current;
+    const passBoardSettings = frozenMatchContext?.boardSettings || settingsRef.current;
+    const passCardsById = frozenMatchContext?.gameplayCardsById || cardById;
     const plan = buildPassPlan({
       passer,
-      passerCard: cardById[passer.cardId],
+      passerCard: passCardsById[passer.cardId],
       pieces: piecesRef.current || pieces,
-      cardById,
-      settings: settingsRef.current,
+      cardById: passCardsById,
+      settings: passBoardSettings,
       target: pending.target,
       cornerId,
-      rules: activeRuleSetRef.current,
+      rules: passRuleSet,
     });
     if (plan.originBlocked) {
       setIllegalMoveNotice({ reason: "pass-origin-blocked" });

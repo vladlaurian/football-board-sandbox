@@ -91,6 +91,40 @@ export function startPass(state, command) {
   };
 }
 
+export function selectPassTarget(state, context, command) {
+  const pending = state.actionResolution;
+  const passId = passIdForCommand(command);
+  if (!pending || pending.kind !== "pass" || pending.status !== "targeting") {
+    return { accepted: false, reason: "PASS_NOT_TARGETING" };
+  }
+  if (!passId || passId !== String(pending.id || "")) return { accepted: false, reason: "PASS_NOT_TARGETING" };
+  const x = Number(command.payload?.x);
+  const y = Number(command.payload?.y);
+  if (!Number.isInteger(x) || !Number.isInteger(y)) return { accepted: false, reason: "PASS_TARGET_INVALID" };
+  const cols = Number(context?.boardSettings?.cols);
+  const rows = Number(context?.boardSettings?.rows);
+  if (!Number.isFinite(cols) || !Number.isFinite(rows) || cols < 1 || rows < 1 || x < 0 || y < 0 || x >= cols || y >= rows) {
+    return { accepted: false, reason: "PASS_TARGET_OUT_OF_BOUNDS" };
+  }
+  const continuation = normalizeActionContinuation(state.actionContinuation);
+  const bonusPass = Boolean(pending.continuationId && continuation?.id === pending.continuationId);
+  const next = {
+    ...pending,
+    target: { x, y },
+    status: "route-selection",
+  };
+  return {
+    accepted: true,
+    nextState: { ...state, actionResolution: next },
+    event: {
+      type: "PASS_TARGET_SELECTED",
+      team: pending.team,
+      metadata: { passId, target: { x, y }, continuationId: bonusPass ? continuation.id : null },
+    },
+    timeline: { groupId: bonusPass ? continuation.id : null, undoMode: bonusPass ? "atomic" : "step", allowNoop: true },
+  };
+}
+
 export function cancelPass(state, command) {
   const pending = state.actionResolution;
   const passId = passIdForCommand(command);

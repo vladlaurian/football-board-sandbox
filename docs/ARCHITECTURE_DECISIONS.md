@@ -458,6 +458,21 @@ Restart uses the same canonical lifecycle reset as Match start, but deliberately
 - Target selection, geometry/route, interceptor choice, dice, delayed resolution, interception, possession and completion remain separate migration slices. They must use this same resolution rather than create a second Pass state path.
 - Manual Multiplayer remains unchanged until the frozen multiplayer track is explicitly reopened.
 
+## ADR-033 — Pass target is canonical; active-match route inputs are frozen
+
+**Status:** Active
+
+**Decision:** Offline Single Player Match Mode selects a Pass target only through `PASS_TARGET_SELECTED`. The Engine validates the current targeting resolution, matching Pass identity and integer board coordinate against the immutable MatchContext board, then stores the requested target and advances to `route-selection`. An occupied target remains legal because the established Pass plan may shorten to the first player physically hit; target selection must not pre-judge that later route rule.
+
+Until route confirmation receives its own Engine migration, both offline route preview and its remaining legacy plan construction read Rule Set, board settings and gameplay-card values from MatchContext rather than the live editor.
+
+**Consequences:**
+
+- Target choice is ordinary canonical Timeline state with deterministic Undo/Redo; it does not consume Tracker economy or create a plan, roll, interception or possession change.
+- An edit made after Match start cannot change the routes displayed or calculated for that active Match.
+- Route confirmation remains a distinct future slice because it is the actual action-consumption and resolution-entry boundary.
+- Manual Multiplayer remains unchanged.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active
