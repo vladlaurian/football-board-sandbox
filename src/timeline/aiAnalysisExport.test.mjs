@@ -109,6 +109,26 @@ test("unlinked physical moves are explicitly exported as Manual Move", () => {
   assert.equal(exported.semanticTimeline[0].resolution.status, "NOT_AUTOMATED");
 });
 
+test("manual declared actions remain explicit rather than pretending their rule was automated", () => {
+  const before = state();
+  const after = state({
+    tracker: {
+      ...before.tracker,
+      usedActions: { blue: 1, red: 0 },
+      actionLog: { blue: [{ id: "manual_dribble", type: "DRIBBLE", pieceId: "A-1" }], red: [] },
+    },
+  });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, {
+    id: "manual_dribble", type: "MANUAL_ACTION_DECLARED", label: "Blue DRIBBLE: Veer (manual)", team: "blue",
+    metadata: { actionType: "DRIBBLE", pieceId: "A-1", manualResolutionRequired: true }, before, after,
+  }, { allowNoop: true });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  assert.equal(exported.semanticTimeline[0].type, "DRIBBLE");
+  assert.equal(exported.semanticTimeline[0].resolution.status, "MANUAL_DECLARATION");
+  assert.equal(exported.semanticTimeline[0].explicitOutcome, "MANUAL_RESOLUTION_REQUIRED");
+});
+
 test("Free Ball is explicitly identified in AI export", () => {
   const before = state();
   const after = state({ pieces: [before.pieces[0], before.pieces[1], { ...before.pieces[2], x: 14, y: 9 }] });

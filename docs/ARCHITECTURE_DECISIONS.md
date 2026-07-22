@@ -573,6 +573,22 @@ Extra Roll is administrative rather than a Bonus card action. An active Bonus Ac
 - Roll, frozen result and granted continuation remain one atomic resolution transaction; the granted Bonus Action remains its own later atomic action transaction.
 - Manual Multiplayer remains untouched.
 
+## ADR-041 — Phase 8A keeps test safety and manual declarations canonical
+
+**Status:** Active.
+
+**Decision:** The remaining offline Match controls discovered by the Phase 8 audit must not retain direct UI state mutation. `INACTIVE` / `ACTIVE`, Reset Trackers and Change Possession are Engine commands with normal Timeline/Undo/Redo/AI visibility. Reset and possession remain temporary administrative safety tools while Match automation is still under construction.
+
+Unimplemented individual action buttons (`SHOT`, `CROSS`, `DRIBBLE`, `TACKLING`) remain available for manual test matches, but only as canonical declarations. A normal declaration consumes the existing Tracker action; a Bonus declaration consumes the chosen Bonus Action and remains awaiting explicit `END B.A.`. Neither declaration invents a board consequence, probability, die result or rule outcome. AI Analysis must explicitly say that manual resolution is required.
+
+Editor Workspace setup is locked after an offline Match starts whenever a change could contradict frozen MatchContext or rewrite live Match setup. Editor Mode remains unrestricted and Manual Multiplayer remains unchanged.
+
+**Consequences:**
+
+- Future implementations of Dribble, Shot, Cross and Tackling replace only the Engine treatment of their already-wired commands; UI, Timeline and action economy do not need another migration.
+- Safety controls can later be retired from Match Mode without leaving hidden direct mutation paths.
+- Phase 8B may centralize the Controller gateway without re-auditing the completed 8A mutation inventory.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

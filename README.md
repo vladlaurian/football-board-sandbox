@@ -6,13 +6,21 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.31.0` |
-| Git/package version | `20.31.0` |
-| Build name | `Final_Board_v20_31_0_pass_natural_twenty_engine` |
-| Base build | `v20.27.0 pass_interceptor_choice_engine` |
+| Sandbox version | `v20.32.0` |
+| Git/package version | `20.32.0` |
+| Build name | `Final_Board_v20_32_0_phase_8a_match_boundary` |
+| Base build | `v20.31.0 pass_natural_twenty_engine` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.31.0`. The repository version is defined in `package.json` as `20.31.0`. The browser title is `Sandbox v20.31.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.32.0`. The repository version is defined in `package.json` as `20.32.0`. The browser title is `Sandbox v20.32.0`.
+
+## v20.32.0 Phase 8A — Match boundary sealed
+
+This build removes the remaining audited offline Single Player Match mutations from `main.jsx` without changing Manual Multiplayer. `INACTIVE`, `Reset Trackers`, and `Change Possession` now dispatch Engine commands and produce canonical Timeline state, Undo/Redo and AI records. The latter two remain intentionally available as temporary Match safety tools during testing; they are administrative commands, not gameplay mechanics.
+
+`SHOT`, `CROSS`, `DRIBBLE`, and `TACKLING` remain usable for manual test matches. They now dispatch canonical Engine declarations instead of directly editing Tracker or Bonus Action state. A normal declaration consumes the established Tracker action; a Bonus declaration completes that chosen Bonus Action and still requires explicit `END B.A.`. Neither command invents movement, probability, or an outcome. AI Export labels the result `MANUAL_DECLARATION` / `MANUAL_RESOLUTION_REQUIRED`, so later analysis knows that the physical consequence was executed manually.
+
+After an offline Match starts, Editor Workspace operations that could rewrite the active setup are locked: board geometry, formations, scenarios, card assignment/editing and Tracker settings. Editor Mode remains unrestricted; `INACTIVE` also remains available there through its existing workspace behavior. Rule Sets and MatchContext remain frozen as before.
 
 ## v20.31.0 Natural 20 Pass consequence
 

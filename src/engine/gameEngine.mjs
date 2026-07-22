@@ -11,6 +11,7 @@ import { endBonusAction } from "./bonusActionRules.mjs";
 import { endTrackerPhase } from "./trackerPhaseRules.mjs";
 import { restartMatch, startMatch } from "./matchLifecycleRules.mjs";
 import { applyPassConsequence, cancelPass, confirmPassRoute, resolvePassInterception, selectPassInterceptor, selectPassTarget, startPass, submitPassInterceptionRoll } from "./passStartRules.mjs";
+import { changePieceActivity, changeTrackerPossession, declareManualAction, declareManualBonusAction, resetTrackerActions } from "./matchAdministrationRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -101,18 +102,27 @@ export function applyGameCommand({ state, context, command } = {}) {
     GAME_COMMAND_TYPE.MATCH_RESTARTED,
     GAME_COMMAND_TYPE.FREE_MOVE_COMMITTED,
     GAME_COMMAND_TYPE.FREE_MOVE_ENDED,
+    GAME_COMMAND_TYPE.PIECE_ACTIVITY_CHANGED,
+    GAME_COMMAND_TYPE.TRACKER_ACTIONS_RESET,
+    GAME_COMMAND_TYPE.TRACKER_POSSESSION_CHANGED,
   ].includes(normalizedCommand.type)) return rejected("FREE_MOVE_ACTIVE");
   if (groupMoveActive && ![
     GAME_COMMAND_TYPE.MATCH_STARTED,
     GAME_COMMAND_TYPE.MATCH_RESTARTED,
     GAME_COMMAND_TYPE.GROUP_MOVE_PLAYER_COMMITTED,
     GAME_COMMAND_TYPE.TRACKER_PHASE_ENDED,
+    GAME_COMMAND_TYPE.PIECE_ACTIVITY_CHANGED,
+    GAME_COMMAND_TYPE.TRACKER_ACTIONS_RESET,
+    GAME_COMMAND_TYPE.TRACKER_POSSESSION_CHANGED,
   ].includes(normalizedCommand.type)) return rejected("GROUP_MOVE_ACTIVE");
   if (normalMoveInteractionActive && ![
     GAME_COMMAND_TYPE.MATCH_STARTED,
     GAME_COMMAND_TYPE.MATCH_RESTARTED,
     GAME_COMMAND_TYPE.NORMAL_MOVE_CANCELLED,
     GAME_COMMAND_TYPE.NORMAL_MOVE_COMMITTED,
+    GAME_COMMAND_TYPE.PIECE_ACTIVITY_CHANGED,
+    GAME_COMMAND_TYPE.TRACKER_ACTIONS_RESET,
+    GAME_COMMAND_TYPE.TRACKER_POSSESSION_CHANGED,
   ].includes(normalizedCommand.type)) return rejected("MOVE_INTERACTION_ACTIVE");
   if (bonusActionActive && ![
     GAME_COMMAND_TYPE.MATCH_STARTED,
@@ -131,6 +141,10 @@ export function applyGameCommand({ state, context, command } = {}) {
     GAME_COMMAND_TYPE.PASS_CONSEQUENCE_DUE,
     GAME_COMMAND_TYPE.PASS_CANCELLED,
     GAME_COMMAND_TYPE.EXTRA_ROLL_SUBMITTED,
+    GAME_COMMAND_TYPE.PIECE_ACTIVITY_CHANGED,
+    GAME_COMMAND_TYPE.TRACKER_ACTIONS_RESET,
+    GAME_COMMAND_TYPE.TRACKER_POSSESSION_CHANGED,
+    GAME_COMMAND_TYPE.BONUS_MANUAL_ACTION_DECLARED,
   ].includes(normalizedCommand.type)) return rejected("BONUS_ACTION_ACTIVE");
   if ([GAME_COMMAND_TYPE.MATCH_STARTED, GAME_COMMAND_TYPE.MATCH_RESTARTED].includes(normalizedCommand.type)) {
     const transition = normalizedCommand.type === GAME_COMMAND_TYPE.MATCH_RESTARTED
@@ -141,6 +155,26 @@ export function applyGameCommand({ state, context, command } = {}) {
       ...transition.event,
       commandId: normalizedCommand.id,
     })], transition.timeline);
+  }
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.PIECE_ACTIVITY_CHANGED) {
+    const transition = changePieceActivity(currentState, normalizedCommand);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({ ...transition.event, commandId: normalizedCommand.id })], transition.timeline);
+  }
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.TRACKER_ACTIONS_RESET) {
+    const transition = resetTrackerActions(currentState);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({ ...transition.event, commandId: normalizedCommand.id })], transition.timeline);
+  }
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.TRACKER_POSSESSION_CHANGED) {
+    const transition = changeTrackerPossession(currentState);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({ ...transition.event, commandId: normalizedCommand.id })], transition.timeline);
+  }
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.BONUS_MANUAL_ACTION_DECLARED) {
+    const transition = declareManualBonusAction(currentState, normalizedCommand);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({ ...transition.event, commandId: normalizedCommand.id })], transition.timeline);
   }
   if (normalizedCommand.type === GAME_COMMAND_TYPE.PASS_STARTED) {
     const transition = startPass(currentState, normalizedCommand);
@@ -214,6 +248,11 @@ export function applyGameCommand({ state, context, command } = {}) {
     return applyExtraRoll(currentState, normalizedCommand);
   }
   if (currentState.actionResolution) return rejected("ACTION_RESOLUTION_ACTIVE");
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.MANUAL_ACTION_DECLARED) {
+    const transition = declareManualAction(currentState, normalizedCommand);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({ ...transition.event, commandId: normalizedCommand.id })], transition.timeline);
+  }
   const freeMoveTransition = normalizedCommand.type === GAME_COMMAND_TYPE.FREE_MOVE_STARTED
     ? startFreeMove(currentState, normalizedCommand)
     : normalizedCommand.type === GAME_COMMAND_TYPE.FREE_MOVE_COMMITTED

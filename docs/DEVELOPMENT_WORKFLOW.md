@@ -199,7 +199,9 @@ Every delivered build must be accompanied by a factual summary stating:
 The summary must describe the delivered artifact, not the original intention.
 
 
-## Future Architecture Note – Interaction Layer Refactor
+## Historical multiplayer note — do not resume during the Single Player migration
+
+This describes the retained Manual Multiplayer compatibility path, not current implementation work. Automated multiplayer is frozen by ADR-020 and must not be repaired or extended until the completed Single Player migration and Phase 9 audit explicitly reopen it.
 
 - Keep Host Authority + Timeline + Intents as the canonical multiplayer architecture.
 - Do not rewrite multiplayer to solve current UI bugs.

@@ -1451,3 +1451,73 @@ test("PASS_STARTED rejects an invalid passer, a non-carrier, and an exhausted no
     assert.deepEqual(state, before);
   }
 });
+
+test("Phase 8A administrative Tracker safety commands are Engine-owned and reversible", () => {
+  const state = normalMoveState({
+    movementStateByPieceId: { "blue-1": { spent: 2, distance: 2, axis: "horizontal" } },
+    tracker: {
+      ...normalMoveState().tracker,
+      usedActions: { blue: 2, red: 1 },
+      actionLog: { blue: [{ id: "old-blue", type: "PASS", pieceId: "blue-1" }, { id: "old-blue-2", type: "SHOT", pieceId: "blue-1" }], red: [{ id: "old-red", type: "TACKLING", pieceId: "red-1" }] },
+    },
+  });
+  const reset = applyGameCommand({ state, context: normalMoveContext(), command: { id: "tracker-reset", type: "TRACKER_ACTIONS_RESET", payload: {} } });
+  assert.equal(reset.accepted, true);
+  assert.equal(reset.events[0].type, "TRACKER_RESET");
+  assert.equal(reset.events[0].metadata.administrative, true);
+  assert.deepEqual(reset.nextState.tracker.usedActions, { blue: 0, red: 0 });
+  assert.deepEqual(reset.nextState.movementStateByPieceId, {});
+
+  const possession = applyGameCommand({ state, context: normalMoveContext(), command: { id: "tracker-possession", type: "TRACKER_POSSESSION_CHANGED", payload: {} } });
+  assert.equal(possession.accepted, true);
+  assert.equal(possession.events[0].type, "POSSESSION_CHANGED");
+  assert.equal(possession.nextState.tracker.startingTeam, "red");
+  assert.equal(possession.nextState.tracker.turnPhase, "attack");
+  assert.deepEqual(possession.nextState.tracker.usedActions, { blue: 0, red: 0 });
+});
+
+test("PIECE_ACTIVITY_CHANGED owns Match activity while preserving Editor Workspace independence", () => {
+  const state = normalMoveState();
+  const changed = applyGameCommand({
+    state, context: normalMoveContext(),
+    command: { id: "blue-inactive", type: "PIECE_ACTIVITY_CHANGED", payload: { pieceId: "blue-1", inactive: true } },
+  });
+  assert.equal(changed.accepted, true);
+  assert.equal(changed.events[0].type, "PIECE_ACTIVITY_CHANGED");
+  assert.equal(changed.events[0].metadata.inactive, true);
+  assert.equal(changed.nextState.pieces.find(piece => piece.id === "blue-1").inactive, true);
+  assert.deepEqual(state.pieces.find(piece => piece.id === "blue-1").inactive, undefined);
+  assert.deepEqual(
+    applyGameCommand({ state: createGameState({ ...state, gameMode: "editor" }), context: normalMoveContext(), command: { id: "editor-inactive", type: "PIECE_ACTIVITY_CHANGED", payload: { pieceId: "blue-1", inactive: true } } }),
+    { accepted: false, reason: "MATCH_MODE_REQUIRED" },
+  );
+});
+
+test("unimplemented normal actions become canonical manual declarations without moving a piece", () => {
+  const state = normalMoveState();
+  const result = applyGameCommand({
+    state, context: normalMoveContext(),
+    command: { id: "manual-dribble", type: "MANUAL_ACTION_DECLARED", payload: { pieceId: "blue-1", actionType: "DRIBBLE" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.events[0].type, "MANUAL_ACTION_DECLARED");
+  assert.deepEqual(result.events[0].metadata, { actionType: "DRIBBLE", pieceId: "blue-1", manualResolutionRequired: true });
+  assert.equal(result.nextState.tracker.usedActions.blue, 1);
+  assert.equal(result.nextState.tracker.actionLog.blue[0].type, "DRIBBLE");
+  assert.deepEqual(result.nextState.pieces, state.pieces);
+});
+
+test("unimplemented Bonus actions become canonical manual declarations and await END B.A.", () => {
+  const state = normalMoveState({
+    actionContinuation: { id: "bonus-manual", kind: "bonus-card-action", team: "blue", status: "ready", resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" } },
+  });
+  const result = applyGameCommand({
+    state, context: normalMoveContext(),
+    command: { id: "bonus-manual-shot", type: "BONUS_MANUAL_ACTION_DECLARED", payload: { pieceId: "blue-1", actionType: "SHOT" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.events[0].type, "BONUS_MANUAL_ACTION_DECLARED");
+  assert.equal(result.nextState.actionContinuation.status, "awaiting-end-bonus-action");
+  assert.equal(result.nextState.actionContinuation.actionType, "SHOT");
+  assert.equal(result.nextState.tracker.usedActions.blue, 0);
+});

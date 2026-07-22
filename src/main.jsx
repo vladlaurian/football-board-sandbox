@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.31.0";
+const APP_VERSION = "v20.32.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2298,6 +2298,9 @@ function App() {
     isSessionHost,
   });
   const trackerReadOnly = isReplayView || (!!sessionCode && !isSessionHost);
+  // Editor setup can define a future Match, but cannot rewrite a started
+  // offline Match whose gameplay inputs were frozen into MatchContext.
+  const singlePlayerMatchWorkspaceLocked = !sessionCode && gameMode === "match" && trackerGameStarted;
 
   const pitchStyle = useMemo(() => ({
     "--cols": settings.cols,
@@ -2602,7 +2605,7 @@ function App() {
   }
 
   function canAssignPiece(piece) {
-    return !!piece && piece.team !== "BALL" && !piece.inactive && canControlPieceStatus(piece);
+    return !!piece && !singlePlayerMatchWorkspaceLocked && piece.team !== "BALL" && !piece.inactive && canControlPieceStatus(piece);
   }
 
   function isOwnCardPiece(piece) {
@@ -4481,6 +4484,7 @@ function App() {
   }
 
   function updateSetting(key, value) {
+    if (singlePlayerMatchWorkspaceLocked) return;
     let cleanValue = Number(value);
     if (key === "rows" || key === "goalWidth") {
       cleanValue = forceOddDirectional(cleanValue, settings[key], settings[key]);
@@ -4533,9 +4537,9 @@ function App() {
       <label className="number-control">
         <span>{label}</span>
         <div className="number-stepper">
-          <button type="button" className="step-btn" onClick={() => stepValue(-1)} aria-label={`${label} minus`}>−</button>
-          <input type="number" value={value} min={min} max={max} step={step} onChange={e => updateSetting(name, e.target.value)} />
-          <button type="button" className="step-btn" onClick={() => stepValue(1)} aria-label={`${label} plus`}>+</button>
+          <button type="button" className="step-btn" disabled={singlePlayerMatchWorkspaceLocked} onClick={() => stepValue(-1)} aria-label={`${label} minus`}>−</button>
+          <input type="number" disabled={singlePlayerMatchWorkspaceLocked} value={value} min={min} max={max} step={step} onChange={e => updateSetting(name, e.target.value)} />
+          <button type="button" className="step-btn" disabled={singlePlayerMatchWorkspaceLocked} onClick={() => stepValue(1)} aria-label={`${label} plus`}>+</button>
         </div>
       </label>
     );
@@ -4547,6 +4551,7 @@ function App() {
   }
 
   function applyFormation(team, formationId) {
+    if (singlePlayerMatchWorkspaceLocked) return;
     const formation = getFormationById(formationId);
     pushHistory();
     setPieces(prev => {
@@ -4566,6 +4571,7 @@ function App() {
   }
 
   function saveCurrentAsFormation(team, slotId) {
+    if (singlePlayerMatchWorkspaceLocked) return;
     const slot = formations.find(f => f.id === Number(slotId));
     const defaultName = slot?.name?.startsWith("Slot ") ? "" : slot?.name;
     const name = window.prompt(`Nume formație pentru slotul ${slotId}:`, defaultName || `Formație ${slotId}`);
@@ -4606,6 +4612,7 @@ function App() {
   }
 
   function selectScenarioSlot(id) {
+    if (singlePlayerMatchWorkspaceLocked) return;
     const scenario = gameSituations.find(item => item.id === Number(id));
     if (!scenario) return;
     setActiveSituationId(Number(id));
@@ -4613,6 +4620,7 @@ function App() {
   }
 
   function loadActiveScenario() {
+    if (singlePlayerMatchWorkspaceLocked) return;
     const situation = gameSituations.find(s => s.id === Number(activeSituationId));
     if (!situation?.snapshot) {
       window.alert("This Scenario slot is empty.");
@@ -4655,6 +4663,7 @@ function App() {
   }
 
   function saveActiveGameSituation() {
+    if (singlePlayerMatchWorkspaceLocked) return;
     const currentScenario = gameSituations.find(s => s.id === Number(activeSituationId));
     if (currentScenario?.snapshot && !window.confirm("Overwrite this Scenario? The existing saved Scenario will be replaced.")) return;
     const cleanName = activeSituationName.trim() || `Scenario ${activeSituationId}`;
@@ -4734,6 +4743,7 @@ function App() {
   }
 
   function resetPiecePositions() {
+    if (singlePlayerMatchWorkspaceLocked) return;
     pushHistory();
 
     const currentPieces = piecesRef.current || pieces;
@@ -4768,6 +4778,7 @@ function App() {
   }
 
   function resetPieceCards() {
+    if (singlePlayerMatchWorkspaceLocked) return;
     const currentPieces = piecesRef.current || pieces;
     const hasAssignedCards = currentPieces.some(piece => piece.team !== "BALL" && piece.cardId);
     if (!hasAssignedCards) return;
@@ -6519,12 +6530,14 @@ function App() {
   }
 
   function openEdit(piece) {
+    if (singlePlayerMatchWorkspaceLocked) return;
     if (piece.team === "BALL" || !canAssignPiece(piece)) return;
     setEditingPiece(piece);
     setEditLabel(piece.label);
   }
 
   function saveEdit() {
+    if (singlePlayerMatchWorkspaceLocked) return;
     if (!editingPiece) return;
     const clean = editLabel.trim().slice(0, 5) || "?";
     const beforeTimeline = captureTimelineGameState();
@@ -6574,6 +6587,25 @@ function App() {
   function togglePieceInactive(pieceId) {
     const currentPiece = (piecesRef.current || pieces).find(piece => piece.id === pieceId);
     if (!currentPiece || !currentPiece.cardId || !canControlPieceStatus(currentPiece)) return;
+    if (!sessionCode && gameMode === "match") {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const nextInactive = !currentPiece.inactive;
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`piece_activity_${currentPiece.id}`),
+          type: GAME_COMMAND_TYPE.PIECE_ACTIVITY_CHANGED,
+          payload: { pieceId: currentPiece.id, inactive: nextInactive },
+        },
+        label: `${currentPiece.team === "A" ? "Blue" : "Red"} ${getPieceDisplayLabel(currentPiece)} → ${nextInactive ? "INACTIVE" : "ACTIVE"}`,
+      });
+      if (!dispatched.result.accepted) return;
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state, { preserveLocalSelection: true });
+      return;
+    }
     pushHistory();
     const nextInactive = !currentPiece.inactive;
     const nextPieces = ensureBenchReserveCount((piecesRef.current || pieces).map(piece =>
@@ -7033,10 +7065,12 @@ function App() {
   }, [pieces, cardById]);
 
   function updateCardState(updater) {
+    if (singlePlayerMatchWorkspaceLocked) return;
     setCardState(prev => normalizeCardState(typeof updater === "function" ? updater(prev) : updater));
   }
 
   function saveCard(card) {
+    if (singlePlayerMatchWorkspaceLocked) return;
     const nextCard = { ...card, updatedAt: new Date().toISOString() };
     updateCardState(prev => ({
       ...prev,
@@ -7045,6 +7079,7 @@ function App() {
   }
 
   function createCardFromPosition(position = "ST") {
+    if (singlePlayerMatchWorkspaceLocked) return;
     const card = createPlayerCard(position);
     saveCard(card);
     setEditingCardId(card.id);
@@ -7053,6 +7088,7 @@ function App() {
   }
 
   function cloneCard(cardId) {
+    if (singlePlayerMatchWorkspaceLocked) return;
     const source = cardById[cardId];
     if (!source) return;
     const sourceGraphics = source.graphics || {};
@@ -7077,6 +7113,7 @@ function App() {
   }
 
   function deleteCard(cardId) {
+    if (singlePlayerMatchWorkspaceLocked) return;
     if (!window.confirm("Ștergi cardul? Va fi scos și din echipe/pucuri.")) return;
     const beforeTimeline = captureTimelineGameState();
     const nextCardState = {
@@ -7142,6 +7179,7 @@ function App() {
   }
 
   function assignCard(cardId) {
+    if (singlePlayerMatchWorkspaceLocked) return;
     if (!assignTarget) return;
     const targetPieceId = assignTarget.pieceId || null;
     if (!targetPieceId) {
@@ -7191,6 +7229,7 @@ function App() {
   }
 
   function removePieceCard(pieceId) {
+    if (singlePlayerMatchWorkspaceLocked) return;
     const targetPiece = (piecesRef.current || pieces).find(piece => piece.id === pieceId);
     if (!canAssignPiece(targetPiece)) return;
     const beforeTimeline = captureTimelineGameState();
@@ -8806,7 +8845,7 @@ function App() {
         <div className="cards-tabs"><button className={cardsView === "library" ? "toggle-on" : ""} onClick={() => setCardsView("library")}>Card Library</button><button className={cardsView === "blue" ? "toggle-on" : ""} onClick={() => setCardsView("blue")}>Blue Team</button><button className={cardsView === "red" ? "toggle-on" : ""} onClick={() => setCardsView("red")}>Red Team</button></div>
         {cardsView === "library" ? (
           <div className="cards-layout">
-            <div className="card-library-list"><div className="card-library-actions"><button className="create-card-btn" onClick={() => createCardFromPosition("ST")}>+ Create</button><button className="sort-card-btn" onClick={sortCardsByPosition} disabled={cardState.cards.length < 2}>Sort</button><select className="filter-card-select" value={libraryPositionFilter} onChange={e => setLibraryPositionFilter(e.target.value)} disabled={cardState.cards.length === 0}><option value="ALL">Filter: All</option>{libraryPositionOptions.map(position => <option key={position} value={position}>{position}</option>)}</select></div>{visibleLibraryCards.map(card => <div key={card.id} className={`library-row ${editingCardId === card.id ? "selected" : ""}`} onClick={() => setEditingCardId(card.id)}><span><b>{card.name}</b><small>{card.position}</small></span><div><button onClick={(e) => { e.stopPropagation(); cloneCard(card.id); }}>Clone</button><button onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }}>Delete</button></div></div>)}{visibleLibraryCards.length === 0 && <div className="library-empty">No cards for this filter.</div>}</div>
+            <div className="card-library-list"><div className="card-library-actions"><button className="create-card-btn" disabled={singlePlayerMatchWorkspaceLocked} onClick={() => createCardFromPosition("ST")}>+ Create</button><button className="sort-card-btn" onClick={sortCardsByPosition} disabled={singlePlayerMatchWorkspaceLocked || cardState.cards.length < 2}>Sort</button><select className="filter-card-select" value={libraryPositionFilter} onChange={e => setLibraryPositionFilter(e.target.value)} disabled={cardState.cards.length === 0}><option value="ALL">Filter: All</option>{libraryPositionOptions.map(position => <option key={position} value={position}>{position}</option>)}</select></div>{visibleLibraryCards.map(card => <div key={card.id} className={`library-row ${editingCardId === card.id ? "selected" : ""}`} onClick={() => { if (!singlePlayerMatchWorkspaceLocked) setEditingCardId(card.id); }}><span><b>{card.name}</b><small>{card.position}</small></span><div><button disabled={singlePlayerMatchWorkspaceLocked} onClick={(e) => { e.stopPropagation(); cloneCard(card.id); }}>Clone</button><button disabled={singlePlayerMatchWorkspaceLocked} onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }}>Delete</button></div></div>)}{visibleLibraryCards.length === 0 && <div className="library-empty">No cards for this filter.</div>}</div>
             {CardEditor({ card: editingCard })}
           </div>
         ) : (
@@ -10937,6 +10976,26 @@ function App() {
         beginPassTargeting(piece, { continuationId: continuation.id });
         return;
       }
+      if (!sessionCode && ["SHOT", "CROSS", "DRIBBLE", "TACKLING"].includes(type)) {
+        const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+        const dispatched = dispatchSinglePlayerGameCommand({
+          timeline: gameTimelineRef.current,
+          state: before,
+          context: singlePlayerMatchContext(),
+          command: {
+            id: createActionEventId(`bonus_manual_${type.toLowerCase()}_${piece.id}`),
+            type: GAME_COMMAND_TYPE.BONUS_MANUAL_ACTION_DECLARED,
+            payload: { pieceId: piece.id, actionType: type },
+          },
+          label: `${pieceTeamKey(piece) === "blue" ? "Blue" : "Red"} bonus ${type}: ${getPieceDisplayLabel(piece)} (manual)`,
+        });
+        if (!dispatched.result.accepted) return;
+        replaceGameTimeline(dispatched.timeline);
+        applyTimelineGameState(dispatched.state);
+        setSelectedId(null);
+        setHoveredCell(null);
+        return;
+      }
       const started = type === "MOVE" && !sessionCode
         ? startBonusMove(piece)
         : beginBonusCardAction(type, piece, { startPassAtomically: type === "PASS" });
@@ -10986,6 +11045,27 @@ function App() {
     }
     if (type === "MOVE") {
       commitNormalMoveStart(piece);
+      return;
+    }
+    if (!sessionCode && ["SHOT", "CROSS", "DRIBBLE", "TACKLING"].includes(type)) {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`manual_${type.toLowerCase()}_${piece.id}`),
+          type: GAME_COMMAND_TYPE.MANUAL_ACTION_DECLARED,
+          payload: { pieceId: piece.id, actionType: type },
+        },
+        label: `${team === "blue" ? "Blue" : "Red"} ${type}: ${getPieceDisplayLabel(piece)} (manual)`,
+      });
+      if (!dispatched.result.accepted) {
+        if (dispatched.result.reason) setIllegalMoveNotice({ reason: dispatched.result.reason });
+        return;
+      }
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
       return;
     }
     if (type === "GROUP_MOVE" && !sessionCode) {
@@ -11501,6 +11581,20 @@ function App() {
   }
   function resetTrackerActions() {
     if (trackerReadOnly) return;
+    if (!sessionCode && gameMode === "match") {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: { id: createActionEventId("tracker_reset"), type: GAME_COMMAND_TYPE.TRACKER_ACTIONS_RESET, payload: {} },
+        label: "Tracker actions reset",
+      });
+      if (!dispatched.result.accepted) return;
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      return;
+    }
     const beforeTimeline = captureTimelineGameState();
     const emptyTurn = createEmptyTrackerTurnState();
     const { usedActions, actionLog: emptyLog, matchActionState: emptyMatchState } = emptyTurn;
@@ -11515,6 +11609,21 @@ function App() {
   }
   function changeTrackerPossession() {
     if (trackerReadOnly || !trackerGameStarted) return;
+    if (!sessionCode && gameMode === "match") {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const nextAttackingTeam = opposingTeam(normalizeTrackerSnapshot(before.tracker).startingTeam);
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: { id: createActionEventId("tracker_possession"), type: GAME_COMMAND_TYPE.TRACKER_POSSESSION_CHANGED, payload: {} },
+        label: `Possession changed: ${nextAttackingTeam === "blue" ? "Blue" : "Red"} attacks`,
+      });
+      if (!dispatched.result.accepted) return;
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      return;
+    }
     const beforeTimeline = captureTimelineGameState();
     const nextAttackingTeam = opposingTeam(trackerStartingTeam);
     const emptyTurn = createEmptyTrackerTurnState();
@@ -11897,8 +12006,8 @@ function App() {
         <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
         <button onClick={undo} disabled={gameMode !== "match" || !gameTimeline || gameTimeline.cursor <= 0 || (!!sessionCode && !isSessionHost)}><Undo2 size={16} /> Undo</button>
         <button onClick={redo} disabled={gameMode !== "match" || !gameTimeline || gameTimeline.cursor >= gameTimeline.entries.length || (!!sessionCode && !isSessionHost)}><Redo2 size={16} /> Redo</button>
-        <button onClick={resetPiecePositions}><RotateCcw size={16} /> Reset Position</button>
-        <button onClick={resetPieceCards}><RotateCcw size={16} /> Reset Cards</button>
+        <button disabled={singlePlayerMatchWorkspaceLocked} onClick={resetPiecePositions}><RotateCcw size={16} /> Reset Position</button>
+        <button disabled={singlePlayerMatchWorkspaceLocked} onClick={resetPieceCards}><RotateCcw size={16} /> Reset Cards</button>
         <button className={touchMode ? "toggle-on" : ""} onClick={() => setTouchMode(v => !v)}>
           Touch {touchMode ? "ON" : "OFF"}
         </button>
@@ -11909,8 +12018,8 @@ function App() {
           Coordonate
         </button>
         <button
-          disabled={!!sessionCode && !isSessionHost}
-          title={!!sessionCode && !isSessionHost ? "Only the host can change tracker settings" : ""}
+          disabled={singlePlayerMatchWorkspaceLocked || (!!sessionCode && !isSessionHost)}
+          title={singlePlayerMatchWorkspaceLocked ? "Tracker settings are locked after an offline Match starts." : !!sessionCode && !isSessionHost ? "Only the host can change tracker settings" : ""}
           onClick={() => { setTrackerSettingsDraft(trackerSettings); setTrackerSettingsOpen(true); }}
         >
           Tracker Settings
@@ -11963,32 +12072,32 @@ function App() {
       <div className="controlbar">
         <div className="formation-control blue">
           <span>Blue</span>
-          <select value={blueFormationId} onChange={e => {
+          <select disabled={singlePlayerMatchWorkspaceLocked} value={blueFormationId} onChange={e => {
             const id = Number(e.target.value);
             setBlueFormationId(id);
             applyFormation("A", id);
           }}>
             {formations.map(f => <option key={f.id} value={f.id}>{f.id}. {f.name}</option>)}
           </select>
-          <button onClick={() => saveCurrentAsFormation("A", blueFormationId)}>Save</button>
+          <button disabled={singlePlayerMatchWorkspaceLocked} onClick={() => saveCurrentAsFormation("A", blueFormationId)}>Save</button>
         </div>
 
         <div className="formation-control red">
           <span>Red</span>
-          <select value={redFormationId} onChange={e => {
+          <select disabled={singlePlayerMatchWorkspaceLocked} value={redFormationId} onChange={e => {
             const id = Number(e.target.value);
             setRedFormationId(id);
             applyFormation("B", id);
           }}>
             {formations.map(f => <option key={f.id} value={f.id}>{f.id}. {f.name}</option>)}
           </select>
-          <button onClick={() => saveCurrentAsFormation("B", redFormationId)}>Save</button>
+          <button disabled={singlePlayerMatchWorkspaceLocked} onClick={() => saveCurrentAsFormation("B", redFormationId)}>Save</button>
         </div>
 
         {!isSessionGuest && (
           <div className="situation-control">
             <span>Scenario</span>
-            <select value={activeSituationId} onChange={e => selectScenarioSlot(Number(e.target.value))}>
+            <select disabled={singlePlayerMatchWorkspaceLocked} value={activeSituationId} onChange={e => selectScenarioSlot(Number(e.target.value))}>
               {gameSituations.map(s => (
                 <option key={s.id} value={s.id}>{s.id}. {s.name}{s.snapshot ? "" : " (empty)"}</option>
               ))}
@@ -11996,11 +12105,12 @@ function App() {
             <input
               className="situation-name"
               value={activeSituationName}
+              disabled={singlePlayerMatchWorkspaceLocked}
               onChange={e => setActiveSituationName(e.target.value)}
               onFocus={e => e.target.select()}
             />
-            <button onClick={saveActiveGameSituation}>Save</button>
-            <button onClick={loadActiveScenario}>Load</button>
+            <button disabled={singlePlayerMatchWorkspaceLocked} onClick={saveActiveGameSituation}>Save</button>
+            <button disabled={singlePlayerMatchWorkspaceLocked} onClick={loadActiveScenario}>Load</button>
           </div>
         )}
 
@@ -12844,11 +12954,11 @@ function App() {
         <div className="modal-backdrop" onPointerDown={() => setTrackerSettingsOpen(false)}>
           <div className="modal tracker-settings-modal" onPointerDown={e => e.stopPropagation()}>
             <div className="modal-title"><strong>Tracker Settings</strong><button className="icon-btn" onClick={() => setTrackerSettingsOpen(false)}>×</button></div>
-            <label>Attack Actions<input type="number" min="1" max="30" value={trackerSettingsDraft.attackActions} onChange={e => setTrackerSettingsDraft(v => ({ ...v, attackActions: clamp(Number(e.target.value) || 1, 1, 30) }))} /></label>
-            <label>Defense Actions<input type="number" min="1" max="30" value={trackerSettingsDraft.defenseActions} onChange={e => setTrackerSettingsDraft(v => ({ ...v, defenseActions: clamp(Number(e.target.value) || 1, 1, 30) }))} /></label>
-            <label>Turns<input type="number" min="1" max="100" value={trackerSettingsDraft.turns} onChange={e => setTrackerSettingsDraft(v => ({ ...v, turns: clamp(Number(e.target.value) || 1, 1, 100) }))} /></label>
-            <button className="save-label" onClick={() => {
-              if (trackerReadOnly) return;
+            <label>Attack Actions<input disabled={singlePlayerMatchWorkspaceLocked} type="number" min="1" max="30" value={trackerSettingsDraft.attackActions} onChange={e => setTrackerSettingsDraft(v => ({ ...v, attackActions: clamp(Number(e.target.value) || 1, 1, 30) }))} /></label>
+            <label>Defense Actions<input disabled={singlePlayerMatchWorkspaceLocked} type="number" min="1" max="30" value={trackerSettingsDraft.defenseActions} onChange={e => setTrackerSettingsDraft(v => ({ ...v, defenseActions: clamp(Number(e.target.value) || 1, 1, 30) }))} /></label>
+            <label>Turns<input disabled={singlePlayerMatchWorkspaceLocked} type="number" min="1" max="100" value={trackerSettingsDraft.turns} onChange={e => setTrackerSettingsDraft(v => ({ ...v, turns: clamp(Number(e.target.value) || 1, 1, 100) }))} /></label>
+            <button className="save-label" disabled={singlePlayerMatchWorkspaceLocked} onClick={() => {
+              if (trackerReadOnly || singlePlayerMatchWorkspaceLocked) return;
               const beforeTimeline = captureTimelineGameState();
               const nextTurn = Math.min(trackerCurrentTurn, trackerSettingsDraft.turns);
               const usedActions = { red: 0, blue: 0 };

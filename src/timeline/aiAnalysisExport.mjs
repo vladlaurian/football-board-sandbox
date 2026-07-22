@@ -319,7 +319,10 @@ function semanticEvent(entry, sequence, cardsById) {
     actionEconomyAfter: actionEconomy(after, team, actor?.pieceId),
     possessionBefore: possessionForState(before),
     possessionAfter: possessionForState(after),
-    resolution: passPlan ? {
+    resolution: entry.metadata?.manualResolutionRequired ? {
+      status: "MANUAL_DECLARATION",
+      reason: `The ${String(entry.metadata?.actionType || "gameplay")} action was declared canonically; its board consequence was intentionally resolved manually during this test match.`,
+    } : passPlan ? {
       status: String(passResolution.status || "UNKNOWN").toUpperCase(),
       rollMode: "MANUAL",
       pass: {
@@ -401,7 +404,7 @@ function semanticEvent(entry, sequence, cardsById) {
       pieceId: entry.metadata?.bonusAction?.pieceId || null,
       continuationId: String(entry.metadata?.continuationId || "") || null,
     } : null,
-    explicitOutcome: entry.type === "PASS_INTERCEPTION_RESOLVED" ? "INTERCEPTION_ROLL_RESOLVED" : entry.type === "PASS_INTERCEPTION_MISSED" ? "INTERCEPTION_MISSED" : entry.type === "PASS_COMPLETED" ? "PASS_COMPLETED" : entry.type === "PASS_INTERCEPTED" ? "INTERCEPTED" : entry.type === "PASS_NATURAL_20" ? "NATURAL_20_INTERCEPTION" : entry.type === "BONUS_ACTION_ENDED" ? "BONUS_ACTION_ENDED" : entry.type === "BONUS_ACTION_DECLINED" ? "BONUS_ACTION_DECLINED" : "NOT_DECLARED",
+    explicitOutcome: entry.metadata?.manualResolutionRequired ? "MANUAL_RESOLUTION_REQUIRED" : entry.type === "PASS_INTERCEPTION_RESOLVED" ? "INTERCEPTION_ROLL_RESOLVED" : entry.type === "PASS_INTERCEPTION_MISSED" ? "INTERCEPTION_MISSED" : entry.type === "PASS_COMPLETED" ? "PASS_COMPLETED" : entry.type === "PASS_INTERCEPTED" ? "INTERCEPTED" : entry.type === "PASS_NATURAL_20" ? "NATURAL_20_INTERCEPTION" : entry.type === "BONUS_ACTION_ENDED" ? "BONUS_ACTION_ENDED" : entry.type === "BONUS_ACTION_DECLINED" ? "BONUS_ACTION_DECLINED" : "NOT_DECLARED",
   };
 }
 

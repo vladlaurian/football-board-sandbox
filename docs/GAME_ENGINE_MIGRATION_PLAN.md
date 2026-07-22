@@ -434,9 +434,39 @@ Acceptance:
 
 ## Phase 8 — Single Player Controller completion
 
-**Status:** Next architectural audit — identify and extract remaining offline Single Player direct Match Mode mutation paths before starting new mechanics.
+**Status:** In progress. Phase 8A is complete in v20.32.0; Phase 8B and 8C remain pending.
 
 Centralize Single Player dispatch and remove remaining direct Match Mode mutation paths from `main.jsx`, preserving Editor Mode, card editing, and Manual Multiplayer.
+
+### Phase 8A — audited Match boundary and temporary manual declarations
+
+**Status:** Complete in v20.32.0.
+
+The audit confirmed that existing offline Single Player mechanics already use Engine commands. The remaining direct Match mutations were administrative controls and placeholder action buttons.
+
+- `PIECE_ACTIVITY_CHANGED` now owns offline Match `INACTIVE` / `ACTIVE`. Editor Mode deliberately retains its independent unrestricted workspace behavior.
+- `TRACKER_ACTIONS_RESET` and `TRACKER_POSSESSION_CHANGED` now own the existing Reset Trackers and Change Possession safety controls. They remain temporarily available in offline Match testing, are labelled administrative in Timeline/AI, and preserve their pre-existing reset semantics. They may be visually and technically removed only after the automated Match flow is trusted.
+- `MANUAL_ACTION_DECLARED` and `BONUS_MANUAL_ACTION_DECLARED` own the current test-only `SHOT`, `CROSS`, `DRIBBLE`, and `TACKLING` buttons. They validate normal Tracker or ready Bonus ownership, record a canonical declaration, and deliberately resolve no board effect, roll or probability. The player may complete that temporary test consequence with the existing Engine-owned safety tools. AI Export emits `MANUAL_DECLARATION` and `MANUAL_RESOLUTION_REQUIRED` rather than pretending the action was automated.
+- A started offline Match now locks Editor Workspace mutations that could contradict frozen MatchContext or rewrite live setup: board geometry, formations, scenarios, card assignment/editing, and Tracker settings. Manual Multiplayer and Editor Mode are unchanged.
+
+Delivered files and tests:
+
+- `src/engine/matchAdministrationRules.mjs`, `src/engine/gameCommands.mjs`, `src/engine/gameEngine.mjs`, and `src/engine/gameEngine.test.mjs`
+- offline Single Player handler branches in `src/main.jsx`
+- `src/timeline/aiAnalysisExport.mjs` and `src/timeline/aiAnalysisExport.test.mjs`
+- full verification: `npm test` (221 passing) and `npm run build`
+
+### Phase 8B — Controller gateway and state projection boundary
+
+**Status:** Pending.
+
+Extract the repeated offline command-dispatch / Timeline-commit / React-projection orchestration from `main.jsx` into one explicit Single Player gateway. The goal is enforcement, not file movement: every offline Match command must pass one gateway, and React setters must receive canonical cursor projection only. No rule or Manual Multiplayer change is allowed.
+
+### Phase 8C — Editor Workspace and persistence boundary
+
+**Status:** Pending.
+
+Separate the Editor Workspace, scenario/formation/card profile operations and local/cloud persistence from the Match runtime. This is the approved place for later menu/editor changes. It must preserve Editor freedom, never route unrestricted editor operations through Match Engine, and never let workspace persistence recreate a competing active Match authority.
 
 Acceptance:
 
