@@ -1,7 +1,7 @@
 import { beginContinuationAction, CONTINUATION_STATUS, normalizeActionContinuation } from "../match/actionContinuation.mjs";
 import { ACTION_TRANSACTION_UNDO_MODE, createActionTransaction, transactionForActionState } from "../match/actionTransaction.mjs";
 import { createPendingDecision, createPendingRoll, withPendingDecision, withPendingRoll } from "../match/actionResolutionEngine.mjs";
-import { PASS_CORNERS, buildPassPlan, interceptorChoiceCandidates, passRequiresInterceptionSequence, teamKeyForPiece } from "../rules/passEngine.mjs";
+import { PASS_CORNERS, applyInterceptorChoice, buildPassPlan, interceptorChoiceCandidates, passRequiresInterceptionSequence, teamKeyForPiece } from "../rules/passEngine.mjs";
 import { activateTrackerAction, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 
@@ -16,6 +16,10 @@ function hasBall(state, piece) {
 
 function passIdForCommand(command) {
   return String(command.payload?.passId || "").trim();
+}
+
+function decisionIdForCommand(command) {
+  return String(command.payload?.decisionId || "").trim();
 }
 
 function createPassTargetingResolution({ passId, piece, team, continuationId = null, transaction = null }) {
@@ -55,6 +59,20 @@ function validRouteCornerId(cornerId, pathMode) {
   return PASS_CORNERS.some(corner => corner.id === String(cornerId || ""));
 }
 
+function pendingPassRoll(pending, interceptorIndex = 0) {
+  const interceptor = pending?.plan?.interceptors?.[interceptorIndex];
+  const team = teamKeyForPiece(interceptor?.defender);
+  return createPendingRoll({
+    requestId: `pass_roll_${pending.id}_${interceptorIndex}`,
+    actionId: pending.id,
+    team,
+    dieType: 20,
+    subjectId: interceptor?.defender?.id,
+    reactionIndex: interceptorIndex,
+    context: { actionType: "PASS", reactionType: "INTERCEPTION" },
+  });
+}
+
 function pendingPassInput(pending, interceptorIndex = 0) {
   const candidates = interceptorChoiceCandidates(pending?.plan?.interceptors, interceptorIndex);
   if (candidates.length >= 2) {
@@ -67,17 +85,7 @@ function pendingPassInput(pending, interceptorIndex = 0) {
       context: { actionId: pending.id, interceptorIndex },
     }));
   }
-  const interceptor = pending?.plan?.interceptors?.[interceptorIndex];
-  const team = teamKeyForPiece(interceptor?.defender);
-  return withPendingRoll({ ...pending, interceptorIndex }, createPendingRoll({
-    requestId: `pass_roll_${pending.id}_${interceptorIndex}`,
-    actionId: pending.id,
-    team,
-    dieType: 20,
-    subjectId: interceptor?.defender?.id,
-    reactionIndex: interceptorIndex,
-    context: { actionType: "PASS", reactionType: "INTERCEPTION" },
-  }));
+  return withPendingRoll({ ...pending, interceptorIndex }, pendingPassRoll(pending, interceptorIndex));
 }
 
 export function startPass(state, command) {
@@ -251,6 +259,77 @@ export function confirmPassRoute(state, context, command) {
       },
     },
     timeline: { groupId: bonusPass ? continuation.id : activation.entry.id, undoMode: bonusPass ? "atomic" : "step", allowNoop: true },
+  };
+}
+
+export function selectPassInterceptor(state, context, command) {
+  const pending = state.actionResolution;
+  const passId = passIdForCommand(command);
+  const decisionId = decisionIdForCommand(command);
+  const selectedPieceId = String(command.payload?.pieceId || "").trim();
+  if (!pending || pending.kind !== "pass" || pending.status !== "awaiting-interceptor-choice" || !pending.pendingDecision) {
+    return { accepted: false, reason: "PASS_NOT_INTERCEPTOR_SELECTING" };
+  }
+  if (!passId || passId !== String(pending.id || "")) return { accepted: false, reason: "PASS_NOT_INTERCEPTOR_SELECTING" };
+  if (!decisionId || decisionId !== String(pending.pendingDecision.id || "")) return { accepted: false, reason: "PASS_INTERCEPTOR_DECISION_STALE" };
+  if (!selectedPieceId) return { accepted: false, reason: "PASS_INTERCEPTOR_INVALID" };
+
+  const interceptorIndex = Math.max(0, Math.floor(Number(pending.interceptorIndex) || 0));
+  const candidates = interceptorChoiceCandidates(pending.plan?.interceptors, interceptorIndex);
+  const candidateIds = candidates.map(item => String(item?.defender?.id || ""));
+  const decisionIds = (pending.pendingDecision.options || []).map(option => String(option?.defenderId || option?.id || ""));
+  const decisionMatchesPlan = candidates.length >= 2
+    && candidateIds.length === decisionIds.length
+    && candidateIds.every(id => decisionIds.includes(id))
+    && String(pending.pendingDecision.type || "") === "CHOOSE_INTERCEPTOR"
+    && String(pending.pendingDecision.context?.actionId || "") === String(pending.id || "")
+    && Number(pending.pendingDecision.context?.interceptorIndex) === interceptorIndex;
+  if (!decisionMatchesPlan) return { accepted: false, reason: "PASS_INTERCEPTOR_DECISION_STALE" };
+
+  const selected = candidates.find(item => String(item?.defender?.id || "") === selectedPieceId);
+  const defenseTeam = teamKeyForPiece(selected?.defender);
+  if (!selected || !defenseTeam || pending.pendingDecision.team !== defenseTeam) return { accepted: false, reason: "PASS_INTERCEPTOR_INVALID" };
+  const modifierCap = context?.ruleSet?.actions?.interception?.useProgressiveBonus === false
+    ? 0
+    : (context?.ruleSet?.actions?.interception?.modifierCap ?? 4);
+  const applied = applyInterceptorChoice(pending.plan?.interceptors, interceptorIndex, selectedPieceId, modifierCap);
+  if (!applied) return { accepted: false, reason: "PASS_INTERCEPTOR_INVALID" };
+
+  const nextPlan = {
+    ...pending.plan,
+    interceptors: applied.interceptors,
+    interceptorPriority: {
+      ...(pending.plan?.interceptorPriority || {}),
+      selections: [
+        ...(pending.plan?.interceptorPriority?.selections || []),
+        applied.selection,
+      ],
+    },
+  };
+  const nextResolution = withPendingRoll({
+    ...pending,
+    interceptorIndex,
+    plan: nextPlan,
+  }, pendingPassRoll({ ...pending, plan: nextPlan }, interceptorIndex));
+  return {
+    accepted: true,
+    nextState: { ...state, actionResolution: nextResolution },
+    event: {
+      type: "PASS_INTERCEPTOR_SELECTED",
+      team: defenseTeam,
+      metadata: {
+        passId,
+        decisionId,
+        interceptorIndex,
+        interceptorChoice: applied.selection,
+        continuationId: pending.bonusContinuationId || null,
+      },
+    },
+    timeline: {
+      groupId: pending.bonusContinuationId || pending.entryId || null,
+      undoMode: pending.bonusContinuationId ? "atomic" : "step",
+      allowNoop: true,
+    },
   };
 }
 

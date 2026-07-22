@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.26.1";
+const APP_VERSION = "v20.27.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -10072,6 +10072,24 @@ function App() {
   function choosePassInterceptor(pieceId) {
     const pending = actionResolutionRef.current;
     if (pending?.kind !== "pass" || pending.status !== "awaiting-interceptor-choice") return false;
+    if (!sessionCode) {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`pass_interceptor_${pending.id}`),
+          type: GAME_COMMAND_TYPE.PASS_INTERCEPTOR_SELECTED,
+          payload: { passId: pending.id, decisionId: pending.pendingDecision?.id, pieceId },
+        },
+        label: "Pass interceptor selected",
+      });
+      if (!dispatched.result.accepted) return false;
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      return true;
+    }
     const candidates = interceptorChoiceCandidates(pending.plan?.interceptors, pending.interceptorIndex);
     const selected = candidates.find(item => String(item?.defender?.id) === String(pieceId));
     const defenseTeam = teamKeyForPiece(selected?.defender);

@@ -6,13 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.26.1` |
-| Git/package version | `20.26.1` |
-| Build name | `Final_Board_v20_26_1_pass_route_blockers_visual_truth` |
-| Base build | `v20.26.0 pass_route_plan_engine` |
+| Sandbox version | `v20.27.0` |
+| Git/package version | `20.27.0` |
+| Build name | `Final_Board_v20_27_0_pass_interceptor_choice_engine` |
+| Base build | `v20.26.1 pass_route_blockers_visual_truth` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.26.1`. The repository version is defined in `package.json` as `20.26.1`. The browser title is `Sandbox v20.26.1`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.27.0`. The repository version is defined in `package.json` as `20.27.0`. The browser title is `Sandbox v20.27.0`.
+
+## v20.27.0 release summary
+
+v20.27.0 migrates offline Single Player Pass interceptor choice through `PASS_INTERCEPTOR_SELECTED -> Game Engine -> Single Player Controller -> Timeline -> applyTimelineGameState`. The Engine accepts only the active canonical `CHOOSE_INTERCEPTOR` decision with matching Pass and decision identities. It verifies the stored decision against the equal-priority candidates in the canonical plan, applies the established deterministic reorder and modifier calculation using frozen MatchContext rules, stores the selection, and creates the canonical next interception-roll request.
+
+The choice neither consumes another Tracker action nor moves the ball, changes possession, submits a die, resolves the interception, advances to another interceptor, or alters Bonus Action consequences. Normal Pass choice is a stepwise History entry; Bonus Pass choice remains in its existing atomic continuation transaction. The Single Player modal now sends the Engine command. Manual Multiplayer retains its existing direct selection path.
 
 ## v20.26.1 release summary
 

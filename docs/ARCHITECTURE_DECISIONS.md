@@ -500,6 +500,19 @@ The transition may create the existing explicit pending interceptor decision or 
 - A goalkeeper remains a normal physical player for geometry, but a pass route that intersects one is invalid: the ball cannot pass through or finish at that goalkeeper. This route-blocker part is active in offline Single Player as of v20.26.1.
 - The rule must not be hidden in UI-only disabled styling; Engine validation is required. Manual Multiplayer remains unchanged until that track is explicitly reopened.
 
+## ADR-036 — Pass interceptor choice is a canonical decision transition
+
+**Status:** Active
+
+**Decision:** In offline Single Player Match Mode, an equal-priority interceptor is selected only by `PASS_INTERCEPTOR_SELECTED`. The command must match the active canonical Pass and its explicit `CHOOSE_INTERCEPTOR` decision. The Engine verifies the persisted decision against the equally ranked candidates still present in the canonical plan, applies the established deterministic reorder and frozen modifier cap, then creates the matching pending interception roll.
+
+**Consequences:**
+
+- React may render the decision and send an intent, but may not reorder the plan, select the roller or write the semantic Timeline event directly.
+- The selection is independently reversible for a normal Pass and remains atomic within a Bonus Pass continuation.
+- Tracker economy, ball position, possession, dice consumption, outcome resolution and later reaction advancement remain outside this boundary.
+- Manual Multiplayer retains its legacy decision path until explicitly reopened.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

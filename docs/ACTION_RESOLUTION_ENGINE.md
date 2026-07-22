@@ -178,6 +178,12 @@ The canonical Pass plan now records `goalkeeperRouteBlocked` when its physical f
 
 For the existing direct-hit rule, route presentation must treat a first hit on an opponent as risk/red even when the plan has no eligible defensive-area interceptor. This is only a correction of UI classification; it does not change direct-hit resolution or interception order. The direct-target goalkeeper restriction remains a separate future `PASS_TARGET_SELECTED` amendment. Manual Multiplayer is not migrated by this rule.
 
+## v20.27.0 — canonical Pass interceptor-choice boundary
+
+Offline Single Player selects an equal-priority interceptor only through `PASS_INTERCEPTOR_SELECTED`. The Engine validates the current `CHOOSE_INTERCEPTOR` descriptor, matching Pass and decision identities, the stored option list, and the corresponding equal-priority candidates in the canonical Pass plan. It then applies the existing deterministic reorder and frozen Interception modifier cap, appends the selection record, clears the decision and creates the exact next pending-roll descriptor.
+
+This transition does not consume Tracker economy, move the ball, alter possession, create a RollEvent, resolve an interception, or advance the reaction chain. Normal selection is a stepwise Timeline entry; Bonus selection remains atomic with its continuation. Manual Multiplayer retains its legacy selection path until that track is explicitly reopened.
+
 ## Multiplayer canonical resolution rule added in v19.13
 
 A remote user may create an authorized pending decision or RollEvent, but only the host applies the deterministic consequence. Host scheduling must be derived from the canonical hydrated Timeline state, not exclusively from a one-time "new entry" notification. Repeated Firestore snapshots for the same entry must not restart its cosmetic delay, and an already consumed RollEvent must remain idempotent.

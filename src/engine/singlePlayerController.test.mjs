@@ -42,7 +42,14 @@ function normalMoveState() {
 }
 
 function normalMoveContext() {
-  return { boardSettings: { cols: 20, rows: 12 }, gameplayCards: [{ id: "card-blue-1", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] }] };
+  return {
+    boardSettings: { cols: 20, rows: 12 },
+    gameplayCards: [
+      { id: "card-blue-1", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] },
+      { id: "card-red-1", defensiveArea: [{ dx: 2, dy: 0 }] },
+      { id: "card-red-2", defensiveArea: [{ dx: -2, dy: 0 }] },
+    ],
+  };
 }
 
 test("Single Player Controller records engine Free Ball result in Timeline and supports Undo/Redo", () => {
@@ -431,4 +438,27 @@ test("Single Player Controller keeps Bonus Pass route confirmation in its atomic
   const redone = redoAtomicTimelineTransaction(undone.timeline);
   assert.equal(redone.state.actionResolution.status, "completing");
   assert.equal(redone.state.tracker.usedActions.blue, 0);
+});
+
+test("Single Player Controller records normal Pass interceptor choice as an Undo/Redo step", () => {
+  const state = createGameState({
+    ...normalMoveState(),
+    pieces: [...normalMoveState().pieces,
+      { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 },
+      { id: "red-2", team: "B", cardId: "card-red-2", x: 5, y: 3 },
+    ],
+  });
+  const started = dispatchSinglePlayerGameCommand({ state, context: normalMoveContext(), command: { id: "controller-interceptor-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "controller-interceptor" } } });
+  const targeted = dispatchSinglePlayerGameCommand({ timeline: started.timeline, state: started.state, context: normalMoveContext(), command: { id: "controller-interceptor-target", type: "PASS_TARGET_SELECTED", payload: { passId: "controller-interceptor", x: 9, y: 5 } } });
+  const routed = dispatchSinglePlayerGameCommand({ timeline: targeted.timeline, state: targeted.state, context: normalMoveContext(), command: { id: "controller-interceptor-route", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "controller-interceptor", cornerId: "top-left" } } });
+  const selected = dispatchSinglePlayerGameCommand({
+    timeline: routed.timeline, state: routed.state, context: normalMoveContext(),
+    command: { id: "controller-interceptor-choice", type: "PASS_INTERCEPTOR_SELECTED", payload: { passId: "controller-interceptor", decisionId: routed.state.actionResolution.pendingDecision.id, pieceId: "red-2" } },
+  });
+  assert.equal(selected.timeline.entries.at(-1).type, "PASS_INTERCEPTOR_SELECTED");
+  assert.equal(selected.state.actionResolution.pendingRoll.subjectId, "red-2");
+  const undone = undoTimeline(selected.timeline);
+  assert.equal(undone.state.actionResolution.status, "awaiting-interceptor-choice");
+  const redone = redoTimeline(undone.timeline);
+  assert.equal(redone.state.actionResolution.pendingRoll.subjectId, "red-2");
 });

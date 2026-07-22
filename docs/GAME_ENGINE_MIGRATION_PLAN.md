@@ -287,6 +287,21 @@ Delivered files and tests:
 - Single Player route presentation in `src/main.jsx`, `src/board/BoardCanvas.jsx`, and `src/styles.css`
 - focused command: `node --test src/rules/passEngine.test.mjs src/engine/gameEngine.test.mjs src/engine/singlePlayerController.test.mjs src/multiplayer/actionStartAuthority.test.mjs`
 
+### v20.27.0 — offline Single Player Pass interceptor-choice Engine migration
+
+**Status:** Complete as the fourth narrow Pass slice.
+
+`PASS_INTERCEPTOR_SELECTED` now flows through the pure Game Engine and Single Player Controller in offline Single Player Match Mode. The Engine accepts only a matching active `CHOOSE_INTERCEPTOR` decision and validates that its stored candidate list remains identical to the equal-priority group in the canonical Pass plan. It applies the existing pure reorder/modifier rule using frozen MatchContext interception settings, records the selection on the plan, closes the decision and creates the existing next pending-roll descriptor.
+
+The command does not consume another Tracker action, move the ball, change possession, create or submit a die event, resolve the interception, advance to another reaction, or create/close a Bonus Action. Normal choice is stepwise History; Bonus choice remains inside its existing atomic continuation. Manual Multiplayer keeps its legacy selection branch.
+
+Delivered files and tests:
+
+- `src/engine/gameCommands.mjs`, `src/engine/passStartRules.mjs`, and `src/engine/gameEngine.mjs`
+- `src/engine/gameEngine.test.mjs` and `src/engine/singlePlayerController.test.mjs`
+- offline Single Player `choosePassInterceptor()` branch in `src/main.jsx`
+- focused command: `node --test src/engine/gameEngine.test.mjs src/engine/singlePlayerController.test.mjs src/rules/passEngine.test.mjs src/multiplayer/actionStartAuthority.test.mjs`
+
 ### v20.19.0 — offline Single Player Free Move Engine migration
 
 Free Move now has one offline Match Mode mutation path: `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` flow through the Game Engine and Single Player Controller into Timeline. It is deliberately an administrative correction rather than a Tracker action. The three Timeline entries are ordinary reversible history, so Undo/Redo may step across them and AI export retains the correction as `FREE_MODE` with `MANUAL_CORRECTION` provenance.
@@ -329,7 +344,7 @@ Acceptance:
 
 ## Phase 5 — Tracker, turns, and possession
 
-**Status:** In progress — v20.25.0–v20.26.1 complete Pass start/cancel/target/route-plan only.
+**Status:** In progress — v20.25.0–v20.27.0 complete Pass start/cancel/target/route-plan/interceptor choice only.
 
 Migrate Match start, phase completion, turn change, possession change, action reset, and currently existing match-completion behavior.
 
