@@ -6,13 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.24.0` |
-| Git/package version | `20.24.0` |
-| Build name | `Final_Board_v20_24_0_match_lifecycle_boundary` |
-| Base build | `v20.23.0 bonus_action_closure_engine` |
+| Sandbox version | `v20.24.1` |
+| Git/package version | `20.24.1` |
+| Build name | `Final_Board_v20_24_1_restart_regression_correction` |
+| Base build | `v20.24.0 match_lifecycle_boundary` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.24.0`. The repository version is defined in `package.json` as `20.24.0`. The browser title is `Sandbox v20.24.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.24.1`. The repository version is defined in `package.json` as `20.24.1`. The browser title is `Sandbox v20.24.1`.
+
+## v20.24.1 release summary
+
+v20.24.1 corrects the v20.24.0 Tracker Start/Restart regression. Editor Mode is intentionally outside the Match Engine and again uses its existing unrestricted Tracker route. In offline Single Player Match Mode, pressing `Restart Game` now sends `MATCH_RESTARTED` to the Engine rather than incorrectly retrying `MATCH_STARTED`.
+
+Restart preserves every board piece and ball position, but clears turn-scoped Tracker actions, movement state, active resolution and Bonus Action, then starts Turn 1 with the selected attacking team. It retains the existing `MATCH_STARTED` History/AI semantic event with explicit `restarted: true` metadata. Manual Multiplayer remains unchanged.
 
 ## v20.24.0 release summary
 

@@ -195,6 +195,23 @@ Delivered files and tests:
 - offline Match Mode branch of `startTrackedGame()` and Match Over notice in `src/main.jsx`
 - focused command: `node --test src/engine/*.test.mjs src/match/*.test.mjs src/timeline/*.test.mjs src/tracker/*.test.mjs`
 
+### v20.24.1 — Tracker Restart regression correction
+
+**Status:** Complete.
+
+v20.24.0 mistakenly routed the shared Tracker Start/Restart UI through `MATCH_STARTED` in every offline mode. That rejected a Match already in progress as `MATCH_ALREADY_STARTED` and rejected Editor Mode as `MATCH_MODE_REQUIRED`; the generic UI displayed both as `Illegal Move`.
+
+Editor Mode now deliberately retains its pre-Engine unrestricted Start/Restart route. Offline Single Player Match Mode uses `MATCH_STARTED` only for an unstarted Match and `MATCH_RESTARTED` for an existing Match. The restart Engine transition preserves pieces and ball positions while resetting canonical turn one, chosen attacker, Tracker action state, movement state, resolution and continuation. It emits the established `MATCH_STARTED` semantic event with `restarted: true`, preserving existing export vocabulary. Manual Multiplayer remains unchanged.
+
+Delivered files and tests:
+
+- `src/engine/matchLifecycleRules.mjs`
+- `src/engine/gameCommands.mjs`
+- `src/engine/gameEngine.mjs`
+- `src/engine/gameEngine.test.mjs`
+- offline Match Mode branch of `startTrackedGame()` in `src/main.jsx`
+- focused command: `node --test src/engine/*.test.mjs src/match/*.test.mjs src/timeline/*.test.mjs src/tracker/*.test.mjs`
+
 ### v20.19.0 — offline Single Player Free Move Engine migration
 
 Free Move now has one offline Match Mode mutation path: `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` flow through the Game Engine and Single Player Controller into Timeline. It is deliberately an administrative correction rather than a Tracker action. The three Timeline entries are ordinary reversible history, so Undo/Redo may step across them and AI export retains the correction as `FREE_MODE` with `MANUAL_CORRECTION` provenance.

@@ -431,6 +431,20 @@ An `advance-turn` resume policy resets only the next numbered turn and makes its
 - A future Match Lifecycle build may add periods to MatchState and Engine transitions without reintroducing UI-owned Match start/final state.
 - Manual Multiplayer retains its existing Match-start and final presentation behavior.
 
+## ADR-031 — Editor Workspace remains outside Match Engine; Match restart is explicit
+
+**Status:** Active
+
+**Decision:** Editor Mode remains an unrestricted workspace and must not dispatch Match Engine lifecycle commands. Its Tracker controls retain their legacy sandbox behavior. Offline Single Player Match Mode distinguishes an unstarted `MATCH_STARTED` transition from `MATCH_RESTARTED` for an existing Match.
+
+Restart uses the same canonical lifecycle reset as Match start, but deliberately preserves all current board pieces and ball positions. It emits the existing `MATCH_STARTED` semantic event with `restarted: true` metadata rather than creating a second Timeline/AI event vocabulary.
+
+**Consequences:**
+
+- Start/Restart behavior remains coherent without forcing Editor workspace operations into gameplay rule validation.
+- A later dedicated Editor Workspace ↔ Match boundary audit may formalize setup and snapshot behavior; it must not migrate unrestricted editor manipulation into Match Engine by default.
+- Manual Multiplayer remains unchanged.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

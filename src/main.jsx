@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.24.0";
+const APP_VERSION = "v20.24.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -11107,20 +11107,34 @@ function App() {
 
   function startTrackedGame(team) {
     if (trackerReadOnly) return;
-    if (!sessionCode) {
+    if (!sessionCode && gameMode === "match") {
       const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const restarting = normalizeTrackerSnapshot(before.tracker).gameStarted;
       const context = createMatchContext({
         id: gameTimelineRef.current?.recordingId || `single-player-${Date.now()}`,
         ruleSet: before.ruleSet,
         boardSettings: before.settings,
         gameplayCards: captureAvailableMatchCards(),
       });
-      const dispatched = dispatchSinglePlayerMatchStart({
-        state: before,
-        context,
-        command: { id: createActionEventId(`match_start_${team}`), type: GAME_COMMAND_TYPE.MATCH_STARTED, payload: { team } },
-        label: `Match started: ${team === "blue" ? "Blue" : "Red"} attacks`,
-      });
+      const command = {
+        id: createActionEventId(`${restarting ? "match_restart" : "match_start"}_${team}`),
+        type: restarting ? GAME_COMMAND_TYPE.MATCH_RESTARTED : GAME_COMMAND_TYPE.MATCH_STARTED,
+        payload: { team },
+      };
+      const dispatched = restarting
+        ? dispatchSinglePlayerGameCommand({
+            timeline: gameTimelineRef.current,
+            state: before,
+            context,
+            command,
+            label: `Match restarted: ${team === "blue" ? "Blue" : "Red"} attacks`,
+          })
+        : dispatchSinglePlayerMatchStart({
+            state: before,
+            context,
+            command,
+            label: `Match started: ${team === "blue" ? "Blue" : "Red"} attacks`,
+          });
       if (!dispatched.result.accepted) {
         if (dispatched.result.reason) setIllegalMoveNotice({ reason: dispatched.result.reason });
         return;

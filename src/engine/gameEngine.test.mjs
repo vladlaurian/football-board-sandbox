@@ -145,7 +145,42 @@ test("MATCH_STARTED creates the canonical playable first turn and clears stale i
   assert.equal(result.nextState.actionResolution, null);
   assert.equal(result.nextState.actionContinuation, null);
   assert.equal(result.events[0].type, "MATCH_STARTED");
-  assert.deepEqual(result.events[0].metadata, { startingTeam: "blue", startedTurn: 1 });
+  assert.deepEqual(result.events[0].metadata, { startingTeam: "blue", startedTurn: 1, restarted: false });
+});
+
+test("MATCH_RESTARTED restarts an existing Match without moving any board piece", () => {
+  const start = normalMoveState({
+    pieces: [
+      { id: "ball", team: "BALL", x: 8, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 8, y: 5 },
+    ],
+    movementStateByPieceId: { "blue-1": { axis: "horizontal", spent: 3, distance: 3 } },
+    actionResolution: { id: "restart-pass", kind: "pass" },
+    actionContinuation: { id: "restart-bonus", kind: "bonus-card-action", team: "blue", status: "ready" },
+    tracker: {
+      ...normalMoveState().tracker,
+      currentTurn: 6,
+      turnPhase: "defense",
+      usedActions: { blue: 5, red: 2 },
+      actionLog: { blue: [{ id: "a", type: "PASS" }], red: [{ id: "b", type: "MOVE" }] },
+    },
+  });
+  const result = applyGameCommand({
+    state: start,
+    context: normalMoveContext(),
+    command: { id: "match-restart-red", type: "MATCH_RESTARTED", payload: { team: "red" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.deepEqual(result.nextState.pieces, start.pieces);
+  assert.equal(result.nextState.tracker.currentTurn, 1);
+  assert.equal(result.nextState.tracker.startingTeam, "red");
+  assert.equal(result.nextState.tracker.turnPhase, "attack");
+  assert.deepEqual(result.nextState.tracker.usedActions, { red: 0, blue: 0 });
+  assert.deepEqual(result.nextState.movementStateByPieceId, {});
+  assert.equal(result.nextState.actionResolution, null);
+  assert.equal(result.nextState.actionContinuation, null);
+  assert.equal(result.events[0].type, "MATCH_STARTED");
+  assert.equal(result.events[0].metadata.restarted, true);
 });
 
 test("MATCH_STARTED rejects invalid teams, editor mode, and a second start without mutating MatchState", () => {
@@ -161,6 +196,9 @@ test("MATCH_STARTED rejects invalid teams, editor mode, and a second start witho
   assert.deepEqual(applyGameCommand({
     state: normalMoveState(), context: {}, command: { id: "match-start-again", type: "MATCH_STARTED", payload: { team: "blue" } },
   }), { accepted: false, reason: "MATCH_ALREADY_STARTED" });
+  assert.deepEqual(applyGameCommand({
+    state: createGameState({ ...matchState(), tracker: { gameStarted: false } }), context: {}, command: { id: "match-restart-before-start", type: "MATCH_RESTARTED", payload: { team: "blue" } },
+  }), { accepted: false, reason: "MATCH_NOT_STARTED" });
 });
 
 test("NORMAL_MOVE commands activate, cancel, and refund one Tracker action", () => {
