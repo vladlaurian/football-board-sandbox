@@ -6,13 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.22.1` |
-| Git/package version | `20.22.1` |
-| Build name | `Final_Board_v20_22_1_inactive_phase_card_lock` |
-| Base build | `v20.22.0 phase_engine_auto_turn` |
+| Sandbox version | `v20.23.0` |
+| Git/package version | `20.23.0` |
+| Build name | `Final_Board_v20_23_0_bonus_action_closure_engine` |
+| Base build | `v20.22.1 inactive_phase_card_lock` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.22.1`. The repository version is defined in `package.json` as `20.22.1`. The browser title is `Sandbox v20.22.1`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.23.0`. The repository version is defined in `package.json` as `20.23.0`. The browser title is `Sandbox v20.23.0`.
+
+## v20.23.0 release summary
+
+v20.23.0 migrates offline Single Player `END B.A.` through `BONUS_ACTION_ENDED -> Game Engine -> Single Player Controller -> Timeline -> applyTimelineGameState`. The Engine now owns validation of the canonical Bonus Action identity, its legal end states (unused, active, or awaiting explicit close), explicit decline/completion semantics, continuation removal, and resume policy.
+
+For `advance-turn`, the Engine resets only the new numbered turn and starts it for the continuation's designated team. If that continuation would advance beyond the configured final turn, the Match enters `complete` instead of remaining incorrectly on the last numbered turn. A future `resume-phase` continuation now returns explicitly to its declared phase without resetting Tracker state. Existing `BONUS_ACTION_ENDED` and `BONUS_ACTION_DECLINED` Timeline/AI semantics remain unchanged, and the Bonus Action transaction remains atomic for Undo/Redo. Manual Multiplayer retains its existing End B.A. path.
 
 ## v20.22.1 release summary
 

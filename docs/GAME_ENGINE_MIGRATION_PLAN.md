@@ -155,6 +155,25 @@ Attack closure changes only `turnPhase` to defense. Defense closure automaticall
 
 The offline Single Player Match Mode Inspector now derives card-action availability from canonical Tracker phase ownership. Outside the active phase, Move, Group Move, Pass, Shot, Cross, Dribble and Tackling are disabled. This is deliberately UI presentation only because the migrated Engine commands already validate ownership. Selection and inspection remain unrestricted for both teams; Free Move, Free Ball, INACTIVE and card-flip flows are intentionally excluded. Canonical Bonus Action ownership remains the only normal-action exception. Manual Multiplayer remains unchanged.
 
+### v20.23.0 — offline Single Player Bonus Action closure Engine migration
+
+**Status:** Complete.
+
+`END B.A.` now dispatches `BONUS_ACTION_ENDED` through the Game Engine and Single Player Controller in offline Match Mode. The Engine accepts only the canonical Bonus Action and an optional matching continuation identity; it rejects stale, missing, non-Match, or action-resolution-active requests without changing MatchState. It accepts a ready continuation as an explicit decline, an active continuation (including partial Bonus MOVE), or a completed continuation awaiting explicit closure.
+
+The Engine emits the existing `BONUS_ACTION_DECLINED` or `BONUS_ACTION_ENDED` semantic Timeline event, preserving the AI-exported metadata. It owns continuation removal and the resume policy: `advance-turn` resets the new turn's Tracker and movement state, starts that designated team, and completes the Match rather than inventing or repeating an out-of-range final turn. `resume-phase` returns explicitly to its declared phase without a reset. The closure joins the existing continuation transaction, preserving atomic Undo/Redo. Manual Multiplayer keeps its existing End B.A. UI/Firebase path.
+
+Delivered files and tests:
+
+- `src/engine/bonusActionRules.mjs`
+- `src/engine/gameCommands.mjs`
+- `src/engine/gameEngine.mjs`
+- `src/engine/singlePlayerController.mjs`
+- `src/engine/gameEngine.test.mjs`
+- `src/engine/singlePlayerController.test.mjs`
+- offline Match Mode branch of `endBonusAction()` in `src/main.jsx`
+- focused command: `node --test src/engine/*.test.mjs src/match/*.test.mjs src/timeline/*.test.mjs src/tracker/*.test.mjs`
+
 ### v20.19.0 — offline Single Player Free Move Engine migration
 
 Free Move now has one offline Match Mode mutation path: `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` flow through the Game Engine and Single Player Controller into Timeline. It is deliberately an administrative correction rather than a Tracker action. The three Timeline entries are ordinary reversible history, so Undo/Redo may step across them and AI export retains the correction as `FREE_MODE` with `MANUAL_CORRECTION` provenance.

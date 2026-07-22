@@ -403,6 +403,20 @@ In offline Single Player, an active Bonus Action blocks End Turn, Free Move, Fre
 - No game rule, Tracker state or Engine transition changes in this build.
 - Manual Multiplayer remains untouched.
 
+## ADR-029 — Bonus Action closure is an Engine-owned continuation transition
+
+**Status:** Active
+
+**Decision:** In offline Single Player Match Mode, `END B.A.` is resolved only by the `BONUS_ACTION_ENDED` command. The Engine derives whether the continuation was declined or used from canonical `actionContinuation`, accepts ready, active, and awaiting-end states, clears that continuation, and emits the established `BONUS_ACTION_DECLINED` or `BONUS_ACTION_ENDED` semantic event. The optional continuation ID prevents a stale UI control from closing a replacement Bonus Action.
+
+An `advance-turn` resume policy resets only the next numbered turn and makes its designated team the attacker. If its requested turn is past the configured final turn, the Match enters `complete`; it must never clamp back to the final numbered turn. A `resume-phase` policy returns to its declared phase without changing its existing Tracker economy. The transition remains part of the continuation's atomic Timeline transaction.
+
+**Consequences:**
+
+- History, Undo/Redo, Replay and AI Export receive the same existing Bonus Action semantic vocabulary and metadata.
+- The `TURN X` popup remains UI-only and is displayed only after Engine-produced state starts a valid next turn.
+- Manual Multiplayer keeps its existing End B.A. intent/host path and is intentionally outside this migration.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

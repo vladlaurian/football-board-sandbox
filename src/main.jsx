@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.22.1";
+const APP_VERSION = "v20.23.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -10237,7 +10237,7 @@ function App() {
     const nextPieces = moveBallTo(interceptor.x, interceptor.y);
     if (naturalTwenty) {
       const bonusTeam = teamKeyForPiece(interceptor);
-      const nextTurn = Math.min(trackerSettings.turns, Math.max(1, normalizeTrackerSnapshot(before.tracker).currentTurn + 1));
+      const nextTurn = Math.max(1, normalizeTrackerSnapshot(before.tracker).currentTurn + 1);
       const previousContinuation = before.actionContinuation?.kind === "bonus-card-action" ? before.actionContinuation : null;
       const continuation = createBonusCardActionContinuation({
         team: bonusTeam,
@@ -11069,6 +11069,32 @@ function App() {
   function endBonusAction() {
     const continuation = actionContinuationRef.current;
     if (!continuation || !canControlBonusContinuation(continuation) || actionResolutionRef.current) return;
+    if (!sessionCode) {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const declined = continuation.status === CONTINUATION_STATUS.READY;
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`bonus_action_end_${continuation.id}`),
+          type: GAME_COMMAND_TYPE.BONUS_ACTION_ENDED,
+          payload: { continuationId: continuation.id },
+        },
+        label: declined
+          ? `${continuation.team === "blue" ? "Blue" : "Red"} declines the bonus action`
+          : `${continuation.team === "blue" ? "Blue" : "Red"} bonus action ended`,
+      });
+      if (!dispatched.result.accepted) {
+        if (dispatched.result.reason) setIllegalMoveNotice({ reason: dispatched.result.reason });
+        return;
+      }
+      replaceGameTimeline(dispatched.timeline);
+      applyTimelineGameState(dispatched.state);
+      const startedTurn = dispatched.result.events?.[0]?.metadata?.startedTurn;
+      if (Number.isInteger(startedTurn)) setStartedTurnNotice(startedTurn);
+      return;
+    }
     if (sessionCode && !sessionAuthorityRef.current.isHost) {
       requestBonusActionEnd(continuation);
       return;

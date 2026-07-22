@@ -362,6 +362,107 @@ test("BONUS_MOVE can cancel only before its first physical segment", () => {
   assert.deepEqual(rejected, { accepted: false, reason: "BONUS_MOVE_NOT_CANCELLABLE" });
 });
 
+test("BONUS_ACTION_ENDED is Engine-owned, records decline semantics, and starts its canonical next turn", () => {
+  const state = normalMoveState({
+    movementStateByPieceId: { "blue-1": { axis: "horizontal", spent: 2, distance: 2 } },
+    tracker: {
+      ...normalMoveState().tracker,
+      currentTurn: 1,
+      turnPhase: "defense",
+      usedActions: { blue: 3, red: 2 },
+      actionLog: { blue: [{ id: "blue-pass", type: "PASS" }], red: [{ id: "red-intercept", type: "INTERCEPTION" }] },
+    },
+    actionContinuation: {
+      id: "bonus-end-1",
+      kind: "bonus-card-action",
+      team: "red",
+      status: "ready",
+      resumePolicy: { type: "advance-turn", team: "red", nextTurn: 2, phase: "attack" },
+    },
+  });
+  const result = applyGameCommand({
+    state,
+    context: normalMoveContext(),
+    command: { id: "bonus-end-command", type: "BONUS_ACTION_ENDED", payload: { continuationId: "bonus-end-1" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.nextState.actionContinuation, null);
+  assert.equal(result.nextState.tracker.startingTeam, "red");
+  assert.equal(result.nextState.tracker.currentTurn, 2);
+  assert.equal(result.nextState.tracker.turnPhase, "attack");
+  assert.deepEqual(result.nextState.tracker.usedActions, { red: 0, blue: 0 });
+  assert.deepEqual(result.nextState.movementStateByPieceId, {});
+  assert.equal(result.events[0].type, "BONUS_ACTION_DECLINED");
+  assert.deepEqual(result.events[0].metadata.bonusAction, { used: false, declined: true, actionType: null, pieceId: null });
+  assert.equal(result.events[0].metadata.startedTurn, 2);
+  assert.deepEqual(result.timeline, { groupId: "bonus-end-1", undoMode: "atomic", allowNoop: false });
+});
+
+test("BONUS_ACTION_ENDED accepts an active partial Bonus MOVE and completes the match after the final numbered turn", () => {
+  const state = normalMoveState({
+    tracker: { ...normalMoveState().tracker, currentTurn: 20, settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+    actionContinuation: {
+      id: "bonus-end-final",
+      kind: "bonus-card-action",
+      team: "blue",
+      status: "action-active",
+      actionType: "MOVE",
+      pieceId: "blue-1",
+      movementStarted: true,
+      resumePolicy: { type: "advance-turn", team: "blue", nextTurn: 21, phase: "attack" },
+    },
+  });
+  const result = applyGameCommand({
+    state,
+    context: normalMoveContext(),
+    command: { id: "bonus-end-final-command", type: "BONUS_ACTION_ENDED", payload: { continuationId: "bonus-end-final" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.nextState.actionContinuation, null);
+  assert.equal(result.nextState.tracker.currentTurn, 20);
+  assert.equal(result.nextState.tracker.turnPhase, "complete");
+  assert.equal(result.events[0].type, "BONUS_ACTION_ENDED");
+  assert.equal(result.events[0].metadata.matchComplete, true);
+  assert.equal(result.events[0].metadata.startedTurn, null);
+});
+
+test("BONUS_ACTION_ENDED resumes a declared phase without resetting its Tracker state", () => {
+  const state = normalMoveState({
+    tracker: { ...normalMoveState().tracker, turnPhase: "defense", usedActions: { blue: 2, red: 1 } },
+    actionContinuation: {
+      id: "bonus-resume",
+      kind: "bonus-card-action",
+      team: "red",
+      status: "awaiting-end-bonus-action",
+      actionType: "TACKLING",
+      pieceId: "red-1",
+      resumePolicy: { type: "resume-phase", team: "red", nextTurn: 1, phase: "defense" },
+    },
+  });
+  const result = applyGameCommand({
+    state,
+    context: normalMoveContext(),
+    command: { id: "bonus-resume-command", type: "BONUS_ACTION_ENDED", payload: { continuationId: "bonus-resume" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.nextState.tracker.turnPhase, "defense");
+  assert.deepEqual(result.nextState.tracker.usedActions, { blue: 2, red: 1 });
+  assert.equal(result.events[0].metadata.nextPhase, "defense");
+});
+
+test("BONUS_ACTION_ENDED rejects stale or missing Bonus Action commands without mutating MatchState", () => {
+  const state = normalMoveState({
+    actionContinuation: { id: "bonus-current", kind: "bonus-card-action", team: "blue", status: "ready" },
+  });
+  const before = structuredClone(state);
+  assert.deepEqual(applyGameCommand({
+    state,
+    context: normalMoveContext(),
+    command: { id: "bonus-stale", type: "BONUS_ACTION_ENDED", payload: { continuationId: "wrong-id" } },
+  }), { accepted: false, reason: "BONUS_ACTION_NOT_ACTIVE" });
+  assert.deepEqual(state, before);
+});
+
 test("THREE_TWO_MOVE_COMMITTED rejects an occupied ball square, reuse, and inactive phase without mutation", () => {
   const base = createGameState({
     ...normalMoveState(),
@@ -406,7 +507,7 @@ test("THREE_TWO_MOVE_COMMITTED rejects a player blocking the path to the ball", 
 });
 
 test("engine modules do not depend on UI, Firebase, or browser APIs", () => {
-  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs", "movementPathRules.mjs", "normalMoveRules.mjs", "threeTwoMoveRules.mjs", "freeMoveRules.mjs", "groupMoveRules.mjs", "singlePlayerController.mjs"];
+  const moduleFiles = ["gameEngine.mjs", "gameCommands.mjs", "gameEvents.mjs", "matchContext.mjs", "movementPathRules.mjs", "normalMoveRules.mjs", "threeTwoMoveRules.mjs", "freeMoveRules.mjs", "groupMoveRules.mjs", "bonusActionRules.mjs", "singlePlayerController.mjs"];
   const forbidden = /(?:from\s+["'](?:react|firebase\/|firebase)["']|\bwindow\b|\bdocument\b|\blocalStorage\b|\bsetTimeout\b|\bsetInterval\b|\bfetch\b|\bXMLHttpRequest\b)/;
   moduleFiles.forEach(file => {
     const source = fs.readFileSync(new URL(`./${file}`, import.meta.url), "utf8");

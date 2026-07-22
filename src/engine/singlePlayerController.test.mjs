@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 import { createGameState } from "../game/gameState.mjs";
-import { redoTimeline, undoTimeline } from "../timeline/timelineEngine.mjs";
+import { redoAtomicTimelineTransaction, redoTimeline, undoAtomicTimelineTransaction, undoTimeline } from "../timeline/timelineEngine.mjs";
 import { dispatchSinglePlayerGameCommand, dispatchSinglePlayerGameCommandSequence } from "./singlePlayerController.mjs";
 
 function matchState() {
@@ -209,6 +209,34 @@ test("Single Player Controller publishes direct-board Bonus MOVE only when its s
   });
   assert.equal(rejected.accepted, false);
   assert.equal(rejected.timeline.entries.length, 0);
+});
+
+test("Single Player Controller records End B.A. as the final entry of its atomic Bonus Action transaction", () => {
+  const start = createGameState({ ...normalMoveState(),
+    actionContinuation: {
+      id: "bonus-end-controller",
+      kind: "bonus-card-action",
+      team: "blue",
+      status: "ready",
+      resumePolicy: { type: "advance-turn", team: "blue", nextTurn: 2, phase: "attack" },
+    },
+  });
+  const ended = dispatchSinglePlayerGameCommand({
+    state: start,
+    context: normalMoveContext(),
+    command: { id: "bonus-end-controller-command", type: "BONUS_ACTION_ENDED", payload: { continuationId: "bonus-end-controller" } },
+  });
+  assert.equal(ended.result.accepted, true);
+  assert.equal(ended.entry.type, "BONUS_ACTION_DECLINED");
+  assert.equal(ended.entry.groupId, "bonus-end-controller");
+  assert.equal(ended.entry.metadata.actionTransaction.undoMode, "atomic");
+  assert.equal(ended.state.tracker.currentTurn, 2);
+
+  const undone = undoAtomicTimelineTransaction(ended.timeline);
+  assert.equal(undone.state.actionContinuation.id, "bonus-end-controller");
+  const redone = redoAtomicTimelineTransaction(undone.timeline);
+  assert.equal(redone.state.actionContinuation, null);
+  assert.equal(redone.state.tracker.currentTurn, 2);
 });
 
 test("Single Player Controller does not depend on UI, Firebase, or browser APIs", () => {

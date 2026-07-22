@@ -54,6 +54,11 @@ test("a ready bonus action can be explicitly declined before any card action sta
   assert.equal(ended.resumePolicy.nextTurn, 5);
 });
 
+test("a Bonus Action retains an out-of-range requested next turn for Engine match completion", () => {
+  const continuation = createBonusCardActionContinuation({ id: "bonus-final-turn", team: "blue", nextTurn: 21 });
+  assert.equal(continuation.resumePolicy.nextTurn, 21);
+});
+
 test("an active bonus action may be ended explicitly after partial movement", () => {
   const ready = normalizeActionContinuation({ id: "bonus_active", team: "blue", nextTurn: 3 });
   const active = beginContinuationAction(ready, { type: "MOVE", pieceId: "A-1" });

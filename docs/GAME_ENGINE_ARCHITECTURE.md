@@ -90,7 +90,7 @@ A command is an attempted action. An event is a confirmed gameplay fact emitted 
 | Tracker | `TURN_PHASE_ENDED`, `TURN_CHANGED`, `POSSESSION_CHANGED` |
 | Pass | `PASS_STARTED`, `PASS_CANCELLED`, `PASS_TARGET_SELECTED`, `PASS_ROUTE_SELECTED`, `PASS_INTERCEPTOR_SELECTED` |
 | Dice and resolution | `ROLL_SUBMITTED`, `RESOLUTION_DUE` |
-| Bonus Action | `BONUS_ACTION_STARTED`, `BONUS_ACTION_ENDED` |
+| Bonus Action | `BONUS_ACTION_STARTED`, `BONUS_ACTION_ENDED`; typed movement: `BONUS_MOVE_STARTED`, `BONUS_MOVE_CANCELLED`, `BONUS_MOVE_COMMITTED` |
 
 Future Dribble, Shot, Tackle, and Cross commands use this same contract; they must not introduce separate UI, Timeline, Dice, or Firebase gameplay paths.
 

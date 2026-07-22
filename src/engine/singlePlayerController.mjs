@@ -1,4 +1,5 @@
 import { createGameState } from "../game/gameState.mjs";
+import { atomicTransactionForTransition } from "../match/actionTransaction.mjs";
 import { commitTimelineEntry, createTimeline, normalizeTimeline, timelineStateAt } from "../timeline/timelineEngine.mjs";
 import { applyGameCommand } from "./gameEngine.mjs";
 
@@ -13,13 +14,17 @@ export function dispatchSinglePlayerGameCommand({ timeline = null, state, contex
 
   const event = result.events?.[0];
   if (!event) throw new Error("Accepted game command did not produce a semantic event.");
+  const actionTransaction = atomicTransactionForTransition(result.timeline?.groupId, before, result.nextState);
   const nextTimeline = commitTimelineEntry(currentTimeline, {
     id: event.commandId,
     type: event.type,
     label: String(label || event.type),
     team: event.team,
     groupId: result.timeline?.groupId || null,
-    metadata: event.metadata,
+    metadata: {
+      ...(event.metadata || {}),
+      ...(actionTransaction ? { actionTransaction } : {}),
+    },
     before,
     after: result.nextState,
   }, { allowNoop: Boolean(result.timeline?.allowNoop) });

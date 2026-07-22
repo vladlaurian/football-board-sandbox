@@ -7,6 +7,7 @@ import { commitThreeTwoMove } from "./threeTwoMoveRules.mjs";
 import { commitFreeMove, endFreeMove, startFreeMove } from "./freeMoveRules.mjs";
 import { commitGroupMovePlayer, confirmGroupMoveZone } from "./groupMoveRules.mjs";
 import { cancelBonusMove, commitBonusMove, startBonusMove } from "./bonusMoveRules.mjs";
+import { endBonusAction } from "./bonusActionRules.mjs";
 import { endTrackerPhase } from "./trackerPhaseRules.mjs";
 
 function rejected(reason) {
@@ -78,6 +79,7 @@ export function applyGameCommand({ state, context, command } = {}) {
     GAME_COMMAND_TYPE.BONUS_MOVE_STARTED,
     GAME_COMMAND_TYPE.BONUS_MOVE_CANCELLED,
     GAME_COMMAND_TYPE.BONUS_MOVE_COMMITTED,
+    GAME_COMMAND_TYPE.BONUS_ACTION_ENDED,
   ].includes(normalizedCommand.type)) return rejected("BONUS_ACTION_ACTIVE");
   const freeMoveTransition = normalizedCommand.type === GAME_COMMAND_TYPE.FREE_MOVE_STARTED
     ? startFreeMove(currentState, normalizedCommand)
@@ -135,6 +137,14 @@ export function applyGameCommand({ state, context, command } = {}) {
       ...bonusMoveTransition.event,
       commandId: normalizedCommand.id,
     })], bonusMoveTransition.timeline);
+  }
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.BONUS_ACTION_ENDED) {
+    const transition = endBonusAction(currentState, normalizedCommand);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({
+      ...transition.event,
+      commandId: normalizedCommand.id,
+    })], transition.timeline);
   }
   if (normalizedCommand.type === GAME_COMMAND_TYPE.TRACKER_PHASE_ENDED) {
     const transition = endTrackerPhase(currentState, normalizedCommand);
