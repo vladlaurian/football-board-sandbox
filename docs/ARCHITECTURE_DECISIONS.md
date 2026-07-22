@@ -377,6 +377,20 @@ In offline Single Player, an active Bonus Action blocks End Turn, Free Move, Fre
 - 3/2 remains independent before or during Bonus MOVE.
 - Manual Multiplayer and Editor Mode retain their existing behavior.
 
+## ADR-027 — Phase closure owns automatic numbered-turn advancement
+
+**Status:** Active
+
+**Decision:** Offline Single Player Match Mode resolves `END TURN` only through `TRACKER_PHASE_ENDED`. The Engine moves attack to defense without resetting state. When defense ends, it starts the next numbered turn automatically if one remains, resets the turn-scoped Tracker and movement state, and returns to attack. The final defense reaches `complete` without creating an out-of-range turn.
+
+**Consequences:**
+
+- Numbered Tracker controls are presentation-only in offline Match Mode; UI cannot manually advance or reverse the live match turn.
+- `PHASE_ENDED` remains the Timeline semantic event and carries automatic-advance metadata. The Turn popup is UI-only presentation of committed state.
+- A normal MOVE before its first physical segment locks every gameplay command except commit or cancel. This prevents a temporary Move interaction from crossing a phase boundary.
+- Group Move may end normally through End Turn and is cleared canonically. Free Move, Bonus Action and active action-resolution continue to block phase closure.
+- Editor Mode and Manual Multiplayer retain their existing paths.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

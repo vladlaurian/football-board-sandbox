@@ -141,6 +141,14 @@ Bonus MOVE now uses `BONUS_MOVE_STARTED`, `BONUS_MOVE_CANCELLED`, and `BONUS_MOV
 
 Both offline Single Player entrances use the same Engine commands: card MOVE starts the action and exposes Cancel before the first segment; direct board selection plus legal destination evaluates a start-and-commit sequence before publishing either Timeline transition. Direct board movement therefore has no artificial Cancel interval after the player has physically moved. `END B.A.` remains the only normal closure and may end the action with unused Speed. 3/2 remains independent before or during Bonus MOVE. Manual Multiplayer remains unchanged.
 
+### v20.22.0 — offline Single Player phase closure and automatic turn advance
+
+**Status:** Complete.
+
+`TRACKER_PHASE_ENDED` now moves offline Single Player Match Mode through `Game Engine -> Single Player Controller -> Timeline -> applyTimelineGameState`. The Engine validates Match start, active team and active action-resolution state. It deliberately permits Group Move closure and clears its canonical state. It rejects Free Move and pre-first-segment normal MOVE through the existing Engine interaction locks.
+
+Attack closure changes only `turnPhase` to defense. Defense closure automatically begins the next numbered turn when one remains: it resets Tracker action logs/economy, per-piece Move authorization, Group Move state, and movement state, then returns to attack. The existing starting/attacking team is preserved. At the configured final turn, defense closure reaches `complete` without creating another numbered turn. Tracker numbered controls are presentation-only in offline Match Mode; Editor Mode and Manual Multiplayer retain existing behavior. The `PHASE_ENDED` semantic Timeline event carries `automaticTurnAdvance` and `startedTurn` metadata for History, replay and AI export. UI presents the non-canonical `TURN X` popup after the committed state is applied.
+
 ### v20.19.0 — offline Single Player Free Move Engine migration
 
 Free Move now has one offline Match Mode mutation path: `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` flow through the Game Engine and Single Player Controller into Timeline. It is deliberately an administrative correction rather than a Tracker action. The three Timeline entries are ordinary reversible history, so Undo/Redo may step across them and AI export retains the correction as `FREE_MODE` with `MANUAL_CORRECTION` provenance.

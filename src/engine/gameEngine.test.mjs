@@ -579,3 +579,52 @@ test("GROUP_MOVE rejects unconfirmed, moved, outside-zone, ball, occupied, dista
   const first = applyGameCommand({ state: active.nextState, context, command: { id: "first", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-1", x: 6, y: 5 } } });
   assert.deepEqual(applyGameCommand({ state: first.nextState, context, command: { id: "direction", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-2", x: 4, y: 3 } } }), { accepted: false, reason: "GROUP_MOVE_LIMIT_REACHED" });
 });
+
+test("TRACKER_PHASE_ENDED advances defense automatically and resets only the new numbered turn", () => {
+  const attack = normalMoveState({
+    movementStateByPieceId: { "blue-1": { axis: "horizontal", spent: 2, distance: 2 } },
+    tracker: {
+      ...normalMoveState().tracker,
+      matchActionState: { groupMove: { active: true, team: "blue", timelineGroupId: "group-1" } },
+      usedActions: { blue: 2, red: 0 },
+      actionLog: { blue: [{ id: "a-1", type: "MOVE", pieceId: "blue-1" }, { id: "a-2", type: "PASS", pieceId: "blue-1" }], red: [] },
+    },
+  });
+  const attackEnded = applyGameCommand({ state: attack, context: normalMoveContext(), command: { id: "phase-blue", type: "TRACKER_PHASE_ENDED", payload: { team: "blue" } } });
+  assert.equal(attackEnded.accepted, true);
+  assert.equal(attackEnded.nextState.tracker.turnPhase, "defense");
+  assert.equal(attackEnded.nextState.tracker.currentTurn, 1);
+  assert.equal(attackEnded.nextState.tracker.usedActions.blue, 2);
+  assert.equal(attackEnded.nextState.movementStateByPieceId["blue-1"].spent, 2);
+  assert.equal(attackEnded.nextState.tracker.matchActionState.groupMove.active, false);
+
+  const defenseEnded = applyGameCommand({ state: attackEnded.nextState, context: normalMoveContext(), command: { id: "phase-red", type: "TRACKER_PHASE_ENDED", payload: { team: "red" } } });
+  assert.equal(defenseEnded.accepted, true);
+  assert.equal(defenseEnded.nextState.tracker.currentTurn, 2);
+  assert.equal(defenseEnded.nextState.tracker.turnPhase, "attack");
+  assert.deepEqual(defenseEnded.nextState.tracker.usedActions, { red: 0, blue: 0 });
+  assert.deepEqual(defenseEnded.nextState.movementStateByPieceId, {});
+  assert.equal(defenseEnded.events[0].metadata.startedTurn, 2);
+});
+
+test("TRACKER_PHASE_ENDED completes the last defense without inventing another turn", () => {
+  const finalDefense = normalMoveState({
+    tracker: { ...normalMoveState().tracker, currentTurn: 20, turnPhase: "defense" },
+  });
+  const result = applyGameCommand({ state: finalDefense, context: normalMoveContext(), command: { id: "phase-final", type: "TRACKER_PHASE_ENDED", payload: { team: "red" } } });
+  assert.equal(result.accepted, true);
+  assert.equal(result.nextState.tracker.currentTurn, 20);
+  assert.equal(result.nextState.tracker.turnPhase, "complete");
+  assert.equal(result.events[0].metadata.startedTurn, null);
+});
+
+test("a pre-movement normal MOVE locks every Engine command except commit or cancel", () => {
+  const started = applyGameCommand({ state: normalMoveState(), context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "move-lock-start") });
+  const phase = applyGameCommand({ state: started.nextState, context: normalMoveContext(), command: { id: "move-lock-phase", type: "TRACKER_PHASE_ENDED", payload: { team: "blue" } } });
+  const free = applyGameCommand({ state: started.nextState, context: normalMoveContext(), command: normalMoveCommand("FREE_MOVE_STARTED", {}, "move-lock-free") });
+  assert.deepEqual(phase, { accepted: false, reason: "MOVE_INTERACTION_ACTIVE" });
+  assert.deepEqual(free, { accepted: false, reason: "MOVE_INTERACTION_ACTIVE" });
+  const cancelled = applyGameCommand({ state: started.nextState, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_CANCELLED", {}, "move-lock-cancel") });
+  assert.equal(cancelled.accepted, true);
+  assert.equal(cancelled.nextState.tracker.usedActions.blue, 0);
+});

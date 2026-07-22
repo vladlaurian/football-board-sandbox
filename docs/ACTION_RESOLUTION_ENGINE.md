@@ -154,6 +154,10 @@ Offline Single Player Bonus MOVE is no longer a UI-owned placement path. `BONUS_
 
 The card starts Bonus MOVE through `BONUS_MOVE_STARTED`; board selection plus destination evaluates start and first commit as one dependent command sequence. Either route produces canonical Timeline state. Bonus MOVE remains active after partial movement until `END B.A.`; 3/2 may still occur independently before or during it. Manual Multiplayer is outside this migration.
 
+## v20.22.0 — phase closure boundary
+
+Offline Single Player phase closure is now a typed Engine transition: `TRACKER_PHASE_ENDED`. It is blocked by active action resolution, Bonus Action, Free Move, and an uncommitted normal MOVE interaction. It clears active Group Move as the normal End Turn closure. Attack closure moves to defense; defense closure starts the next numbered turn automatically when available and resets the turn-scoped action and movement state. The Turn popup is UI-only and appears only after the canonical transition has committed.
+
 ## Pass migration in v19.11
 
 Pass remains responsible for its current geometry and rules. It uses explicit pending decisions, pending roll requests and unique roll events. This is the reference implementation for future automated actions.

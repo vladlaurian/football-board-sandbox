@@ -28,6 +28,7 @@ export function TrackerPanel({
   onToggleAction,
   onRemoveLastAction,
   currentTurn,
+  turnsReadOnly = false,
   onSelectTurn,
   onResizeDown,
 }) {
@@ -94,8 +95,8 @@ export function TrackerPanel({
                   key={turn}
                   className={turn === currentTurn ? "active" : turn < currentTurn ? "completed" : ""}
                   onClick={() => onSelectTurn(turn)}
-                  disabled={readOnly || !gameStarted || turn > currentTurn + 1}
-                  aria-disabled={readOnly || !gameStarted || turn > currentTurn + 1}
+                  disabled={readOnly || turnsReadOnly || !gameStarted || turn > currentTurn + 1}
+                  aria-disabled={readOnly || turnsReadOnly || !gameStarted || turn > currentTurn + 1}
                 >{turn}</button>
               ))}
             </div>

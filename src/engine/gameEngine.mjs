@@ -7,6 +7,7 @@ import { commitThreeTwoMove } from "./threeTwoMoveRules.mjs";
 import { commitFreeMove, endFreeMove, startFreeMove } from "./freeMoveRules.mjs";
 import { commitGroupMovePlayer, confirmGroupMoveZone } from "./groupMoveRules.mjs";
 import { cancelBonusMove, commitBonusMove, startBonusMove } from "./bonusMoveRules.mjs";
+import { endTrackerPhase } from "./trackerPhaseRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -59,11 +60,19 @@ export function applyGameCommand({ state, context, command } = {}) {
   const freeMoveActive = Boolean(currentState.tracker?.matchActionState?.freeMode?.active);
   const groupMoveActive = Boolean(currentState.tracker?.matchActionState?.groupMove?.active);
   const bonusActionActive = currentState.actionContinuation?.kind === "bonus-card-action";
+  const normalMoveInteractionActive = Boolean(currentState.tracker?.matchActionState?.activeMovement?.active);
   if (freeMoveActive && ![
     GAME_COMMAND_TYPE.FREE_MOVE_COMMITTED,
     GAME_COMMAND_TYPE.FREE_MOVE_ENDED,
   ].includes(normalizedCommand.type)) return rejected("FREE_MOVE_ACTIVE");
-  if (groupMoveActive && normalizedCommand.type !== GAME_COMMAND_TYPE.GROUP_MOVE_PLAYER_COMMITTED) return rejected("GROUP_MOVE_ACTIVE");
+  if (groupMoveActive && ![
+    GAME_COMMAND_TYPE.GROUP_MOVE_PLAYER_COMMITTED,
+    GAME_COMMAND_TYPE.TRACKER_PHASE_ENDED,
+  ].includes(normalizedCommand.type)) return rejected("GROUP_MOVE_ACTIVE");
+  if (normalMoveInteractionActive && ![
+    GAME_COMMAND_TYPE.NORMAL_MOVE_CANCELLED,
+    GAME_COMMAND_TYPE.NORMAL_MOVE_COMMITTED,
+  ].includes(normalizedCommand.type)) return rejected("MOVE_INTERACTION_ACTIVE");
   if (bonusActionActive && ![
     GAME_COMMAND_TYPE.THREE_TWO_MOVE_COMMITTED,
     GAME_COMMAND_TYPE.BONUS_MOVE_STARTED,
@@ -126,6 +135,14 @@ export function applyGameCommand({ state, context, command } = {}) {
       ...bonusMoveTransition.event,
       commandId: normalizedCommand.id,
     })], bonusMoveTransition.timeline);
+  }
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.TRACKER_PHASE_ENDED) {
+    const transition = endTrackerPhase(currentState, normalizedCommand);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({
+      ...transition.event,
+      commandId: normalizedCommand.id,
+    })], transition.timeline);
   }
   if (normalizedCommand.type === GAME_COMMAND_TYPE.THREE_TWO_MOVE_COMMITTED) {
     const transition = commitThreeTwoMove(currentState, matchContext, normalizedCommand);

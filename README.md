@@ -6,13 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.21.1` |
-| Git/package version | `20.21.1` |
-| Build name | `Final_Board_v20_21_1_bonus_move_engine_tracker_clarity` |
-| Base build | `v20.21.0 bonus_action_foundation` |
+| Sandbox version | `v20.22.0` |
+| Git/package version | `20.22.0` |
+| Build name | `Final_Board_v20_22_0_phase_engine_auto_turn` |
+| Base build | `v20.21.1 bonus_move_engine_tracker_clarity` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.21.1`. The repository version is defined in `package.json` as `20.21.1`. The browser title is `Sandbox v20.21.1`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.22.0`. The repository version is defined in `package.json` as `20.22.0`. The browser title is `Sandbox v20.22.0`.
+
+## v20.22.0 release summary
+
+v20.22.0 migrates offline Single Player `END TURN` into the Game Engine through `TRACKER_PHASE_ENDED`. Engine validation now owns phase ownership, Match start, active Pass/Free Move locks, Group Move closure, and the normal-MOVE pre-first-segment lock. When attack ends, the Engine enters defense without resetting the turn. When defense ends, it automatically starts the next numbered turn, resets Tracker action economy, move authorization, Group Move state and movement state, and emits the existing canonical `PHASE_ENDED` Timeline event with automatic-turn metadata. The last configured defense ends the match phase without creating another turn.
+
+The numbered Tracker controls are display-only in offline Match Mode because numbered turns now belong to the Engine; Editor Mode and Manual Multiplayer retain their existing controls. A `TURN X` popup announces every automatic new turn. While a normal MOVE is active before its first physical segment, every gameplay button is blocked except `CANCEL MOVE`; the Engine independently rejects all other commands. Manual Multiplayer remains unchanged.
 
 ## v20.21.1 release summary
 

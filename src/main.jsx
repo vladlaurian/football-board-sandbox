@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.21.1";
+const APP_VERSION = "v20.22.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2104,6 +2104,7 @@ function App() {
   const [illegalMoveNotice, setIllegalMoveNotice] = useState(null);
   const [pendingTurnChange, setPendingTurnChange] = useState(null);
   const [turnAdvanceNotice, setTurnAdvanceNotice] = useState(false);
+  const [startedTurnNotice, setStartedTurnNotice] = useState(null);
   const [pendingThreeTwoMove, setPendingThreeTwoMove] = useState(null);
   const [groupMoveZoneDraft, setGroupMoveZoneDraft] = useState(null);
   const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
@@ -5675,6 +5676,7 @@ function App() {
     if (gameMode !== "match" || replayModeRef.current) return;
     if (!sessionCode && currentTimelineTrackerSnapshot().matchActionState.freeMode?.active) return;
     if (!sessionCode && currentTimelineTrackerSnapshot().matchActionState.groupMove?.active) return;
+    if (!sessionCode && currentTimelineTrackerSnapshot().matchActionState.activeMovement?.active) return;
     if (!sessionCode && actionContinuationRef.current?.kind === "bonus-card-action") return;
     if (sessionCode && (!piece || piece.team === "BALL" || pieceTeamKey(piece) !== myTeam)) return;
     setFreeBallActive(active => {
@@ -10444,6 +10446,7 @@ function App() {
     if (!sessionCode) {
       if (actionContinuationRef.current?.kind === "bonus-card-action") return false;
       const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      if (before.tracker.matchActionState?.activeMovement?.active) return false;
       const currentFreeMode = before.tracker.matchActionState?.freeMode || {};
       const isSameFreePiece = Boolean(currentFreeMode.active && currentFreeMode.pieceId === piece.id);
       if (requestedOperation === "end" && !isSameFreePiece) return false;
@@ -10643,6 +10646,7 @@ function App() {
       commitNormalMoveCancellation(piece);
       return;
     }
+    if (!sessionCode && activeNormalMove.active && activeNormalMove.kind === "normal-move") return;
     if (type === "MOVE" && currentTimelineTrackerSnapshot().matchActionState.byPieceId?.[piece.id]?.moveAuthorized) {
       setSelectedId(piece.id);
       setHoveredCell(null);
@@ -10916,41 +10920,69 @@ function App() {
   function requestEndTurn(piece) {
     const team = pieceTeamKey(piece);
     if (actionContinuationRef.current?.kind === "bonus-card-action") return;
-    if (!canUseActionForPiece(piece) || matchActionState.freeMode?.active || actionResolutionRef.current) return;
+    if (!canUseActionForPiece(piece) || matchActionState.freeMode?.active || matchActionState.activeMovement?.active || actionResolutionRef.current) return;
     if (!isTeamPhaseActive(team)) {
       setIllegalMoveNotice({ reason: phaseBlockReason() });
       return;
     }
     setPendingEndTurn({ team });
   }
-  async function confirmEndTurn() {
+  function confirmEndTurn() {
     if (!pendingEndTurn) return;
     const endingTeam = pendingEndTurn.team;
-    const beforeTimeline = captureTimelineGameState();
-    const nextPhase = nextTrackerPhase(turnPhase);
-    const nextMatchActionState = clearGroupMoveState(beforeTimeline.tracker.matchActionState);
-    const afterTimeline = createGameState({
-      ...beforeTimeline,
-      tracker: {
-        ...beforeTimeline.tracker,
-        matchActionState: nextMatchActionState,
-        turnPhase: nextPhase,
-      },
+    if (sessionCode) {
+      const beforeTimeline = captureTimelineGameState();
+      const nextPhase = nextTrackerPhase(turnPhase);
+      const nextMatchActionState = clearGroupMoveState(beforeTimeline.tracker.matchActionState);
+      const afterTimeline = createGameState({
+        ...beforeTimeline,
+        tracker: {
+          ...beforeTimeline.tracker,
+          matchActionState: nextMatchActionState,
+          turnPhase: nextPhase,
+        },
+      });
+      setPendingEndTurn(null);
+      setGroupMoveZoneDraft(null);
+      groupMoveZoneDragRef.current = null;
+      setMatchActionState(nextMatchActionState);
+      setTurnPhase(nextPhase);
+      setSelectedId(null);
+      setHoveredCell(null);
+      recordTimelineTransition({
+        type: "PHASE_ENDED",
+        label: `${endingTeam === "blue" ? "Blue" : "Red"} END TURN → ${nextPhase.toUpperCase()}`,
+        team: endingTeam,
+        before: beforeTimeline,
+        after: afterTimeline,
+      });
+      return;
+    }
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const tracker = normalizeTrackerSnapshot(before.tracker);
+    const advancesTurn = tracker.turnPhase === "defense" && tracker.currentTurn < tracker.settings.turns;
+    const nextTurn = advancesTurn ? tracker.currentTurn + 1 : null;
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`tracker_phase_end_${endingTeam}`), type: GAME_COMMAND_TYPE.TRACKER_PHASE_ENDED, payload: { team: endingTeam } },
+      label: advancesTurn
+        ? `${endingTeam === "blue" ? "Blue" : "Red"} END TURN → TURN ${nextTurn}`
+        : `${endingTeam === "blue" ? "Blue" : "Red"} END TURN → ${tracker.turnPhase === "attack" ? "DEFENSE" : "COMPLETE"}`,
     });
+    if (!dispatched.result.accepted) {
+      if (dispatched.result.reason) setIllegalMoveNotice({ reason: dispatched.result.reason });
+      setPendingEndTurn(null);
+      return;
+    }
     setPendingEndTurn(null);
     setGroupMoveZoneDraft(null);
     groupMoveZoneDragRef.current = null;
-    setMatchActionState(nextMatchActionState);
-    setTurnPhase(nextPhase);
-    setSelectedId(null);
-    setHoveredCell(null);
-    recordTimelineTransition({
-      type: "PHASE_ENDED",
-      label: `${endingTeam === "blue" ? "Blue" : "Red"} END TURN → ${nextPhase.toUpperCase()}`,
-      team: endingTeam,
-      before: beforeTimeline,
-      after: afterTimeline,
-    });
+    replaceGameTimeline(dispatched.timeline);
+    applyTimelineGameState(dispatched.state);
+    const startedTurn = dispatched.result.events?.[0]?.metadata?.startedTurn;
+    if (Number.isInteger(startedTurn)) setStartedTurnNotice(startedTurn);
   }
 
   function commitEndBonusAction(continuation) {
@@ -11823,7 +11855,7 @@ function App() {
                       className={`inspector-flip-request-btn team-action-btn ${pieceTeamKey(inspectedPiece)}`}
                       disabled={(() => {
                         if (actionContinuation?.kind === "bonus-card-action") return true;
-                        return !canUseActionForPiece(inspectedPiece) || !isTeamPhaseActive(pieceTeamKey(inspectedPiece)) || matchActionState.freeMode?.active || Boolean(actionResolution);
+                        return !canUseActionForPiece(inspectedPiece) || !isTeamPhaseActive(pieceTeamKey(inspectedPiece)) || matchActionState.freeMode?.active || matchActionState.activeMovement?.active || Boolean(actionResolution);
                       })()}
                       onClick={() => requestEndTurn(inspectedPiece)}
                     >
@@ -11833,7 +11865,7 @@ function App() {
                       <button
                         type="button"
                         className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${freeBallActive ? "is-active" : ""}`}
-                      disabled={replayModeRef.current || (!sessionCode && (matchActionState.freeMode?.active || matchActionState.groupMove?.active || actionContinuation?.kind === "bonus-card-action")) || (Boolean(sessionCode) && pieceTeamKey(inspectedPiece) !== myTeam)}
+                      disabled={replayModeRef.current || (!sessionCode && (matchActionState.freeMode?.active || matchActionState.groupMove?.active || matchActionState.activeMovement?.active || actionContinuation?.kind === "bonus-card-action")) || (Boolean(sessionCode) && pieceTeamKey(inspectedPiece) !== myTeam)}
                         aria-pressed={freeBallActive}
                         onClick={() => toggleFreeBall(inspectedPiece)}
                       >
@@ -11844,7 +11876,7 @@ function App() {
                       <button
                         type="button"
                         className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id ? "is-active" : ""}`}
-                      disabled={Boolean(!sessionCode && actionContinuation?.kind === "bonus-card-action") || !canUseFreeModeForPiece(inspectedPiece) || (matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId !== inspectedPiece.id)}
+                      disabled={Boolean(!sessionCode && (actionContinuation?.kind === "bonus-card-action" || matchActionState.activeMovement?.active)) || !canUseFreeModeForPiece(inspectedPiece) || (matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId !== inspectedPiece.id)}
                         aria-pressed={Boolean(matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id)}
                         onClick={() => consumeInspectorAction("FREE", inspectedPiece)}
                       >
@@ -11867,6 +11899,7 @@ function App() {
                       && pendingPass?.passerId === inspectedPiece.id
                       && interactionState.canCancelPass;
                     const activeNormalMove = matchActionState.activeMovement || {};
+                    const normalMoveInteractionActive = activeNormalMove.active && activeNormalMove.kind === "normal-move";
                     const isMoveCancel = type === "MOVE"
                       && activeNormalMove.active
                       && activeNormalMove.kind === "normal-move"
@@ -11889,10 +11922,12 @@ function App() {
                     const disabled = isBonusMoveCancel
                       ? false
                       : isPassCancel
-                      ? passCancelIntentPending
+                        ? passCancelIntentPending
                       : isMoveCancel
                         ? actionStartIntentPending
-                      : passLocksActions
+                        : normalMoveInteractionActive
+                          ? true
+                        : passLocksActions
                         ? true
                         : foreignContinuationActive
                           ? true
@@ -12115,6 +12150,7 @@ function App() {
         onToggleAction={toggleTrackerAction}
         onRemoveLastAction={removeLastTrackerAction}
         currentTurn={trackerCurrentTurn}
+        turnsReadOnly={!sessionCode && gameMode === "match"}
         onSelectTurn={selectTrackerTurn}
         onResizeDown={onTrackerResizeDown}
       />
@@ -12315,6 +12351,18 @@ function App() {
             <div className="turn-confirm-message">Both teams must end their phase before advancing to the next turn.</div>
             <div className="modal-actions turn-confirm-actions">
               <button onClick={() => setTurnAdvanceNotice(false)}>OK</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {startedTurnNotice !== null && (
+        <div className="modal-backdrop turn-confirm-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setStartedTurnNotice(null); }}>
+          <div className="modal turn-confirm-modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="modal-title"><strong>TURN {startedTurnNotice}</strong></div>
+            <div className="turn-confirm-message">Turn {startedTurnNotice} begins.</div>
+            <div className="modal-actions turn-confirm-actions">
+              <button onClick={() => setStartedTurnNotice(null)}>OK</button>
             </div>
           </div>
         </div>
