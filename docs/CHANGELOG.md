@@ -2,6 +2,13 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.40.0 — Match Pitch & Venue
+
+- Added a Match-only procedural grass, lighting and venue treatment on the existing `match-presentation` boundary.
+- Kept the first two pitch background layers as the existing logical square grid at the same cell geometry.
+- Increased Match-only field/goal contrast without changing DOM layers, hitboxes, piece rendering or game behavior.
+- Editor Mode and Manual Multiplayer remain on the prior presentation route.
+
 ## v20.39.0 — Match Presentation Foundation
 
 - Added the explicit `presentationMode` boundary to `BoardCanvas`.

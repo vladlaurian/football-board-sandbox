@@ -1,6 +1,6 @@
-# Continuation prompt — v20.39.0
+# Historical continuation prompt — v20.39.0
 
-Continue the Football Board Sandbox from `v20.39.0`.
+This completed handoff was superseded by `v20.40.0` after Match Pitch & Venue verification.
 
 ## Mandatory constraints
 
