@@ -6,13 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.32.0` |
-| Git/package version | `20.32.0` |
-| Build name | `Final_Board_v20_32_0_phase_8a_match_boundary` |
-| Base build | `v20.31.0 pass_natural_twenty_engine` |
+| Sandbox version | `v20.33.0` |
+| Git/package version | `20.33.0` |
+| Build name | `Final_Board_v20_33_0_phase_8b_controller_gateway` |
+| Base build | `v20.32.0 phase_8a_match_boundary` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.32.0`. The repository version is defined in `package.json` as `20.32.0`. The browser title is `Sandbox v20.32.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.33.0`. The repository version is defined in `package.json` as `20.33.0`. The browser title is `Sandbox v20.33.0`.
+
+## v20.33.0 Phase 8B — Single Player command gateway
+
+Every existing offline Match Engine command now reaches the pure Controller through `src/engine/singlePlayerMatchGateway.mjs`. The gateway is the sole publication boundary for an accepted command: it receives the Controller result, replaces the Timeline once, and projects only the canonical state at that new Timeline cursor into React. A rejected command never publishes a UI state.
+
+The change deliberately does not alter a game rule, action availability, Timeline entry, Undo/Redo behavior, Editor Mode, Firebase, or Manual Multiplayer. It removes the 30 repeated controller-result publication pairs from `main.jsx`; UI handlers still prepare labels and presentation-only follow-up notices, but no longer independently decide how an accepted Engine state becomes live UI state.
 
 ## v20.32.0 Phase 8A — Match boundary sealed
 

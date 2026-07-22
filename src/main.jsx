@@ -10,7 +10,7 @@ import { RotateCcw, Plus, Minus, Undo2, Redo2, Edit3, X, Dices } from "lucide-re
 import { createGameState, mergeGameState } from "./game/gameState.mjs";
 import { GAME_COMMAND_TYPE } from "./engine/gameCommands.mjs";
 import { createMatchContext } from "./engine/matchContext.mjs";
-import { dispatchSinglePlayerGameCommand, dispatchSinglePlayerGameCommandSequence, dispatchSinglePlayerMatchStart } from "./engine/singlePlayerController.mjs";
+import { runSinglePlayerMatchCommand } from "./engine/singlePlayerMatchGateway.mjs";
 import { firstPlayerBlockingMovementPath } from "./engine/movementPathRules.mjs";
 import { evaluateThreeTwoMove } from "./engine/threeTwoMoveRules.mjs";
 import { evaluateGroupMovePieceEligibility, evaluateGroupMovePlayer } from "./engine/groupMoveRules.mjs";
@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.32.0";
+const APP_VERSION = "v20.33.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4433,6 +4433,35 @@ function App() {
     return context;
   }
 
+  function publishSinglePlayerMatchProjection({ timeline, state }, { preserveLocalSelection = false } = {}) {
+    replaceGameTimeline(timeline);
+    applyTimelineGameState(state, { preserveLocalSelection });
+  }
+
+  function dispatchSinglePlayerGameCommand({ preserveLocalSelection = false, ...request } = {}) {
+    return runSinglePlayerMatchCommand({
+      kind: "command",
+      request,
+      publish: projection => publishSinglePlayerMatchProjection(projection, { preserveLocalSelection }),
+    });
+  }
+
+  function dispatchSinglePlayerGameCommandSequence({ preserveLocalSelection = false, ...request } = {}) {
+    return runSinglePlayerMatchCommand({
+      kind: "sequence",
+      request,
+      publish: projection => publishSinglePlayerMatchProjection(projection, { preserveLocalSelection }),
+    });
+  }
+
+  function dispatchSinglePlayerMatchStart({ preserveLocalSelection = false, ...request } = {}) {
+    return runSinglePlayerMatchCommand({
+      kind: "match-start",
+      request,
+      publish: projection => publishSinglePlayerMatchProjection(projection, { preserveLocalSelection }),
+    });
+  }
+
   function recordTimelineTransition({
     type = "GAME_STATE_CHANGED",
     label = "Game state changed",
@@ -5538,8 +5567,6 @@ function App() {
             : `${team === "blue" ? "Blue" : "Red"} EXTRA D${rollingDieType}: ${result}${hasChosenResult ? " (chosen)" : ""}`,
         });
         if (!dispatched.result.accepted) return;
-        replaceGameTimeline(dispatched.timeline);
-        applyTimelineGameState(dispatched.state);
         showDiceNotice(team, result, rollingDieType);
         if (extraRoll) setExtraRollArmed(false);
         const delayedResolution = dispatched.entry?.metadata?.delayedResolution;
@@ -5781,8 +5808,6 @@ function App() {
         label: `Ball ${ball?.label || ""} → ${toCoord(x, y)}`.trim(),
       });
       if (!dispatched.result.accepted) return false;
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       return true;
     }
     const currentPieces = piecesRef.current || pieces;
@@ -6044,8 +6069,6 @@ function App() {
         label: `${piece.team === "A" ? "Blue" : "Red"} ${piece.label} → ${toCoord(x, y)}`,
       });
       if (!dispatched.result.accepted) return false;
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       return true;
     }
     pushHistory(piecesRef.current || pieces, movementStateRef.current);
@@ -6209,8 +6232,6 @@ function App() {
         if (dispatched.result.reason !== "same") setIllegalMoveNotice({ reason: dispatched.result.reason });
         return false;
       }
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       setSelectedId(null);
       return true;
     }
@@ -6316,8 +6337,6 @@ function App() {
           if (dispatched.result.reason !== "same") setIllegalMoveNotice({ reason: dispatched.result.reason });
           return false;
         }
-        replaceGameTimeline(dispatched.timeline);
-        applyTimelineGameState(dispatched.state);
         setSelectedId(piece.id);
         return true;
       }
@@ -6356,8 +6375,6 @@ function App() {
           setIllegalMoveNotice({ reason: dispatched.result.reason });
           return;
         }
-        replaceGameTimeline(dispatched.timeline);
-        applyTimelineGameState(dispatched.state);
         return;
       }
       const refreshed = getThreeTwoEligibility(piece, pending.x, pending.y);
@@ -6591,6 +6608,7 @@ function App() {
       const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
       const nextInactive = !currentPiece.inactive;
       const dispatched = dispatchSinglePlayerGameCommand({
+        preserveLocalSelection: true,
         timeline: gameTimelineRef.current,
         state: before,
         context: singlePlayerMatchContext(),
@@ -6602,8 +6620,6 @@ function App() {
         label: `${currentPiece.team === "A" ? "Blue" : "Red"} ${getPieceDisplayLabel(currentPiece)} → ${nextInactive ? "INACTIVE" : "ACTIVE"}`,
       });
       if (!dispatched.result.accepted) return;
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state, { preserveLocalSelection: true });
       return;
     }
     pushHistory();
@@ -9166,8 +9182,6 @@ function App() {
       setIllegalMoveNotice({ reason: dispatched.result.reason });
       return false;
     }
-    replaceGameTimeline(dispatched.timeline);
-    applyTimelineGameState(dispatched.state);
     setGroupMoveZoneDraft(null);
     return true;
   }
@@ -9772,8 +9786,6 @@ function App() {
       label: `${pieceTeamKey(piece) === "blue" ? "Blue" : "Red"} bonus MOVE: ${getPieceDisplayLabel(piece)}`,
     });
     if (!dispatched.result.accepted) return false;
-    replaceGameTimeline(dispatched.timeline);
-    applyTimelineGameState(dispatched.state);
     setSelectedId(piece.id);
     setHoveredCell(null);
     return true;
@@ -9790,8 +9802,6 @@ function App() {
       label: `${pieceTeamKey(piece) === "blue" ? "Blue" : "Red"} bonus MOVE cancelled: ${getPieceDisplayLabel(piece)}`,
     });
     if (!dispatched.result.accepted) return false;
-    replaceGameTimeline(dispatched.timeline);
-    applyTimelineGameState(dispatched.state);
     setSelectedId(null);
     setHoveredCell(null);
     return true;
@@ -9810,8 +9820,6 @@ function App() {
       if (dispatched.result.reason !== "same") setIllegalMoveNotice({ reason: dispatched.result.reason });
       return false;
     }
-    replaceGameTimeline(dispatched.timeline);
-    applyTimelineGameState(dispatched.state);
     return true;
   }
 
@@ -9838,8 +9846,6 @@ function App() {
       if (dispatched.result.reason !== "same") setIllegalMoveNotice({ reason: dispatched.result.reason });
       return false;
     }
-    replaceGameTimeline(dispatched.timeline);
-    applyTimelineGameState(dispatched.state);
     return true;
   }
 
@@ -9913,8 +9919,6 @@ function App() {
         label: `${team === "blue" ? "Blue" : "Red"}${continuationId ? " bonus" : ""} PASS: choose target for ${getPieceDisplayLabel(piece)}`,
       });
       if (!dispatched.result.accepted) return null;
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       setSelectedId(piece.id);
       setHoveredCell(null);
       return dispatched.state.actionResolution;
@@ -9950,8 +9954,6 @@ function App() {
         label: "Pass cancelled before route confirmation",
       });
       if (!dispatched.result.accepted) return false;
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       setSelectedId(null);
       setHoveredCell(null);
       return true;
@@ -10031,8 +10033,6 @@ function App() {
         label: `Pass target selected: ${toCoord(x, y)}`,
       });
       if (!dispatched.result.accepted) return false;
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       setHoveredCell(null);
       if (singlePlayerMatchContext().ruleSet.actions?.pass?.pathMode === "center-to-center") {
         confirmPassRoute(null);
@@ -10179,8 +10179,6 @@ function App() {
         label: "Pass interceptor selected",
       });
       if (!dispatched.result.accepted) return false;
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       return true;
     }
     const candidates = interceptorChoiceCandidates(pending.plan?.interceptors, pending.interceptorIndex);
@@ -10251,8 +10249,6 @@ function App() {
         if (dispatched.result.reason === "PASS_ROUTE_GOALKEEPER_BLOCKED") setIllegalMoveNotice({ reason: "pass-goalkeeper-blocked" });
         return false;
       }
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       setSelectedId(null);
       setHoveredCell(null);
       if (dispatched.state.actionResolution?.status === "completing") resolvePendingPass(dispatched.state.actionResolution.id);
@@ -10533,8 +10529,6 @@ function App() {
       multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "engine rejected canonical Pass consequence", { actionId: pending?.id || null, reason: dispatched.result.reason });
       return false;
     }
-    replaceGameTimeline(dispatched.timeline);
-    applyTimelineGameState(dispatched.state);
     const entry = dispatched.entry;
     if (entry?.type === "PASS_INTERCEPTED" && entry.metadata?.directHit) {
       const interceptor = (entry.after?.pieces || []).find(piece => String(piece?.id || "") === String(entry.metadata?.interceptorId || ""));
@@ -10709,8 +10703,6 @@ function App() {
         multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "engine rejected canonical interception result", { traceId, actionId: pending.id, reason: dispatched.result.reason });
         return;
       }
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       resolveRecordedPassInterception(dispatched.state.actionResolution);
       return;
     }
@@ -10772,8 +10764,6 @@ function App() {
         label: `${team === "blue" ? "Blue" : "Red"} Free Move ${ending ? "OFF" : "ON"}: ${getPieceDisplayLabel(piece)}`,
       });
       if (!dispatched.result.accepted) return false;
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       setSelectedId(ending ? null : piece.id);
       return true;
     }
@@ -10814,8 +10804,6 @@ function App() {
         label: `${team === "blue" ? "Blue" : "Red"} MOVE: ${getPieceDisplayLabel(piece)}`,
       });
       if (!dispatched.result.accepted) return false;
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       setSelectedId(piece.id);
       setHoveredCell(null);
       return true;
@@ -10873,8 +10861,6 @@ function App() {
         label: `${team === "blue" ? "Blue" : "Red"} MOVE cancelled: ${getPieceDisplayLabel(piece)}`,
       });
       if (!dispatched.result.accepted) return false;
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       setHoveredCell(null);
       return true;
     }
@@ -10990,8 +10976,6 @@ function App() {
           label: `${pieceTeamKey(piece) === "blue" ? "Blue" : "Red"} bonus ${type}: ${getPieceDisplayLabel(piece)} (manual)`,
         });
         if (!dispatched.result.accepted) return;
-        replaceGameTimeline(dispatched.timeline);
-        applyTimelineGameState(dispatched.state);
         setSelectedId(null);
         setHoveredCell(null);
         return;
@@ -11064,8 +11048,6 @@ function App() {
         if (dispatched.result.reason) setIllegalMoveNotice({ reason: dispatched.result.reason });
         return;
       }
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       return;
     }
     if (type === "GROUP_MOVE" && !sessionCode) {
@@ -11211,8 +11193,6 @@ function App() {
         if (dispatched.result.reason && dispatched.result.reason !== "same") setIllegalMoveNotice({ reason: dispatched.result.reason });
         return;
       }
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       return;
     }
     const team = pieceTeamKey(piece);
@@ -11332,8 +11312,6 @@ function App() {
     setPendingEndTurn(null);
     setGroupMoveZoneDraft(null);
     groupMoveZoneDragRef.current = null;
-    replaceGameTimeline(dispatched.timeline);
-    applyTimelineGameState(dispatched.state);
     const startedTurn = dispatched.result.events?.[0]?.metadata?.startedTurn;
     if (Number.isInteger(startedTurn)) setStartedTurnNotice(startedTurn);
     if (dispatched.state.tracker?.turnPhase === "complete") setMatchOverNotice(true);
@@ -11443,8 +11421,6 @@ function App() {
         if (dispatched.result.reason) setIllegalMoveNotice({ reason: dispatched.result.reason });
         return;
       }
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       const startedTurn = dispatched.result.events?.[0]?.metadata?.startedTurn;
       if (Number.isInteger(startedTurn)) setStartedTurnNotice(startedTurn);
       if (dispatched.state.tracker?.turnPhase === "complete") setMatchOverNotice(true);
@@ -11494,8 +11470,6 @@ function App() {
       matchContextRef.current = context;
       matchPlayableStartEstablishedRef.current = true;
       setTrackerStartChoiceOpen(false);
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       return;
     }
     const beforeTimeline = captureTimelineGameState();
@@ -11591,8 +11565,6 @@ function App() {
         label: "Tracker actions reset",
       });
       if (!dispatched.result.accepted) return;
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       return;
     }
     const beforeTimeline = captureTimelineGameState();
@@ -11620,8 +11592,6 @@ function App() {
         label: `Possession changed: ${nextAttackingTeam === "blue" ? "Blue" : "Red"} attacks`,
       });
       if (!dispatched.result.accepted) return;
-      replaceGameTimeline(dispatched.timeline);
-      applyTimelineGameState(dispatched.state);
       return;
     }
     const beforeTimeline = captureTimelineGameState();

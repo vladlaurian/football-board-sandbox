@@ -434,7 +434,7 @@ Acceptance:
 
 ## Phase 8 — Single Player Controller completion
 
-**Status:** In progress. Phase 8A is complete in v20.32.0; Phase 8B and 8C remain pending.
+**Status:** In progress. Phase 8A is complete in v20.32.0 and Phase 8B is complete in v20.33.0; Phase 8C remains pending.
 
 Centralize Single Player dispatch and remove remaining direct Match Mode mutation paths from `main.jsx`, preserving Editor Mode, card editing, and Manual Multiplayer.
 
@@ -458,9 +458,11 @@ Delivered files and tests:
 
 ### Phase 8B — Controller gateway and state projection boundary
 
-**Status:** Pending.
+**Status:** Complete in v20.33.0.
 
-Extract the repeated offline command-dispatch / Timeline-commit / React-projection orchestration from `main.jsx` into one explicit Single Player gateway. The goal is enforcement, not file movement: every offline Match command must pass one gateway, and React setters must receive canonical cursor projection only. No rule or Manual Multiplayer change is allowed.
+`src/engine/singlePlayerMatchGateway.mjs` is the UI-facing gateway for every existing offline Match Engine command, including one-command, dependent-sequence and Match-start routes. It calls the pure Controller, publishes only accepted results, and passes the exact returned Timeline and canonical cursor state to the UI projection. `main.jsx` owns the projection callback because React state and refs belong there, but it no longer repeats the command-result publication protocol in individual gameplay handlers.
+
+No gameplay rule, Manual Multiplayer branch, Editor Workspace behavior, Firebase path or Timeline semantics changed. The gateway has focused accepted/rejected tests; full verification recorded 223 passing tests plus a production build.
 
 ### Phase 8C — Editor Workspace and persistence boundary
 

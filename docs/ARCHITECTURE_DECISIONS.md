@@ -589,6 +589,19 @@ Editor Workspace setup is locked after an offline Match starts whenever a change
 - Safety controls can later be retired from Match Mode without leaving hidden direct mutation paths.
 - Phase 8B may centralize the Controller gateway without re-auditing the completed 8A mutation inventory.
 
+## ADR-042 — Single Player Match commands publish through one gateway
+
+**Status:** Active
+
+**Decision:** An offline Single Player Match UI handler must use `singlePlayerMatchGateway` to call the pure Controller and publish an accepted result. The gateway publishes the Controller-returned Timeline and its exact cursor state together; rejected results never reach React projection.
+
+**Consequences:**
+
+- Engine, Controller, Timeline commit and UI projection retain separate responsibilities without creating a second gameplay state.
+- `main.jsx` keeps only the React-specific projection callback and local presentation behavior such as selection clearing, notices and timers.
+- One-command, dependent command sequence and Match-start flows share the same acceptance/publication rule.
+- Manual Multiplayer and Editor Workspace retain their existing independent paths until their separately approved audits.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active
