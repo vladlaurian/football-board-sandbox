@@ -101,34 +101,39 @@ export function BoardCanvas({
 }) {
   const isMatchPresentation = presentationMode === "match";
   const ballPiece = pieces.find(piece => piece.team === "BALL");
-  const defensiveCellsByCoordinate = new Map();
+  const defensiveAreasByOwner = new Map();
   defensiveAreaOverlays.forEach(cell => {
-    const key = `${cell.x}:${cell.y}`;
-    const existing = defensiveCellsByCoordinate.get(key) || { x: cell.x, y: cell.y, teamCounts: {} };
-    existing.teamCounts[cell.team] = (existing.teamCounts[cell.team] || 0) + 1;
-    defensiveCellsByCoordinate.set(key, existing);
+    const ownerId = cell.ownerId || cell.id;
+    const existing = defensiveAreasByOwner.get(ownerId) || {
+      ownerId,
+      ownerX: Number.isFinite(cell.ownerX) ? cell.ownerX : cell.x,
+      ownerY: Number.isFinite(cell.ownerY) ? cell.ownerY : cell.y,
+      team: cell.team,
+      cells: [],
+    };
+    existing.cells.push(cell);
+    defensiveAreasByOwner.set(ownerId, existing);
   });
-  const matchDefensiveAreaOverlays = Array.from(defensiveCellsByCoordinate.values()).map(cell => {
-    const teams = Object.keys(cell.teamCounts);
-    const team = teams.length === 1 ? teams[0] : "BOTH";
-    const hasSameTeam = (x, y) => Boolean(defensiveCellsByCoordinate.get(`${x}:${y}`)?.teamCounts[team]);
+  const matchDefensiveAreas = Array.from(defensiveAreasByOwner.values()).map(area => {
+    const cellsByCoordinate = new Map();
+    area.cells.forEach(cell => cellsByCoordinate.set(`${cell.x}:${cell.y}`, cell));
+    const hasOwnerCell = (x, y) => cellsByCoordinate.has(`${x}:${y}`);
     return {
-      id: `${cell.x}-${cell.y}-${team}`,
-      x: cell.x,
-      y: cell.y,
-      team,
-      blueCount: cell.teamCounts.A || 0,
-      redCount: cell.teamCounts.B || 0,
-      edges: team === "BOTH"
-        ? { top: true, right: true, bottom: true, left: true }
-        : {
-            top: !hasSameTeam(cell.x, cell.y - 1),
-            right: !hasSameTeam(cell.x + 1, cell.y),
-            bottom: !hasSameTeam(cell.x, cell.y + 1),
-            left: !hasSameTeam(cell.x - 1, cell.y),
-          },
+      ...area,
+      includesOwnerSquare: hasOwnerCell(area.ownerX, area.ownerY),
+      cells: Array.from(cellsByCoordinate.values()).map(cell => ({
+        ...cell,
+        edges: {
+          top: !hasOwnerCell(cell.x, cell.y - 1),
+          right: !hasOwnerCell(cell.x + 1, cell.y),
+          bottom: !hasOwnerCell(cell.x, cell.y + 1),
+          left: !hasOwnerCell(cell.x - 1, cell.y),
+        },
+      })),
     };
   });
+  const matchDefensiveAreaOverlays = matchDefensiveAreas.flatMap(area => area.cells);
+  const matchDefensiveAreaSources = matchDefensiveAreas.filter(area => !area.includesOwnerSquare);
   const boxTop = Math.floor((settings.rows - settings.boxWidth) / 2);
   const smallTop = Math.floor((settings.rows - settings.smallWidth) / 2);
   const goalTop = Math.floor((settings.rows - settings.goalWidth) / 2);
@@ -251,7 +256,8 @@ export function BoardCanvas({
             return <div key={corner} className={`corner-mask corner-${corner}`} style={{ width: `calc(${settings.cornerArcRadius} * var(--cell))`, height: `calc(${settings.cornerArcRadius} * var(--cell))` }}><div className="corner-circle" style={{ [horizontal]: `calc(-${settings.cornerArcRadius} * var(--cell))`, [vertical]: `calc(-${settings.cornerArcRadius} * var(--cell))`, width: `calc(${settings.cornerArcRadius * 2} * var(--cell))`, height: `calc(${settings.cornerArcRadius * 2} * var(--cell))` }} /></div>;
           })}
 
-          {(isMatchPresentation ? matchDefensiveAreaOverlays : defensiveAreaOverlays).map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : cell.team === "B" ? "red" : "contested"} ${isMatchPresentation ? "match-def-area-cell" : ""}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))`, ...(isMatchPresentation ? { "--def-top": cell.edges.top ? "2px" : "1px", "--def-right": cell.edges.right ? "2px" : "1px", "--def-bottom": cell.edges.bottom ? "2px" : "1px", "--def-left": cell.edges.left ? "2px" : "1px", "--def-top-alpha": cell.edges.top ? .88 : .16, "--def-right-alpha": cell.edges.right ? .88 : .16, "--def-bottom-alpha": cell.edges.bottom ? .88 : .16, "--def-left-alpha": cell.edges.left ? .88 : .16, "--blue-def-alpha": Math.min(.46, .14 + cell.blueCount * .08), "--red-def-alpha": Math.min(.46, .14 + cell.redCount * .08) } : {}) }} />)}
+          {isMatchPresentation && matchDefensiveAreaSources.map(area => <div key={`${area.ownerId}-source`} className={`def-area-owner-source ${area.team === "A" ? "blue" : "red"}`} style={{ left: `calc(${area.ownerX} * var(--cell))`, top: `calc(${area.ownerY} * var(--cell))` }} />)}
+          {(isMatchPresentation ? matchDefensiveAreaOverlays : defensiveAreaOverlays).map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"} ${isMatchPresentation ? "match-def-area-cell" : ""}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))`, ...(isMatchPresentation ? { "--def-top": cell.edges.top ? "2px" : "1px", "--def-right": cell.edges.right ? "2px" : "1px", "--def-bottom": cell.edges.bottom ? "2px" : "1px", "--def-left": cell.edges.left ? "2px" : "1px", "--def-top-alpha": cell.edges.top ? .92 : .10, "--def-right-alpha": cell.edges.right ? .92 : .10, "--def-bottom-alpha": cell.edges.bottom ? .92 : .10, "--def-left-alpha": cell.edges.left ? .92 : .10 } : {}) }} />)}
 
           {passPreview?.lines?.length > 0 && <svg className="pass-preview-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
             {passPreview.lines.map(line => <g key={line.id} className={`pass-preview-line ${line.status || (line.risk ? "risk" : "clear")} ${line.selected ? "route-selected" : ""}`}>

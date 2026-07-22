@@ -7974,3 +7974,60 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .match-ui-presentation .tracker-main-actions .tracker-reset-button {
   font-weight: 400;
 }
+
+/* v20.46 — individual defensive-area ownership.
+   Match presentation now draws each player's own defensive geometry. The
+   source square is only a visual anchor; rules remain derived upstream. */
+.match-ball-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  user-select: none;
+}
+.board-ball-icon {
+  width: 100%;
+  height: 100%;
+  font-size: initial;
+}
+.inspector-ball-icon {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+}
+.board-wrap.match-presentation .def-area-owner-source {
+  position: absolute;
+  width: var(--cell);
+  height: var(--cell);
+  pointer-events: none;
+  z-index: 3;
+  box-shadow: inset 0 0 0 1px rgba(240, 250, 255, .10);
+}
+.board-wrap.match-presentation .def-area-owner-source.blue {
+  background: rgba(83, 162, 255, .18);
+}
+.board-wrap.match-presentation .def-area-owner-source.red {
+  background: rgba(241, 57, 70, .18);
+}
+.board-wrap.match-presentation .match-def-area-cell.blue {
+  background: rgba(83, 162, 255, .15);
+}
+.board-wrap.match-presentation .match-def-area-cell.red {
+  background: rgba(241, 57, 70, .15);
+}
+.board-wrap.match-presentation .match-def-area-cell.blue {
+  --def-rgb: 166 214 255;
+  border-top-color: rgb(var(--def-rgb) / var(--def-top-alpha));
+  border-right-color: rgb(var(--def-rgb) / var(--def-right-alpha));
+  border-bottom-color: rgb(var(--def-rgb) / var(--def-bottom-alpha));
+  border-left-color: rgb(var(--def-rgb) / var(--def-left-alpha));
+  box-shadow: none;
+}
+.board-wrap.match-presentation .match-def-area-cell.red {
+  --def-rgb: 255 161 168;
+  border-top-color: rgb(var(--def-rgb) / var(--def-top-alpha));
+  border-right-color: rgb(var(--def-rgb) / var(--def-right-alpha));
+  border-bottom-color: rgb(var(--def-rgb) / var(--def-bottom-alpha));
+  border-left-color: rgb(var(--def-rgb) / var(--def-left-alpha));
+  box-shadow: none;
+}

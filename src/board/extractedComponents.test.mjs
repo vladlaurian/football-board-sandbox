@@ -73,10 +73,9 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
       measureType: "center",
       rulerMarkers: [],
       defensiveAreaOverlays: [
-        { id: "blue-a", team: "A", x: 2, y: 2 },
-        { id: "blue-a-overlap", team: "A", x: 2, y: 2 },
-        { id: "blue-b", team: "A", x: 3, y: 2 },
-        { id: "red-a", team: "B", x: 3, y: 2 },
+        { id: "blue-a", ownerId: "A-1", ownerX: 1, ownerY: 2, team: "A", x: 2, y: 2 },
+        { id: "blue-b", ownerId: "A-1", ownerX: 1, ownerY: 2, team: "A", x: 3, y: 2 },
+        { id: "red-a", ownerId: "B-1", ownerX: 4, ownerY: 2, team: "B", x: 3, y: 2 },
       ],
       pieces: [
         { id: "A-1", team: "A", label: "ST", x: 10, y: 10 },
@@ -94,8 +93,8 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   assert.match(boardMarkup, /ball-held/);
   assert.match(boardMarkup, /match-ball-aura/);
   assert.match(boardMarkup, /match-def-area-cell/);
-  assert.match(boardMarkup, /contested/);
-  assert.match(boardMarkup, /--blue-def-alpha:0\.3/);
+  assert.match(boardMarkup, /def-area-owner-source/);
+  assert.match(boardMarkup, /--def-top-alpha:0\.92/);
 
   const historyMarkup = renderToStaticMarkup(
     React.createElement(HistoryPanel, {

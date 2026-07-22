@@ -2,6 +2,13 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.46.0 — Individual Defensive Areas
+
+- Replaced the Match-only defensive-overlay aggregation by team/coordinate with player-owned presentation areas. Each player's defensive shape now retains its own perimeter when it overlaps a teammate or opponent.
+- Added a visual source tile beneath a player whenever their card's defensive shape does not already include their occupied square; it is presentation-only and does not alter defensive-area rules.
+- Replaced the Unicode football glyph with one shared fixed-ratio SVG ball so board and Inspector rendering are geometrically centered and browser-font independent.
+- Preserved Editor rendering, defensive-area rule calculation, Engine, Timeline, AI export and Manual Multiplayer behavior.
+
 ## v20.45.1 — Final Match Presentation Correction
 
 - Restored premium team-colored Blue/Red card controls with rounded corners; action controls remain in their established team family instead of a neutral glass override.

@@ -186,7 +186,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.45.1";
+const APP_VERSION = "v20.46.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -6936,6 +6936,9 @@ function App() {
         if (x < 0 || y < 0 || x >= settings.cols || y >= settings.rows) return null;
         return {
           id: `${piece.id}-${index}-${dx}-${dy}`,
+          ownerId: piece.id,
+          ownerX: piece.x,
+          ownerY: piece.y,
           x,
           y,
           team: piece.team,
