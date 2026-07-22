@@ -31,11 +31,13 @@ export function evaluateThreeTwoMove(state, context, command) {
 
   const tracker = normalizeTrackerSnapshot(state.tracker);
   const team = teamKeyForPiece(piece);
+  const bonusOwner = state.actionContinuation?.kind === "bonus-card-action"
+    && state.actionContinuation?.team === team;
   const geometry = getMovementGeometry(piece, { x, y });
   const current = threeTwoMovementState(state.movementStateByPieceId[piece.id]);
   const ball = state.pieces.find(item => item?.team === "BALL");
   if (!tracker.gameStarted || tracker.currentTurn < 1) return { eligible: false, reason: "match-not-started", geometry, current };
-  if (!team || !isTeamActiveForTrackerPhase(tracker, team)) return { eligible: false, reason: "wait-active-team", geometry, current };
+  if (!team || (!bonusOwner && !isTeamActiveForTrackerPhase(tracker, team))) return { eligible: false, reason: "wait-active-team", geometry, current };
   if (!ball || Number(ball.x) !== x || Number(ball.y) !== y) return { eligible: false, reason: "not-ball", geometry, current };
   if (state.pieces.some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === x && Number(item.y) === y)) {
     return { eligible: false, reason: "occupied", geometry, current };

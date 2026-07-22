@@ -264,6 +264,42 @@ test("AI export retains a pending bonus-action continuation without adding Track
   assert.equal(exported.semanticTimeline[0].actionEconomyAfter.teamActionsUsed, 0);
 });
 
+test("AI export retains Bonus Action origin and replacement-chain identity", () => {
+  const before = state();
+  const after = state({
+    actionContinuation: {
+      id: "bonus_red_2",
+      kind: "bonus-card-action",
+      source: "natural-20-interception",
+      team: "red",
+      status: "ready",
+      origin: {
+        actionType: "PASS",
+        outcome: "INTERCEPTION",
+        reason: "NATURAL_20",
+        sourceEntryId: "pass_red_2",
+        parentContinuationId: "bonus_blue_1",
+      },
+    },
+  });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, {
+    id: "bonus_red_2_granted",
+    type: "PASS_NATURAL_20",
+    team: "red",
+    before,
+    after,
+  });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  assert.deepEqual(exported.semanticTimeline[0].continuation.origin, {
+    actionType: "PASS",
+    outcome: "INTERCEPTION",
+    reason: "NATURAL_20",
+    sourceEntryId: "pass_red_2",
+    parentContinuationId: "bonus_blue_1",
+  });
+});
+
 test("an older ungrouped physical move still links to the preceding tracker Move activation", () => {
   const before = state();
   const activated = state({

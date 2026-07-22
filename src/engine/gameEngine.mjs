@@ -57,11 +57,13 @@ export function applyGameCommand({ state, context, command } = {}) {
   const currentState = createGameState(state);
   const freeMoveActive = Boolean(currentState.tracker?.matchActionState?.freeMode?.active);
   const groupMoveActive = Boolean(currentState.tracker?.matchActionState?.groupMove?.active);
+  const bonusActionActive = currentState.actionContinuation?.kind === "bonus-card-action";
   if (freeMoveActive && ![
     GAME_COMMAND_TYPE.FREE_MOVE_COMMITTED,
     GAME_COMMAND_TYPE.FREE_MOVE_ENDED,
   ].includes(normalizedCommand.type)) return rejected("FREE_MOVE_ACTIVE");
   if (groupMoveActive && normalizedCommand.type !== GAME_COMMAND_TYPE.GROUP_MOVE_PLAYER_COMMITTED) return rejected("GROUP_MOVE_ACTIVE");
+  if (bonusActionActive && normalizedCommand.type !== GAME_COMMAND_TYPE.THREE_TWO_MOVE_COMMITTED) return rejected("BONUS_ACTION_ACTIVE");
   const freeMoveTransition = normalizedCommand.type === GAME_COMMAND_TYPE.FREE_MOVE_STARTED
     ? startFreeMove(currentState, normalizedCommand)
     : normalizedCommand.type === GAME_COMMAND_TYPE.FREE_MOVE_COMMITTED

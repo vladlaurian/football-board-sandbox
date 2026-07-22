@@ -380,6 +380,13 @@ function semanticEvent(entry, sequence, cardsById) {
     continuation: continuation ? {
       kind: String(continuation.kind || ""),
       source: String(continuation.source || ""),
+      origin: continuation.origin ? {
+        actionType: String(continuation.origin.actionType || ""),
+        outcome: String(continuation.origin.outcome || ""),
+        reason: String(continuation.origin.reason || ""),
+        sourceEntryId: String(continuation.origin.sourceEntryId || "") || null,
+        parentContinuationId: String(continuation.origin.parentContinuationId || "") || null,
+      } : null,
       team: continuation.team === "blue" ? "blue" : continuation.team === "red" ? "red" : null,
       status: String(continuation.status || ""),
       resumePolicy: compactResumePolicy(continuation.resumePolicy),

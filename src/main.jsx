@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.20.1";
+const APP_VERSION = "v20.21.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5675,6 +5675,7 @@ function App() {
     if (gameMode !== "match" || replayModeRef.current) return;
     if (!sessionCode && currentTimelineTrackerSnapshot().matchActionState.freeMode?.active) return;
     if (!sessionCode && currentTimelineTrackerSnapshot().matchActionState.groupMove?.active) return;
+    if (!sessionCode && actionContinuationRef.current?.kind === "bonus-card-action") return;
     if (sessionCode && (!piece || piece.team === "BALL" || pieceTeamKey(piece) !== myTeam)) return;
     setFreeBallActive(active => {
       const next = !active;
@@ -6156,6 +6157,17 @@ function App() {
       return true;
     }
 
+    // 3/2 is an Engine-owned free action in offline Single Player. It must be
+    // be offered before Bonus MOVE and normal movement because it does not
+    // consume either Bonus Action or Tracker economy.
+    if (!sessionCode && gameMode === "match" && piece.team !== "BALL" && !matchActionState.freeMode?.active) {
+      const threeTwo = getThreeTwoEligibility(piece, x, y);
+      if (threeTwo.eligible) {
+        setPendingThreeTwoMove({ pieceId: piece.id, x, y });
+        return true;
+      }
+    }
+
     const continuation = actionContinuationRef.current;
     if (continuation?.kind === "bonus-card-action") {
       if (!canControlBonusContinuation(continuation)) return false;
@@ -6169,17 +6181,6 @@ function App() {
         authorizationOverride: { allowed: true, mode: "bonus" },
         completeBonus: false,
       });
-    }
-
-    // 3/2 is an Engine-owned free action in offline Single Player. It must be
-    // offered before the normal Tracker-exhaustion gate because it does not
-    // consume a Tracker action.
-    if (!sessionCode && gameMode === "match" && piece.team !== "BALL" && !matchActionState.freeMode?.active) {
-      const threeTwo = getThreeTwoEligibility(piece, x, y);
-      if (threeTwo.eligible) {
-        setPendingThreeTwoMove({ pieceId: piece.id, x, y });
-        return true;
-      }
     }
 
     const phaseTeam = piece.team === "BALL" ? null : pieceTeamKey(piece);
@@ -10156,9 +10157,21 @@ function App() {
     if (naturalTwenty) {
       const bonusTeam = teamKeyForPiece(interceptor);
       const nextTurn = Math.min(trackerSettings.turns, Math.max(1, normalizeTrackerSnapshot(before.tracker).currentTurn + 1));
-      const continuation = createBonusCardActionContinuation({ team: bonusTeam, nextTurn, sourceEntryId: pending.entryId });
-      piecesRef.current = nextPieces; setPieces(nextPieces); setLiveActionResolution(null); setLiveActionContinuation(continuation);
-      const timeline = recordTimelineTransition({ type: "PASS_NATURAL_20", label: `Natural 20 interception: ${getPieceDisplayLabel(interceptor)} earns one bonus action`, team: bonusTeam, groupId: passTimelineGroupId(pending), metadata: passInterceptionTimelineMetadata(pending), before, after: mergeTimelineGameState(before, { pieces: nextPieces, actionResolution: null, actionContinuation: continuation }), allowNoop: true });
+      const previousContinuation = before.actionContinuation?.kind === "bonus-card-action" ? before.actionContinuation : null;
+      const continuation = createBonusCardActionContinuation({
+        team: bonusTeam,
+        nextTurn,
+        sourceEntryId: pending.entryId,
+        origin: {
+          actionType: "PASS",
+          outcome: "INTERCEPTION",
+          reason: "NATURAL_20",
+          sourceEntryId: pending.entryId,
+          parentContinuationId: previousContinuation?.id || null,
+        },
+      });
+      piecesRef.current = nextPieces; setPieces(nextPieces); cancelFreeBall(); setLiveActionResolution(null); setLiveActionContinuation(continuation);
+      const timeline = recordTimelineTransition({ type: "PASS_NATURAL_20", label: `Natural 20 interception: ${getPieceDisplayLabel(interceptor)} earns one bonus action`, team: bonusTeam, groupId: passTimelineGroupId(pending), metadata: { ...passInterceptionTimelineMetadata(pending), bonusAction: { origin: continuation.origin, supersededContinuationId: previousContinuation?.id || null } }, before, after: mergeTimelineGameState(before, { pieces: nextPieces, actionResolution: null, actionContinuation: continuation }), allowNoop: true });
       presentPassResultEntry(timeline?.entries?.[timeline.cursor - 1]);
       return;
     }
@@ -10350,6 +10363,7 @@ function App() {
     if (!piece || piece.team === "BALL") return false;
     if (sessionCode && isSessionGuest && !fromHostIntent) return false;
     if (!sessionCode) {
+      if (actionContinuationRef.current?.kind === "bonus-card-action") return false;
       const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
       const currentFreeMode = before.tracker.matchActionState?.freeMode || {};
       const isSameFreePiece = Boolean(currentFreeMode.active && currentFreeMode.pieceId === piece.id);
@@ -10555,6 +10569,10 @@ function App() {
       setHoveredCell(null);
       return;
     }
+    const offlineBonusContinuation = !sessionCode && actionContinuationRef.current?.kind === "bonus-card-action"
+      ? actionContinuationRef.current
+      : null;
+    if (offlineBonusContinuation && offlineBonusContinuation.team !== pieceTeamKey(piece)) return;
     const continuation = currentBonusContinuationForTeam(pieceTeamKey(piece));
     if (continuation) {
       if (!canControlBonusContinuation(continuation)) return;
@@ -10573,6 +10591,7 @@ function App() {
       }
       return;
     }
+    if (offlineBonusContinuation) return;
     if (actionResolutionRef.current && type !== "FREE") return;
     if (type === "FREE") {
       if (!canUseFreeModeForPiece(piece)) return;
@@ -10811,8 +10830,7 @@ function App() {
 
   function requestEndTurn(piece) {
     const team = pieceTeamKey(piece);
-    const continuation = currentBonusContinuationForTeam(team);
-    if (continuation) return;
+    if (actionContinuationRef.current?.kind === "bonus-card-action") return;
     if (!canUseActionForPiece(piece) || matchActionState.freeMode?.active || actionResolutionRef.current) return;
     if (!isTeamPhaseActive(team)) {
       setIllegalMoveNotice({ reason: phaseBlockReason() });
@@ -11719,8 +11737,7 @@ function App() {
                       type="button"
                       className={`inspector-flip-request-btn team-action-btn ${pieceTeamKey(inspectedPiece)}`}
                       disabled={(() => {
-                        const continuation = currentBonusContinuationForTeam(pieceTeamKey(inspectedPiece));
-                        if (continuation) return true;
+                        if (actionContinuation?.kind === "bonus-card-action") return true;
                         return !canUseActionForPiece(inspectedPiece) || !isTeamPhaseActive(pieceTeamKey(inspectedPiece)) || matchActionState.freeMode?.active || Boolean(actionResolution);
                       })()}
                       onClick={() => requestEndTurn(inspectedPiece)}
@@ -11731,7 +11748,7 @@ function App() {
                       <button
                         type="button"
                         className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${freeBallActive ? "is-active" : ""}`}
-                        disabled={replayModeRef.current || (!sessionCode && (matchActionState.freeMode?.active || matchActionState.groupMove?.active)) || (Boolean(sessionCode) && pieceTeamKey(inspectedPiece) !== myTeam)}
+                      disabled={replayModeRef.current || (!sessionCode && (matchActionState.freeMode?.active || matchActionState.groupMove?.active || actionContinuation?.kind === "bonus-card-action")) || (Boolean(sessionCode) && pieceTeamKey(inspectedPiece) !== myTeam)}
                         aria-pressed={freeBallActive}
                         onClick={() => toggleFreeBall(inspectedPiece)}
                       >
@@ -11742,7 +11759,7 @@ function App() {
                       <button
                         type="button"
                         className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id ? "is-active" : ""}`}
-                        disabled={!canUseFreeModeForPiece(inspectedPiece) || (matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId !== inspectedPiece.id)}
+                      disabled={Boolean(!sessionCode && actionContinuation?.kind === "bonus-card-action") || !canUseFreeModeForPiece(inspectedPiece) || (matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId !== inspectedPiece.id)}
                         aria-pressed={Boolean(matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id)}
                         onClick={() => consumeInspectorAction("FREE", inspectedPiece)}
                       >

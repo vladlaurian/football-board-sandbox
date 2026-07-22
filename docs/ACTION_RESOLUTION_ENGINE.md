@@ -144,7 +144,9 @@ A bonus-card continuation may finish in two valid ways:
 - `BONUS_ACTION_ENDED`: one bonus card action was used and resolved, then `END B.A.` was pressed;
 - `BONUS_ACTION_DECLINED`: `END B.A.` was pressed while the continuation was still `ready`, before any bonus action started.
 
-Both outcomes apply the same serialized `resumePolicy`. The distinction must remain in Timeline and AI export. `END B.A.` must remain unavailable while a bonus action is `action-active`, because that action must resolve or be undone first.
+Both outcomes apply the same serialized `resumePolicy`. The distinction must remain in Timeline and AI export. `END B.A.` remains the only voluntary closure of Bonus Action and may end an `action-active` Bonus MOVE with unused Speed; it must remain unavailable only while another action-resolution flow, such as pending Pass targeting or roll resolution, still owns required input.
+
+Every Bonus Action also carries a structured origin alongside its legacy source string: source action, outcome, reason, source Timeline entry, and optional parent continuation ID. If an exceptional result creates a new Bonus Action while another exists, the new continuation replaces the old one atomically. The old resume policy must not execute; the parent link preserves the chain for Timeline and AI analysis. Bonus Action is outside Tracker economy. In offline Single Player it blocks End Turn and administrative Free Move/Free Ball; 3/2 remains an independent free rule for the continuation owner.
 
 ## Pass migration in v19.11
 

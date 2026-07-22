@@ -20,6 +20,41 @@ export const CONTINUATION_RESUME_TYPE = Object.freeze({
   RESUME_PHASE: "resume-phase",
 });
 
+function cleanOriginValue(value) {
+  return String(value || "").trim();
+}
+
+function legacyOriginForSource(source, sourceEntryId = "") {
+  if (source === "natural-20-interception") {
+    return {
+      actionType: "PASS",
+      outcome: "INTERCEPTION",
+      reason: "NATURAL_20",
+      sourceEntryId,
+      parentContinuationId: null,
+    };
+  }
+  return {
+    actionType: "",
+    outcome: "",
+    reason: "",
+    sourceEntryId,
+    parentContinuationId: null,
+  };
+}
+
+export function normalizeBonusActionOrigin(value, { source = "", sourceEntryId = "" } = {}) {
+  const legacy = legacyOriginForSource(source, cleanOriginValue(sourceEntryId));
+  const raw = value && typeof value === "object" ? value : {};
+  return {
+    actionType: cleanOriginValue(raw.actionType || legacy.actionType),
+    outcome: cleanOriginValue(raw.outcome || legacy.outcome),
+    reason: cleanOriginValue(raw.reason || legacy.reason),
+    sourceEntryId: cleanOriginValue(raw.sourceEntryId || legacy.sourceEntryId),
+    parentContinuationId: cleanOriginValue(raw.parentContinuationId || legacy.parentContinuationId) || null,
+  };
+}
+
 export function normalizeContinuationResumePolicy(value, legacy = {}) {
   const source = value && typeof value === "object" ? value : {};
   const type = Object.values(CONTINUATION_RESUME_TYPE).includes(source.type)
@@ -68,18 +103,23 @@ export function normalizeActionContinuation(value) {
       nextTurn: value.nextTurn,
     }),
     sourceEntryId: String(value.sourceEntryId || ""),
+    origin: normalizeBonusActionOrigin(value.origin, {
+      source: String(value.source || ""),
+      sourceEntryId: String(value.sourceEntryId || ""),
+    }),
     actionType: value.actionType ? String(value.actionType) : null,
     pieceId: value.pieceId ? String(value.pieceId) : null,
     transaction,
   };
 }
 
-export function createBonusCardActionContinuation({ team, nextTurn, resumePolicy = null, sourceEntryId = "" } = {}) {
-  const id = `continuation_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+export function createBonusCardActionContinuation({ id = "", team, nextTurn, resumePolicy = null, source = "natural-20-interception", sourceEntryId = "", origin = null } = {}) {
+  const continuationId = String(id || `continuation_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+  const normalizedOrigin = normalizeBonusActionOrigin(origin, { source, sourceEntryId });
   return normalizeActionContinuation({
-    id,
+    id: continuationId,
     kind: "bonus-card-action",
-    source: "natural-20-interception",
+    source,
     team,
     status: CONTINUATION_STATUS.READY,
     resumePolicy: resumePolicy || {
@@ -89,11 +129,12 @@ export function createBonusCardActionContinuation({ team, nextTurn, resumePolicy
       phase: "attack",
     },
     sourceEntryId,
+    origin: normalizedOrigin,
     transaction: createActionTransaction({
-      id,
+      id: continuationId,
       actionType: "BONUS_ACTION",
       team,
-      source: "natural-20-interception",
+      source,
       undoMode: ACTION_TRANSACTION_UNDO_MODE.ATOMIC,
     }),
   });

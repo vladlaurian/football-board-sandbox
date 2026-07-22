@@ -125,6 +125,18 @@ End Turn now clears the active canonical `matchActionState.groupMove` interactio
 
 The board derives active-team candidate marking from exported pure Group Move eligibility evaluation: eligible candidates are highlighted; candidates in the confirmed zone that cannot participate are grey-outlined and display a lock. Cursor preview uses the same pure Group Move destination evaluator as the Engine, including Group maximum distance, established direction, occupancy/ball constraints, and the deliberate no-path-blocking exception. Manual Multiplayer and Editor Mode remain unchanged.
 
+## Phase 5 — Bonus Action foundation and Bonus MOVE
+
+### v20.21.0 — offline Single Player Bonus Action foundation
+
+`actionContinuation` remains the canonical Timeline state for a Bonus Action and never belongs to Tracker. This build extends it compatibly with a structured `origin` while preserving the historical `source` string used by old recordings. Origin records the source action, outcome, reason, source Timeline entry, and an optional parent continuation ID. A new Bonus Action created during an old one replaces the old continuation atomically; the previous resume policy is not applied, and the new continuation points to the replaced one for Timeline and AI analysis.
+
+While an offline Single Player Bonus Action is present, the Engine rejects unrelated gameplay commands and UI disables End Turn, Free Move, Free Ball, normal actions, and Group Move. 3/2 remains a separate free rule: its owner may use it during Bonus Action even outside the Tracker's active phase. Existing 3/2 validation and no-Tracker economy remain unchanged. Manual Multiplayer remains unchanged.
+
+### v20.21.1 — mandatory next build: Bonus MOVE Engine migration
+
+Bonus MOVE must be migrated separately through typed Engine commands and Timeline. It must preserve progressive Speed/axis/path behavior, permit `END B.A.` with unused Speed, allow cancellation only before the first physical movement, and never consume Tracker. It must support two equivalent offline Single Player UI entrances: card MOVE and direct board selection plus destination. The direct-board entrance is required and must not be omitted.
+
 ### v20.19.0 — offline Single Player Free Move Engine migration
 
 Free Move now has one offline Match Mode mutation path: `FREE_MOVE_STARTED`, `FREE_MOVE_COMMITTED`, and `FREE_MOVE_ENDED` flow through the Game Engine and Single Player Controller into Timeline. It is deliberately an administrative correction rather than a Tracker action. The three Timeline entries are ordinary reversible history, so Undo/Redo may step across them and AI export retains the correction as `FREE_MODE` with `MANUAL_CORRECTION` provenance.

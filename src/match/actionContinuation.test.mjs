@@ -5,6 +5,7 @@ import {
   CONTINUATION_RESUME_TYPE,
   beginContinuationAction,
   completeContinuationAction,
+  createBonusCardActionContinuation,
   endContinuationAction,
   normalizeActionContinuation,
 } from "./actionContinuation.mjs";
@@ -61,4 +62,31 @@ test("an active bonus action may be ended explicitly after partial movement", ()
   assert.equal(endedActive.endedWhileActive, true);
   const complete = completeContinuationAction(active);
   assert.equal(endContinuationAction(complete).declined, false);
+});
+
+test("bonus origins preserve legacy Natural 20 data and link a replacement continuation", () => {
+  const legacy = normalizeActionContinuation({ id: "legacy-natural", team: "blue", source: "natural-20-interception", sourceEntryId: "pass-1" });
+  assert.deepEqual(legacy.origin, {
+    actionType: "PASS",
+    outcome: "INTERCEPTION",
+    reason: "NATURAL_20",
+    sourceEntryId: "pass-1",
+    parentContinuationId: null,
+  });
+
+  const replacement = createBonusCardActionContinuation({
+    id: "bonus-red-2",
+    team: "red",
+    nextTurn: 3,
+    sourceEntryId: "pass-2",
+    origin: {
+      actionType: "PASS",
+      outcome: "INTERCEPTION",
+      reason: "NATURAL_20",
+      sourceEntryId: "pass-2",
+      parentContinuationId: legacy.id,
+    },
+  });
+  assert.equal(replacement.origin.parentContinuationId, "legacy-natural");
+  assert.equal(replacement.origin.sourceEntryId, "pass-2");
 });

@@ -350,6 +350,20 @@ Players must begin in the confirmed zone, have no ball, and have no gameplay mov
 - Timeline preserves `GROUP_MOVE_ACTIVATED` and `GROUP_MOVE_PIECE`; Undo/Redo, Replay, and AI export retain their existing semantic vocabulary.
 - Manual Multiplayer and Editor Mode retain their legacy behavior.
 
+## ADR-025 — Bonus Action is a generic, non-Tracker continuation
+
+**Status:** Active
+
+**Decision:** A Bonus Action is canonical `actionContinuation` state, not a Tracker action and not a Pass-only mechanic. Its legacy `source` remains for replay compatibility, while structured `origin` identifies the source action, outcome, reason, source Timeline entry, and optional parent continuation. A new Bonus Action replaces any existing one atomically; it does not stack and the superseded continuation's resume policy never executes.
+
+In offline Single Player, an active Bonus Action blocks End Turn, Free Move, Free Ball, normal actions, and Group Move. It permits one selected individual card action (MOVE, PASS, DRIBBLE, CROSS, SHOT, or TACKLING), its valid cancellation flow, and `END B.A.`. 3/2 remains independent of MOVE and Tracker: it may be used by the Bonus Action owner under its existing range, occupancy, path, and one-use rules, without consuming or ending the continuation.
+
+**Consequences:**
+
+- Timeline and AI Export retain Bonus Action origin and replacement-chain provenance.
+- Manual Multiplayer retains its existing Bonus Action path until explicitly reopened.
+- Bonus MOVE requires its own Engine migration, including its mandatory direct-board entry; it must not be added ad hoc to this foundation build.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

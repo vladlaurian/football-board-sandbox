@@ -6,13 +6,21 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.20.1` |
-| Git/package version | `20.20.1` |
-| Build name | `Final_Board_v20_20_1_group_move_ui_turn_closure` |
-| Base build | `v20.20.0 single_player_group_move_engine` |
+| Sandbox version | `v20.21.0` |
+| Git/package version | `20.21.0` |
+| Build name | `Final_Board_v20_21_0_bonus_action_foundation` |
+| Base build | `v20.20.1 group_move_ui_turn_closure` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.20.1`. The repository version is defined in `package.json` as `20.20.1`. The browser title is `Sandbox v20.20.1`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.21.0`. The repository version is defined in `package.json` as `20.21.0`. The browser title is `Sandbox v20.21.0`.
+
+## v20.21.0 release summary
+
+v20.21.0 establishes the offline Single Player Bonus Action foundation without migrating Bonus MOVE itself. A Bonus Action continuation now carries a compatible structured origin (`actionType`, outcome, reason, source entry, and optional parent continuation). Existing Natural 20 interception recordings retain their historical `source` string and infer the same structured origin. A later Natural 20 during an existing Bonus Action explicitly replaces the old continuation, records its parent link, and does not run the old continuation's resume policy.
+
+While an offline Single Player Bonus Action exists, End Turn, Free Move, Free Ball, normal actions, and Group Move are blocked. The Game Engine applies the same lock to command paths. 3/2 remains independent: the Bonus Action owner may use it even outside the normal Tracker phase, with all existing 3/2 range, occupancy, path, one-use, and no-Tracker rules unchanged. It neither consumes nor ends Bonus Action. Manual Multiplayer remains on its existing path.
+
+The next mandatory build is `v20.21.1`: migrate Bonus MOVE through the Game Engine, including both card and direct-board entrances. It is intentionally not included here.
 
 ## v20.20.1 release summary
 

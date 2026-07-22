@@ -251,6 +251,55 @@ test("THREE_TWO_MOVE_COMMITTED is a free active-phase action and preserves the b
   assert.equal(result.events[0].metadata.movementReason, "THREE_TWO");
 });
 
+test("THREE_TWO_MOVE remains available to the Bonus Action owner outside the Tracker phase", () => {
+  const state = createGameState({
+    gameMode: "match",
+    pieces: [
+      { id: "ball", team: "BALL", x: 5, y: 5 },
+      { id: "red-1", team: "B", cardId: "card-red-1", x: 3, y: 5 },
+    ],
+    tracker: {
+      gameStarted: true,
+      startingTeam: "blue",
+      currentTurn: 2,
+      turnPhase: "attack",
+      settings: { attackActions: 5, defenseActions: 4, turns: 20 },
+    },
+    actionContinuation: { id: "bonus-red", kind: "bonus-card-action", team: "red", status: "action-active", actionType: "MOVE", pieceId: "red-1" },
+  });
+  const context = createMatchContext({ gameplayCards: [{ id: "card-red-1", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] }] });
+  const result = applyGameCommand({
+    state,
+    context,
+    command: { id: "bonus-three-two", type: "THREE_TWO_MOVE_COMMITTED", payload: { pieceId: "red-1", x: 5, y: 5 } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.nextState.tracker.usedActions.red, 0);
+  assert.equal(result.nextState.actionContinuation.id, "bonus-red");
+});
+
+test("Bonus Action locks unrelated Engine commands while retaining Three Two", () => {
+  const state = createGameState({
+    ...normalMoveState(),
+    actionContinuation: { id: "bonus-blue", kind: "bonus-card-action", team: "blue", status: "ready" },
+  });
+  assert.deepEqual(applyGameCommand({
+    state,
+    context: normalMoveContext(),
+    command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "blocked-by-bonus"),
+  }), { accepted: false, reason: "BONUS_ACTION_ACTIVE" });
+  assert.deepEqual(applyGameCommand({
+    state,
+    context: normalMoveContext(),
+    command: moveBallCommand({ id: "bonus-free-ball", payload: { x: 7, y: 8 } }),
+  }), { accepted: false, reason: "BONUS_ACTION_ACTIVE" });
+  assert.deepEqual(applyGameCommand({
+    state,
+    context: normalMoveContext(),
+    command: normalMoveCommand("FREE_MOVE_STARTED", {}, "bonus-free-move"),
+  }), { accepted: false, reason: "BONUS_ACTION_ACTIVE" });
+});
+
 test("THREE_TWO_MOVE_COMMITTED rejects an occupied ball square, reuse, and inactive phase without mutation", () => {
   const base = createGameState({
     ...normalMoveState(),
