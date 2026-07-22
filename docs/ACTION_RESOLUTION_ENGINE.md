@@ -190,6 +190,10 @@ Offline Single Player submits an interception die only through `PASS_INTERCEPTIO
 
 The roll transition does not itself resolve interception, change possession, move the ball, grant a Bonus Action or advance the reaction chain. In offline Match Mode, ordinary dice controls are therefore enabled only for an active pending mechanic roll. `EXTRA_ROLL_SUBMITTED` is a deliberately separate administrative command: it records an explicit `EXTRA_ROLL` Timeline/AI event, updates visible dice values, consumes no Tracker action and may not operate while an action resolution is active. Manual Multiplayer and Editor Mode retain legacy dice paths.
 
+## v20.28.1 — startup regression correction
+
+No action-resolution contract changed. This build only relocates the Extra Roll UI reset effect below the `sessionCode` state declaration so React can mount the application without a temporal-dead-zone exception.
+
 ## Multiplayer canonical resolution rule added in v19.13
 
 A remote user may create an authorized pending decision or RollEvent, but only the host applies the deterministic consequence. Host scheduling must be derived from the canonical hydrated Timeline state, not exclusively from a one-time "new entry" notification. Repeated Firestore snapshots for the same entry must not restart its cosmetic delay, and an already consumed RollEvent must remain idempotent.

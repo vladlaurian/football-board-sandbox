@@ -6,13 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.28.0` |
-| Git/package version | `20.28.0` |
-| Build name | `Final_Board_v20_28_0_dice_access_pass_roll_engine` |
+| Sandbox version | `v20.28.1` |
+| Git/package version | `20.28.1` |
+| Build name | `Final_Board_v20_28_1_startup_regression_correction` |
 | Base build | `v20.27.0 pass_interceptor_choice_engine` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.28.0`. The repository version is defined in `package.json` as `20.28.0`. The browser title is `Sandbox v20.28.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.28.1`. The repository version is defined in `package.json` as `20.28.1`. The browser title is `Sandbox v20.28.1`.
+
+## v20.28.1 startup regression correction
+
+v20.28.1 corrects only a v20.28.0 startup regression. The Extra Roll reset effect had been declared before `sessionCode`; React evaluates Hook dependency expressions during render, so the temporal-dead-zone access produced a blank screen before the application mounted. The identical effect now sits after the `sessionCode` state declaration. No game rule, Engine command, Timeline behavior, manual multiplayer path, or Extra Roll behavior changed.
 
 ## v20.28.0 release summary
 

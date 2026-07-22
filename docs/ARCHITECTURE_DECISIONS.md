@@ -526,6 +526,10 @@ The transition may create the existing explicit pending interceptor decision or 
 - Existing delayed Pass outcome logic remains temporarily downstream, but must consume the Engine-recorded input rather than a UI-owned roll.
 - Editor Mode and Manual Multiplayer keep legacy dice controls until explicitly migrated.
 
+## Implementation note — v20.28.1 UI startup correction
+
+The Extra Roll reset effect is presentation-only. Its Hook dependency expressions must be declared only after every referenced state value exists in component initialization order. This correction preserves ADR-037 exactly; it does not create a new gameplay decision.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

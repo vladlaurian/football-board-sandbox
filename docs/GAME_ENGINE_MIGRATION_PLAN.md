@@ -306,6 +306,10 @@ Delivered files and tests:
 
 **Status:** Complete as the fifth narrow Pass slice, plus the approved administrative dice safeguard.
 
+### v20.28.1 — startup regression correction
+
+**Status:** Complete. No migration scope changed: this is a one-line React Hook declaration-order correction for v20.28.0. It restores application mount and changes neither MatchState, MatchContext, Engine, Timeline, game rules nor Manual Multiplayer.
+
 `PASS_INTERCEPTION_ROLL_SUBMITTED` now flows through the Game Engine and Single Player Controller. It accepts only the active exact pending D20 request and its matching unique RollEvent, consumes that event once, stores the raw result in canonical MatchState, updates canonical dice display state and records the existing delayed-resolution descriptor. The legacy delayed resolver temporarily reads this canonical input and performs the existing outcome calculation. Outcome, possession, ball movement, Natural 1/Natural 20 consequences and later reaction advancement remain outside this build.
 
 Offline Match Mode dice controls are disabled unless a pending mechanic roll requests the relevant team. `EXTRA ROLL` explicitly arms one administrative random or chosen roll. It creates `EXTRA_ROLL` in Timeline and AI analysis, never consumes Tracker economy, cannot satisfy a pending action roll, and closes after use. Editor Mode and Manual Multiplayer retain their legacy dice behavior.

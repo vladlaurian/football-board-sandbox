@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.28.0";
+const APP_VERSION = "v20.28.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2228,9 +2228,6 @@ function App() {
     setDicePanelVisible(true);
     setDieType(20);
   }, [actionResolution]);
-  useEffect(() => {
-    if (actionResolution || sessionCode || gameMode !== "match") setExtraRollArmed(false);
-  }, [actionResolution, gameMode, sessionCode]);
   useEffect(() => { movementStateRef.current = movementStateByPieceId; }, [movementStateByPieceId]);
   useEffect(() => { gameTimelineRef.current = gameTimeline; }, [gameTimeline]);
   useEffect(() => {
@@ -2266,6 +2263,9 @@ function App() {
   }, [isReplayView, historyVisible, gameTimeline?.cursor]);
 
   const [sessionCode, setSessionCode] = useState("");
+  useEffect(() => {
+    if (actionResolution || sessionCode || gameMode !== "match") setExtraRollArmed(false);
+  }, [actionResolution, gameMode, sessionCode]);
   const [joinCode, setJoinCode] = useState("");
   const [sessionStatus, setSessionStatus] = useState("Offline");
 
