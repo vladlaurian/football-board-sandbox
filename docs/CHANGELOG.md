@@ -2,6 +2,13 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.45.0 — Match Tactical Clarity
+
+- Made Match Tracker turns clearly distinguish completed, current and upcoming states without changing turn state or controls.
+- Applied the existing Match glass treatment to card action controls, replaced the possession yellow with a white/silver halo, and shifted Red puck/selection tones away from pink.
+- Kept every defensive cell visible in Match presentation, restored stronger continuous outer edges, and scales Blue/Red overlay intensity from the already-calculated number of same-team defensive areas covering each cell.
+- Deliberately adds no numeric coverage labels, rule changes, Engine changes, Timeline changes, Editor changes or Manual Multiplayer changes.
+
 ## v20.44.0 — Premium Match UI & Team Highlights
 
 - Restored the ball to an opaque premium token and removed Match-only held-ball transparency.

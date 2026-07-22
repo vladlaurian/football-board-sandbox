@@ -186,7 +186,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.44.0";
+const APP_VERSION = "v20.45.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {

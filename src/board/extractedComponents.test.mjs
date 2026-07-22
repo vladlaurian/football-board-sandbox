@@ -74,6 +74,7 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
       rulerMarkers: [],
       defensiveAreaOverlays: [
         { id: "blue-a", team: "A", x: 2, y: 2 },
+        { id: "blue-a-overlap", team: "A", x: 2, y: 2 },
         { id: "blue-b", team: "A", x: 3, y: 2 },
         { id: "red-a", team: "B", x: 3, y: 2 },
       ],
@@ -94,6 +95,7 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   assert.match(boardMarkup, /match-ball-aura/);
   assert.match(boardMarkup, /match-def-area-cell/);
   assert.match(boardMarkup, /contested/);
+  assert.match(boardMarkup, /--blue-def-alpha:0\.3/);
 
   const historyMarkup = renderToStaticMarkup(
     React.createElement(HistoryPanel, {

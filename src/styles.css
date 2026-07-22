@@ -7826,3 +7826,80 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .match-ui-presentation .pass-action-prompt.bonus { border-color: rgba(219,170,255,.68); }
 .match-ui-presentation .turn-confirm-backdrop { background: rgba(2, 12, 18, .62); backdrop-filter: blur(3px); }
 .match-ui-presentation .turn-confirm-modal .modal-title strong { letter-spacing: .08em; color: #e8f7ff; }
+
+/* v20.45 — Match tactical clarity.
+   These remain view-only Match selectors: defensive coverage comes from the
+   already-calculated overlays and never changes geometry, legality or state. */
+.match-ui-presentation .tracker-turns button {
+  opacity: 1;
+  border-color: rgba(188, 207, 217, .48);
+  color: rgba(234, 244, 248, .78);
+  background: rgba(142, 159, 169, .19);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10);
+}
+.match-ui-presentation .tracker-turns button:disabled { opacity: .72; }
+.match-ui-presentation .tracker-turns button.completed {
+  background: linear-gradient(145deg, rgba(40, 156, 91, .72), rgba(18, 94, 56, .72));
+  border-color: rgba(112, 245, 162, .82);
+  color: #eafff0;
+  box-shadow: inset 0 1px 0 rgba(233,255,241,.26);
+}
+.match-ui-presentation .tracker-turns button.active {
+  background: linear-gradient(145deg, #68efa0, #27b967);
+  border-color: #c4ffda;
+  color: #072011;
+  box-shadow: 0 0 0 1px rgba(160,255,198,.62), 0 0 15px rgba(79,239,139,.46), inset 0 1px 0 rgba(255,255,255,.56);
+}
+.match-ui-presentation .card-inspector .inspector-piece-primary-actions button,
+.match-ui-presentation .card-inspector .inspector-piece-line .team-action-btn,
+.match-ui-presentation .card-inspector .inspector-turn-actions button,
+.match-ui-presentation .card-inspector .match-action-row button {
+  border-color: rgba(224, 242, 248, .30) !important;
+  background: linear-gradient(145deg, rgba(255,255,255,.16), rgba(255,255,255,.055)) !important;
+  color: #f1f9fc !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 5px 12px rgba(0,0,0,.18) !important;
+  backdrop-filter: blur(9px) saturate(1.12);
+}
+.match-ui-presentation .card-inspector .inspector-piece-primary-actions button:hover:not(:disabled),
+.match-ui-presentation .card-inspector .inspector-piece-line .team-action-btn:hover:not(:disabled),
+.match-ui-presentation .card-inspector .inspector-turn-actions button:hover:not(:disabled),
+.match-ui-presentation .card-inspector .match-action-row button:hover:not(:disabled) {
+  border-color: rgba(229,247,254,.64) !important;
+  background: linear-gradient(145deg, rgba(255,255,255,.27), rgba(123,190,224,.14)) !important;
+}
+.board-wrap.match-presentation .piece.team-b {
+  background:
+    radial-gradient(circle at 34% 26%, rgba(255,255,255,.62), transparent 18%),
+    radial-gradient(circle at 50% 46%, #ff5f68 0 40%, #d52331 69%, #780812 100%);
+}
+.board-wrap.match-presentation .piece.has-possession {
+  box-shadow:
+    0 0 0 2px rgba(241, 249, 252, .92),
+    0 0 17px rgba(220, 241, 250, .74),
+    inset 0 1px 0 rgba(255,255,255,.50),
+    inset 0 -18px 20px rgba(0,0,0,.26);
+}
+.board-wrap.match-presentation.selected-team-red .piece.selected,
+.board-wrap.match-presentation.selected-team-red .selected-cell {
+  outline-color: #ff747b;
+  box-shadow: 0 0 0 2px rgba(255,88,98,.58), 0 0 20px rgba(255,48,62,.70), inset 0 0 0 1px rgba(255,234,235,.30);
+}
+.board-wrap.match-presentation.selected-team-red .selected-cell { background: radial-gradient(circle, rgba(255,83,94,.30), rgba(209,31,44,.09) 64%, transparent 72%); }
+.board-wrap.match-presentation .match-def-area-cell {
+  border-style: solid;
+  border-width: var(--def-top) var(--def-right) var(--def-bottom) var(--def-left);
+  box-shadow: inset 0 0 0 1px rgba(244,250,252,.13);
+}
+.board-wrap.match-presentation .match-def-area-cell.blue {
+  background: rgb(83 162 255 / var(--blue-def-alpha));
+  border-color: rgba(166, 214, 255, .80);
+}
+.board-wrap.match-presentation .match-def-area-cell.red {
+  background: rgb(241 57 70 / var(--red-def-alpha));
+  border-color: rgba(255, 161, 168, .84);
+}
+.board-wrap.match-presentation .match-def-area-cell.contested {
+  background: linear-gradient(135deg, rgb(83 162 255 / var(--blue-def-alpha)), rgb(83 162 255 / var(--blue-def-alpha)) 49%, rgb(241 57 70 / var(--red-def-alpha)) 51%, rgb(241 57 70 / var(--red-def-alpha)));
+  border-color: rgba(238, 246, 250, .88);
+  box-shadow: inset 0 0 0 1px rgba(238,246,250,.20);
+}
