@@ -186,7 +186,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.43.0";
+const APP_VERSION = "v20.44.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -11377,7 +11377,7 @@ function App() {
   }
 
   return (
-    <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""} ${isReplayView ? "replay-mode" : ""}`}>
+    <div className={`app ${touchMode ? "touch-mode" : ""} ${lockUI ? "locked-ui" : ""} ${isReplayView ? "replay-mode" : ""} ${!sessionCode && gameMode === "match" ? "match-ui-presentation" : ""}`}>
       <div className="topbar">
         <strong>Sandbox <span>{APP_VERSION}</span></strong>
         {isReplayView ? (

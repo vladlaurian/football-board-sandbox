@@ -142,7 +142,7 @@ export function BoardCanvas({
 
   return (
     <div
-      className={`board-wrap ${presentationMode === "match" ? "match-presentation" : "editor-presentation"} ${(selectedId || activeInteractionPieceId) ? "piece-selected" : ""} ${passActive ? "pass-active" : ""}`}
+      className={`board-wrap ${presentationMode === "match" ? "match-presentation" : "editor-presentation"} ${selectedPiece?.team === "A" ? "selected-team-blue" : selectedPiece?.team === "B" ? "selected-team-red" : selectedPiece?.team === "BALL" ? "selected-team-ball" : ""} ${(selectedId || activeInteractionPieceId) ? "piece-selected" : ""} ${passActive ? "pass-active" : ""}`}
       ref={boardWrapRef}
       onPointerDown={startBoardPan}
       onPointerMove={moveBoardPan}

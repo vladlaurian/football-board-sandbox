@@ -7756,3 +7756,73 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   border-color: rgba(255, 244, 190, .88);
   box-shadow: inset 0 0 0 1px rgba(255,244,190,.20);
 }
+
+/* v20.44 — Premium Match UI & Team Highlights.
+   Match-only presentation selectors preserve all existing panel structure,
+   controls and state ownership. */
+.board-wrap.match-presentation .piece.ball.ball-held { opacity: 1; }
+.board-wrap.match-presentation .piece.ball {
+  border: 1px solid rgba(255,255,255,.88);
+  background:
+    radial-gradient(circle at 34% 26%, rgba(255,255,255,.92), transparent 20%),
+    radial-gradient(circle at 50% 52%, #ffffff 0 47%, #c6d3db 72%, #70818d 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.86), inset 0 -8px 12px rgba(47,64,74,.22), 0 4px 10px rgba(0,0,0,.48);
+}
+.board-wrap.match-presentation.selected-team-blue .piece.selected,
+.board-wrap.match-presentation.selected-team-blue .selected-cell {
+  outline-color: #9ed1ff;
+  box-shadow: 0 0 0 2px rgba(131,198,255,.54), 0 0 20px rgba(70,159,255,.72), inset 0 0 0 1px rgba(232,247,255,.30);
+}
+.board-wrap.match-presentation.selected-team-red .piece.selected,
+.board-wrap.match-presentation.selected-team-red .selected-cell {
+  outline-color: #ffb0b5;
+  box-shadow: 0 0 0 2px rgba(255,158,166,.52), 0 0 20px rgba(255,91,103,.68), inset 0 0 0 1px rgba(255,238,239,.28);
+}
+.board-wrap.match-presentation.selected-team-ball .piece.selected,
+.board-wrap.match-presentation.selected-team-ball .selected-cell {
+  outline-color: #f3fbff;
+  box-shadow: 0 0 0 2px rgba(230,242,250,.54), 0 0 18px rgba(210,231,244,.62), inset 0 0 0 1px rgba(255,255,255,.42);
+}
+.board-wrap.match-presentation.selected-team-blue .selected-cell { background: radial-gradient(circle, rgba(88,169,255,.28), rgba(48,127,229,.08) 64%, transparent 72%); }
+.board-wrap.match-presentation.selected-team-red .selected-cell { background: radial-gradient(circle, rgba(255,104,116,.28), rgba(211,57,68,.08) 64%, transparent 72%); }
+.board-wrap.match-presentation.selected-team-ball .selected-cell { background: radial-gradient(circle, rgba(226,243,252,.28), rgba(166,203,224,.08) 64%, transparent 72%); }
+.match-ui-presentation .tracker-panel,
+.match-ui-presentation .history-panel,
+.match-ui-presentation .dice-panel {
+  background: rgba(10, 23, 33, .78);
+  border-color: rgba(218,238,246,.26);
+  box-shadow: 0 18px 48px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.14);
+  backdrop-filter: blur(16px) saturate(1.16);
+}
+.match-ui-presentation .tracker-panel-title,
+.match-ui-presentation .history-title,
+.match-ui-presentation .dice-panel-title {
+  background: linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.04));
+  border-bottom-color: rgba(219,239,247,.18);
+}
+.match-ui-presentation .tracker-panel button,
+.match-ui-presentation .history-panel button,
+.match-ui-presentation .dice-panel button,
+.match-ui-presentation .dice-panel select {
+  border-color: rgba(224,242,248,.22);
+  background: rgba(255,255,255,.09);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
+}
+.match-ui-presentation .history-item { background: rgba(255,255,255,.055); border-color: rgba(226,242,248,.12); }
+.match-ui-presentation .history-item.applied { border-color: rgba(119,203,255,.42); }
+.match-ui-presentation .history-item.current { background: rgba(60,153,210,.23); border-color: rgba(148,220,255,.65); }
+.match-ui-presentation .tracker-team { box-shadow: inset 0 1px 0 rgba(255,255,255,.12); }
+.match-ui-presentation .tracker-turns-block { background: rgba(67,185,116,.11); box-shadow: inset 0 1px 0 rgba(220,255,233,.12); }
+.match-ui-presentation .team-die-card { box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 8px 20px rgba(0,0,0,.20); }
+.match-ui-presentation .dice-notice,
+.match-ui-presentation .pass-action-prompt,
+.match-ui-presentation .turn-confirm-modal {
+  border-color: rgba(232,246,252,.34);
+  background: rgba(12, 28, 40, .84);
+  box-shadow: 0 18px 52px rgba(0,0,0,.50), inset 0 1px 0 rgba(255,255,255,.16);
+  backdrop-filter: blur(16px) saturate(1.15);
+}
+.match-ui-presentation .pass-action-prompt strong { color: #f5fbff; }
+.match-ui-presentation .pass-action-prompt.bonus { border-color: rgba(219,170,255,.68); }
+.match-ui-presentation .turn-confirm-backdrop { background: rgba(2, 12, 18, .62); backdrop-filter: blur(3px); }
+.match-ui-presentation .turn-confirm-modal .modal-title strong { letter-spacing: .08em; color: #e8f7ff; }

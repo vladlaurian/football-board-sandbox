@@ -2,6 +2,13 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.44.0 — Premium Match UI & Team Highlights
+
+- Restored the ball to an opaque premium token and removed Match-only held-ball transparency.
+- Added Match-only Blue/Red/neutral selected-team classes to the Board presentation wrapper; normal selection no longer uses the legacy yellow treatment.
+- Added a Match-only dark-glass presentation route for Tracker, Dice, History, Match Over/turn prompts, dice notices and active action prompts.
+- Preserved every panel's structure, positioning, controls, state and function. Editor and Manual Multiplayer remain on their prior visual route.
+
 ## v20.43.0 — Premium tactical pucks and defensive-area clarity
 
 - Replaced Match-only CSS player figures with premium tactical pucks in the existing piece elements; position labels, hitboxes and state classes remain unchanged.

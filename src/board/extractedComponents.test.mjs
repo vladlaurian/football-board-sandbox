@@ -61,7 +61,7 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
       onPitchPointerMove: noop,
       onPitchPointerUp: noop,
       onPitchPointerCancel: noop,
-      selectedPiece: null,
+      selectedPiece: { id: "A-1", team: "A", x: 10, y: 10 },
       selectedMovementAxis: null,
       movementAxisSymbol: () => "",
       movementPreview: null,
@@ -88,6 +88,7 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   );
   assert.match(boardMarkup, /board-wrap/);
   assert.match(boardMarkup, /match-presentation/);
+  assert.match(boardMarkup, /selected-team-blue/);
   assert.match(boardMarkup, /has-possession/);
   assert.match(boardMarkup, /ball-held/);
   assert.match(boardMarkup, /match-ball-aura/);
