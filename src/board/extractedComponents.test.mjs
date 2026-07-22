@@ -152,6 +152,7 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
     zoneTextStyleVarsStable: () => ({}),
     cardLayoutTitle: () => "",
     zonePairDistanceVarsStable: () => ({}),
+    zoneNumberStyleVarsStable: () => ({}),
     normalizeStatValue: value => value,
     PREFERRED_FOOT_OPTIONS: ["Right", "Left"],
     defensiveGridAdjustStyle: () => ({}),
@@ -175,4 +176,17 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   assert.match(cardPreviewMarkup, /card-preview card-front theme-style-1 blue/);
   assert.match(cardPreviewMarkup, /card-visual-canvas/);
   assert.match(cardPreviewMarkup, /Victor/);
+
+  const cardBackMarkup = renderToStaticMarkup(
+    React.createElement(CardPreview, {
+      card: { id: "card-1", name: "Victor", position: "GK", theme: "Style 1", graphics: {}, passiveAttributes: [{ id: "attr-1", name: "Passing", value: 8 }], bonuses: [] },
+      side: "back",
+      team: "blue",
+      renderContext: {
+        ...cardRenderContext,
+        normalizeCardVisualLayout: () => ({ front: {}, back: { header: { x: 0, y: 0, w: 100, h: 20 }, position: { x: 0, y: 20, w: 100, h: 20 }, attributes: { x: 0, y: 40, w: 100, h: 40 } } }),
+      },
+    }),
+  );
+  assert.match(cardBackMarkup, /Passing/);
 });

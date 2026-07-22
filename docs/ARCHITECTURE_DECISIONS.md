@@ -650,6 +650,7 @@ Editor Workspace setup is locked after an offline Match starts whenever a change
 - The same card-zone rendering path remains in every surface; no second renderer is introduced.
 - Canvas cannot own card-library mutation, Timeline, Firebase, Match rules or Manual Multiplayer synchronization.
 - `main.jsx` no longer owns Canvas JSX or its DOM interaction implementation. Card Editor form and panel extraction remain a separate later UI boundary.
+- Every extracted renderer context must be tested on each visual side it supports; v20.37.1 adds the Back-card regression case.
 
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 

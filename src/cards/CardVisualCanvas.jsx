@@ -80,6 +80,7 @@ export function CardVisualCanvas({ card, side, showZones = false, selectedLayout
     zoneTextStyleVarsStable,
     cardLayoutTitle,
     zonePairDistanceVarsStable,
+    zoneNumberStyleVarsStable,
     normalizeStatValue,
     PREFERRED_FOOT_OPTIONS,
     colorToRgbTriplet,
@@ -462,4 +463,3 @@ export function CardVisualCanvas({ card, side, showZones = false, selectedLayout
 function AreaMiniPreview({ area = [], areaHasCell }) {
   return <div className="area-mini">{Array.from({ length: 121 }, (_, i) => { const dx = (i % 11) - 5; const dy = Math.floor(i / 11) - 5; const center = dx === 0 && dy === 0; return <span key={i} className={`${center ? "player" : ""} ${areaHasCell(area, dx, dy) ? "active" : ""}`}>{center ? "" : ""}</span>; })}</div>;
 }
-

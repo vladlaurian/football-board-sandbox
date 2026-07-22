@@ -494,6 +494,8 @@ During an active offline Match, Cloud Save, autosave and Workspace import are bl
 
 `src/cards/CardVisualCanvas.jsx` now owns the shared visual card canvas, its local layout-interaction presentation, special-text fitting and defensive-area preview. `CardPreview` passes the established render context through to Canvas. `main.jsx` still supplies pure presentation helpers plus the existing layout-change callbacks; it retains no Canvas JSX or DOM interaction code.
 
+v20.37.1 corrects a missing Back-card numeric-text helper in that render context. The renderer now has a focused Front-and-Back regression test; no boundary or behavior changed.
+
 ##### Phase 8C.2c.2 — Card Editor form and panel boundary
 
 **Status:** Pending.
