@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.46.0` |
-| Git/package version | `20.46.0` |
-| Build name | `Final_Board_v20_46_0_individual_defensive_areas` |
-| Base build | `v20.45.1 final_match_presentation_correction` |
+| Sandbox version | `v20.46.1` |
+| Git/package version | `20.46.1` |
+| Build name | `Final_Board_v20_46_1_ball_and_owner_square_correction` |
+| Base build | `v20.46.0 individual_defensive_areas` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.46.0`. The repository version is in `package.json` as `20.46.0`. The browser title is `Sandbox v20.46.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.46.1`. The repository version is in `package.json` as `20.46.1`. The browser title is `Sandbox v20.46.1`.
 
 ## Current release
 
-v20.46.0 corrects defensive information rather than merely its styling: Match now renders each player's defensive area independently, including that player's visual source square, so overlapping shapes retain their own boundaries. The ball is now a fixed 1:1 SVG rather than a font emoji. All layout controls, interactions, Engine/Timeline behavior, Editor and Manual Multiplayer remain unchanged.
+v20.46.1 corrects two visual regressions in the approved individual-area presentation: the ball is now a conventional spherical football SVG, and a player's occupied square is fill-only with no local defensive-area border. All layout controls, interactions, Engine/Timeline behavior, Editor and Manual Multiplayer remain unchanged.
 
 No game rule, Match Engine command, Timeline behavior, Workspace persistence behavior or Manual Multiplayer behavior changed.
 
@@ -72,7 +72,7 @@ src/
 docs/
   active architecture, rule and workflow contracts
   CHANGELOG.md
-  NEXT_CHAT_PROMPT_v20_46_0.md
+  NEXT_CHAT_PROMPT_v20_46_1.md
   history/      non-active handoff history
 ```
 
@@ -92,7 +92,7 @@ docs/
 | [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md) | Frozen legacy automated-multiplayer model; reference only until reopening is approved. |
 | [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md) | Historical Multiplayer fixes and rejected approaches. |
 | [`CHANGELOG.md`](docs/CHANGELOG.md) | Compact release history. |
-| [`NEXT_CHAT_PROMPT_v20_46_0.md`](docs/NEXT_CHAT_PROMPT_v20_46_0.md) | The one active handoff for a new chat. |
+| [`NEXT_CHAT_PROMPT_v20_46_1.md`](docs/NEXT_CHAT_PROMPT_v20_46_1.md) | The one active handoff for a new chat. |
 
 ## Mandatory development rules
 

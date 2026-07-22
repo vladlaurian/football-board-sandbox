@@ -2,6 +2,12 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.46.1 — Ball & Owner-Square Correction
+
+- Replaced the abstract vector mark with a conventional white spherical football and black pentagon patches; it remains a fixed-ratio shared SVG for Board and Inspector.
+- Removed all local border/shadow treatment from an owner's defensive source square, including when that square is part of the card's own defensive shape. The player now sits directly on team-colored defensive fill.
+- Preserved individual defensive-area perimeters, gameplay rules, Engine, Timeline, Editor and Manual Multiplayer behavior.
+
 ## v20.46.0 — Individual Defensive Areas
 
 - Replaced the Match-only defensive-overlay aggregation by team/coordinate with player-owned presentation areas. Each player's defensive shape now retains its own perimeter when it overlaps a teammate or opponent.
