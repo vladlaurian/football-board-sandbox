@@ -6,13 +6,21 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.29.1` |
-| Git/package version | `20.29.1` |
-| Build name | `Final_Board_v20_29_1_bonus_extra_roll_correction` |
+| Sandbox version | `v20.30.0` |
+| Git/package version | `20.30.0` |
+| Build name | `Final_Board_v20_30_0_pass_ordinary_consequences_history_follow` |
 | Base build | `v20.27.0 pass_interceptor_choice_engine` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.29.1`. The repository version is defined in `package.json` as `20.29.1`. The browser title is `Sandbox v20.29.1`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.30.0`. The repository version is defined in `package.json` as `20.30.0`. The browser title is `Sandbox v20.30.0`.
+
+## v20.30.0 Pass ordinary consequences and History follow
+
+v20.30.0 moves the ordinary downstream consequences of offline Single Player Pass into the Game Engine through `PASS_CONSEQUENCE_DUE`. After the already Engine-owned deterministic interception result, the Engine now owns normal Pass completion, direct opponent hit, ordinary interception possession/turn reset, next-interceptor advancement, and the Natural 1 `-1` applied to the next interceptor. Normal and Bonus Pass completion use the canonical continuation state; a Bonus Pass becomes `awaiting-end-bonus-action` and still consumes no Tracker action.
+
+Natural 20 is intentionally excluded. It is the remaining distinct Pass branch because it replaces or creates Bonus Action and can form a continuation chain; the existing legacy branch remains temporarily active only for that outcome. Manual Multiplayer remains unchanged. AI Analysis now labels a missed interception explicitly.
+
+The History panel now follows the active Timeline cursor after a new action, Undo, Redo, or replay navigation, including returning to the initial state.
 
 ## v20.29.1 Bonus Action Extra Roll correction
 

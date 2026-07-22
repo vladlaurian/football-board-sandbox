@@ -323,6 +323,15 @@ Delivered files and tests:
 
 **Status:** Complete. `EXTRA_ROLL_SUBMITTED` was accidentally excluded from the active Bonus Action command allow-list. It is now explicitly allowed as an administrative Timeline event for either team, without consuming or changing the Bonus Action.
 
+### v20.30.0 — offline Single Player ordinary Pass consequences and History follow
+
+**Status:** Complete as the seventh Pass slice, excluding Natural 20.
+
+- `PASS_CONSEQUENCE_DUE` is the only offline Single Player Engine command for a confirmed no-reaction Pass, direct opponent hit, ordinary interception, missed-interceptor advancement, final completion and Natural 1's cumulative next-interceptor penalty.
+- The command validates canonical Pass and RollEvent identities. On ordinary interception/direct hit it moves the ball, transfers possession, resets action/movement state and starts the established next turn. On a miss it creates the next canonical decision or roll; when none remains it completes the Pass. A successful Bonus Pass enters `awaiting-end-bonus-action` without Tracker consumption.
+- `natural-20-interception` is deliberately rejected without mutation and remains on the temporary legacy downstream branch. It is the next and final Pass consequence slice because it creates/replaces a Bonus Action continuation.
+- Manual Multiplayer remains unchanged. The History panel is presentation-only and now scrolls to keep the active Timeline cursor visible after live steps, Undo/Redo and replay navigation.
+
 `PASS_INTERCEPTION_ROLL_SUBMITTED` now flows through the Game Engine and Single Player Controller. It accepts only the active exact pending D20 request and its matching unique RollEvent, consumes that event once, stores the raw result in canonical MatchState, updates canonical dice display state and records the existing delayed-resolution descriptor. The legacy delayed resolver temporarily reads this canonical input and performs the existing outcome calculation. Outcome, possession, ball movement, Natural 1/Natural 20 consequences and later reaction advancement remain outside this build.
 
 Offline Match Mode dice controls are disabled unless a pending mechanic roll requests the relevant team. `EXTRA ROLL` explicitly arms one administrative random or chosen roll. It creates `EXTRA_ROLL` in Timeline and AI analysis, never consumes Tracker economy, cannot satisfy a pending action roll, and closes after use. Editor Mode and Manual Multiplayer retain their legacy dice behavior.
@@ -377,7 +386,7 @@ Acceptance:
 
 ## Phase 5 — Tracker, turns, and possession
 
-**Status:** In progress — v20.25.0–v20.29.0 complete Pass start/cancel/target/route-plan/interceptor choice/raw roll input/deterministic mathematical result only.
+**Status:** In progress — v20.25.0–v20.30.0 complete Pass start/cancel/target/route-plan/interceptor choice/raw roll input/deterministic mathematical result and all ordinary consequences. Natural 20 Bonus Action consequence remains deferred.
 
 Migrate Match start, phase completion, turn change, possession change, action reset, and currently existing match-completion behavior.
 
@@ -389,7 +398,7 @@ Acceptance:
 
 ## Phase 6 — Pass initiation and decisions
 
-**Status:** Pending.
+**Status:** Complete for offline Single Player.
 
 Migrate Pass start/cancel, target, route, plan creation, interceptor choice, pending decision, and pending roll. Reuse existing Pass, Interception, and generic action-resolution modules without changing rules.
 
@@ -402,7 +411,7 @@ Acceptance:
 
 ## Phase 7 — Dice, Interception, and Bonus Action
 
-**Status:** Pending.
+**Status:** In progress — all ordinary Pass roll/consequence branches are Engine-owned; Natural 20 Bonus Action consequence remains.
 
 Migrate RollEvent submission, delayed resolution, Natural 1/20, interception outcome, possession consequence, Bonus continuation, completion/decline, and atomic Undo.
 

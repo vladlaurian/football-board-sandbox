@@ -401,7 +401,7 @@ function semanticEvent(entry, sequence, cardsById) {
       pieceId: entry.metadata?.bonusAction?.pieceId || null,
       continuationId: String(entry.metadata?.continuationId || "") || null,
     } : null,
-    explicitOutcome: entry.type === "PASS_INTERCEPTION_RESOLVED" ? "INTERCEPTION_ROLL_RESOLVED" : entry.type === "PASS_COMPLETED" ? "PASS_COMPLETED" : entry.type === "PASS_INTERCEPTED" ? "INTERCEPTED" : entry.type === "PASS_NATURAL_20" ? "NATURAL_20_INTERCEPTION" : entry.type === "BONUS_ACTION_ENDED" ? "BONUS_ACTION_ENDED" : entry.type === "BONUS_ACTION_DECLINED" ? "BONUS_ACTION_DECLINED" : "NOT_DECLARED",
+    explicitOutcome: entry.type === "PASS_INTERCEPTION_RESOLVED" ? "INTERCEPTION_ROLL_RESOLVED" : entry.type === "PASS_INTERCEPTION_MISSED" ? "INTERCEPTION_MISSED" : entry.type === "PASS_COMPLETED" ? "PASS_COMPLETED" : entry.type === "PASS_INTERCEPTED" ? "INTERCEPTED" : entry.type === "PASS_NATURAL_20" ? "NATURAL_20_INTERCEPTION" : entry.type === "BONUS_ACTION_ENDED" ? "BONUS_ACTION_ENDED" : entry.type === "BONUS_ACTION_DECLINED" ? "BONUS_ACTION_DECLINED" : "NOT_DECLARED",
   };
 }
 

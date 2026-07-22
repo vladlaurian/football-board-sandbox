@@ -547,6 +547,19 @@ The Extra Roll reset effect is presentation-only. Its Hook dependency expression
 
 Extra Roll is administrative rather than a Bonus card action. An active Bonus Action must block unrelated gameplay commands but must not block `EXTRA_ROLL_SUBMITTED`; the command leaves its continuation untouched.
 
+## ADR-039 — Frozen Pass result and Pass consequence remain separate commands
+
+**Status:** Active
+
+**Decision:** `PASS_INTERCEPTION_RESOLUTION_DUE` records only deterministic interception mathematics. `PASS_CONSEQUENCE_DUE` applies the corresponding ordinary board/Tracker/action-resolution consequence only after that frozen result exists. The latter deliberately rejects Natural 20 until its Bonus Action continuation branch is migrated as its own vertical slice.
+
+**Consequences:**
+
+- A consumed roll and its exact calculation remain independently inspectable in Timeline, Undo/Redo and AI export before any resulting possession change.
+- Normal Pass completion, direct opponent hit, ordinary interception and missed-interceptor advancement now have one Engine-owned state transition in offline Single Player.
+- Natural 1's next-interceptor penalty is durable canonical state, rather than a UI calculation.
+- Manual Multiplayer keeps its legacy downstream route, including its existing Natural 20 handling, until that mode receives a separately approved audit.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

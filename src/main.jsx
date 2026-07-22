@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.29.1";
+const APP_VERSION = "v20.30.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -10464,9 +10464,60 @@ function App() {
     if (resultNotice && !pending?.lastResolution) showPassResultNotice(resultNotice);
   }
 
+  function dispatchPassConsequence(pending) {
+    const outcome = pending?.lastResolution?.outcome;
+    const label = pending?.status === "completing"
+      ? pending?.plan?.directHit ? "Pass intercepted directly" : `Pass completed to ${toCoord(pending?.plan?.target?.x, pending?.plan?.target?.y)}`
+      : outcome === "interception"
+        ? "Pass intercepted"
+        : outcome === "pass-continues"
+          ? "Interception missed — Pass continues"
+          : "Pass consequence applied";
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: {
+        id: createActionEventId(`pass_consequence_${pending?.id || ""}`),
+        type: GAME_COMMAND_TYPE.PASS_CONSEQUENCE_DUE,
+        payload: {
+          passId: pending?.id,
+          ...(pending?.lastRollEvent?.id ? { rollEventId: pending.lastRollEvent.id } : {}),
+        },
+      },
+      label,
+    });
+    if (!dispatched.result.accepted) {
+      multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "engine rejected canonical Pass consequence", { actionId: pending?.id || null, reason: dispatched.result.reason });
+      return false;
+    }
+    replaceGameTimeline(dispatched.timeline);
+    applyTimelineGameState(dispatched.state);
+    const entry = dispatched.entry;
+    if (entry?.type === "PASS_INTERCEPTED" && entry.metadata?.directHit) {
+      const interceptor = (entry.after?.pieces || []).find(piece => String(piece?.id || "") === String(entry.metadata?.interceptorId || ""));
+      const nextTeam = entry.team;
+      if (interceptor && nextTeam) showPassResultNotice({
+        title: "Pass intercepted",
+        team: nextTeam,
+        lines: [
+          `${getPieceIdentity(interceptor)} (${nextTeam === "blue" ? "Blue" : "Red"}) receives the ball directly.`,
+          `Possession changes. Turn ${entry.after?.tracker?.currentTurn || 1} begins.`,
+        ],
+      });
+    }
+    presentPassResultEntry(entry);
+    return true;
+  }
+
   function resolvePendingPass(id) {
     const pending = actionResolutionRef.current;
     if (pending?.kind !== "pass" || pending.id !== id || pending.status !== "completing") return;
+    if (!sessionCode) {
+      dispatchPassConsequence(pending);
+      return;
+    }
     const plan = pending.plan;
     if (plan.directHit) {
       const hitPiece = (piecesRef.current || pieces).find(piece => piece.id === plan.directHit.pieceId);
@@ -10490,6 +10541,10 @@ function App() {
   }
 
   function resolveRecordedPassInterception(pending) {
+    if (!sessionCode && pending?.status === "interception-resolved" && pending.lastResolution?.outcome !== "natural-20-interception") {
+      dispatchPassConsequence(pending);
+      return;
+    }
     const plan = pending.plan;
     const interceptor = plan.interceptors?.[pending.interceptorIndex];
     if (!interceptor) { finishPassSuccess(pending); return; }

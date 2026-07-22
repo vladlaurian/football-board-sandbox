@@ -1,10 +1,10 @@
-import { beginContinuationAction, CONTINUATION_STATUS, normalizeActionContinuation } from "../match/actionContinuation.mjs";
+import { beginContinuationAction, completeContinuationAction, CONTINUATION_STATUS, normalizeActionContinuation } from "../match/actionContinuation.mjs";
 import { ACTION_TRANSACTION_UNDO_MODE, createActionTransaction, transactionForActionState } from "../match/actionTransaction.mjs";
 import { consumeActionEvent, createPendingDecision, createPendingRoll, createRollEvent, withPendingDecision, withPendingRoll } from "../match/actionResolutionEngine.mjs";
 import { PASS_CORNERS, applyInterceptorChoice, buildPassPlan, cardStat, interceptorChoiceCandidates, passRequiresInterceptionSequence, teamKeyForPiece } from "../rules/passEngine.mjs";
 import { createDelayedResolution } from "../match/delayedResolution.mjs";
 import { resolveInterception } from "../rules/interceptionEngine.mjs";
-import { activateTrackerAction, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
+import { activateTrackerAction, createEmptyTrackerTurnState, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 
 function pieceForCommand(state, command) {
@@ -529,6 +529,140 @@ export function resolvePassInterception(state, context, command) {
       allowNoop: false,
     },
   };
+}
+
+function passTimelineMetadata(pending, extra = {}) {
+  return {
+    ...(pending?.lastResolution ? { interceptionResolution: pending.lastResolution } : {}),
+    ...(pending?.resolutionTransaction ? { undoTransaction: pending.resolutionTransaction } : {}),
+    ...extra,
+  };
+}
+
+function moveBallTo(state, x, y) {
+  const ballIndex = state.pieces.findIndex(piece => piece?.team === "BALL");
+  if (ballIndex < 0) return null;
+  return state.pieces.map((piece, index) => index === ballIndex ? { ...piece, x: Number(x), y: Number(y) } : piece);
+}
+
+function completePass(state, pending) {
+  const pieces = moveBallTo(state, pending.plan?.target?.x, pending.plan?.target?.y);
+  if (!pieces) return { accepted: false, reason: "BALL_NOT_FOUND" };
+  const continuation = normalizeActionContinuation(state.actionContinuation);
+  const bonusPass = Boolean(pending.bonusContinuationId && continuation?.id === pending.bonusContinuationId);
+  const nextContinuation = bonusPass ? completeContinuationAction(continuation) : continuation;
+  if (bonusPass && !nextContinuation) return { accepted: false, reason: "BONUS_PASS_NOT_ACTIVE" };
+  return {
+    accepted: true,
+    nextState: { ...state, pieces, actionResolution: null, actionContinuation: nextContinuation },
+    event: {
+      type: "PASS_COMPLETED",
+      team: pending.team,
+      metadata: passTimelineMetadata(pending, {
+        passId: pending.id,
+        target: { x: Number(pending.plan.target.x), y: Number(pending.plan.target.y) },
+        continuationId: bonusPass ? nextContinuation.id : null,
+      }),
+    },
+  };
+}
+
+function completeNormalInterception(state, pending, interceptor, { directHit = false } = {}) {
+  const nextTeam = teamKeyForPiece(interceptor);
+  const pieces = moveBallTo(state, interceptor.x, interceptor.y);
+  if (!nextTeam || !pieces) return { accepted: false, reason: "PASS_INTERCEPTION_CONSEQUENCE_INVALID" };
+  const tracker = normalizeTrackerSnapshot(state.tracker);
+  const emptyTurn = createEmptyTrackerTurnState();
+  const nextTurn = Math.min(tracker.settings.turns, Math.max(1, tracker.currentTurn + 1));
+  return {
+    accepted: true,
+    nextState: {
+      ...state,
+      pieces,
+      movementStateByPieceId: {},
+      actionResolution: null,
+      actionContinuation: null,
+      tracker: {
+        ...state.tracker,
+        startingTeam: nextTeam,
+        currentTurn: nextTurn,
+        usedActions: emptyTurn.usedActions,
+        actionLog: emptyTurn.actionLog,
+        matchActionState: emptyTurn.matchActionState,
+        turnPhase: "attack",
+      },
+    },
+    event: {
+      type: "PASS_INTERCEPTED",
+      team: nextTeam,
+      metadata: passTimelineMetadata(pending, {
+        passId: pending.id,
+        interceptorId: interceptor.id,
+        directHit,
+        startedTurn: nextTurn,
+      }),
+    },
+  };
+}
+
+function advanceFailedInterception(state, pending) {
+  const nextIndex = Math.max(0, Number(pending.interceptorIndex) || 0) + 1;
+  if (nextIndex >= (pending.plan?.interceptors || []).length) return completePass(state, pending);
+  const next = pendingPassInput({
+    ...pending,
+    interceptorIndex: nextIndex,
+    naturalOnePenalty: (Number(pending.naturalOnePenalty) || 0) + (Number(pending.lastResolution?.natural) === 1 ? -1 : 0),
+    lastRoll: null,
+    lastResolution: null,
+    lastRollEvent: null,
+    resolutionTransaction: null,
+    pendingDecision: null,
+    pendingRoll: null,
+  }, nextIndex);
+  return {
+    accepted: true,
+    nextState: { ...state, actionResolution: next },
+    event: {
+      type: "PASS_INTERCEPTION_MISSED",
+      team: pending.lastRollEvent?.team || null,
+      metadata: passTimelineMetadata(pending, {
+        passId: pending.id,
+        defenderId: pending.plan?.interceptors?.[pending.interceptorIndex]?.defender?.id || null,
+        nextInterceptorIndex: nextIndex,
+        nextStatus: next.status,
+        naturalOnePenalty: next.naturalOnePenalty,
+      }),
+    },
+  };
+}
+
+export function applyPassConsequence(state, command) {
+  const pending = state.actionResolution;
+  const passId = passIdForCommand(command);
+  if (!pending || pending.kind !== "pass" || !passId || passId !== String(pending.id || "")) {
+    return { accepted: false, reason: "PASS_CONSEQUENCE_STALE" };
+  }
+  if (pending.status === "completing") {
+    const directHitId = String(pending.plan?.directHit?.pieceId || "");
+    const directHit = directHitId ? state.pieces.find(piece => String(piece?.id || "") === directHitId) || null : null;
+    if (directHit && teamKeyForPiece(directHit) !== pending.team) return completeNormalInterception(state, pending, directHit, { directHit: true });
+    return completePass(state, pending);
+  }
+  if (pending.status !== "interception-resolved" || !pending.lastResolution || !pending.lastRollEvent) {
+    return { accepted: false, reason: "PASS_NOT_CONSEQUENCE_READY" };
+  }
+  const rollEventId = String(command.payload?.rollEventId || "").trim();
+  if (!rollEventId || rollEventId !== String(pending.lastRollEvent.id || "")) return { accepted: false, reason: "PASS_CONSEQUENCE_STALE" };
+  const outcome = pending.lastResolution.outcome;
+  if (outcome === "natural-20-interception") return { accepted: false, reason: "PASS_NATURAL_TWENTY_DEFERRED" };
+  if (outcome === "interception") {
+    const interceptor = pending.plan?.interceptors?.[pending.interceptorIndex]?.defender;
+    const defender = state.pieces.find(piece => String(piece?.id || "") === String(interceptor?.id || "")) || null;
+    if (!defender) return { accepted: false, reason: "PASS_INTERCEPTION_CONSEQUENCE_INVALID" };
+    return completeNormalInterception(state, pending, defender);
+  }
+  if (outcome === "pass-continues") return advanceFailedInterception(state, pending);
+  return { accepted: false, reason: "PASS_INTERCEPTION_OUTCOME_INVALID" };
 }
 
 export function cancelPass(state, command) {

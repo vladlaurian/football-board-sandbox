@@ -251,6 +251,15 @@ test("AI export identifies an Engine-owned interception math result before Pass 
   assert.equal(exported.semanticTimeline[0].resolution.interceptionRoll.outcome, "interception");
 });
 
+test("AI export identifies an Engine-owned missed interception consequence", () => {
+  const before = state({ actionResolution: { kind: "pass", status: "interception-resolved", lastResolution: { natural: 1, outcome: "pass-continues" } } });
+  const after = state({ actionResolution: { kind: "pass", status: "awaiting-interception-roll", naturalOnePenalty: -1 } });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, { id: "interception-missed", type: "PASS_INTERCEPTION_MISSED", label: "Pass continues", team: "red", before, after });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  assert.equal(exported.semanticTimeline[0].explicitOutcome, "INTERCEPTION_MISSED");
+});
+
 test("AI export retains a pending bonus-action continuation without adding Tracker economy", () => {
   const before = state();
   const after = state({

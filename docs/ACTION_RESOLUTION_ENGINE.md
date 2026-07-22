@@ -204,6 +204,12 @@ This slice deliberately does not move the ball, apply possession or turn changes
 
 `EXTRA_ROLL_SUBMITTED` is permitted during an active Bonus Action because it is a one-roll administrative safeguard, not a card action. It updates only canonical dice/Timeline state and leaves the active Bonus Action intact. This restores the same automatic one-roll closure and Undo/Redo behavior that Extra Roll has outside Bonus Action.
 
+## v20.30.0 — canonical ordinary Pass consequences
+
+Offline Single Player now sends `PASS_CONSEQUENCE_DUE` after either a confirmed Pass that needs no interception or a frozen `PASS_INTERCEPTION_RESOLVED` result. The Engine checks the exact Pass identity and, for interception outcomes, the consumed RollEvent identity. It then owns the established non-Natural-20 consequences: complete the Pass to its effective target, transfer the ball on a direct opponent hit, transfer possession and start a clean next turn after an ordinary interception, or create the exact next interceptor decision/roll after a miss.
+
+Natural 1 remains a global interception invariant: the current interceptor misses and the next eligible interceptor receives the cumulative `-1` penalty in canonical `actionResolution`. When no interceptor remains, the same command completes the Pass. A completed Bonus Pass advances its canonical continuation to `awaiting-end-bonus-action` without consuming Tracker economy. `natural-20-interception` is deliberately rejected by this command and remains the one deferred Pass-consequence branch, because it creates or replaces a Bonus Action continuation.
+
 ## Multiplayer canonical resolution rule added in v19.13
 
 A remote user may create an authorized pending decision or RollEvent, but only the host applies the deterministic consequence. Host scheduling must be derived from the canonical hydrated Timeline state, not exclusively from a one-time "new entry" notification. Repeated Firestore snapshots for the same entry must not restart its cosmetic delay, and an already consumed RollEvent must remain idempotent.

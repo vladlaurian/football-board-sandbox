@@ -10,7 +10,7 @@ import { cancelBonusMove, commitBonusMove, startBonusMove } from "./bonusMoveRul
 import { endBonusAction } from "./bonusActionRules.mjs";
 import { endTrackerPhase } from "./trackerPhaseRules.mjs";
 import { restartMatch, startMatch } from "./matchLifecycleRules.mjs";
-import { cancelPass, confirmPassRoute, resolvePassInterception, selectPassInterceptor, selectPassTarget, startPass, submitPassInterceptionRoll } from "./passStartRules.mjs";
+import { applyPassConsequence, cancelPass, confirmPassRoute, resolvePassInterception, selectPassInterceptor, selectPassTarget, startPass, submitPassInterceptionRoll } from "./passStartRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -128,6 +128,7 @@ export function applyGameCommand({ state, context, command } = {}) {
     GAME_COMMAND_TYPE.PASS_INTERCEPTOR_SELECTED,
     GAME_COMMAND_TYPE.PASS_INTERCEPTION_ROLL_SUBMITTED,
     GAME_COMMAND_TYPE.PASS_INTERCEPTION_RESOLUTION_DUE,
+    GAME_COMMAND_TYPE.PASS_CONSEQUENCE_DUE,
     GAME_COMMAND_TYPE.PASS_CANCELLED,
     GAME_COMMAND_TYPE.EXTRA_ROLL_SUBMITTED,
   ].includes(normalizedCommand.type)) return rejected("BONUS_ACTION_ACTIVE");
@@ -196,6 +197,18 @@ export function applyGameCommand({ state, context, command } = {}) {
       ...transition.event,
       commandId: normalizedCommand.id,
     })], transition.timeline);
+  }
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.PASS_CONSEQUENCE_DUE) {
+    const transition = applyPassConsequence(currentState, normalizedCommand);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({
+      ...transition.event,
+      commandId: normalizedCommand.id,
+    })], {
+      groupId: currentState.actionResolution?.bonusContinuationId || currentState.actionResolution?.entryId || null,
+      undoMode: currentState.actionResolution?.bonusContinuationId ? "atomic" : "step",
+      allowNoop: false,
+    });
   }
   if (normalizedCommand.type === GAME_COMMAND_TYPE.EXTRA_ROLL_SUBMITTED) {
     return applyExtraRoll(currentState, normalizedCommand);

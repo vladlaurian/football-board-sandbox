@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useLayoutEffect } from "react";
 
 export function HistoryPanel({
   visible,
@@ -20,8 +20,18 @@ export function HistoryPanel({
   isSessionHost,
   restoreTimelineCursor,
 }) {
-  if (!visible || lockUI) return null;
   const entries = gameTimeline?.entries || [];
+  useLayoutEffect(() => {
+    const list = historyListRef?.current;
+    if (!visible || lockUI || !list || !gameTimeline) return;
+    if (gameTimeline.cursor === 0) {
+      list.scrollTop = 0;
+      return;
+    }
+    const current = list.querySelector(`[data-history-cursor="${gameTimeline.cursor}"]`);
+    current?.scrollIntoView({ block: "nearest" });
+  }, [historyListRef, gameTimeline?.cursor, entries.length, isReplayView]);
+  if (!visible || lockUI) return null;
   return (
     <div
       className="history-panel"

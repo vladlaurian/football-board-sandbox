@@ -62,6 +62,43 @@ function normalMoveCommand(type, payload = {}, id = type.toLowerCase()) {
   return { id, type, payload: { pieceId: "blue-1", ...payload } };
 }
 
+function confirmedPass(state, passId, context = normalMoveContext()) {
+  const started = applyGameCommand({
+    state, context,
+    command: { id: `${passId}-start`, type: "PASS_STARTED", payload: { pieceId: "blue-1", passId } },
+  });
+  const targeted = applyGameCommand({
+    state: started.nextState, context,
+    command: { id: `${passId}-target`, type: "PASS_TARGET_SELECTED", payload: { passId, x: 9, y: 5 } },
+  });
+  const confirmed = applyGameCommand({
+    state: targeted.nextState, context,
+    command: { id: `${passId}-route`, type: "PASS_ROUTE_CONFIRMED", payload: { passId, cornerId: "top-left" } },
+  });
+  return { context, confirmed };
+}
+
+function resolvedPassInterception(state, passId, natural, context = normalMoveContext()) {
+  const { confirmed, ...rest } = confirmedPass(state, passId, context);
+  const pendingRoll = confirmed.nextState.actionResolution.pendingRoll;
+  const rolled = applyGameCommand({
+    state: confirmed.nextState, context,
+    command: {
+      id: `${passId}-roll`, type: "PASS_INTERCEPTION_ROLL_SUBMITTED",
+      payload: {
+        passId,
+        createdAt: 1000,
+        rollEvent: { id: `${passId}-roll-event`, requestId: pendingRoll.requestId, actionId: passId, team: "red", dieType: 20, natural, source: "RANDOM", createdAt: 1000, subjectId: pendingRoll.subjectId, reactionIndex: 0 },
+      },
+    },
+  });
+  const resolved = applyGameCommand({
+    state: rolled.nextState, context,
+    command: { id: `${passId}-resolution`, type: "PASS_INTERCEPTION_RESOLUTION_DUE", payload: { passId, rollEventId: `${passId}-roll-event` } },
+  });
+  return { ...rest, confirmed, rolled, resolved };
+}
+
 test("FREE_BALL_MOVED produces a deterministic MatchState transition and semantic event", () => {
   const state = matchState();
   const context = createMatchContext({ id: "context-1" });
@@ -1230,6 +1267,101 @@ test("PASS_INTERCEPTION_RESOLUTION_DUE records the frozen deterministic result w
     command: { id: "resolution-replay", type: "PASS_INTERCEPTION_RESOLUTION_DUE", payload: { passId: "resolution-pass", rollEventId: "resolution-roll-event" } },
   }), { accepted: false, reason: "PASS_NOT_INTERCEPTION_RESOLVING" });
   assert.deepEqual(resolved.nextState, after);
+});
+
+test("PASS_CONSEQUENCE_DUE completes a Pass with no interceptor through the Engine", () => {
+  const { context, confirmed } = confirmedPass(normalMoveState(), "complete-pass");
+  assert.equal(confirmed.nextState.actionResolution.status, "completing");
+  const result = applyGameCommand({
+    state: confirmed.nextState, context,
+    command: { id: "complete-pass-consequence", type: "PASS_CONSEQUENCE_DUE", payload: { passId: "complete-pass" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.events[0].type, "PASS_COMPLETED");
+  assert.deepEqual(result.nextState.pieces.find(piece => piece.id === "ball"), { id: "ball", team: "BALL", x: 9, y: 5 });
+  assert.equal(result.nextState.actionResolution, null);
+  assert.equal(result.nextState.tracker.usedActions.blue, 1);
+});
+
+test("PASS_CONSEQUENCE_DUE transfers possession and starts a clean turn after an ordinary interception", () => {
+  const state = createGameState({
+    ...normalMoveState(),
+    pieces: [...normalMoveState().pieces, { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 }],
+  });
+  const { context, resolved } = resolvedPassInterception(state, "intercept-pass", 19);
+  assert.equal(resolved.nextState.actionResolution.lastResolution.outcome, "interception");
+  const result = applyGameCommand({
+    state: resolved.nextState, context,
+    command: { id: "intercept-pass-consequence", type: "PASS_CONSEQUENCE_DUE", payload: { passId: "intercept-pass", rollEventId: "intercept-pass-roll-event" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.events[0].type, "PASS_INTERCEPTED");
+  assert.equal(result.nextState.tracker.startingTeam, "red");
+  assert.equal(result.nextState.tracker.currentTurn, 2);
+  assert.deepEqual(result.nextState.tracker.usedActions, { red: 0, blue: 0 });
+  assert.deepEqual(result.nextState.pieces.find(piece => piece.id === "ball"), { id: "ball", team: "BALL", x: 5, y: 7 });
+  assert.equal(result.nextState.actionResolution, null);
+});
+
+test("PASS_CONSEQUENCE_DUE carries Natural 1's minus one to the next interceptor", () => {
+  const state = createGameState({
+    ...normalMoveState(),
+    pieces: [...normalMoveState().pieces,
+      { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 },
+      { id: "red-2", team: "B", cardId: "card-red-2", x: 5, y: 3 },
+    ],
+  });
+  const { context, confirmed } = confirmedPass(state, "natural-one-pass");
+  const choice = applyGameCommand({
+    state: confirmed.nextState, context,
+    command: { id: "natural-one-choice", type: "PASS_INTERCEPTOR_SELECTED", payload: { passId: "natural-one-pass", decisionId: confirmed.nextState.actionResolution.pendingDecision.id, pieceId: "red-1" } },
+  });
+  const pendingRoll = choice.nextState.actionResolution.pendingRoll;
+  const rolled = applyGameCommand({
+    state: choice.nextState, context,
+    command: { id: "natural-one-roll", type: "PASS_INTERCEPTION_ROLL_SUBMITTED", payload: { passId: "natural-one-pass", createdAt: 1000, rollEvent: { id: "natural-one-roll-event", requestId: pendingRoll.requestId, actionId: "natural-one-pass", team: "red", dieType: 20, natural: 1, source: "RANDOM", createdAt: 1000, subjectId: "red-1", reactionIndex: 0 } } },
+  });
+  const resolved = applyGameCommand({
+    state: rolled.nextState, context,
+    command: { id: "natural-one-resolution", type: "PASS_INTERCEPTION_RESOLUTION_DUE", payload: { passId: "natural-one-pass", rollEventId: "natural-one-roll-event" } },
+  });
+  const result = applyGameCommand({
+    state: resolved.nextState, context,
+    command: { id: "natural-one-consequence", type: "PASS_CONSEQUENCE_DUE", payload: { passId: "natural-one-pass", rollEventId: "natural-one-roll-event" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.events[0].type, "PASS_INTERCEPTION_MISSED");
+  assert.equal(result.nextState.actionResolution.status, "awaiting-interception-roll");
+  assert.equal(result.nextState.actionResolution.pendingRoll.subjectId, "red-2");
+  assert.equal(result.nextState.actionResolution.naturalOnePenalty, -1);
+});
+
+test("PASS_CONSEQUENCE_DUE completes the atomic Bonus Pass and defers Natural 20 unchanged", () => {
+  const bonusState = createGameState({
+    ...normalMoveState(),
+    actionContinuation: { id: "bonus-complete", kind: "bonus-card-action", team: "blue", status: "ready", resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" } },
+  });
+  const bonus = confirmedPass(bonusState, "bonus-complete-pass");
+  const completed = applyGameCommand({
+    state: bonus.confirmed.nextState, context: bonus.context,
+    command: { id: "bonus-complete-consequence", type: "PASS_CONSEQUENCE_DUE", payload: { passId: "bonus-complete-pass" } },
+  });
+  assert.equal(completed.accepted, true);
+  assert.equal(completed.timeline.undoMode, "atomic");
+  assert.equal(completed.nextState.actionContinuation.status, "awaiting-end-bonus-action");
+  assert.equal(completed.nextState.tracker.usedActions.blue, 0);
+
+  const interceptedState = createGameState({
+    ...normalMoveState(),
+    pieces: [...normalMoveState().pieces, { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 }],
+  });
+  const { context, resolved } = resolvedPassInterception(interceptedState, "natural-twenty-pass", 20);
+  const before = structuredClone(resolved.nextState);
+  assert.deepEqual(applyGameCommand({
+    state: resolved.nextState, context,
+    command: { id: "natural-twenty-consequence", type: "PASS_CONSEQUENCE_DUE", payload: { passId: "natural-twenty-pass", rollEventId: "natural-twenty-pass-roll-event" } },
+  }), { accepted: false, reason: "PASS_NATURAL_TWENTY_DEFERRED" });
+  assert.deepEqual(resolved.nextState, before);
 });
 
 test("EXTRA_ROLL_SUBMITTED is an explicit administrative Match event and never consumes Tracker", () => {
