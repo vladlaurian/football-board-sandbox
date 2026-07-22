@@ -99,6 +99,8 @@ export function BoardCanvas({
   onPiecePointerDown,
   openEdit,
 }) {
+  const isMatchPresentation = presentationMode === "match";
+  const ballPiece = pieces.find(piece => piece.team === "BALL");
   const boxTop = Math.floor((settings.rows - settings.boxWidth) / 2);
   const smallTop = Math.floor((settings.rows - settings.smallWidth) / 2);
   const goalTop = Math.floor((settings.rows - settings.goalWidth) / 2);
@@ -252,10 +254,11 @@ export function BoardCanvas({
 
           {pieces.map(piece => {
             const isBall = piece.team === "BALL";
+            const hasPossession = !isBall && ballPiece && Number(ballPiece.x) === Number(piece.x) && Number(ballPiece.y) === Number(piece.y);
             const normalizedPiece = withBoardPosition(piece, settings);
             const groupMoveStatus = groupMovePieceStatusById[piece.id] || "";
             return <div key={piece.id} data-coord={normalizedPiece.coord} title={`${getPieceDisplayLabel(piece)} ${normalizedPiece.coord}${piece.cardId ? " · Card attached" : ""}${piece.inactive ? " · INACTIVE" : ""}`} className={`piece-hitbox ${isBall ? "ball-hitbox" : "player-hitbox"}`} style={{ left: `calc(${piece.x} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})`, top: `calc(${piece.y} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})` }} onPointerDown={event => onPiecePointerDown(piece.id, event)} onDoubleClick={() => openEdit(piece)}>
-              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${selectedId === piece.id ? "selected" : ""} ${activeInteractionPieceId === piece.id && selectedId !== piece.id ? "interaction-active" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""} ${groupMoveStatus ? `group-move-${groupMoveStatus}` : ""}`}>{isBall ? <MatchBallIcon className="board-ball-icon" /> : <><span className="piece-label">{getPieceDisplayLabel(piece)}</span>{groupMoveStatus === "ineligible" && <span className="group-move-lock" aria-label="Not eligible for Group Move">🔒</span>}</>}</div>
+              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${selectedId === piece.id ? "selected" : ""} ${activeInteractionPieceId === piece.id && selectedId !== piece.id ? "interaction-active" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""} ${hasPossession ? "has-possession" : ""} ${groupMoveStatus ? `group-move-${groupMoveStatus}` : ""}`}>{isBall ? <>{isMatchPresentation && <span className="match-ball-aura" aria-hidden="true" />}<MatchBallIcon className="board-ball-icon" /></> : <>{isMatchPresentation && <span className="match-piece-figure" aria-hidden="true"><span className="match-piece-head" /><span className="match-piece-body" /><span className="match-piece-legs" /></span>}<span className="piece-label">{getPieceDisplayLabel(piece)}</span>{groupMoveStatus === "ineligible" && <span className="group-move-lock" aria-label="Not eligible for Group Move">🔒</span>}</>}</div>
             </div>;
           })}
         </div>

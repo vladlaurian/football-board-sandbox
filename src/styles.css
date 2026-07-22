@@ -7518,3 +7518,95 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .board-wrap.match-presentation .goal-frame-line {
   stroke: rgba(247, 255, 249, .95);
 }
+
+/* v20.41 — Match Pieces 2.5D.
+   Figures are paint-only children inside the existing piece element. The
+   parent hitbox, label, position and state classes stay authoritative. */
+.board-wrap.match-presentation .piece:not(.ball) {
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.match-piece-figure {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  filter: drop-shadow(0 calc(var(--cell) * .08) calc(var(--cell) * .07) rgba(0, 0, 0, .46));
+}
+.match-piece-head,
+.match-piece-body,
+.match-piece-legs {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.match-piece-head {
+  top: 5%;
+  width: 30%;
+  height: 30%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f5c7a4, #9a5e42);
+  border: 1px solid rgba(255, 255, 255, .28);
+  z-index: 2;
+}
+.match-piece-body {
+  top: 29%;
+  width: 57%;
+  height: 44%;
+  border-radius: 35% 35% 24% 24%;
+  border: 1px solid rgba(255, 255, 255, .54);
+  z-index: 1;
+}
+.team-a .match-piece-body {
+  background: linear-gradient(135deg, #6eb7ff, #1765c7 58%, #0a316f);
+}
+.team-b .match-piece-body {
+  background: linear-gradient(135deg, #ff9999, #c93131 58%, #701313);
+}
+.match-piece-legs {
+  top: 67%;
+  width: 47%;
+  height: 27%;
+  border-radius: 20% 20% 42% 42%;
+  background: linear-gradient(90deg, #172334 0 43%, transparent 43% 57%, #172334 57% 100%);
+}
+.board-wrap.match-presentation .piece-label {
+  position: relative;
+  z-index: 3;
+  margin-top: calc(var(--cell) * .58);
+  padding: 1px 3px;
+  border-radius: 4px;
+  background: rgba(2, 9, 15, .72);
+  color: #fff;
+  font-size: calc(var(--cell) * .19);
+  font-weight: 900;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .95);
+}
+.board-wrap.match-presentation .piece.has-possession .match-piece-body {
+  box-shadow: 0 0 0 2px rgba(255, 226, 85, .92), 0 0 14px rgba(255, 212, 55, .72);
+}
+.board-wrap.match-presentation .piece.has-possession .match-piece-head {
+  box-shadow: 0 0 0 2px rgba(255, 237, 146, .54);
+}
+.board-wrap.match-presentation .piece.ball {
+  position: relative;
+  overflow: visible;
+}
+.match-ball-aura {
+  position: absolute;
+  inset: -35%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 240, 151, .50), rgba(255, 214, 66, .13) 42%, transparent 70%);
+  pointer-events: none;
+}
+.board-wrap.match-presentation .board-ball-icon {
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .58));
+}
+.board-wrap.match-presentation .piece.inactive .match-piece-figure {
+  filter: grayscale(.65) brightness(.74) drop-shadow(0 calc(var(--cell) * .08) calc(var(--cell) * .07) rgba(0, 0, 0, .46));
+}

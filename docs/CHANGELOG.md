@@ -2,6 +2,13 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.41.0 — Match Pieces 2.5D
+
+- Added Match-only CSS tactical figures inside the existing player piece elements, with team kit, silhouette, shadow and readable label treatment.
+- Added Match-only ball aura and visual possession emphasis derived from the already-rendered ball/player coordinate overlap.
+- Kept the existing piece positions, hitboxes, labels, selection, inactive and Group Move state classes authoritative.
+- Extended BoardCanvas render coverage for the figure, ball aura and possession class. Editor Mode and Manual Multiplayer remain unchanged.
+
 ## v20.40.0 — Match Pitch & Venue
 
 - Added a Match-only procedural grass, lighting and venue treatment on the existing `match-presentation` boundary.

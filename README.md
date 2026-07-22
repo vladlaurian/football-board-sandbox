@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.40.0` |
-| Git/package version | `20.40.0` |
-| Build name | `Final_Board_v20_40_0_match_pitch_venue` |
-| Base build | `v20.39.0 match_presentation_foundation` |
+| Sandbox version | `v20.41.0` |
+| Git/package version | `20.41.0` |
+| Build name | `Final_Board_v20_41_0_match_pieces_2_5d` |
+| Base build | `v20.40.0 match_pitch_venue` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.40.0`. The repository version is in `package.json` as `20.40.0`. The browser title is `Sandbox v20.40.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.41.0`. The repository version is in `package.json` as `20.41.0`. The browser title is `Sandbox v20.41.0`.
 
 ## Current release
 
-v20.40.0 adds Match Pitch & Venue on the v20.39 presentation boundary: offline Single Player Match receives a deeper procedural grass treatment, lighter field lines, restrained grid and venue framing. Editor Mode and Manual Multiplayer retain their existing technical presentation. No pitch geometry, pieces, input behavior, Match rule, Engine command, Timeline behavior or Firebase behavior changes.
+v20.41.0 adds Match Pieces 2.5D on the existing Match presentation boundary: offline Single Player Match draws mature CSS tactical figures, ball aura and possession emphasis inside the existing piece elements. Positions, hitboxes, labels and state classes remain unchanged. Editor Mode and Manual Multiplayer retain their existing technical presentation; no Engine, rule, Timeline or Firebase behavior changes.
 
 No game rule, Match Engine command, Timeline behavior, Workspace persistence behavior or Manual Multiplayer behavior changed.
 

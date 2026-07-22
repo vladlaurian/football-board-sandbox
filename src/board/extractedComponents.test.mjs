@@ -75,7 +75,7 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
       defensiveAreaOverlays: [],
       pieces: [
         { id: "A-1", team: "A", label: "ST", x: 10, y: 10 },
-        { id: "BALL", team: "BALL", label: "●", x: 22, y: 14 },
+        { id: "BALL", team: "BALL", label: "●", x: 10, y: 10 },
       ],
       getPieceDisplayLabel: (piece) => piece.label,
       onPiecePointerDown: noop,
@@ -84,6 +84,9 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   );
   assert.match(boardMarkup, /board-wrap/);
   assert.match(boardMarkup, /match-presentation/);
+  assert.match(boardMarkup, /match-piece-figure/);
+  assert.match(boardMarkup, /has-possession/);
+  assert.match(boardMarkup, /match-ball-aura/);
 
   const historyMarkup = renderToStaticMarkup(
     React.createElement(HistoryPanel, {
