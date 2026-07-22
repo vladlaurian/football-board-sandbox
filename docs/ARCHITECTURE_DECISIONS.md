@@ -602,6 +602,19 @@ Editor Workspace setup is locked after an offline Match starts whenever a change
 - One-command, dependent command sequence and Match-start flows share the same acceptance/publication rule.
 - Manual Multiplayer and Editor Workspace retain their existing independent paths until their separately approved audits.
 
+## ADR-043 — Workspace persistence never restores a partial Match
+
+**Status:** Active
+
+**Decision:** Cloud, Local Workspace backup and future Workspace persistence use an explicit WorkspaceSnapshot that excludes Match Runtime. A live Match is represented only by its Timeline/MatchContext and may be exported through Match Recording, not through Workspace persistence.
+
+**Consequences:**
+
+- old flat persistence remains readable for the board/setup fields, but its former Match fields are ignored;
+- active offline Match blocks Workspace save, autosave and import; export uses its frozen opening setup;
+- the Editor remains free outside Match and Manual Multiplayer Firebase remains unchanged;
+- persistence and Editor UI extraction can proceed without creating another Match authority.
+
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action
 
 **Status:** Active

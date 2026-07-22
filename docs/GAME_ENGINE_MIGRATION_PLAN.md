@@ -434,7 +434,7 @@ Acceptance:
 
 ## Phase 8 — Single Player Controller completion
 
-**Status:** In progress. Phase 8A is complete in v20.32.0 and Phase 8B is complete in v20.33.0; Phase 8C remains pending.
+**Status:** In progress. Phase 8A is complete in v20.32.0, Phase 8B is complete in v20.33.0 and Phase 8C.1 is complete in v20.34.0.
 
 Centralize Single Player dispatch and remove remaining direct Match Mode mutation paths from `main.jsx`, preserving Editor Mode, card editing, and Manual Multiplayer.
 
@@ -466,9 +466,19 @@ No gameplay rule, Manual Multiplayer branch, Editor Workspace behavior, Firebase
 
 ### Phase 8C — Editor Workspace and persistence boundary
 
+**Status:** In progress. Phase 8C.1 is complete in v20.34.0; the Editor UI/controller extraction remains pending.
+
+#### Phase 8C.1 — Workspace persistence contract
+
+`src/workspace/workspaceSnapshot.mjs` defines the future-Match Workspace profile and explicitly excludes live Match Runtime. Cloud Save, Cloud Load and full Cards & Board backup now write/read that profile. Legacy flat storage remains readable but Match fields from it are discarded rather than being restored outside Timeline.
+
+During an active offline Match, Cloud Save, autosave and Workspace import are blocked; Workspace export uses the frozen Match-start setup. Manual Multiplayer persistence is unchanged. Focused contract tests are in `src/workspace/workspaceSnapshot.test.mjs` and are included in the normal test command.
+
+#### Phase 8C.2 — Editor Workspace UI/controller boundary
+
 **Status:** Pending.
 
-Separate the Editor Workspace, scenario/formation/card profile operations and local/cloud persistence from the Match runtime. This is the approved place for later menu/editor changes. It must preserve Editor freedom, never route unrestricted editor operations through Match Engine, and never let workspace persistence recreate a competing active Match authority.
+Extract Editor-only setup, scenario/formation/card profile operations and their React application adapter from `main.jsx` without routing unrestricted editor operations through Match Engine. This is the approved place for later menu/editor changes. It must preserve Editor freedom and never let workspace persistence recreate a competing active Match authority.
 
 Acceptance:
 

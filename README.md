@@ -6,13 +6,21 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.33.0` |
-| Git/package version | `20.33.0` |
-| Build name | `Final_Board_v20_33_0_phase_8b_controller_gateway` |
-| Base build | `v20.32.0 phase_8a_match_boundary` |
+| Sandbox version | `v20.34.0` |
+| Git/package version | `20.34.0` |
+| Build name | `Final_Board_v20_34_0_phase_8c1_workspace_persistence` |
+| Base build | `v20.33.0 phase_8b_controller_gateway` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.33.0`. The repository version is defined in `package.json` as `20.33.0`. The browser title is `Sandbox v20.33.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.34.0`. The repository version is defined in `package.json` as `20.34.0`. The browser title is `Sandbox v20.34.0`.
+
+## v20.34.0 Phase 8C.1 — Workspace persistence boundary
+
+Cloud Save, Cloud Load and the full Cards & Board backup now use the explicit `WorkspaceSnapshot` contract. A Workspace contains future-Match setup — board, pieces, formations, scenarios, card library, Rule Sets, Tracker defaults and saved display preferences. It deliberately excludes live Match Runtime: Timeline, MatchContext, current Tracker progress, action resolution, Bonus Action, movement authorization and dice results.
+
+Old flat cloud and backup payloads remain readable, but their legacy Match fields are ignored rather than reviving a partial Match outside Timeline. While an offline Match is active, Cloud Save, autosave and Cards & Board import are technically and visually blocked; a full backup export uses the frozen Match-start board setup rather than the live Match position. Match persistence remains the separate Match Recording / AI Export workflow.
+
+Manual Multiplayer Firebase paths are unchanged. The old local Save Board / Load Board helpers receive the same active-Match safety guard; they remain legacy and are not otherwise redesigned in this build.
 
 ## v20.33.0 Phase 8B — Single Player command gateway
 

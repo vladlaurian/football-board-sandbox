@@ -32,6 +32,7 @@ import {
 } from "./board/boardGeometry.mjs";
 import { diagonalCostForDistance, getMovementGeometry, normalizeMovementState } from "./board/movementState.mjs";
 import { createDefaultScenarioSlots, normalizeScenarioSlots } from "./board/scenarioUtils.mjs";
+import { createWorkspaceSnapshot, readWorkspaceSnapshot } from "./workspace/workspaceSnapshot.mjs";
 import {
   createDefaultRuleSet,
   createRuleSet,
@@ -166,7 +167,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.33.0";
+const APP_VERSION = "v20.34.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2467,75 +2468,67 @@ function App() {
     return cards;
   }
 
-  function buildPersistentTrackerSnapshot(overrides = {}) {
-    return normalizeTrackerSnapshot({
-      enabled: overrides.enabled ?? (sessionCode ? trackerSharedEnabled : trackerVisible),
-      gameStarted: overrides.gameStarted ?? trackerGameStarted,
-      startingTeam: overrides.startingTeam ?? trackerStartingTeam,
-      currentTurn: overrides.currentTurn ?? trackerCurrentTurn,
-      usedActions: overrides.usedActions ?? trackerUsedActions,
-      actionLog: overrides.actionLog ?? trackerActionLog,
-      matchActionState: overrides.matchActionState ?? matchActionState,
-      turnPhase: overrides.turnPhase ?? turnPhase,
-      settings: overrides.settings ?? trackerSettings,
-    });
-  }
-
   function buildCloudState(overrides = {}) {
-    const effectiveSettings = overrides.settings ? normalizeSettingsForApp(overrides.settings) : settingsRef.current;
-    const effectiveCardState = overrides.cardState ? normalizeCardState(overrides.cardState) : cardStateRef.current;
-    const effectivePieces = overrides.pieces || piecesRef.current;
+    const matchBaseline = singlePlayerMatchWorkspaceLocked
+      ? gameTimelineRef.current?.initialState
+      : null;
+    const useOverrides = !matchBaseline;
+    const effectiveSettings = normalizeSettingsForApp(
+      (useOverrides ? overrides.settings : null) || matchBaseline?.settings || settingsRef.current
+    );
+    const effectiveCardState = normalizeCardState(
+      (useOverrides ? overrides.cardState : null) || cardStateRef.current
+    );
+    const effectivePieces = (useOverrides ? overrides.pieces : null) || matchBaseline?.pieces || piecesRef.current;
     const effectiveGameSituations = overrides.gameSituations || gameSituations;
     const effectiveRuleSets = normalizeRuleSets(overrides.ruleSets || ruleSets);
-    const effectiveRuleSet = normalizeRuleSet(overrides.activeRuleSet || activeRuleSetRef.current);
-    const effectiveTrackerState = buildPersistentTrackerSnapshot(overrides.trackerState || {});
-    const { pieces: _overridePieces, cardState: _overrideCardState, settings: _overrideSettings, gameSituations: _overrideGameSituations, trackerState: _overrideTrackerState, ruleSets: _overrideRuleSets, activeRuleSet: _overrideActiveRuleSet, ...restOverrides } = overrides;
+    const effectiveRuleSet = normalizeRuleSet((useOverrides ? overrides.activeRuleSet : null) || matchBaseline?.ruleSet || activeRuleSetRef.current);
     return stripInlineImagesFromCloudState({
-      version: "pitch-44-goal-5x2",
-      formations,
-      gameSituations: stripCardLibrariesFromSituations(effectiveGameSituations),
-      activeSituationId,
-      activeSituationName,
-      ruleSets: effectiveRuleSets,
-      activeRuleSetId: effectiveRuleSet.id,
-      activeRuleSet: effectiveRuleSet,
-      blueFormationId,
-      redFormationId,
-      dieType,
-      dieResult: { blue: blueDieResult, red: redDieResult },
-      touchMode,
-      showCoordinates,
-      trackerState: effectiveTrackerState,
-      gameMode: normalizeGameMode(overrides.gameMode ?? gameMode),
-      movementStateByPieceId: normalizeMovementState(overrides.movementStateByPieceId ?? movementStateRef.current),
-      ...restOverrides,
-      settings: effectiveSettings,
-      pieces: sanitizePiecesCardIds(effectivePieces, effectiveCardState, effectiveSettings),
-      cardState: stripCardsFromCardState(effectiveCardState),
+      workspaceProfile: createWorkspaceSnapshot({
+        settings: effectiveSettings,
+        pieces: sanitizePiecesCardIds(effectivePieces, effectiveCardState, effectiveSettings),
+        formations,
+        gameSituations: stripCardLibrariesFromSituations(effectiveGameSituations),
+        activeSituationId,
+        activeSituationName,
+        ruleSets: effectiveRuleSets,
+        activeRuleSet: effectiveRuleSet,
+        blueFormationId,
+        redFormationId,
+        dieType,
+        cardState: stripCardsFromCardState(effectiveCardState),
+        trackerSettings,
+        preferences: {
+          touchMode,
+          showCoordinates,
+          trackerVisible: sessionCode ? trackerSharedEnabled : trackerVisible,
+        },
+      }),
     });
   }
 
   function applyStoredState(data, storedCards = cardStateRef.current.cards) {
-    if (!data) return;
-    const nextSettings = data.settings ? normalizeSettingsForApp(data.settings) : settings;
-    const nextCardState = data.cardState ? hydrateCardState(data.cardState, storedCards) : cardState;
-    const nextPieces = data.pieces
-      ? ensureBenchReserveCount(sanitizePiecesCardIds(data.pieces, nextCardState, nextSettings), nextSettings)
+    if (!data || singlePlayerMatchWorkspaceLocked) return false;
+    const workspace = readWorkspaceSnapshot(data);
+    const nextSettings = workspace.settings ? normalizeSettingsForApp(workspace.settings) : settings;
+    const nextCardState = workspace.cardState ? hydrateCardState(workspace.cardState, storedCards) : cardState;
+    const nextPieces = workspace.pieces
+      ? ensureBenchReserveCount(sanitizePiecesCardIds(workspace.pieces, nextCardState, nextSettings), nextSettings)
       : sanitizePiecesCardIds(pieces, nextCardState, nextSettings);
 
-    if (data.settings) setSettings(nextSettings);
-    if (data.formations) setFormations(normalizeFormationSlots(data.formations, FORMATION_SLOTS));
-    const nextScenarios = data.gameSituations
-      ? normalizeScenarioSlots(data.gameSituations, DEFAULT_GAME_SITUATIONS)
+    if (workspace.settings) setSettings(nextSettings);
+    if (workspace.formations) setFormations(normalizeFormationSlots(workspace.formations, FORMATION_SLOTS));
+    const nextScenarios = workspace.gameSituations
+      ? normalizeScenarioSlots(workspace.gameSituations, DEFAULT_GAME_SITUATIONS)
       : gameSituations;
-    const nextScenarioId = typeof data.activeSituationId === "number" ? data.activeSituationId : activeSituationId;
-    if (data.gameSituations) setGameSituations(nextScenarios);
-    if (typeof data.activeSituationId === "number") setActiveSituationId(nextScenarioId);
+    const nextScenarioId = typeof workspace.activeSituationId === "number" ? workspace.activeSituationId : activeSituationId;
+    if (workspace.gameSituations) setGameSituations(nextScenarios);
+    if (typeof workspace.activeSituationId === "number") setActiveSituationId(nextScenarioId);
     const selectedScenario = nextScenarios.find(scenario => scenario.id === Number(nextScenarioId));
-    if (selectedScenario) setActiveSituationName(selectedScenario.name);
-    if (data.ruleSets || data.activeRuleSet) {
-      const nextRuleSets = normalizeRuleSets(data.ruleSets || ruleSets);
-      const nextActiveRuleSet = normalizeRuleSet(data.activeRuleSet || findRuleSet(nextRuleSets, data.activeRuleSetId));
+    if (workspace.activeSituationName || selectedScenario) setActiveSituationName(workspace.activeSituationName || selectedScenario.name);
+    if (workspace.ruleSets || workspace.activeRuleSet) {
+      const nextRuleSets = normalizeRuleSets(workspace.ruleSets || ruleSets);
+      const nextActiveRuleSet = normalizeRuleSet(workspace.activeRuleSet || findRuleSet(nextRuleSets, workspace.activeRuleSetId));
       setRuleSets(nextRuleSets);
       setActiveRuleSet(nextActiveRuleSet);
       setRuleSetSelectionId(nextActiveRuleSet.id);
@@ -2544,43 +2537,26 @@ function App() {
       localStorage.setItem("football-board-rule-sets-v1", JSON.stringify(nextRuleSets));
       localStorage.setItem("football-board-active-rule-set-v1", nextActiveRuleSet.id);
     }
-    if (typeof data.blueFormationId === "number") setBlueFormationId(data.blueFormationId);
-    if (typeof data.redFormationId === "number") setRedFormationId(data.redFormationId);
-    if (data.pieces) {
+    if (typeof workspace.blueFormationId === "number") setBlueFormationId(workspace.blueFormationId);
+    if (typeof workspace.redFormationId === "number") setRedFormationId(workspace.redFormationId);
+    if (workspace.pieces) {
       piecesRef.current = nextPieces;
       setPieces(nextPieces);
     }
-    if (typeof data.dieType === "number") setDieType(data.dieType);
-    if (data.dieResult !== undefined) {
-      if (data.dieResult && typeof data.dieResult === "object") {
-        setBlueDieResult(data.dieResult.blue ?? null);
-        setRedDieResult(data.dieResult.red ?? null);
-      } else {
-        setBlueDieResult(data.dieResult ?? null);
-        setRedDieResult(null);
-      }
+    if (typeof workspace.dieType === "number") setDieType(workspace.dieType);
+    if (typeof workspace.preferences.touchMode === "boolean") setTouchMode(workspace.preferences.touchMode);
+    if (typeof workspace.preferences.showCoordinates === "boolean") setShowCoordinates(workspace.preferences.showCoordinates);
+    if (!sessionCode && typeof workspace.preferences.trackerVisible === "boolean") {
+      setTrackerVisible(workspace.preferences.trackerVisible);
+      if (workspace.preferences.trackerVisible) setTrackerMinimized(false);
     }
-    if (typeof data.touchMode === "boolean") setTouchMode(data.touchMode);
-    if (typeof data.showCoordinates === "boolean") setShowCoordinates(data.showCoordinates);
-    if (!sessionCode) {
-      setGameMode(normalizeGameMode(data.gameMode));
-      setMovementStateByPieceId(normalizeMovementState(data.movementStateByPieceId));
+    if (workspace.trackerSettings && !sessionCode) {
+      const restoredSettings = normalizeTrackerSnapshot({ settings: workspace.trackerSettings }).settings;
+      setTrackerSettings(restoredSettings);
+      setTrackerSettingsDraft(restoredSettings);
     }
-    if (data.trackerState && !sessionCode) {
-      const restoredTracker = normalizeTrackerSnapshot(data.trackerState);
-      setTrackerVisible(restoredTracker.enabled);
-      if (restoredTracker.enabled) setTrackerMinimized(false);
-      setTrackerSettings(restoredTracker.settings);
-      setTrackerSettingsDraft(restoredTracker.settings);
-      setTrackerGameStarted(restoredTracker.gameStarted);
-      setTrackerStartingTeam(restoredTracker.startingTeam);
-      setTrackerCurrentTurn(restoredTracker.currentTurn);
-      setTrackerUsedActions(restoredTracker.usedActions);
-      setTrackerActionLog(restoredTracker.actionLog);
-      setMatchActionState(restoredTracker.matchActionState);
-      setTurnPhase(restoredTracker.turnPhase);
-    }
-    if (data.cardState) setCardState(nextCardState);
+    if (workspace.cardState) setCardState(nextCardState);
+    return true;
   }
 
   function pieceTeamKey(piece) {
@@ -3516,6 +3492,10 @@ function App() {
 
   async function saveCloudState(overrides = {}, label = "Cloud saved") {
     if (!user || replayModeRef.current) return;
+    if (singlePlayerMatchWorkspaceLocked) {
+      setCloudStatus("Workspace save is unavailable during an active Match");
+      return;
+    }
     try {
       setCloudStatus("Saving cards...");
       const effectiveCardState = overrides.cardState ? normalizeCardState(overrides.cardState) : cardStateRef.current;
@@ -3545,6 +3525,12 @@ function App() {
       if (v2Snap.exists()) {
         const cloudCards = await readCardsFromCloud(currentUser.uid);
         const decoded = decodeFromFirestore(v2Snap.data());
+        if (singlePlayerMatchWorkspaceLocked) {
+          setCloudReady(true);
+          setCloudStatus("Cloud loaded without replacing the active Match");
+          setCloudError("");
+          return;
+        }
         isApplyingCloudRef.current = true;
         applyStoredState(decoded, cloudCards);
         window.setTimeout(() => { isApplyingCloudRef.current = false; }, 300);
@@ -4287,7 +4273,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!user || !cloudReady || isApplyingCloudRef.current || replayModeRef.current) return;
+    if (!user || !cloudReady || isApplyingCloudRef.current || replayModeRef.current || singlePlayerMatchWorkspaceLocked) return;
     autosaveDirtyRef.current = true;
     setCloudStatus("Unsaved changes");
   }, [
@@ -4328,7 +4314,7 @@ function App() {
     }
 
     autosaveIntervalRef.current = window.setInterval(() => {
-      if (!autosaveDirtyRef.current || isApplyingCloudRef.current || replayModeRef.current) return;
+      if (!autosaveDirtyRef.current || isApplyingCloudRef.current || replayModeRef.current || singlePlayerMatchWorkspaceLocked) return;
       autosaveDirtyRef.current = false;
       saveCloudState({}, "Autosaved");
     }, CLOUD_AUTOSAVE_INTERVAL_MS);
@@ -4339,7 +4325,7 @@ function App() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, cloudReady]);
+  }, [user, cloudReady, singlePlayerMatchWorkspaceLocked]);
 
   function captureTimelineGameState(overrides = {}) {
     const liveState = createGameState({
@@ -4870,6 +4856,10 @@ function App() {
 
   async function restoreFullBackup(file) {
     if (!file) return;
+    if (singlePlayerMatchWorkspaceLocked) {
+      window.alert("Încheie sau ieși din Match înainte de a restaura un Workspace backup.");
+      return;
+    }
     try {
       const parsed = JSON.parse(await file.text());
       const isV2Backup =
@@ -5187,6 +5177,7 @@ function App() {
   }
 
   function saveBoard() {
+    if (singlePlayerMatchWorkspaceLocked) return;
     localStorage.setItem("football-board-sandbox-v35", JSON.stringify({ settings, pieces: sanitizePiecesCardIds(pieces, cardState, settings), zoom, cardState: buildCardLibraryState(cardState) }));
     alert("Salvat în browser.");
   }
@@ -5204,6 +5195,7 @@ function App() {
   }
 
   function loadBoard() {
+    if (singlePlayerMatchWorkspaceLocked) return;
     const raw =
       localStorage.getItem("football-board-sandbox-v35") ||
       localStorage.getItem("football-board-sandbox-v34") ||
@@ -11900,9 +11892,9 @@ function App() {
                 <span className={`cloud-pill ${cloudError ? "cloud-error" : ""}`}>{cloudStatus}</span>
                 {!isSessionGuest && (
                   <>
-                    <button onClick={() => saveCloudState({}, "Cloud saved")}>Cloud Save</button>
+                    <button disabled={singlePlayerMatchWorkspaceLocked} onClick={() => saveCloudState({}, "Cloud saved")}>Cloud Save</button>
                     <button onClick={exportFullBackup}>Export Cards & Board</button>
-                    <label className="import-btn">Import Cards & Board<input type="file" accept="application/json" onChange={e => { restoreFullBackup(e.target.files?.[0]); e.target.value = ""; }} /></label>
+                    <label className="import-btn">Import Cards & Board<input type="file" disabled={singlePlayerMatchWorkspaceLocked} accept="application/json" onChange={e => { restoreFullBackup(e.target.files?.[0]); e.target.value = ""; }} /></label>
                   </>
                 )}
                 <button onClick={logout}>Logout</button>
