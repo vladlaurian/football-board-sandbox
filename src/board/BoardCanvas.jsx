@@ -223,7 +223,7 @@ export function BoardCanvas({
           {defensiveAreaOverlays.map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
 
           {passPreview?.lines?.length > 0 && <svg className="pass-preview-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
-            {passPreview.lines.map(line => <g key={line.id} className={`pass-preview-line ${line.risk ? "risk" : "clear"} ${line.selected ? "route-selected" : ""}`}>
+            {passPreview.lines.map(line => <g key={line.id} className={`pass-preview-line ${line.status || (line.risk ? "risk" : "clear")} ${line.selected ? "route-selected" : ""}`}>
               <line x1={line.origin.x} y1={line.origin.y} x2={line.endpoint.x} y2={line.endpoint.y} />
               <circle cx={line.origin.x} cy={line.origin.y} r=".13" />
               <circle cx={line.endpoint.x} cy={line.endpoint.y} r=".13" />
@@ -235,15 +235,15 @@ export function BoardCanvas({
           {passPreview?.routes?.map(route => <button
             key={`pass-route-${route.id}`}
             type="button"
-            className={`pass-route-badge ${route.cornerId || "center"} ${route.risk ? "risk" : "clear"}`}
+            className={`pass-route-badge ${route.cornerId || "center"} ${route.status || (route.risk ? "risk" : "clear")}`}
             style={{ left: `calc(${route.origin.x} * var(--cell))`, top: `calc(${route.origin.y} * var(--cell))` }}
             onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }}
             onPointerUp={event => { event.preventDefault(); event.stopPropagation(); }}
             onTouchStart={event => event.stopPropagation()}
             onTouchEnd={event => event.stopPropagation()}
-            disabled={!passRouteInteractive}
-            aria-disabled={!passRouteInteractive}
-            onClick={event => { event.preventDefault(); event.stopPropagation(); if (passRouteInteractive) onSelectPassRoute?.(route.cornerId); }}
+            disabled={!passRouteInteractive || route.disabled}
+            aria-disabled={!passRouteInteractive || route.disabled}
+            onClick={event => { event.preventDefault(); event.stopPropagation(); if (passRouteInteractive && !route.disabled) onSelectPassRoute?.(route.cornerId); }}
             title={`${route.foot} ${route.modifier} · ${route.isLong ? "Long Pass" : "Short Pass"}`}
           >
             <span>{route.foot} {route.modifier}</span><small>{route.isLong ? "LONG" : "SHORT"}</small>

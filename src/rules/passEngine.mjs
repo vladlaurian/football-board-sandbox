@@ -16,6 +16,10 @@ export function teamKeyForPiece(piece) {
   return piece?.team === "A" ? "blue" : piece?.team === "B" ? "red" : null;
 }
 
+export function isGoalkeeperPiece(piece, cardById) {
+  return cardById?.[String(piece?.cardId || "")]?.position === "GK";
+}
+
 export function oppositeTeam(team) {
   return team === "blue" ? "red" : "blue";
 }
@@ -246,6 +250,9 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
   const targetPoint = pointForPassTarget(target);
   const distance = passDistance(origin, targetPoint);
   const hit = firstPlayerHit(origin, targetPoint, pieces, passer.id);
+  const goalkeeperBlocker = hit && isGoalkeeperPiece(hit.piece, cardById)
+    ? { pieceId: hit.piece.id, team: teamKeyForPiece(hit.piece), entryT: hit.entryT }
+    : null;
   const effectiveTarget = hit ? { x: Number(hit.piece.x), y: Number(hit.piece.y) } : { x: Number(target.x), y: Number(target.y) };
   const effectiveTargetPoint = hit ? pointForPassTarget(effectiveTarget) : targetPoint;
   const foot = footForPass(origin, targetPoint, passer, passerCard?.preferredFoot);
@@ -302,6 +309,11 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
       equalRollOutcome: interceptionRules.equalRollOutcome === "interception" ? "interception" : "pass-succeeds",
     },
     directHit: hit ? { pieceId: hit.piece.id, team: teamKeyForPiece(hit.piece), entryT: hit.entryT } : null,
+    // A goalkeeper is a physical route blocker, not a possible pass recipient.
+    // The route remains represented for Single Player preview, but the Engine
+    // must reject its confirmation before Tracker action consumption.
+    goalkeeperRouteBlocked: Boolean(goalkeeperBlocker),
+    goalkeeperBlocker,
     passCells,
     defensiveAreaCrossings,
     interceptorPriority: {

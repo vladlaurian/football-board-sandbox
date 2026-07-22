@@ -166,7 +166,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.26.0";
+const APP_VERSION = "v20.26.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5859,6 +5859,7 @@ function App() {
     else if (result.reason === "match-not-started") primary = <>Start the match in Tracker before moving players.</>;
     else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE MOVE before moving this player, or advance to next turn.</>;
     else if (result.reason === "pass-origin-blocked") primary = <>A pass cannot start from a corner shared with an opposing player.</>;
+    else if (result.reason === "pass-goalkeeper-blocked") primary = <>A pass route cannot cross a goalkeeper.</>;
     else if (result.reason === "pass-requires-ball") primary = <>Only the player who has the ball can start a pass in Match Mode.</>;
     else if (result.reason === "free-ball-required") primary = <>Press FREE BALL before moving the ball in Match Mode.</>;
     else if (result.reason === "team-exhausted") primary = <>Wait for opponent team or advance to next turn.</>;
@@ -6861,8 +6862,18 @@ function App() {
       cornerId,
       rules: previewRuleSet,
     }));
-    const validPlans = plans.filter(plan => !plan.originBlocked);
-    const chosen = validPlans.find(plan => plan.origin.cornerId === pending.cornerId) || validPlans[0] || plans[0];
+    const singlePlayerMatch = !sessionCode && gameMode === "match";
+    const selectablePlans = plans.filter(plan => !plan.originBlocked && (!singlePlayerMatch || !plan.goalkeeperRouteBlocked));
+    // Single Player keeps a goalkeeper-blocked route visible in grey so the
+    // player can see why it cannot be chosen. Legacy manual multiplayer keeps
+    // its established preview and interaction path unchanged.
+    const previewPlans = singlePlayerMatch ? plans.filter(plan => !plan.originBlocked) : selectablePlans;
+    const routeStatus = plan => {
+      if (singlePlayerMatch && plan.goalkeeperRouteBlocked) return "blocked";
+      if (plan.interceptors?.length || (singlePlayerMatch && plan.directHit?.team && plan.directHit.team !== pending.team)) return "risk";
+      return "clear";
+    };
+    const chosen = selectablePlans.find(plan => plan.origin.cornerId === pending.cornerId) || selectablePlans[0] || previewPlans[0] || plans[0];
     const visibleCells = chosen?.interceptors.flatMap(item => item.visibleCells.map(cell => ({ ...cell, id: `${item.defender.id}-${cell.id}` }))) || [];
     const visibleIds = new Set(visibleCells.map(cell => `${cell.x}-${cell.y}`));
     const blockedCells = chosen?.interceptors.flatMap(item => item.cells.filter(cell => !visibleIds.has(`${cell.x}-${cell.y}`)).map(cell => ({ ...cell, id: `${item.defender.id}-${cell.id}` }))) || [];
@@ -6872,21 +6883,22 @@ function App() {
       target: pending.target,
       visibleCells,
       blockedCells,
-      lines: validPlans.map(plan => ({
+      lines: previewPlans.map(plan => ({
         id: plan.origin.cornerId || "center",
         origin: plan.origin,
         endpoint: plan.endpoint,
-        risk: Boolean(plan.interceptors?.length),
+        status: routeStatus(plan),
         selected: plan.origin.cornerId === pending.cornerId || (plans.length === 1 && !pending.cornerId),
       })),
-      routes: pending.status === "route-selection" ? validPlans.map(plan => ({
+      routes: pending.status === "route-selection" ? previewPlans.map(plan => ({
         id: plan.origin.cornerId || "center",
         cornerId: plan.origin.cornerId,
         origin: plan.origin,
         foot: plan.foot?.foot === "Left" ? "LF" : plan.foot?.foot === "Right" ? "RF" : "BF",
         modifier: plan.foot?.dominant ? "0" : "-1",
         isLong: plan.isLong,
-        risk: Boolean(plan.interceptors?.length),
+        status: routeStatus(plan),
+        disabled: singlePlayerMatch && plan.goalkeeperRouteBlocked,
       })) : [],
     };
   }, [actionResolution, pieces, cardById, settings, activeRuleSet, gameMode, sessionCode]);
@@ -10125,6 +10137,7 @@ function App() {
       });
       if (!dispatched.result.accepted) {
         if (dispatched.result.reason === "PASS_ROUTE_ORIGIN_BLOCKED") setIllegalMoveNotice({ reason: "pass-origin-blocked" });
+        if (dispatched.result.reason === "PASS_ROUTE_GOALKEEPER_BLOCKED") setIllegalMoveNotice({ reason: "pass-goalkeeper-blocked" });
         return false;
       }
       replaceGameTimeline(dispatched.timeline);

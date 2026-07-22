@@ -187,6 +187,7 @@ export function confirmPassRoute(state, context, command) {
     rules: context.ruleSet,
   });
   if (plan.originBlocked) return { accepted: false, reason: "PASS_ROUTE_ORIGIN_BLOCKED" };
+  if (plan.goalkeeperRouteBlocked) return { accepted: false, reason: "PASS_ROUTE_GOALKEEPER_BLOCKED" };
 
   const continuation = normalizeActionContinuation(state.actionContinuation);
   const bonusPass = Boolean(pending.continuationId && continuation?.id === pending.continuationId);

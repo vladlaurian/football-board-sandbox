@@ -497,7 +497,7 @@ The transition may create the existing explicit pending interceptor decision or 
 **Consequences:**
 
 - The future `PASS_TARGET_SELECTED` amendment must reject a goalkeeper square before route selection begins.
-- A goalkeeper remains a normal physical player for geometry: they may block a passing route and may be the first player hit by a route aimed at a different target.
+- A goalkeeper remains a normal physical player for geometry, but a pass route that intersects one is invalid: the ball cannot pass through or finish at that goalkeeper. This route-blocker part is active in offline Single Player as of v20.26.1.
 - The rule must not be hidden in UI-only disabled styling; Engine validation is required. Manual Multiplayer remains unchanged until that track is explicitly reopened.
 
 ## ADR-023 — Free Move is a visible, reversible administrative Engine action

@@ -1003,6 +1003,35 @@ test("PASS_ROUTE_CONFIRMED rejects an invalid route and a blocked origin without
   assert.deepEqual(blockedState, blockedBefore);
 });
 
+test("PASS_ROUTE_CONFIRMED rejects a goalkeeper-blocked route without consuming Tracker", () => {
+  const routeSelection = applyGameCommand({
+    state: applyGameCommand({
+      state: normalMoveState(), context: normalMoveContext(),
+      command: { id: "gk-route-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "gk-route" } },
+    }).nextState,
+    context: normalMoveContext(),
+    command: { id: "gk-route-target", type: "PASS_TARGET_SELECTED", payload: { passId: "gk-route", x: 9, y: 5 } },
+  });
+  const goalkeeperState = createGameState({
+    ...routeSelection.nextState,
+    pieces: [...routeSelection.nextState.pieces, { id: "red-gk", team: "B", cardId: "card-red-gk", x: 5, y: 5 }],
+  });
+  const goalkeeperContext = createMatchContext({
+    id: "goalkeeper-route-context",
+    boardSettings: normalMoveContext().boardSettings,
+    gameplayCardsById: {
+      ...normalMoveContext().gameplayCardsById,
+      "card-red-gk": { id: "card-red-gk", position: "GK" },
+    },
+  });
+  const before = structuredClone(goalkeeperState);
+  assert.deepEqual(applyGameCommand({
+    state: goalkeeperState, context: goalkeeperContext,
+    command: { id: "gk-route-confirm", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "gk-route", cornerId: "top-left" } },
+  }), { accepted: false, reason: "PASS_ROUTE_GOALKEEPER_BLOCKED" });
+  assert.deepEqual(goalkeeperState, before);
+});
+
 test("PASS_ROUTE_CONFIRMED enters the existing pending roll or interceptor-choice state without resolving a Pass", () => {
   const rollState = createGameState({
     ...normalMoveState(),

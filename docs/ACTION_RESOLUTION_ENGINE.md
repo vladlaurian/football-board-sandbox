@@ -172,6 +172,12 @@ While that route-confirmation migration is pending, its offline preview and exis
 
 Offline Single Player confirms a chosen Pass route through `PASS_ROUTE_CONFIRMED`. The Engine validates the origin, builds the frozen plan, consumes the normal Pass action only after that validation, and stores the existing next stage. It may create a pending interceptor choice or pending roll descriptor; this merely declares the next required input and is not itself interceptor selection, rolling or resolution. The downstream legacy resolver temporarily receives that canonical plan until its own approved migrations are complete.
 
+## v20.26.1 — goalkeeper route blocker and route presentation truth
+
+The canonical Pass plan now records `goalkeeperRouteBlocked` when its physical first-player intersection is a frozen gameplay card with `position: "GK"`. In offline Single Player, `PASS_ROUTE_CONFIRMED` rejects that route before Tracker consumption. A goalkeeper is therefore neither a pass-through square nor an effective direct-hit recipient. The Single Player preview may show this rejected option in grey, but that presentation is derived from the same plan field and is not the rule authority.
+
+For the existing direct-hit rule, route presentation must treat a first hit on an opponent as risk/red even when the plan has no eligible defensive-area interceptor. This is only a correction of UI classification; it does not change direct-hit resolution or interception order. The direct-target goalkeeper restriction remains a separate future `PASS_TARGET_SELECTED` amendment. Manual Multiplayer is not migrated by this rule.
+
 ## Multiplayer canonical resolution rule added in v19.13
 
 A remote user may create an authorized pending decision or RollEvent, but only the host applies the deterministic consequence. Host scheduling must be derived from the canonical hydrated Timeline state, not exclusively from a one-time "new entry" notification. Repeated Firestore snapshots for the same entry must not restart its cosmetic delay, and an already consumed RollEvent must remain idempotent.

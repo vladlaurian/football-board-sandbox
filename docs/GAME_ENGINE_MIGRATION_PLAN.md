@@ -258,7 +258,7 @@ Delivered files and tests:
 
 For a normal Pass it consumes exactly one Tracker action; for a Bonus Pass it retains the existing atomic continuation and consumes no Tracker action. The command may only produce the already-established downstream state: `completing`, `awaiting-interceptor-choice`, or `awaiting-interception-roll`. Declaring `pendingDecision` or `pendingRoll` is preparation of the canonical input contract, not an interceptor choice, dice submission or resolution. Ball movement, possession, roll results, interception outcomes and Bonus Action consequences remain outside this build on their current downstream path. Manual Multiplayer remains unchanged.
 
-Approved deferred rule, deliberately not bundled here: a player card whose frozen `position` is `GK` must be rejected as a selected Pass target regardless of team. A goalkeeper remains physically present for pass geometry and may block a route or become the first player hit by a route aimed elsewhere.
+Approved deferred rule, deliberately not bundled here: a player card whose frozen `position` is `GK` must be rejected as a selected Pass target regardless of team. v20.26.1 later activates the distinct route rule: a goalkeeper is physically present but blocks a route rather than becoming its first-hit recipient.
 
 Delivered files and tests:
 
@@ -269,6 +269,23 @@ Delivered files and tests:
 - `src/engine/singlePlayerController.test.mjs`
 - offline Single Player `confirmPassRoute()` branch in `src/main.jsx`
 - focused command: `node --test src/engine/gameEngine.test.mjs src/engine/singlePlayerController.test.mjs src/multiplayer/actionStartAuthority.test.mjs`
+
+### v20.26.1 — offline Single Player Pass route blockers and visual truth
+
+**Status:** Complete as a correction to the confirmed-route boundary.
+
+The pure Pass plan now identifies a first physical route intersection with a frozen `position: "GK"` card as `goalkeeperRouteBlocked`. `PASS_ROUTE_CONFIRMED` rejects this before action economy changes; the goalkeeper cannot be passed through or receive the ball as a direct hit. Single Player preserves the blocked option visually in grey and prevents its selection, for both path modes. The existing Manual Multiplayer route path is unchanged.
+
+The Single Player preview also colors a route red when its canonical first physical hit is an opponent, even if no defensive-area interceptor exists. This fixes the adjacent-opponent green preview defect without changing any Pass geometry or resolution rule.
+
+The deliberately separate goalkeeper-as-requested-target rule remains pending under `PASS_TARGET_SELECTED`.
+
+Delivered files and tests:
+
+- `src/rules/passEngine.mjs` and `src/rules/passEngine.test.mjs`
+- `src/engine/passStartRules.mjs` and `src/engine/gameEngine.test.mjs`
+- Single Player route presentation in `src/main.jsx`, `src/board/BoardCanvas.jsx`, and `src/styles.css`
+- focused command: `node --test src/rules/passEngine.test.mjs src/engine/gameEngine.test.mjs src/engine/singlePlayerController.test.mjs src/multiplayer/actionStartAuthority.test.mjs`
 
 ### v20.19.0 — offline Single Player Free Move Engine migration
 
@@ -312,7 +329,7 @@ Acceptance:
 
 ## Phase 5 — Tracker, turns, and possession
 
-**Status:** In progress — v20.25.0–v20.26.0 complete Pass start/cancel/target/route-plan only.
+**Status:** In progress — v20.25.0–v20.26.1 complete Pass start/cancel/target/route-plan only.
 
 Migrate Match start, phase completion, turn change, possession change, action reset, and currently existing match-completion behavior.
 

@@ -6,6 +6,7 @@ import {
   cardStat,
   interceptorChoiceCandidates,
   interceptorPriorityDistanceSquared,
+  isGoalkeeperPiece,
   opponentBlockingPassOrigin,
   passRequiresInterceptionSequence,
   segmentIntersectsOpenRect,
@@ -199,4 +200,27 @@ test("pass plan freezes Interception rules for canonical multiplayer resolution"
     modifierCap: 2,
     equalRollOutcome: "interception",
   });
+});
+
+test("a goalkeeper physically blocks a pass route instead of becoming its direct recipient", () => {
+  const passer = { id: "passer", team: "A", x: 3, y: 5, cardId: "pass-card" };
+  const goalkeeper = { id: "gk", team: "B", x: 5, y: 5, cardId: "gk-card" };
+  const cardById = {
+    "pass-card": { passiveAttributes: [{ id: "stat:passing", name: "Passing", value: 12 }] },
+    "gk-card": { position: "GK" },
+  };
+  const plan = buildPassPlan({
+    passer,
+    passerCard: cardById["pass-card"],
+    pieces: [passer, goalkeeper],
+    cardById,
+    settings: { cols: 20, rows: 12 },
+    target: { x: 9, y: 5 },
+    cornerId: "top-left",
+    rules: { pathMode: "corner-to-center" },
+  });
+  assert.equal(isGoalkeeperPiece(goalkeeper, cardById), true);
+  assert.deepEqual(plan.directHit, { pieceId: "gk", team: "red", entryT: plan.directHit.entryT });
+  assert.equal(plan.goalkeeperRouteBlocked, true);
+  assert.deepEqual(plan.goalkeeperBlocker, { pieceId: "gk", team: "red", entryT: plan.directHit.entryT });
 });
