@@ -233,7 +233,7 @@ export function applyGameCommand({ state, context, command } = {}) {
     })], transition.timeline);
   }
   if (normalizedCommand.type === GAME_COMMAND_TYPE.PASS_CONSEQUENCE_DUE) {
-    const transition = applyPassConsequence(currentState, normalizedCommand);
+    const transition = applyPassConsequence(currentState, matchContext, normalizedCommand);
     if (!transition.accepted) return rejected(transition.reason);
     return accepted(createGameState(transition.nextState), [createGameEvent({
       ...transition.event,

@@ -358,7 +358,7 @@ export function BoardCanvas({
             disabled={!passRouteInteractive || route.disabled}
             aria-disabled={!passRouteInteractive || route.disabled}
             onClick={event => { event.preventDefault(); event.stopPropagation(); if (passRouteInteractive && !route.disabled) onSelectPassRoute?.(route.cornerId); }}
-            title={`${route.foot} ${route.modifier} · ${route.isLong ? "Long Pass" : "Short Pass"}`}
+            title={`${route.foot} ${route.modifier}${route.modifierType === "disadvantage" ? " · Execution disadvantage" : ""} · ${route.isLong ? "Long Pass" : "Short Pass"}`}
           >
             <span>{route.foot} {route.modifier}</span><small>{route.isLong ? "LONG" : "SHORT"}</small>
           </button>)}

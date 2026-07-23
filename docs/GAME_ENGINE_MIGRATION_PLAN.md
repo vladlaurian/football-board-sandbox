@@ -530,6 +530,22 @@ Audit result: accepted. The full report is [`PHASE_9_PRE_MULTIPLAYER_ENGINE_AUDI
 
 This is a rule amendment, not a reopened migration phase. The permanent contract is [`PERSONAL_ACTION_LIMITS.md`](PERSONAL_ACTION_LIMITS.md). It extends the accepted Single Player Engine boundary without changing Manual Multiplayer: the canonical offline MatchState carries each player's normal-action usage, and the Engine enforces the approved attack/defense maxima wherever a normal action is consumed.
 
+## Phase 10 — Single Player authority and projection integrity
+
+### Phase 10A — audit
+
+**Status:** Complete before v20.51.0 implementation.
+
+The audit found that Phase 9 had accepted Engine-owned mutation and Timeline authority, but had not established a complete UI projection contract. Offline Pass badge and Interception prompt still reused legacy local calculators. This phase inventories Engine consumers and distinguishes frozen Manual Multiplayer from offline Single Player.
+
+### Phase 10B — Pass projection remediation
+
+**Status:** Complete in v20.51.0 for the approved Pass/Interception slice.
+
+`PASS_TARGET_SELECTED` now persists route presentation facts in canonical MatchState. The Engine persists the Interception prompt breakdown whenever it requests a defender roll. `matchPresentationSelectors.mjs` is the offline Match UI projection boundary for those facts. Timeline, Undo/Redo, Replay and AI retain the same stored action state and resolution sources. Manual Multiplayer remains unchanged.
+
+The next Engine mechanic must enter through this projection contract from its first build; Group Move diagonal/orthogonal remains the next approved scope and must use the same boundary.
+
 ## Required update after every implementation build
 
 - mark only completed items complete;

@@ -52,12 +52,14 @@ export function createDefaultRuleSet() {
 
 export function normalizeDiceModifiers(raw, fallback = createDefaultRuleSet().diceModifiers) {
   const source = raw && typeof raw === "object" ? raw : {};
-  const value = (key, fallbackValue) => Math.max(-20, Math.min(20, Math.floor(Number(source[key] ?? fallbackValue))));
+  const value = (key, fallbackValue, minimum, maximum) => Math.max(minimum, Math.min(maximum, Math.floor(Number(source[key] ?? fallbackValue))));
   return {
-    advantage: value("advantage", fallback.advantage),
-    majorAdvantage: value("majorAdvantage", fallback.majorAdvantage),
-    disadvantage: value("disadvantage", fallback.disadvantage),
-    majorDisadvantage: value("majorDisadvantage", fallback.majorDisadvantage),
+    // These signs are part of the semantic contract, not a UI convention.
+    // A Rule Set may change the magnitude, never invert an advantage into a penalty.
+    advantage: value("advantage", fallback.advantage, 0, 20),
+    majorAdvantage: value("majorAdvantage", fallback.majorAdvantage, 0, 20),
+    disadvantage: value("disadvantage", fallback.disadvantage, -20, 0),
+    majorDisadvantage: value("majorDisadvantage", fallback.majorDisadvantage, -20, 0),
     stackCap: Math.max(0, Math.min(20, Math.floor(Number(source.stackCap ?? fallback.stackCap)))),
   };
 }

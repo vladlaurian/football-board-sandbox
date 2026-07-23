@@ -72,3 +72,23 @@ test("Group Move rules are present by default and legacy Rule Sets receive stabl
   const legacy = normalizeRuleSet({ id: "legacy-group", schemaVersion: 3, actions: {} });
   assert.deepEqual(legacy.actions.groupMove, defaultRules.actions.groupMove);
 });
+
+test("Dice modifier semantics retain their required signs while preserving configured magnitudes", () => {
+  const normalized = normalizeRuleSet({
+    id: "semantic-signs",
+    diceModifiers: {
+      advantage: 7,
+      majorAdvantage: -13,
+      disadvantage: -5,
+      majorDisadvantage: 11,
+      stackCap: 6,
+    },
+  });
+  assert.deepEqual(normalized.diceModifiers, {
+    advantage: 7,
+    majorAdvantage: 0,
+    disadvantage: -5,
+    majorDisadvantage: 0,
+    stackCap: 6,
+  });
+});

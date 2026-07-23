@@ -62,7 +62,51 @@ function validRouteCornerId(cornerId, pathMode) {
   return PASS_CORNERS.some(corner => corner.id === String(cornerId || ""));
 }
 
-function pendingPassRoll(pending, interceptorIndex = 0) {
+function signedValue(value) {
+  const number = Number(value) || 0;
+  return `${number >= 0 ? "+" : ""}${number}`;
+}
+
+function createInterceptionRollPresentation(pending, interceptorIndex, context) {
+  const plan = pending?.plan || {};
+  const interceptor = plan.interceptors?.[interceptorIndex];
+  const defender = interceptor?.defender;
+  const rules = plan.interceptionRules || {};
+  const defenderRollStatId = rules.defenderRollStatId || "stat:interception";
+  const interception = cardStat(context?.gameplayCardsById?.[String(defender?.cardId || "")], defenderRollStatId);
+  const orderModifier = rules.useProgressiveBonus === false ? 0 : (Number(interceptor?.orderModifier) || 0);
+  // The passer's execution disadvantage is represented at the route origin.
+  // Because Pass has no passer roll, it becomes Advantage on this defender roll.
+  const nonDominantExecutionAdvantage = rules.useStandardModifiers === false || plan.foot?.dominant
+    ? 0
+    : resolveDiceModifierStacks(rules.diceModifiers, "advantage");
+  const previousNaturalOnePenalty = rules.useStandardModifiers === false
+    ? 0
+    : resolveDiceModifierStacks(rules.diceModifiers, "disadvantage", pending.naturalOneDisadvantageStacks);
+  const rawModifier = orderModifier + nonDominantExecutionAdvantage + previousNaturalOnePenalty;
+  const modifierCap = Math.max(0, Number(rules.diceModifiers?.stackCap) || 0);
+  const modifier = Math.max(-modifierCap, Math.min(modifierCap, rawModifier));
+  return {
+    defenderId: String(defender?.id || ""),
+    team: teamKeyForPiece(defender),
+    defenderRollStatId,
+    defenderStatValue: interception,
+    attackerTargetValue: Number(plan.attackerTargetValue ?? plan.passerPass) || 0,
+    attackerTargetStatId: plan.attackerTargetStatId || "stat:passing",
+    modifier,
+    modifierCap,
+    capped: modifier !== rawModifier,
+    modifierSources: [
+      { label: "Interception", value: interception, source: "card" },
+      ...(orderModifier ? [{ label: "Advantage", type: "advantage", value: orderModifier, source: "interceptor-order", detail: interceptionOrderLabel(orderModifier) }] : []),
+      ...(nonDominantExecutionAdvantage ? [{ label: "Advantage", type: "advantage", value: nonDominantExecutionAdvantage, source: "passer-execution-disadvantage", detail: "passer non-preferred-foot execution" }] : []),
+      ...(previousNaturalOnePenalty ? [{ label: "Disadvantage", type: "disadvantage", value: previousNaturalOnePenalty, source: "previous-natural-1", detail: "previous Natural 1" }] : []),
+    ],
+    summary: `Total Modifier ${signedValue(modifier)}${modifier !== rawModifier ? " (capped)" : ""}`,
+  };
+}
+
+function pendingPassRoll(pending, interceptorIndex = 0, context) {
   const interceptor = pending?.plan?.interceptors?.[interceptorIndex];
   const team = teamKeyForPiece(interceptor?.defender);
   return createPendingRoll({
@@ -76,7 +120,7 @@ function pendingPassRoll(pending, interceptorIndex = 0) {
   });
 }
 
-function pendingPassInput(pending, interceptorIndex = 0) {
+function pendingPassInput(pending, interceptorIndex = 0, context) {
   const candidates = interceptorChoiceCandidates(pending?.plan?.interceptors, interceptorIndex);
   if (candidates.length >= 2) {
     const team = teamKeyForPiece(candidates[0]?.defender);
@@ -88,7 +132,11 @@ function pendingPassInput(pending, interceptorIndex = 0) {
       context: { actionId: pending.id, interceptorIndex },
     }));
   }
-  return withPendingRoll({ ...pending, interceptorIndex }, pendingPassRoll(pending, interceptorIndex));
+  return withPendingRoll({
+    ...pending,
+    interceptorIndex,
+    rollPresentation: createInterceptionRollPresentation(pending, interceptorIndex, context),
+  }, pendingPassRoll(pending, interceptorIndex, context));
 }
 
 export function startPass(state, command) {
@@ -156,10 +204,41 @@ export function selectPassTarget(state, context, command) {
   }
   const continuation = normalizeActionContinuation(state.actionContinuation);
   const bonusPass = Boolean(pending.continuationId && continuation?.id === pending.continuationId);
+  const passer = state.pieces.find(piece => String(piece?.id || "") === String(pending.passerId || ""));
+  if (!passer) return { accepted: false, reason: "PASSER_INVALID" };
+  const pathMode = context?.ruleSet?.actions?.pass?.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center";
+  const cornerIds = pathMode === "center-to-center" ? [null] : PASS_CORNERS.map(corner => corner.id);
+  const routePlans = cornerIds.map(cornerId => buildPassPlan({
+    passer,
+    passerCard: context.gameplayCardsById[String(passer.cardId || "")],
+    pieces: state.pieces,
+    cardById: context.gameplayCardsById,
+    settings: context.boardSettings,
+    target: { x, y },
+    cornerId,
+    rules: context.ruleSet,
+  }));
+  const routePresentation = routePlans.map(plan => ({
+    id: plan.origin.cornerId || "center",
+    cornerId: plan.origin.cornerId,
+    origin: plan.origin,
+    endpoint: plan.endpoint,
+    foot: plan.foot?.foot === "Left" ? "LF" : plan.foot?.foot === "Right" ? "RF" : "BF",
+    // Compact board badge: this is the numeric execution effect, resolved from
+    // the frozen Rule Set's semantic Disadvantage definition.
+    modifier: plan.foot?.dominant ? 0 : resolveDiceModifierStacks(context.ruleSet?.diceModifiers, "disadvantage"),
+    modifierType: plan.foot?.dominant ? null : "disadvantage",
+    isLong: plan.isLong,
+    originBlocked: Boolean(plan.originBlocked),
+    goalkeeperRouteBlocked: Boolean(plan.goalkeeperRouteBlocked),
+    risk: Boolean(plan.interceptors?.length || plan.directHit?.team && plan.directHit.team !== pending.team),
+  }));
   const next = {
     ...pending,
     target: { x, y },
     status: "route-selection",
+    routePlans,
+    routePresentation,
   };
   return {
     accepted: true,
@@ -187,6 +266,8 @@ export function confirmPassRoute(state, context, command) {
   const pathMode = context?.ruleSet?.actions?.pass?.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center";
   const cornerId = routeCornerId(command);
   if (!validRouteCornerId(cornerId, pathMode)) return { accepted: false, reason: "PASS_ROUTE_INVALID" };
+  // Route previews are a persisted projection. Confirmation always rebuilds
+  // inside Engine against the current canonical state before it is accepted.
   const plan = buildPassPlan({
     passer,
     passerCard: context.gameplayCardsById[String(passer.cardId || "")],
@@ -235,7 +316,7 @@ export function confirmPassRoute(state, context, command) {
     pendingRoll: null,
   };
   const nextResolution = passRequiresInterceptionSequence(plan, pending.team)
-    ? pendingPassInput(baseNext, 0)
+    ? pendingPassInput(baseNext, 0, context)
     : baseNext;
   return {
     accepted: true,
@@ -312,7 +393,8 @@ export function selectPassInterceptor(state, context, command) {
     ...pending,
     interceptorIndex,
     plan: nextPlan,
-  }, pendingPassRoll({ ...pending, plan: nextPlan }, interceptorIndex));
+    rollPresentation: createInterceptionRollPresentation({ ...pending, plan: nextPlan }, interceptorIndex, context),
+  }, pendingPassRoll({ ...pending, plan: nextPlan }, interceptorIndex, context));
   return {
     accepted: true,
     nextState: { ...state, actionResolution: nextResolution },
@@ -649,7 +731,7 @@ function completeNaturalTwentyInterception(state, pending, interceptor) {
   };
 }
 
-function advanceFailedInterception(state, pending) {
+function advanceFailedInterception(state, pending, context) {
   const nextIndex = Math.max(0, Number(pending.interceptorIndex) || 0) + 1;
   if (nextIndex >= (pending.plan?.interceptors || []).length) return completePass(state, pending);
   const next = pendingPassInput({
@@ -662,7 +744,7 @@ function advanceFailedInterception(state, pending) {
     resolutionTransaction: null,
     pendingDecision: null,
     pendingRoll: null,
-  }, nextIndex);
+  }, nextIndex, context);
   return {
     accepted: true,
     nextState: { ...state, actionResolution: next },
@@ -680,7 +762,7 @@ function advanceFailedInterception(state, pending) {
   };
 }
 
-export function applyPassConsequence(state, command) {
+export function applyPassConsequence(state, context, command) {
   const pending = state.actionResolution;
   const passId = passIdForCommand(command);
   if (!pending || pending.kind !== "pass" || !passId || passId !== String(pending.id || "")) {
@@ -710,7 +792,7 @@ export function applyPassConsequence(state, command) {
     if (!defender) return { accepted: false, reason: "PASS_INTERCEPTION_CONSEQUENCE_INVALID" };
     return completeNormalInterception(state, pending, defender);
   }
-  if (outcome === "pass-continues") return advanceFailedInterception(state, pending);
+  if (outcome === "pass-continues") return advanceFailedInterception(state, pending, context);
   return { accepted: false, reason: "PASS_INTERCEPTION_OUTCOME_INVALID" };
 }
 

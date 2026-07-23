@@ -2,6 +2,13 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.51.0 — Phase 10B Pass projection integrity
+
+- Single Player Engine now persists Pass route presentation and the pending Interception-roll breakdown in canonical MatchState; UI reads them through the official Match presentation selector.
+- Removed the offline popup's legacy local Interception reconstruction and the offline board's local Pass-plan reconstruction. Manual Multiplayer retains its existing legacy route.
+- Route corner badges remain compact and now resolve `LF 0` / `RF −value` from the frozen semantic Disadvantage Rule Set definition. The Interception prompt explicitly records the transferred defender Advantage caused by the passer's non-preferred-foot execution.
+- Rule Set normalization and editor preserve modifier semantics: Advantage values cannot be negative and Disadvantage values cannot be positive.
+
 ## v20.50.0 — Rule Set dice modifier language
 
 - Added editable Rule Set definitions for Advantage, Major Advantage, Disadvantage, Major Disadvantage and one shared stack cap.

@@ -11,6 +11,7 @@ import { createGameState, mergeGameState } from "./game/gameState.mjs";
 import { GAME_COMMAND_TYPE } from "./engine/gameCommands.mjs";
 import { createMatchContext } from "./engine/matchContext.mjs";
 import { runSinglePlayerMatchCommand } from "./engine/singlePlayerMatchGateway.mjs";
+import { selectSinglePlayerPassPresentation } from "./engine/matchPresentationSelectors.mjs";
 import { firstPlayerBlockingMovementPath } from "./engine/movementPathRules.mjs";
 import { evaluateThreeTwoMove } from "./engine/threeTwoMoveRules.mjs";
 import { evaluateGroupMovePieceEligibility, evaluateGroupMovePlayer } from "./engine/groupMoveRules.mjs";
@@ -187,7 +188,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.50.0";
+const APP_VERSION = "v20.51.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -6955,6 +6956,33 @@ function App() {
   const passPreview = useMemo(() => {
     const pending = actionResolution;
     if (pending?.kind !== "pass" || !pending.passerId || !pending.target) return null;
+    const singlePlayerMatch = !sessionCode && gameMode === "match";
+    if (singlePlayerMatch) {
+      const presentation = selectSinglePlayerPassPresentation({ actionResolution: pending });
+      const routePlans = Array.isArray(pending.routePlans) ? pending.routePlans : [];
+      const selectedPlan = routePlans.find(plan => plan.origin?.cornerId === pending.cornerId) || routePlans[0] || null;
+      const visibleCells = selectedPlan?.interceptors?.flatMap(item => item.visibleCells.map(cell => ({ ...cell, id: `${item.defender.id}-${cell.id}` }))) || [];
+      const visibleIds = new Set(visibleCells.map(cell => `${cell.x}-${cell.y}`));
+      const blockedCells = selectedPlan?.interceptors?.flatMap(item => item.cells.filter(cell => !visibleIds.has(`${cell.x}-${cell.y}`)).map(cell => ({ ...cell, id: `${item.defender.id}-${cell.id}` }))) || [];
+      return {
+        plans: routePlans,
+        selectedPlan,
+        target: presentation?.target,
+        visibleCells,
+        blockedCells,
+        lines: (presentation?.routeOptions || []).filter(route => !route.originBlocked).map(route => ({
+          id: route.id,
+          origin: route.origin,
+          endpoint: route.endpoint,
+          status: route.status,
+          selected: route.cornerId === pending.cornerId || (routePlans.length === 1 && !pending.cornerId),
+        })),
+        routes: pending.status === "route-selection" ? (presentation?.routeOptions || []).filter(route => !route.originBlocked).map(route => ({
+          ...route,
+          modifier: route.modifierLabel,
+        })) : [],
+      };
+    }
     const passer = pieces.find(piece => piece.id === pending.passerId);
     if (!passer) return null;
     const frozenMatchContext = !sessionCode && gameMode === "match" ? singlePlayerMatchContext() : null;
@@ -6973,7 +7001,6 @@ function App() {
       cornerId,
       rules: previewRuleSet,
     }));
-    const singlePlayerMatch = !sessionCode && gameMode === "match";
     const selectablePlans = plans.filter(plan => !plan.originBlocked && (!singlePlayerMatch || !plan.goalkeeperRouteBlocked));
     // Single Player keeps a goalkeeper-blocked route visible in grey so the
     // player can see why it cannot be chosen. Legacy manual multiplayer keeps
@@ -12267,7 +12294,9 @@ function App() {
         const interceptor = actionResolution.plan?.interceptors?.[actionResolution.interceptorIndex];
         const defender = pieces.find(piece => piece.id === interceptor?.defender?.id);
         const defenseTeam = teamKeyForPiece(defender);
-        const preview = defender ? buildInterceptionRollDetails({ pending: actionResolution, defender, interceptor, natural: 2 }) : null;
+        const preview = !sessionCode && gameMode === "match"
+          ? selectSinglePlayerPassPresentation({ actionResolution })?.rollPrompt
+          : defender ? buildInterceptionRollDetails({ pending: actionResolution, defender, interceptor, natural: 2 }) : null;
         return <DraggableActionPrompt promptKey="interception-roll" className="warning">
           <strong>Interception roll required</strong>
           <span>{getPieceIdentity(defender)} ({defenseTeam === "blue" ? "Blue" : "Red"}) rolls D20. Roll {defenseTeam?.toUpperCase()}.</span>
@@ -12441,9 +12470,9 @@ function App() {
             </section>
             <section className="rule-action-card">
               <div><strong>Dice modifiers</strong><span>Shared semantic definitions</span></div>
-              <p>Every dice modifier uses one of these definitions. Values are frozen at Match start.</p>
+              <p>Every dice modifier uses one of these definitions. Advantage values cannot be negative; Disadvantage values cannot be positive. Values are frozen at Match start.</p>
               {[['advantage', 'Advantage', 1], ['majorAdvantage', 'Major Advantage', 3], ['disadvantage', 'Disadvantage', -1], ['majorDisadvantage', 'Major Disadvantage', -3], ['stackCap', 'Maximum total modifier', 4]].map(([key, label, fallback]) => <label key={key}>{label}
-                <input disabled={ruleSetEditingLocked} type="number" min={key === 'stackCap' ? '0' : '-20'} max="20" step="1" value={ruleSetDraft.diceModifiers?.[key] ?? fallback} onChange={e => setRuleSetDraft(draft => ({ ...draft, diceModifiers: { ...draft.diceModifiers, [key]: Math.floor(Number(e.target.value) || 0) } }))} />
+                <input disabled={ruleSetEditingLocked} type="number" min={key === 'disadvantage' || key === 'majorDisadvantage' ? '-20' : '0'} max={key === 'disadvantage' || key === 'majorDisadvantage' ? '0' : '20'} step="1" value={ruleSetDraft.diceModifiers?.[key] ?? fallback} onChange={e => setRuleSetDraft(draft => ({ ...draft, diceModifiers: { ...draft.diceModifiers, [key]: clamp(Math.floor(Number(e.target.value) || 0), key === 'disadvantage' || key === 'majorDisadvantage' ? -20 : 0, 20) } }))} />
               </label>)}
             </section>
             <section className="rule-action-card">
