@@ -2,6 +2,12 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.50.0 — Rule Set dice modifier language
+
+- Added editable Rule Set definitions for Advantage, Major Advantage, Disadvantage, Major Disadvantage and one shared stack cap.
+- Single Player Pass Interception resolves progressive order, non-preferred-foot and prior Natural 1 sources through those definitions and freezes them in MatchContext/Timeline/AI Export.
+- Rule Set v4 and older migrate their interception cap into the common stack cap. Manual Multiplayer remains unchanged.
+
 ## v20.49.0 — Editor personal-action tracker correction
 
 - In Editor Mode, both teams can manually toggle all three Inspector personal-action slots.

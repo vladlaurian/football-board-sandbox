@@ -7,8 +7,8 @@
  * interception invariants.
  */
 
-export function clampInterceptionModifier(value, cap = 4) {
-  const safeCap = Math.max(0, Number.isFinite(Number(cap)) ? Number(cap) : 4);
+export function clampInterceptionModifier(value, cap) {
+  const safeCap = Math.max(0, Number.isFinite(Number(cap)) ? Number(cap) : 0);
   return Math.max(-safeCap, Math.min(safeCap, Number(value) || 0));
 }
 
@@ -19,7 +19,7 @@ export function resolveInterception({
   progressiveBonus = 0,
   standardModifier = 0,
   previousNaturalOnePenalty = 0,
-  modifierCap = 4,
+  modifierCap,
   equalRollOutcome = "pass-succeeds",
 } = {}) {
   const die = Number(natural);
@@ -27,7 +27,7 @@ export function resolveInterception({
     + Number(progressiveBonus)
     + Number(standardModifier)
     + Number(previousNaturalOnePenalty);
-  const cap = Math.max(0, Number.isFinite(Number(modifierCap)) ? Number(modifierCap) : 4);
+  const cap = Math.max(0, Number.isFinite(Number(modifierCap)) ? Number(modifierCap) : 0);
 
   if (die === 1) {
     return {
@@ -78,7 +78,7 @@ export function resolveInterceptionRoll({
   nonDominantPenalty = 0,
   previousNaturalOnePenalty = 0,
   passerPass = 0,
-  modifierCap = 4,
+  modifierCap,
   equalRollOutcome = "pass-succeeds",
 } = {}) {
   return resolveInterception({

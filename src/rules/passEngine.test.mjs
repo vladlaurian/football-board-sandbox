@@ -118,10 +118,10 @@ test("centre-to-centre passing is not affected by corner-origin blockers", () =>
 });
 
 test("roll results enforce natural results and the strict greater-than interception rule", () => {
-  assert.equal(resolveInterceptionRoll({ natural: 1, passerPass: 0 }).outcome, "pass-continues");
-  assert.equal(resolveInterceptionRoll({ natural: 20, passerPass: 99 }).outcome, "natural-20-interception");
-  assert.equal(resolveInterceptionRoll({ natural: 10, interception: 1, orderModifier: 0, passerPass: 11 }).outcome, "pass-continues");
-  assert.equal(resolveInterceptionRoll({ natural: 10, interception: 1, orderModifier: 1, passerPass: 11 }).outcome, "interception");
+  assert.equal(resolveInterceptionRoll({ natural: 1, passerPass: 0, modifierCap: 4 }).outcome, "pass-continues");
+  assert.equal(resolveInterceptionRoll({ natural: 20, passerPass: 99, modifierCap: 4 }).outcome, "natural-20-interception");
+  assert.equal(resolveInterceptionRoll({ natural: 10, interception: 1, orderModifier: 0, passerPass: 11, modifierCap: 4 }).outcome, "pass-continues");
+  assert.equal(resolveInterceptionRoll({ natural: 10, interception: 1, orderModifier: 1, passerPass: 11, modifierCap: 4 }).outcome, "interception");
 });
 
 test("normal Pass gameplay reads the established Passing card attribute", () => {
@@ -187,17 +187,17 @@ test("pass plan freezes Interception rules for canonical multiplayer resolution"
           defenderRollStatId: "stat:tackling",
           useStandardModifiers: false,
           useProgressiveBonus: false,
-          modifierCap: 2,
           equalRollOutcome: "interception",
         },
       },
+      diceModifiers: { advantage: 1, majorAdvantage: 3, disadvantage: -1, majorDisadvantage: -3, stackCap: 2 },
     },
   });
   assert.deepEqual(plan.interceptionRules, {
     defenderRollStatId: "stat:tackling",
     useStandardModifiers: false,
     useProgressiveBonus: false,
-    modifierCap: 2,
+    diceModifiers: { advantage: 1, majorAdvantage: 3, disadvantage: -1, majorDisadvantage: -3, stackCap: 2 },
     equalRollOutcome: "interception",
   });
 });

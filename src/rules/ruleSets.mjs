@@ -1,4 +1,4 @@
-export const RULE_SET_SCHEMA_VERSION = 4;
+export const RULE_SET_SCHEMA_VERSION = 5;
 export const DEFAULT_RULE_SET_ID = "default-rules";
 
 function cleanText(value, fallback = "") {
@@ -16,6 +16,13 @@ export function createDefaultRuleSet() {
     schemaVersion: RULE_SET_SCHEMA_VERSION,
     name: "Default Rules",
     notes: "",
+    diceModifiers: {
+      advantage: 1,
+      majorAdvantage: 3,
+      disadvantage: -1,
+      majorDisadvantage: -3,
+      stackCap: 4,
+    },
     actions: {
       pass: {
         status: "configured",
@@ -30,7 +37,6 @@ export function createDefaultRuleSet() {
         defenderRollStatId: "stat:interception",
         useStandardModifiers: true,
         useProgressiveBonus: true,
-        modifierCap: 4,
         equalRollOutcome: "pass-succeeds",
       },
       groupMove: {
@@ -42,6 +48,24 @@ export function createDefaultRuleSet() {
       },
     },
   };
+}
+
+export function normalizeDiceModifiers(raw, fallback = createDefaultRuleSet().diceModifiers) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const value = (key, fallbackValue) => Math.max(-20, Math.min(20, Math.floor(Number(source[key] ?? fallbackValue))));
+  return {
+    advantage: value("advantage", fallback.advantage),
+    majorAdvantage: value("majorAdvantage", fallback.majorAdvantage),
+    disadvantage: value("disadvantage", fallback.disadvantage),
+    majorDisadvantage: value("majorDisadvantage", fallback.majorDisadvantage),
+    stackCap: Math.max(0, Math.min(20, Math.floor(Number(source.stackCap ?? fallback.stackCap)))),
+  };
+}
+
+export function resolveDiceModifierStacks(diceModifiers, type, stacks = 1) {
+  const modifiers = normalizeDiceModifiers(diceModifiers);
+  const key = ["advantage", "majorAdvantage", "disadvantage", "majorDisadvantage"].includes(type) ? type : "advantage";
+  return modifiers[key] * Math.max(0, Math.floor(Number(stacks) || 0));
 }
 
 export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
@@ -58,12 +82,17 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
     ? Number(interception.modifierCap)
     : legacyModifierCap;
   const migratedEqualOutcome = interception.equalRollOutcome || pass.equalRollOutcome;
+  const diceModifiers = normalizeDiceModifiers({
+    ...source.diceModifiers,
+    stackCap: source.diceModifiers?.stackCap ?? migratedModifierCap,
+  }, fallbackSet.diceModifiers || createDefaultRuleSet().diceModifiers);
 
   return {
     id: cleanId(source.id, fallbackSet.id || DEFAULT_RULE_SET_ID),
     schemaVersion: RULE_SET_SCHEMA_VERSION,
     name: cleanText(source.name, fallbackSet.name || "Untitled Rules"),
     notes: String(source.notes ?? "").slice(0, 4000),
+    diceModifiers,
     actions: {
       pass: {
         status: isLegacyRuleSet || pass.status === "configured" ? "configured" : "not-configured",
@@ -78,9 +107,6 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
         defenderRollStatId: cleanText(interception.defenderRollStatId, fallbackInterception.defenderRollStatId || "stat:interception"),
         useStandardModifiers: interception.useStandardModifiers !== false,
         useProgressiveBonus: interception.useProgressiveBonus !== false,
-        modifierCap: Math.max(0, Math.min(20, Math.floor(
-          Number.isFinite(migratedModifierCap) ? migratedModifierCap : 4,
-        ))),
         equalRollOutcome: migratedEqualOutcome === "interception" ? "interception" : "pass-succeeds",
       },
       groupMove: {

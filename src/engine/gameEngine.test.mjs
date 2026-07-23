@@ -1333,7 +1333,7 @@ test("PASS_CONSEQUENCE_DUE carries Natural 1's minus one to the next interceptor
   assert.equal(result.events[0].type, "PASS_INTERCEPTION_MISSED");
   assert.equal(result.nextState.actionResolution.status, "awaiting-interception-roll");
   assert.equal(result.nextState.actionResolution.pendingRoll.subjectId, "red-2");
-  assert.equal(result.nextState.actionResolution.naturalOnePenalty, -1);
+  assert.equal(result.nextState.actionResolution.naturalOneDisadvantageStacks, 1);
 });
 
 test("PASS_CONSEQUENCE_DUE completes the atomic Bonus Pass and creates Natural 20's deferred Bonus Action", () => {

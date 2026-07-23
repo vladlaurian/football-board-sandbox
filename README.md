@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.49.0` |
-| Git/package version | `20.49.0` |
-| Build name | `Final_Board_v20_49_0_editor_personal_tracker` |
-| Base build | `v20.48.0 Personal Action Limits` |
+| Sandbox version | `v20.50.0` |
+| Git/package version | `20.50.0` |
+| Build name | `Final_Board_v20_50_0_dice_modifier_language` |
+| Base build | `v20.49.0 Editor personal tracker` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.49.0`. The repository version is in `package.json` as `20.49.0`. The browser title is `Sandbox v20.49.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.50.0`. The repository version is in `package.json` as `20.50.0`. The browser title is `Sandbox v20.50.0`.
 
 ## Current release
 
-v20.49.0 corrects the Editor-only personal-action marker: both teams can manually toggle all three slots. Editor does not infer attacking or defending roles. Offline Match Mode retains its canonical Engine-enforced limit of three for the attacking team and two for the defending team, and Manual Multiplayer remains unchanged.
+v20.50.0 adds the editable, frozen Rule Set language for Advantage, Major Advantage, Disadvantage, Major Disadvantage and a shared stack cap. Current Pass Interception sources resolve through it; Manual Multiplayer remains unchanged.
 
 The audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

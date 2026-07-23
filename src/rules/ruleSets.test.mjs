@@ -35,7 +35,7 @@ test("Rule Set normalization preserves an explicit zero modifier cap", () => {
     name: "Zero Cap",
     actions: { pass: { status: "configured", modifierCap: 0 } },
   });
-  assert.equal(normalized.actions.interception.modifierCap, 0);
+  assert.equal(normalized.diceModifiers.stackCap, 0);
 });
 
 
@@ -46,8 +46,8 @@ test("legacy Pass interception settings migrate into the separate Interception a
     name: "Legacy",
     actions: { pass: { modifierCap: 3, equalRollOutcome: "interception" } },
   });
-  assert.equal(normalized.schemaVersion, 4);
-  assert.equal(normalized.actions.interception.modifierCap, 3);
+  assert.equal(normalized.schemaVersion, 5);
+  assert.equal(normalized.diceModifiers.stackCap, 3);
   assert.equal(normalized.actions.interception.equalRollOutcome, "interception");
   assert.equal(normalized.actions.interception.defenderRollStatId, "stat:interception");
 });
@@ -61,7 +61,7 @@ test("Interception configuration normalizes independent modifier toggles", () =>
   });
   assert.equal(normalized.actions.interception.useStandardModifiers, false);
   assert.equal(normalized.actions.interception.useProgressiveBonus, false);
-  assert.equal(normalized.actions.interception.modifierCap, 7);
+  assert.equal(normalized.diceModifiers.stackCap, 7);
 });
 
 test("Group Move rules are present by default and legacy Rule Sets receive stable defaults", () => {

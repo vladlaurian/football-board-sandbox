@@ -14,13 +14,13 @@ test("generic Interception uses defender and attacker values without Pass-specif
 });
 
 test("equal total outcome is configurable", () => {
-  const passContinues = resolveInterception({ natural: 10, defenderStatValue: 1, attackerTargetValue: 11 });
-  const interception = resolveInterception({ natural: 10, defenderStatValue: 1, attackerTargetValue: 11, equalRollOutcome: "interception" });
+  const passContinues = resolveInterception({ natural: 10, defenderStatValue: 1, attackerTargetValue: 11, modifierCap: 4 });
+  const interception = resolveInterception({ natural: 10, defenderStatValue: 1, attackerTargetValue: 11, modifierCap: 4, equalRollOutcome: "interception" });
   assert.equal(passContinues.outcome, "pass-continues");
   assert.equal(interception.outcome, "interception");
 });
 
 test("Natural 1 and Natural 20 remain invariant", () => {
-  assert.equal(resolveInterception({ natural: 1, defenderStatValue: 99, attackerTargetValue: 0 }).outcome, "pass-continues");
-  assert.equal(resolveInterception({ natural: 20, defenderStatValue: 0, attackerTargetValue: 99 }).outcome, "natural-20-interception");
+  assert.equal(resolveInterception({ natural: 1, defenderStatValue: 99, attackerTargetValue: 0, modifierCap: 4 }).outcome, "pass-continues");
+  assert.equal(resolveInterception({ natural: 20, defenderStatValue: 0, attackerTargetValue: 99, modifierCap: 4 }).outcome, "natural-20-interception");
 });

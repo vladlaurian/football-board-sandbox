@@ -124,6 +124,7 @@ function compactRuleSet(ruleSet) {
     name: normalized.name,
     notes: normalized.notes || null,
     schemaVersion: normalized.schemaVersion,
+    diceModifiers: normalized.diceModifiers,
     actions: {
       pass: {
         status: normalized.actions.pass.status,
@@ -138,7 +139,6 @@ function compactRuleSet(ruleSet) {
         defenderRollStatId: normalized.actions.interception.defenderRollStatId,
         useStandardModifiers: normalized.actions.interception.useStandardModifiers,
         useProgressiveBonus: normalized.actions.interception.useProgressiveBonus,
-        modifierCap: normalized.actions.interception.modifierCap,
         equalRollOutcome: normalized.actions.interception.equalRollOutcome,
       },
     },

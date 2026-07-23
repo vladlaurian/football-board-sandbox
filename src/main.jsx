@@ -187,7 +187,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.49.0";
+const APP_VERSION = "v20.50.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -12440,6 +12440,13 @@ function App() {
               <span className="rule-manual-pill">Dice: manual roll only</span>
             </section>
             <section className="rule-action-card">
+              <div><strong>Dice modifiers</strong><span>Shared semantic definitions</span></div>
+              <p>Every dice modifier uses one of these definitions. Values are frozen at Match start.</p>
+              {[['advantage', 'Advantage', 1], ['majorAdvantage', 'Major Advantage', 3], ['disadvantage', 'Disadvantage', -1], ['majorDisadvantage', 'Major Disadvantage', -3], ['stackCap', 'Maximum total modifier', 4]].map(([key, label, fallback]) => <label key={key}>{label}
+                <input disabled={ruleSetEditingLocked} type="number" min={key === 'stackCap' ? '0' : '-20'} max="20" step="1" value={ruleSetDraft.diceModifiers?.[key] ?? fallback} onChange={e => setRuleSetDraft(draft => ({ ...draft, diceModifiers: { ...draft.diceModifiers, [key]: Math.floor(Number(e.target.value) || 0) } }))} />
+              </label>)}
+            </section>
+            <section className="rule-action-card">
               <div><strong>Interception</strong><span>Shared resolution engine — manual dice only</span></div>
               <p>Configure how every eligible interception roll is resolved. Pass geometry only decides who is eligible; this section owns the defensive statistic and modifier rules.</p>
               <label>Defender roll statistic
@@ -12454,12 +12461,6 @@ function App() {
               <label className="rule-checkbox-label">
                 <input disabled={ruleSetEditingLocked} type="checkbox" checked={ruleSetDraft.actions?.interception?.useProgressiveBonus !== false} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, interception: { ...draft.actions?.interception, useProgressiveBonus: e.target.checked } } }))} />
                 Use progressive interceptor bonus
-              </label>
-              <label>Maximum total modifier
-                <span className="rule-signed-number">
-                  <span aria-hidden="true">±</span>
-                  <input aria-label="Maximum total modifier" disabled={ruleSetEditingLocked} type="number" min="0" max="20" step="1" value={ruleSetDraft.actions?.interception?.modifierCap ?? 4} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, interception: { ...draft.actions?.interception, modifierCap: clamp(Math.floor(Number(e.target.value) || 0), 0, 20) } } }))} />
-                </span>
               </label>
               <label>Equal total outcome
                 <select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.interception?.equalRollOutcome || "pass-succeeds"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, interception: { ...draft.actions?.interception, equalRollOutcome: e.target.value } } }))}>

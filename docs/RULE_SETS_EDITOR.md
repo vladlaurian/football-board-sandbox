@@ -10,7 +10,7 @@ Player stat definitions and values are not owned by Rule Sets. Stats are selecte
 
 ## v20 action configuration
 
-Rule Set schema version 4 configures:
+Rule Set schema version 5 configures common Dice Modifiers plus:
 
 ```text
 Pass → geometry and pass classification
@@ -19,6 +19,10 @@ Group Move → zone and coordinated movement limits
 ```
 
 This separation is documented in [`INTERCEPTION_ENGINE.md`](INTERCEPTION_ENGINE.md).
+
+## Dice Modifiers
+
+The shared Rule Set `diceModifiers` section defines Advantage, Major Advantage, Disadvantage, Major Disadvantage and the symmetric stack cap. Any dice modifier source is semantic and resolves its number from this frozen section. Current Interception sources are progressive order (one Advantage stack per prior interceptor), non-preferred foot (one Advantage stack) and each prior Natural 1 (one Disadvantage stack). The final sum, including the defender stat, is clamped by the shared cap.
 
 ## Group Move settings
 

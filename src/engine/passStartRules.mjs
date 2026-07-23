@@ -4,6 +4,7 @@ import { consumeActionEvent, createPendingDecision, createPendingRoll, createRol
 import { PASS_CORNERS, applyInterceptorChoice, buildPassPlan, cardStat, interceptorChoiceCandidates, passRequiresInterceptionSequence, teamKeyForPiece } from "../rules/passEngine.mjs";
 import { createDelayedResolution } from "../match/delayedResolution.mjs";
 import { resolveInterception } from "../rules/interceptionEngine.mjs";
+import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { activateTrackerAction, createEmptyTrackerTurnState, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 
@@ -33,7 +34,7 @@ function createPassTargetingResolution({ passId, piece, team, continuationId = n
     team,
     target: null,
     cornerId: null,
-    naturalOnePenalty: 0,
+    naturalOneDisadvantageStacks: 0,
     interceptorIndex: 0,
     pendingDecision: null,
     pendingRoll: null,
@@ -293,10 +294,7 @@ export function selectPassInterceptor(state, context, command) {
   const selected = candidates.find(item => String(item?.defender?.id || "") === selectedPieceId);
   const defenseTeam = teamKeyForPiece(selected?.defender);
   if (!selected || !defenseTeam || pending.pendingDecision.team !== defenseTeam) return { accepted: false, reason: "PASS_INTERCEPTOR_INVALID" };
-  const modifierCap = context?.ruleSet?.actions?.interception?.useProgressiveBonus === false
-    ? 0
-    : (context?.ruleSet?.actions?.interception?.modifierCap ?? 4);
-  const applied = applyInterceptorChoice(pending.plan?.interceptors, interceptorIndex, selectedPieceId, modifierCap);
+  const applied = applyInterceptorChoice(pending.plan?.interceptors, interceptorIndex, selectedPieceId, pending.plan?.interceptionRules?.diceModifiers);
   if (!applied) return { accepted: false, reason: "PASS_INTERCEPTOR_INVALID" };
 
   const nextPlan = {
@@ -440,8 +438,8 @@ function buildInterceptionResolution({ pending, defender, context }) {
   const defenderRollStatId = rules.defenderRollStatId || "stat:interception";
   const interception = cardStat(context?.gameplayCardsById?.[String(defender.cardId || "")], defenderRollStatId);
   const orderModifier = rules.useProgressiveBonus === false ? 0 : (Number(interceptor?.orderModifier) || 0);
-  const nonDominantPenalty = rules.useStandardModifiers === false || plan.foot?.dominant ? 0 : 1;
-  const previousNaturalOnePenalty = rules.useStandardModifiers === false ? 0 : (Number(pending.naturalOnePenalty) || 0);
+  const nonDominantPenalty = rules.useStandardModifiers === false || plan.foot?.dominant ? 0 : resolveDiceModifierStacks(rules.diceModifiers, "advantage");
+  const previousNaturalOnePenalty = rules.useStandardModifiers === false ? 0 : resolveDiceModifierStacks(rules.diceModifiers, "disadvantage", pending.naturalOneDisadvantageStacks);
   const attackerTargetValue = Number(plan.attackerTargetValue ?? plan.passerPass) || 0;
   const roll = resolveInterception({
     natural: Number(pending.lastRollEvent?.natural),
@@ -450,14 +448,14 @@ function buildInterceptionResolution({ pending, defender, context }) {
     progressiveBonus: orderModifier,
     standardModifier: nonDominantPenalty,
     previousNaturalOnePenalty,
-    modifierCap: rules.modifierCap ?? 4,
+    modifierCap: rules.diceModifiers.stackCap,
     equalRollOutcome: rules.equalRollOutcome || "pass-succeeds",
   });
   const modifierSources = [
     { label: "Interception", value: interception, source: "card" },
-    { label: "Advantage", value: orderModifier, source: "interceptor-order", detail: interceptionOrderLabel(orderModifier) },
-    ...(nonDominantPenalty ? [{ label: "Advantage", value: nonDominantPenalty, source: "non-preferred-foot", detail: "non-preferred foot" }] : []),
-    ...(previousNaturalOnePenalty ? [{ label: "Disadvantage", value: previousNaturalOnePenalty, source: "previous-natural-1", detail: "previous Natural 1" }] : []),
+    { label: "Advantage", type: "advantage", stacks: Math.max(0, Number(interceptor?.orderModifier) / Math.max(1, Math.abs(resolveDiceModifierStacks(rules.diceModifiers, "advantage")))), value: orderModifier, source: "interceptor-order", detail: interceptionOrderLabel(orderModifier) },
+    ...(nonDominantPenalty ? [{ label: "Advantage", type: "advantage", stacks: 1, value: nonDominantPenalty, source: "non-preferred-foot", detail: "non-preferred foot" }] : []),
+    ...(previousNaturalOnePenalty ? [{ label: "Disadvantage", type: "disadvantage", stacks: pending.naturalOneDisadvantageStacks, value: previousNaturalOnePenalty, source: "previous-natural-1", detail: "previous Natural 1" }] : []),
   ];
   const appliedModifierSources = !roll.capped
     ? modifierSources
@@ -657,7 +655,7 @@ function advanceFailedInterception(state, pending) {
   const next = pendingPassInput({
     ...pending,
     interceptorIndex: nextIndex,
-    naturalOnePenalty: (Number(pending.naturalOnePenalty) || 0) + (Number(pending.lastResolution?.natural) === 1 ? -1 : 0),
+    naturalOneDisadvantageStacks: (Number(pending.naturalOneDisadvantageStacks) || 0) + (Number(pending.lastResolution?.natural) === 1 ? 1 : 0),
     lastRoll: null,
     lastResolution: null,
     lastRollEvent: null,
@@ -676,7 +674,7 @@ function advanceFailedInterception(state, pending) {
         defenderId: pending.plan?.interceptors?.[pending.interceptorIndex]?.defender?.id || null,
         nextInterceptorIndex: nextIndex,
         nextStatus: next.status,
-        naturalOnePenalty: next.naturalOnePenalty,
+        naturalOneDisadvantageStacks: next.naturalOneDisadvantageStacks,
       }),
     },
   };

@@ -1,3 +1,4 @@
+import { normalizeDiceModifiers, resolveDiceModifierStacks } from "./ruleSets.mjs";
 /**
  * Pure geometry and resolution helpers for the configurable Pass action.
  * Coordinates use board units: a square at x/y occupies [x,x+1] × [y,y+1].
@@ -213,7 +214,8 @@ export function interceptorChoiceCandidates(interceptors, index = 0) {
   return list.slice(safeIndex).filter(item => item.priorityDistanceSquared === current.priorityDistanceSquared);
 }
 
-export function applyInterceptorChoice(interceptors, index, selectedPieceId, modifierCap = 4) {
+export function applyInterceptorChoice(interceptors, index, selectedPieceId, diceModifiers) {
+  const modifiers = normalizeDiceModifiers(diceModifiers);
   const list = Array.isArray(interceptors) ? interceptors : [];
   const safeIndex = Math.max(0, Math.floor(Number(index) || 0));
   const candidates = interceptorChoiceCandidates(list, safeIndex);
@@ -227,7 +229,7 @@ export function applyInterceptorChoice(interceptors, index, selectedPieceId, mod
     ...list.slice(safeIndex).filter(item => !candidateIds.has(String(item?.defender?.id))),
   ].map((item, orderIndex) => ({
     ...item,
-    orderModifier: Math.min(Math.max(0, Number.isFinite(Number(modifierCap)) ? Number(modifierCap) : 4), orderIndex),
+    orderModifier: Math.min(modifiers.stackCap, resolveDiceModifierStacks(modifiers, "advantage", orderIndex)),
   }));
   return {
     interceptors: reordered,
@@ -244,6 +246,7 @@ export function applyInterceptorChoice(interceptors, index, selectedPieceId, mod
 export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, target, cornerId, rules }) {
   const passRules = rules?.actions?.pass || rules || {};
   const interceptionRules = rules?.actions?.interception || {};
+  const diceModifiers = normalizeDiceModifiers(rules?.diceModifiers);
   const pathMode = passRules.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center";
   const origin = pointForPassOrigin(passer, pathMode, cornerId);
   const originBlocker = opponentBlockingPassOrigin(origin, passer, pieces);
@@ -283,7 +286,7 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     })
     .filter(item => item.visibleCells.length)
     .sort((left, right) => left.priorityDistanceSquared - right.priorityDistanceSquared || String(left.defender.id).localeCompare(String(right.defender.id)))
-    .map((item, index) => ({ ...item, orderModifier: interceptionRules.useProgressiveBonus === false ? 0 : Math.min(Math.max(0, Number.isFinite(Number(interceptionRules.modifierCap)) ? Number(interceptionRules.modifierCap) : (Number.isFinite(Number(passRules.modifierCap)) ? Number(passRules.modifierCap) : 4)), index) }));
+    .map((item, index) => ({ ...item, orderModifier: interceptionRules.useProgressiveBonus === false ? 0 : Math.min(diceModifiers.stackCap, resolveDiceModifierStacks(diceModifiers, "advantage", index)) }));
   return {
     kind: "pass-plan",
     pathMode,
@@ -305,7 +308,7 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
       defenderRollStatId: interceptionRules.defenderRollStatId || "stat:interception",
       useStandardModifiers: interceptionRules.useStandardModifiers !== false,
       useProgressiveBonus: interceptionRules.useProgressiveBonus !== false,
-      modifierCap: Number.isFinite(Number(interceptionRules.modifierCap)) ? Number(interceptionRules.modifierCap) : 4,
+      diceModifiers,
       equalRollOutcome: interceptionRules.equalRollOutcome === "interception" ? "interception" : "pass-succeeds",
     },
     directHit: hit ? { pieceId: hit.piece.id, team: teamKeyForPiece(hit.piece), entryT: hit.entryT } : null,
