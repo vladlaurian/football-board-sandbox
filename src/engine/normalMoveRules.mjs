@@ -82,7 +82,10 @@ export function cancelNormalMove(state, command) {
   };
 }
 
-export function commitNormalMove(state, context, command) {
+// This is deliberately exported for the Single Player presentation boundary.
+// A preview must use the exact validation that the commit will use; the UI
+// must never recreate movement legality from its own copies of these rules.
+export function evaluateNormalMove(state, context, command, { preview = false } = {}) {
   if (state.gameMode !== "match") return { accepted: false, reason: "MATCH_MODE_REQUIRED" };
   const piece = pieceForCommand(state, command);
   const team = teamKeyForPiece(piece);
@@ -96,7 +99,10 @@ export function commitNormalMove(state, context, command) {
   const activeForPiece = active.active && active.kind === "normal-move"
     && String(active.pieceId || "") === String(piece.id) && active.team === team;
   if (!isTeamActiveForTrackerPhase(tracker, team)) return { accepted: false, reason: "wait-active-team" };
-  if (!pieceState.moveAuthorized || (!activeForPiece && active.active)) return { accepted: false, reason: "NORMAL_MOVE_NOT_ACTIVE" };
+  // Preview is an evaluator-only capability. It is never read from command
+  // payload, so a submitted NORMAL_MOVE_COMMITTED command cannot bypass MOVE
+  // authorization by carrying UI metadata.
+  if ((!pieceState.moveAuthorized && !(preview && !active.active)) || (!activeForPiece && active.active)) return { accepted: false, reason: "NORMAL_MOVE_NOT_ACTIVE" };
   const geometry = getMovementGeometry(piece, { x, y });
   if (state.pieces.some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === x && Number(item.y) === y)) return { accepted: false, reason: "occupied" };
   if (geometry.kind === "same") return { accepted: false, reason: "same" };
@@ -112,7 +118,15 @@ export function commitNormalMove(state, context, command) {
   const moveCost = geometry.kind === "diagonal"
     ? diagonalCostForDistance(current.distance + geometry.distance) - diagonalCostForDistance(current.distance)
     : geometry.cost;
-  if (moveCost > Math.max(0, speed - current.spent)) return { accepted: false, reason: "speed" };
+  const remaining = Math.max(0, speed - current.spent);
+  if (moveCost > remaining) return { accepted: false, reason: "speed", geometry, moveCost, speed, current, remaining };
+  return { accepted: true, piece, team, x, y, tracker, pieceState, active, activeForPiece, geometry, current, speed, moveCost, remaining };
+}
+
+export function commitNormalMove(state, context, command) {
+  const evaluation = evaluateNormalMove(state, context, command);
+  if (!evaluation.accepted) return evaluation;
+  const { piece, team, x, y, tracker, pieceState, active, activeForPiece, geometry, current, moveCost } = evaluation;
   const carriesBall = state.pieces.some(item => item.team === "BALL" && Number(item.x) === Number(piece.x) && Number(item.y) === Number(piece.y));
   const pieces = state.pieces.map(item => {
     if (item.id === piece.id) return { ...item, x, y };

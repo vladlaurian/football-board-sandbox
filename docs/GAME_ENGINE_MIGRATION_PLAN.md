@@ -532,19 +532,19 @@ This is a rule amendment, not a reopened migration phase. The permanent contract
 
 ## Phase 10 — Single Player authority and projection integrity
 
-### Phase 10A — audit
+### Phase 10A — Full Offline Single Player Authority & Projection Audit
 
-**Status:** Complete before v20.51.0 implementation.
+**Status:** Complete in v20.52.1.
 
-The audit found that Phase 9 had accepted Engine-owned mutation and Timeline authority, but had not established a complete UI projection contract. Offline Pass badge and Interception prompt still reused legacy local calculators. This phase inventories Engine consumers and distinguishes frozen Manual Multiplayer from offline Single Player.
+The audit found that Phase 9 had accepted Engine-owned mutation and Timeline authority, but had not established a complete UI projection contract. The missing inventory included normal Movement preview, 3/2, Group Move, Inspector action availability, dice availability and Pass/Interception surfaces. It distinguishes frozen Manual Multiplayer from offline Single Player. v20.51.0 was a preparatory Pass/Interception slice, not completion of Phase 10B.
 
-### Phase 10B — Pass projection remediation
+### Phase 10B — Authority & Projection Remediation
 
-**Status:** Complete in v20.51.0 for the approved Pass/Interception slice.
+**Status:** Complete in v20.52.1. v20.52.0 was an intermediate build and is not an accepted Phase 10B closure.
 
-`PASS_TARGET_SELECTED` now persists route presentation facts in canonical MatchState. The Engine persists the Interception prompt breakdown whenever it requests a defender roll. `matchPresentationSelectors.mjs` is the offline Match UI projection boundary for those facts. Timeline, Undo/Redo, Replay and AI retain the same stored action state and resolution sources. Manual Multiplayer remains unchanged.
+`PASS_TARGET_SELECTED` persists route presentation facts in canonical MatchState and the Engine persists the Interception prompt breakdown whenever it requests a defender roll. `matchPresentationSelectors.mjs` is the offline Match UI projection boundary for Pass, normal Move, 3/2, Free Move, Free Ball, Group Move candidate/destination status, Inspector/End Turn/Bonus availability and dice-request availability. Preview capability is an evaluator-only argument and can never be delivered in a gameplay command payload. Free Ball validates board bounds through the frozen MatchContext. Interceptor-choice values read frozen gameplay cards, not the editable live card library. The UI no longer imports direct movement evaluators and offline Pass result presentation never falls back to a local Interception recomputation. Group Move zone setup reads the frozen MatchContext Rule Set. Timeline, Undo/Redo, Replay and AI retain the same stored action state and resolution sources. Manual Multiplayer remains unchanged.
 
-The next Engine mechanic must enter through this projection contract from its first build; Group Move diagonal/orthogonal remains the next approved scope and must use the same boundary.
+The next Engine mechanic must enter through this projection contract from its first build. Group Move diagonal/orthogonal is now eligible as the next approved scope and must use the same boundary.
 
 ## Required update after every implementation build
 

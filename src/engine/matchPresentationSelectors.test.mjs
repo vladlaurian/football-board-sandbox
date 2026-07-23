@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
-import { selectSinglePlayerPassPresentation } from "./matchPresentationSelectors.mjs";
+import { createGameState } from "../game/gameState.mjs";
+import { GAME_COMMAND_TYPE } from "./gameCommands.mjs";
+import { applyGameCommand } from "./gameEngine.mjs";
+import { createMatchContext } from "./matchContext.mjs";
+import { selectSinglePlayerDicePresentation, selectSinglePlayerFreeBallPresentation, selectSinglePlayerFreeMovePresentation, selectSinglePlayerGroupMovePieceStatuses, selectSinglePlayerNormalMovePresentation, selectSinglePlayerPassPresentation, selectSinglePlayerThreeTwoPresentation } from "./matchPresentationSelectors.mjs";
 
 test("Single Player Pass selector projects persisted route and roll facts without recalculating them", () => {
   const projection = selectSinglePlayerPassPresentation({
@@ -48,4 +53,82 @@ test("Single Player Pass selector keeps a dominant-foot origin badge neutral and
     },
   });
   assert.equal(projection.routeOptions[0].modifierLabel, "0");
+});
+
+test("Single Player movement projections reuse Engine evaluators instead of UI-local movement rules", () => {
+  const state = createGameState({
+    gameMode: "match",
+    pieces: [
+      { id: "ball", team: "BALL", x: 5, y: 3 },
+      { id: "blue-1", team: "A", cardId: "blue-card", x: 3, y: 3 },
+      { id: "blue-blocker", team: "A", x: 4, y: 3 },
+    ],
+    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+  });
+  const context = createMatchContext({ boardSettings: { cols: 20, rows: 12 }, gameplayCards: [{ id: "blue-card", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 6 }] }] });
+  const normal = selectSinglePlayerNormalMovePresentation(state, context, { piece: state.pieces[1], x: 5, y: 3 });
+  assert.equal(normal.legal, false);
+  assert.equal(normal.reason, "path-blocked");
+  const threeTwo = selectSinglePlayerThreeTwoPresentation(state, context, { piece: state.pieces[1], x: 5, y: 3 });
+  assert.equal(threeTwo.legal, false);
+  assert.equal(threeTwo.reason, "path-blocked");
+});
+
+test("Single Player projection boundary keeps Group Move crossing semantics in the Engine", () => {
+  const state = createGameState({
+    gameMode: "match",
+    pieces: [
+      { id: "ball", team: "BALL", x: 12, y: 2 },
+      { id: "blue-1", team: "A", x: 3, y: 3 },
+      { id: "blue-blocker", team: "A", x: 4, y: 3 },
+    ],
+    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", usedActions: { blue: 5, red: 0 }, actionLog: { blue: [{ id: "a", type: "PASS" }, { id: "b", type: "PASS" }, { id: "c", type: "PASS" }, { id: "d", type: "PASS" }, { id: "group", type: "GROUP_MOVE" }], red: [] }, matchActionState: { groupMove: { active: true, team: "blue", zoneStartX: 0, zoneLength: 8, maxPlayers: 4, maxDistance: 6, sameDirectionOnly: true, movedPieceIds: [], direction: null } }, settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+  });
+  const statuses = selectSinglePlayerGroupMovePieceStatuses(state);
+  assert.equal(statuses["blue-1"], "eligible");
+});
+
+test("Single Player UI imports the presentation boundary, not direct gameplay evaluators", () => {
+  const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
+  assert.match(source, /from "\.\/engine\/matchPresentationSelectors\.mjs"/);
+  assert.doesNotMatch(source, /from "\.\/engine\/movementPathRules\.mjs"/);
+  assert.doesNotMatch(source, /from "\.\/engine\/threeTwoMoveRules\.mjs"/);
+  assert.doesNotMatch(source, /from "\.\/engine\/groupMoveRules\.mjs"/);
+});
+
+test("Single Player dice availability projects the canonical pending request", () => {
+  const pass = { actionResolution: { kind: "pass", status: "awaiting-interception-roll", interceptorIndex: 0, plan: { interceptors: [{ defender: { id: "red-1", team: "B" } }] } } };
+  assert.equal(selectSinglePlayerDicePresentation(pass, { team: "red" }).canRoll, true);
+  assert.equal(selectSinglePlayerDicePresentation(pass, { team: "blue" }).canRoll, false);
+  assert.equal(selectSinglePlayerDicePresentation({ actionResolution: null }, { team: "blue", extraRollArmed: true }).canRoll, true);
+  assert.equal(selectSinglePlayerDicePresentation({ actionResolution: null }, { team: "blue", extraRollArmed: false }).canRoll, false);
+});
+
+test("Normal Move preview capability cannot be smuggled through a submitted command payload", () => {
+  const state = createGameState({
+    gameMode: "match",
+    pieces: [{ id: "ball", team: "BALL", x: 8, y: 3 }, { id: "blue-1", team: "A", cardId: "blue-card", x: 3, y: 3 }],
+    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+  });
+  const context = createMatchContext({ boardSettings: { cols: 20, rows: 12 }, gameplayCards: [{ id: "blue-card", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 6 }] }] });
+  const preview = selectSinglePlayerNormalMovePresentation(state, context, { piece: state.pieces[1], x: 4, y: 3 });
+  assert.equal(preview.legal, true);
+  const committed = applyGameCommand({ state, context, command: { id: "forged", type: GAME_COMMAND_TYPE.NORMAL_MOVE_COMMITTED, payload: { pieceId: "blue-1", x: 4, y: 3, presentationOnly: true } } });
+  assert.equal(committed.accepted, false);
+  assert.equal(committed.reason, "NORMAL_MOVE_NOT_ACTIVE");
+});
+
+test("Free Move and Free Ball projections use the same Engine validation as their commits", () => {
+  const state = createGameState({
+    gameMode: "match",
+    pieces: [{ id: "ball", team: "BALL", x: 2, y: 2 }, { id: "blue-1", team: "A", x: 3, y: 3 }, { id: "red-1", team: "B", x: 4, y: 3 }],
+    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", matchActionState: { freeMode: { active: true, pieceId: "blue-1", team: "blue", timelineGroupId: "free" } }, settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+  });
+  const free = selectSinglePlayerFreeMovePresentation(state, { piece: state.pieces[1], x: 4, y: 3 });
+  assert.equal(free.legal, false);
+  assert.equal(free.reason, "occupied");
+  const context = createMatchContext({ boardSettings: { cols: 6, rows: 5 } });
+  const ball = selectSinglePlayerFreeBallPresentation(state, context, { x: 6, y: 2 });
+  assert.equal(ball.legal, false);
+  assert.equal(ball.reason, "BALL_DESTINATION_OUT_OF_BOUNDS");
 });
