@@ -45,7 +45,7 @@ The map clears when the existing Match rules create a new numbered turn, restart
 
 The Inspector's three-slot panel is a projection of the canonical map in offline Match Mode. It cannot be clicked there. A defending player retains a visible but muted third slot, making the two-action ceiling explicit.
 
-Editor Mode is an unrestricted workspace, not Match gameplay. Its same panel is a manually clickable workspace marker and never invokes Engine validation. Manual Multiplayer does not receive this control or the Single Player enforcement rule.
+Editor Mode is an unrestricted workspace, not Match gameplay. Its same panel is a manually clickable workspace marker with all three slots available for both teams; it never infers attacking or defending roles and never invokes Engine validation. Manual Multiplayer does not receive this control or the Single Player enforcement rule.
 
 Each offline/Editor puck shows one green dot below its position label for every used personal action. This is display-only and reads the same counter rendered in the Inspector.
 

@@ -2,6 +2,12 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.49.0 — Editor personal-action tracker correction
+
+- In Editor Mode, both teams can manually toggle all three Inspector personal-action slots.
+- Offline Match Mode retains the Engine-enforced attack maximum of three and defense maximum of two, including the muted third defensive slot.
+- Manual Multiplayer is unchanged.
+
 ## v20.48.0 — Personal Action Limits
 
 - Added canonical `tracker.personalActionsByPieceId` to Single Player MatchState.

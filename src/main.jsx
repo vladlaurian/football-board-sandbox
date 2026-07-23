@@ -187,7 +187,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.48.0";
+const APP_VERSION = "v20.49.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -11160,7 +11160,9 @@ function App() {
   function personalActionLimitForInspectorPiece(piece) {
     const team = pieceTeamKey(piece);
     if (!team) return 0;
-    if (gameMode === "editor") return team === trackerStartingTeam ? 3 : 2;
+    // Editor is a manual workspace marker, not a Match-role projection.
+    // It must never infer which team is attacking or defending.
+    if (gameMode === "editor") return 3;
     return personalActionLimitForTeam(currentTimelineTrackerSnapshot(), team);
   }
 
