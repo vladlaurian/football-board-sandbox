@@ -25,28 +25,16 @@ function validGridCoordinate(value) {
   return Number.isFinite(Number(value)) && Number.isInteger(Number(value));
 }
 
-export function evaluateFreeBallMoved(state, context, command) {
+function applyFreeBallMoved(state, command) {
   if (state.gameMode !== "match") return rejected("MATCH_MODE_REQUIRED");
   const x = Number(command.payload?.x);
   const y = Number(command.payload?.y);
   if (!validGridCoordinate(x) || !validGridCoordinate(y)) return rejected("BALL_DESTINATION_INVALID");
-  const cols = Number(context?.boardSettings?.cols);
-  const rows = Number(context?.boardSettings?.rows);
-  if ((Number.isFinite(cols) && cols > 0 && (x < 0 || x >= cols)) || (Number.isFinite(rows) && rows > 0 && (y < 0 || y >= rows))) {
-    return rejected("BALL_DESTINATION_OUT_OF_BOUNDS");
-  }
 
   const ballIndex = state.pieces.findIndex(piece => piece?.team === "BALL");
   if (ballIndex < 0) return rejected("BALL_NOT_FOUND");
   const ball = state.pieces[ballIndex];
   if (Number(ball.x) === x && Number(ball.y) === y) return rejected("BALL_POSITION_UNCHANGED");
-  return { accepted: true, ballIndex, ball, x, y };
-}
-
-function applyFreeBallMoved(state, context, command) {
-  const evaluation = evaluateFreeBallMoved(state, context, command);
-  if (!evaluation.accepted) return evaluation;
-  const { ballIndex, ball, x, y } = evaluation;
 
   const pieces = state.pieces.map((piece, index) => index === ballIndex ? { ...piece, x, y } : piece);
   const nextState = createGameState({ ...state, pieces });
@@ -292,7 +280,7 @@ export function applyGameCommand({ state, context, command } = {}) {
     })], groupMoveTransition.timeline);
   }
   if (normalizedCommand.type === GAME_COMMAND_TYPE.FREE_BALL_MOVED) {
-    return applyFreeBallMoved(currentState, matchContext, normalizedCommand);
+    return applyFreeBallMoved(currentState, normalizedCommand);
   }
   const normalMoveTransition = normalizedCommand.type === GAME_COMMAND_TYPE.NORMAL_MOVE_STARTED
     ? startNormalMove(currentState, matchContext, normalizedCommand)

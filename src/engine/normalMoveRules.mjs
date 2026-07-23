@@ -85,7 +85,7 @@ export function cancelNormalMove(state, command) {
 // This is deliberately exported for the Single Player presentation boundary.
 // A preview must use the exact validation that the commit will use; the UI
 // must never recreate movement legality from its own copies of these rules.
-export function evaluateNormalMove(state, context, command, { preview = false } = {}) {
+export function evaluateNormalMove(state, context, command) {
   if (state.gameMode !== "match") return { accepted: false, reason: "MATCH_MODE_REQUIRED" };
   const piece = pieceForCommand(state, command);
   const team = teamKeyForPiece(piece);
@@ -96,13 +96,11 @@ export function evaluateNormalMove(state, context, command, { preview = false } 
   const tracker = normalizeTrackerSnapshot(state.tracker);
   const active = tracker.matchActionState.activeMovement || {};
   const pieceState = tracker.matchActionState.byPieceId[piece.id] || {};
+  const presentationOnly = Boolean(command.payload?.presentationOnly);
   const activeForPiece = active.active && active.kind === "normal-move"
     && String(active.pieceId || "") === String(piece.id) && active.team === team;
   if (!isTeamActiveForTrackerPhase(tracker, team)) return { accepted: false, reason: "wait-active-team" };
-  // Preview is an evaluator-only capability. It is never read from command
-  // payload, so a submitted NORMAL_MOVE_COMMITTED command cannot bypass MOVE
-  // authorization by carrying UI metadata.
-  if ((!pieceState.moveAuthorized && !(preview && !active.active)) || (!activeForPiece && active.active)) return { accepted: false, reason: "NORMAL_MOVE_NOT_ACTIVE" };
+  if ((!pieceState.moveAuthorized && !(presentationOnly && !active.active)) || (!activeForPiece && active.active)) return { accepted: false, reason: "NORMAL_MOVE_NOT_ACTIVE" };
   const geometry = getMovementGeometry(piece, { x, y });
   if (state.pieces.some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === x && Number(item.y) === y)) return { accepted: false, reason: "occupied" };
   if (geometry.kind === "same") return { accepted: false, reason: "same" };

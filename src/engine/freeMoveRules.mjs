@@ -34,7 +34,7 @@ export function startFreeMove(state, command) {
   };
 }
 
-export function evaluateFreeMove(state, command) {
+export function commitFreeMove(state, command) {
   if (state.gameMode !== "match") return { accepted: false, reason: "MATCH_MODE_REQUIRED" };
   const piece = pieceForCommand(state, command);
   const tracker = normalizeTrackerSnapshot(state.tracker);
@@ -48,13 +48,6 @@ export function evaluateFreeMove(state, command) {
   if (state.pieces.some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === x && Number(item.y) === y)) {
     return { accepted: false, reason: "occupied" };
   }
-  return { accepted: true, piece, tracker, active, x, y };
-}
-
-export function commitFreeMove(state, command) {
-  const evaluation = evaluateFreeMove(state, command);
-  if (!evaluation.accepted) return evaluation;
-  const { piece, active, x, y } = evaluation;
   // Free Move deliberately moves only the selected player. The ball stays on
   // its square even when the player started on it or is placed onto it.
   const pieces = state.pieces.map(item => item.id === piece.id ? { ...item, x, y } : item);

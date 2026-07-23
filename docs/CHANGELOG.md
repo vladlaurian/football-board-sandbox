@@ -2,16 +2,9 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
-## v20.52.1 — Phase 10B closure
+## v20.52.0 — Phase 10B authority and projection remediation
 
-- Closes the intermediate v20.52.0 remediation. A Normal Move preview is now an evaluator-only capability; a submitted command cannot carry a preview bypass.
-- Added official Free Move and Free Ball projections. Free Ball destination bounds are now Engine-validated against frozen MatchContext board settings.
-- Inspector actions, End Turn, Free controls and Bonus-action control availability now use one offline Match projection. The Interceptor-choice popup reads the frozen gameplay-card snapshot.
-- Added regression tests for preview-command separation and Free Move/Free Ball projection equivalence. Manual Multiplayer remains unchanged.
-
-## v20.52.0 — Intermediate authority/projection remediation (not accepted Phase 10B closure)
-
-- Partial implementation after the Phase 10A audit; it is superseded by v20.52.1 and must not be treated as Phase 10B closure.
+- Completed the full offline Single Player authority/projection remediation after the Phase 10A audit; v20.51.0 remains only the preparatory Pass/Interception slice.
 - Added the Engine-backed Match presentation boundary for normal Move, 3/2, Group Move candidate/destination status, Inspector action availability and canonical dice-request availability. Offline `main.jsx` no longer imports direct movement evaluators.
 - Normal Move preview reuses Engine validation, including blocked paths, speed, axis and remaining distance. Group Move preview preserves the Engine-only exception that may cross players.
 - Offline Pass result presentation no longer recalculates an Interception result when its canonical Engine resolution is missing. Group Move zone configuration reads the frozen MatchContext Rule Set.

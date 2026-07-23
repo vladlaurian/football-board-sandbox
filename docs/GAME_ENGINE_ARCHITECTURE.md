@@ -116,11 +116,9 @@ Future multiplayer identity and assigned-team authorization belong to its adapte
 
 ### Offline Match presentation boundary
 
-`matchPresentationSelectors.mjs` is the only gameplay-read boundary used by offline Single Player Match UI. It may call pure Engine evaluators and canonical Tracker rules, but `main.jsx` may not recreate their calculations or import those evaluators directly for an offline Match. A selector returns legal/illegal state, reason, geometry, cost, limits and action availability for a requested presentation intent. Preview-only relaxation, where a rule needs it, is an evaluator argument that is not serializable through a command payload. The Engine still validates the submitted command independently.
+`matchPresentationSelectors.mjs` is the only gameplay-read boundary used by offline Single Player Match UI. It may call pure Engine evaluators and canonical Tracker rules, but `main.jsx` may not recreate their calculations or import those evaluators directly for an offline Match. A selector returns legal/illegal state, reason, geometry, cost, limits and action availability for a requested presentation intent. The Engine still validates the submitted command independently.
 
 Persisted action facts (for example Pass route badges, Interception roll prompt and recorded Interception result) are rendered from MatchState. Offline UI has no numerical fallback that rebuilds a missing Engine resolution. Missing canonical facts are an observable integrity failure, not permission for local recalculation.
-
-Free Ball and Free Move use the same boundary: the UI may arm a local tool, but its availability and destination feedback come from canonical state and Engine evaluation. Free Ball validates board bounds against the frozen MatchContext board settings. Inspector, End Turn and Bonus controls read one canonical control projection. Where a displayed card statistic belongs to an active Match decision, the selector reads `MatchContext.gameplayCardsById`, never the editable live card library.
 
 ## 5. Delayed resolution and manual dice
 
