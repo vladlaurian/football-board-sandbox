@@ -164,9 +164,10 @@ export function footForPass(origin, target, passer, preferredFoot = "Both") {
   const cross = dx * cornerY - dy * cornerX;
   const preferred = String(preferredFoot || "Both").toLowerCase();
   if (Math.abs(cross) < EPSILON || preferred === "both") return { foot: preferred === "both" ? "Both" : preferred === "left" ? "Left" : "Right", dominant: true };
-  // Screen coordinates invert y, so a positive cross lies on the player's
-  // left when facing target. This is deterministic and independent of board side.
-  const foot = cross > 0 ? "Left" : "Right";
+  // Screen coordinates invert y.  With the player facing the destination,
+  // a negative screen-space cross is on the player's left; a positive one is
+  // on the right.  The origin corner chooses the execution foot.
+  const foot = cross < 0 ? "Left" : "Right";
   return { foot, dominant: preferred === foot.toLowerCase() };
 }
 

@@ -2,6 +2,12 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.51.1 — Pass foot-orientation correction
+
+- Corrected the central Pass origin-foot geometry: Left/Right are now evaluated from the passer facing the pass destination.
+- Added explicit tests for all four origin corners with eastward and westward passes. Badge, dominant-foot detection and the transferred Interception effect use the same corrected fact.
+- Manual Multiplayer remains unchanged.
+
 ## v20.51.0 — Phase 10B Pass projection integrity
 
 - Single Player Engine now persists Pass route presentation and the pending Interception-roll breakdown in canonical MatchState; UI reads them through the official Match presentation selector.

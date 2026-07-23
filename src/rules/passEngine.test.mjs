@@ -8,11 +8,27 @@ import {
   interceptorPriorityDistanceSquared,
   isGoalkeeperPiece,
   opponentBlockingPassOrigin,
+  footForPass,
   passRequiresInterceptionSequence,
   segmentIntersectsOpenRect,
   traversedCells,
 } from "./passEngine.mjs";
 import { resolveInterceptionRoll } from "./interceptionEngine.mjs";
+
+test("Pass origin foot follows left and right from the passer facing the destination", () => {
+  const passer = { x: 5, y: 5 };
+  const east = { x: 10, y: 5.5 };
+  assert.equal(footForPass({ x: 5, y: 5, cornerId: "top-left" }, east, passer, "Left").foot, "Left");
+  assert.equal(footForPass({ x: 6, y: 5, cornerId: "top-right" }, east, passer, "Left").foot, "Left");
+  assert.equal(footForPass({ x: 5, y: 6, cornerId: "bottom-left" }, east, passer, "Left").foot, "Right");
+  assert.equal(footForPass({ x: 6, y: 6, cornerId: "bottom-right" }, east, passer, "Left").foot, "Right");
+
+  const west = { x: 1, y: 5.5 };
+  assert.equal(footForPass({ x: 5, y: 5, cornerId: "top-left" }, west, passer, "Left").foot, "Right");
+  assert.equal(footForPass({ x: 6, y: 5, cornerId: "top-right" }, west, passer, "Left").foot, "Right");
+  assert.equal(footForPass({ x: 5, y: 6, cornerId: "bottom-left" }, west, passer, "Left").foot, "Left");
+  assert.equal(footForPass({ x: 6, y: 6, cornerId: "bottom-right" }, west, passer, "Left").foot, "Left");
+});
 
 test("interceptor priority uses passer-square to defender-square distance for all four pass origins", () => {
   const passer = { id: "passer", team: "A", x: 5, y: 5, cardId: "pass-card" };
