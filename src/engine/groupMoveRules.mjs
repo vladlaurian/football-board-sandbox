@@ -1,6 +1,6 @@
 import { getMovementGeometry } from "../board/movementState.mjs";
 import { teamKeyForPiece } from "../rules/passEngine.mjs";
-import { activateTrackerAction, hasGroupMoveAuthorization } from "../tracker/actionRules.mjs";
+import { activateTrackerAction, addPersonalAction, hasGroupMoveAuthorization, personalActionStatusForPiece } from "../tracker/actionRules.mjs";
 import { normalizeMatchActionState, normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 
 function groupRules(context) {
@@ -65,7 +65,7 @@ export function confirmGroupMoveZone(state, context, command) {
   if (!team) return { accepted: false, reason: "GROUP_MOVE_TEAM_INVALID" };
   if (!Number.isInteger(requestedStart) || requestedStart < 0 || requestedStart + zoneLength > cols) return { accepted: false, reason: "GROUP_MOVE_ZONE_INVALID" };
   if (tracker.matchActionState.groupMove?.active) return { accepted: false, reason: "GROUP_MOVE_ALREADY_ACTIVE" };
-  const activation = activateTrackerAction(tracker, { type: "GROUP_MOVE", pieceId: `group:${team}`, team, entryId: command.id });
+  const activation = activateTrackerAction(tracker, { type: "GROUP_MOVE", pieceId: `group:${team}`, team, entryId: command.id, enforcePersonalActions: true });
   if (!activation.allowed) return { accepted: false, reason: activation.reason || "GROUP_MOVE_NOT_ALLOWED" };
   const matchActionState = normalizeMatchActionState({
     ...activation.matchActionState,
@@ -84,7 +84,7 @@ export function confirmGroupMoveZone(state, context, command) {
   });
   return {
     accepted: true,
-    nextState: { ...state, tracker: { ...state.tracker, actionLog: activation.actionLog, usedActions: activation.usedActions, matchActionState } },
+    nextState: { ...state, tracker: { ...state.tracker, actionLog: activation.actionLog, usedActions: activation.usedActions, personalActionsByPieceId: activation.personalActionsByPieceId, matchActionState } },
     event: { type: "GROUP_MOVE_ACTIVATED", team, metadata: { movementReason: "GROUP_MOVE", zoneStartX: requestedStart, zoneLength, maxPlayers: rules.maxPlayers, maxDistance: rules.maxDistance, sameDirectionOnly: rules.sameDirectionOnly } },
     timeline: { groupId: command.id, undoMode: "step", allowNoop: true },
   };
@@ -100,6 +100,7 @@ export function evaluateGroupMovePieceEligibility(state, command) {
   if (Number(piece.x) < group.zoneStartX || Number(piece.x) >= group.zoneStartX + group.zoneLength) return { accepted: false, reason: "GROUP_MOVE_OUTSIDE_ZONE" };
   if (group.movedPieceIds.includes(piece.id)) return { accepted: false, reason: "GROUP_MOVE_PIECE_ALREADY_MOVED" };
   if (group.movedPieceIds.length >= group.maxPlayers) return { accepted: false, reason: "GROUP_MOVE_LIMIT_REACHED" };
+  if (personalActionStatusForPiece(tracker, { team: group.team, pieceId: piece.id }).exhausted) return { accepted: false, reason: "personal-actions-complete" };
   if (hasGameplayMovement(state.movementStateByPieceId[piece.id])) return { accepted: false, reason: "GROUP_MOVE_PIECE_ALREADY_MOVED" };
   const ball = state.pieces.find(item => item?.team === "BALL");
   if (ball && Number(ball.x) === Number(piece.x) && Number(ball.y) === Number(piece.y)) return { accepted: false, reason: "GROUP_MOVE_PIECE_HAS_BALL" };
@@ -128,6 +129,8 @@ export function commitGroupMovePlayer(state, context, command) {
   const evaluation = evaluateGroupMovePlayer(state, context, command);
   if (!evaluation.accepted) return evaluation;
   const { tracker, group, piece, x, y, direction } = evaluation;
+  const personalAction = addPersonalAction(tracker, { team: group.team, pieceId: piece.id });
+  if (!personalAction.allowed) return { accepted: false, reason: personalAction.reason || "personal-actions-complete" };
   const pieces = state.pieces.map(item => item.id === piece.id ? { ...item, x, y } : item);
   const matchActionState = normalizeMatchActionState({
     ...tracker.matchActionState,
@@ -135,7 +138,7 @@ export function commitGroupMovePlayer(state, context, command) {
   });
   return {
     accepted: true,
-    nextState: { ...state, pieces, tracker: { ...state.tracker, matchActionState } },
+    nextState: { ...state, pieces, tracker: { ...state.tracker, personalActionsByPieceId: personalAction.personalActionsByPieceId, matchActionState } },
     event: { type: "GROUP_MOVE_PIECE", team: group.team, metadata: metadata(piece, { from: { x: Number(piece.x), y: Number(piece.y) }, to: { x, y }, direction: group.direction || direction }) },
     timeline: { groupId: group.timelineGroupId || null, undoMode: "step", allowNoop: false },
   };

@@ -59,6 +59,7 @@ export function endBonusAction(state, command) {
           currentTurn: requestedTurn,
           usedActions: emptyTurn.usedActions,
           actionLog: emptyTurn.actionLog,
+          personalActionsByPieceId: emptyTurn.personalActionsByPieceId,
           matchActionState: emptyTurn.matchActionState,
           turnPhase: policy.phase || "attack",
         },

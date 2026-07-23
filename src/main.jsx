@@ -152,6 +152,7 @@ import {
   movementAuthorizationForPiece,
   nextTrackerPhase,
   opposingTeam,
+  personalActionLimitForTeam,
   toggleFreeModeState,
   toggleTrackerActionMarker,
   trackerActionLimitForTeam,
@@ -186,7 +187,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.46.6";
+const APP_VERSION = "v20.48.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2082,6 +2083,7 @@ function App() {
   const [trackerCurrentTurn, setTrackerCurrentTurn] = useState(0);
   const [trackerUsedActions, setTrackerUsedActions] = useState({ red: 0, blue: 0 });
   const [trackerActionLog, setTrackerActionLog] = useState({ red: [], blue: [] });
+  const [trackerPersonalActionsByPieceId, setTrackerPersonalActionsByPieceId] = useState({});
   const [matchActionState, setMatchActionState] = useState(() => normalizeMatchActionState({}));
   const [turnPhase, setTurnPhase] = useState("attack");
   const [pendingEndTurn, setPendingEndTurn] = useState(null);
@@ -4321,6 +4323,7 @@ function App() {
     trackerCurrentTurn,
     trackerUsedActions,
     trackerActionLog,
+    trackerPersonalActionsByPieceId,
     matchActionState,
     trackerSettings,
   ]);
@@ -4361,6 +4364,7 @@ function App() {
         currentTurn: trackerCurrentTurn,
         usedActions: trackerUsedActions,
         actionLog: trackerActionLog,
+        personalActionsByPieceId: trackerPersonalActionsByPieceId,
         matchActionState,
         turnPhase,
         settings: trackerSettings,
@@ -5307,6 +5311,7 @@ function App() {
     setTrackerCurrentTurn(nextTracker.currentTurn);
     setTrackerUsedActions(nextTracker.usedActions);
     setTrackerActionLog(nextTracker.actionLog);
+    setTrackerPersonalActionsByPieceId(nextTracker.personalActionsByPieceId);
     setMatchActionState(nextTracker.matchActionState);
     setTurnPhase(nextTracker.turnPhase);
     if (state.gameMode === "match" && nextTracker.gameStarted) {
@@ -9093,6 +9098,7 @@ function App() {
         currentTurn: overrides.currentTurn ?? trackerCurrentTurn,
         usedActions: overrides.usedActions ?? trackerUsedActions,
         actionLog: overrides.actionLog ?? trackerActionLog,
+        personalActionsByPieceId: overrides.personalActionsByPieceId ?? trackerPersonalActionsByPieceId,
         matchActionState: overrides.matchActionState ?? matchActionState,
         turnPhase: overrides.turnPhase ?? turnPhase,
         settings: overrides.settings ?? trackerSettings,
@@ -9131,6 +9137,7 @@ function App() {
       currentTurn: overrides.currentTurn ?? trackerCurrentTurn,
       usedActions: overrides.usedActions ?? trackerUsedActions,
       actionLog: overrides.actionLog ?? trackerActionLog,
+      personalActionsByPieceId: overrides.personalActionsByPieceId ?? trackerPersonalActionsByPieceId,
       matchActionState: overrides.matchActionState ?? matchActionState,
       turnPhase: overrides.turnPhase ?? turnPhase,
       settings: overrides.settings ?? trackerSettings,
@@ -9145,6 +9152,7 @@ function App() {
       currentTurn: trackerCurrentTurn,
       usedActions: trackerUsedActions,
       actionLog: trackerActionLog,
+      personalActionsByPieceId: trackerPersonalActionsByPieceId,
       matchActionState,
       turnPhase,
       settings: trackerSettings,
@@ -11149,6 +11157,27 @@ function App() {
     syncSharedTracker({ usedActions });
   }
 
+  function personalActionLimitForInspectorPiece(piece) {
+    const team = pieceTeamKey(piece);
+    if (!team) return 0;
+    if (gameMode === "editor") return team === trackerStartingTeam ? 3 : 2;
+    return personalActionLimitForTeam(currentTimelineTrackerSnapshot(), team);
+  }
+
+  function toggleEditorPersonalAction(piece, index) {
+    if (sessionCode || gameMode !== "editor" || !piece || piece.team === "BALL") return;
+    const limit = personalActionLimitForInspectorPiece(piece);
+    if (index >= limit) return;
+    setTrackerPersonalActionsByPieceId(current => {
+      const used = Math.max(0, Math.min(limit, Number(current?.[piece.id]) || 0));
+      const nextUsed = used === index + 1 ? index : index + 1;
+      const next = { ...(current || {}) };
+      if (nextUsed > 0) next[piece.id] = nextUsed;
+      else delete next[piece.id];
+      return next;
+    });
+  }
+
   function onRulerPanelPointerDown(e) {
     e.preventDefault();
     setRulerPanelDragging({
@@ -11688,6 +11717,7 @@ function App() {
         onGroupMoveZoneDragEnd={endGroupMoveZoneDrag}
         groupMovePieceStatusById={groupMovePieceStatusById}
         pieces={pieces}
+        personalActionsByPieceId={!sessionCode ? trackerPersonalActionsByPieceId : {}}
         getPieceDisplayLabel={getPieceDisplayLabel}
         onPiecePointerDown={onPiecePointerDown}
         openEdit={openEdit}
@@ -11704,7 +11734,7 @@ function App() {
         <div className="inspector-head inspector-drag-handle" onPointerDown={onInspectorDragDown}>
           <strong>Inspector</strong>
           <div className="inspector-head-right">
-            {inspectedPiece && <span>{inspectedPiece.team === "A" ? "Blue" : inspectedPiece.team === "B" ? "Red" : "Match Ball"}{inspectedPiece.team === "BALL" ? "" : ` · ${getPieceDisplayLabel(inspectedPiece)}`}</span>}
+            {inspectedPiece && <span>{inspectedPiece.team === "BALL" ? "Match Ball" : `Post puc: ${getPieceDisplayLabel(inspectedPiece)}`}</span>}
             <button className="inspector-window-btn" title="Minimize" onPointerDown={e => e.stopPropagation()} onClick={() => setInspectorMinimized(v => !v)}>{inspectorMinimized ? "□" : "—"}</button>
             <button className="inspector-window-btn" title="Close" onPointerDown={e => e.stopPropagation()} onClick={() => setInspectorVisible(false)}>×</button>
           </div>
@@ -11721,7 +11751,24 @@ function App() {
             ) : (
               <>
                 <div className="inspector-piece-line">
-                  <span><b>Post puc:</b> {inspectedPiece.label || "—"}</span>
+                  {!sessionCode && <div className={`personal-action-tracker ${pieceTeamKey(inspectedPiece)}`} aria-label="Personal actions">
+                    {[0, 1, 2].map(index => {
+                      const limit = personalActionLimitForInspectorPiece(inspectedPiece);
+                      const used = Math.max(0, Number(trackerPersonalActionsByPieceId?.[inspectedPiece.id]) || 0);
+                      const unavailable = index >= limit;
+                      const checked = index < used;
+                      const interactive = gameMode === "editor" && !unavailable;
+                      return <button
+                        key={index}
+                        type="button"
+                        className={`personal-action-check ${checked ? "checked" : ""} ${unavailable ? "unavailable" : ""}`}
+                        aria-label={`Personal action ${index + 1}${unavailable ? " unavailable" : checked ? " used" : " unused"}`}
+                        aria-pressed={checked}
+                        disabled={!interactive}
+                        onClick={() => toggleEditorPersonalAction(inspectedPiece, index)}
+                      />;
+                    })}
+                  </div>}
                   <div className="inspector-piece-primary-actions">
                     {inspectedCard && canControlPieceStatus(inspectedPiece) && (
                       <button
@@ -11855,6 +11902,15 @@ function App() {
                       && currentSpeed !== null
                       && Number(currentMovement.spent) < currentSpeed
                     );
+                    const personalActionLimit = personalActionLimitForInspectorPiece(inspectedPiece);
+                    const personalActionExhausted = !sessionCode
+                      && gameMode === "match"
+                      && personalActionLimit > 0
+                      && Number(trackerPersonalActionsByPieceId?.[inspectedPiece.id]) >= personalActionLimit;
+                    const personalActionBlocked = personalActionExhausted
+                      && type !== "GROUP_MOVE"
+                      && !isMoveCancel
+                      && !(type === "MOVE" && hasRemainingNormalMove);
                     const passLocksActions = Boolean(pendingPass) && !isPassCancel;
                     const bonusActionAvailable = continuation?.status === CONTINUATION_STATUS.READY;
                     const disabled = isBonusMoveCancel
@@ -11874,6 +11930,7 @@ function App() {
                           : Boolean(continuation)
                             || inactiveSinglePlayerPhase
                             || !canUseActionForPiece(inspectedPiece)
+                            || personalActionBlocked
                             || matchActionState.freeMode?.active
                             || (type === "PASS" && gameMode === "match" && !playerHasBall(inspectedPiece))
                             || groupMoveActive

@@ -68,6 +68,9 @@ function compactTracker(tracker = {}) {
       blue: Math.max(0, Number(tracker?.usedActions?.blue) || 0),
       red: Math.max(0, Number(tracker?.usedActions?.red) || 0),
     },
+    personalActionsByPieceId: Object.fromEntries(Object.entries(tracker?.personalActionsByPieceId || {})
+      .map(([pieceId, used]) => [String(pieceId), Math.max(0, Math.min(3, Number(used) || 0))])
+      .filter(([pieceId, used]) => pieceId && used > 0)),
   };
 }
 
@@ -256,12 +259,15 @@ function actionEconomy(state, team, actorId) {
   const teamLimit = activeTeam === team
     ? (tracker.turnPhase === "attack" ? tracker.settings?.attackActions : tracker.settings?.defenseActions)
     : null;
+  const actorActionsMaximum = team
+    ? (team === tracker.startingTeam ? 3 : 2)
+    : null;
   return {
     teamActionsUsed: team ? Math.max(0, Number(tracker.usedActions?.[team]) || 0) : null,
     teamActionsMaximum: team ? Math.max(0, Number(teamLimit) || 0) : null,
     actorId: actorId || null,
-    actorActionsUsed: null,
-    actorActionsMaximum: null,
+    actorActionsUsed: actorId ? Math.max(0, Number(tracker.personalActionsByPieceId?.[actorId]) || 0) : null,
+    actorActionsMaximum,
   };
 }
 

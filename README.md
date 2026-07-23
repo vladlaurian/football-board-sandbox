@@ -6,19 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.46.6` |
-| Git/package version | `20.46.6` |
-| Build name | `Final_Board_v20_46_6_match_geometry_contours` |
-| Base build | `v20.46.5 match_contour_topology_fix` |
+| Sandbox version | `v20.48.0` |
+| Git/package version | `20.48.0` |
+| Build name | `Final_Board_v20_48_0_personal_action_limits` |
+| Base build | `v20.47.0 Phase 9 audited application` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.46.6`. The repository version is in `package.json` as `20.46.6`. The browser title is `Sandbox v20.46.6`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.48.0`. The repository version is in `package.json` as `20.48.0`. The browser title is `Sandbox v20.48.0`.
 
 ## Current release
 
-v20.46.6 calculates Match defensive contours exclusively from each area's geometry. Player occupancy neither creates a hole nor suppresses a genuine exterior segment: interior players remain unboxed, while real perimeter sides beside GK, RW, LM, RWB or any other occupied cell remain visible. The natural Blue/Red overlap fills are preserved.
+v20.48.0 adds the approved Single Player personal-action rule: an attacking player may use three personal actions per numbered turn and a defending player two. The canonical counter belongs to MatchState and is enforced by the offline Engine for normal MOVE, PASS, Group Move participants and manual action declarations. It does not count 3/2, Bonus Actions, Free Move, Free Ball or Extra Roll. Editor Mode exposes the same three-slot marker as a manual workspace tool. Manual Multiplayer remains unchanged.
 
-No game rule, Match Engine command, Timeline behavior, Workspace persistence behavior, defensive geometry, Editor Mode or Manual Multiplayer behavior changed.
+The audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 
 Older releases are summarized in [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Their durable technical consequences live in the appropriate architecture and subsystem documents, not in this README.
 
@@ -72,7 +72,7 @@ src/
 docs/
   active architecture, rule and workflow contracts
   CHANGELOG.md
-  NEXT_CHAT_PROMPT_v20_46_2.md
+  NEXT_CHAT_PROMPT_v20_48_0.md
   history/      non-active handoff history
 ```
 
@@ -84,6 +84,8 @@ docs/
 | [`ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md) | Durable cross-system architectural decisions and invariants. |
 | [`GAME_ENGINE_ARCHITECTURE.md`](docs/GAME_ENGINE_ARCHITECTURE.md) | MatchState, MatchContext, commands, Engine, Controller, Timeline and persistence boundaries. |
 | [`GAME_ENGINE_MIGRATION_PLAN.md`](docs/GAME_ENGINE_MIGRATION_PLAN.md) | Open Single Player Game Engine migration checklist. |
+| [`PHASE_9_PRE_MULTIPLAYER_ENGINE_AUDIT.md`](docs/PHASE_9_PRE_MULTIPLAYER_ENGINE_AUDIT.md) | Accepted final Single Player boundary audit; does not reopen Multiplayer. |
+| [`PERSONAL_ACTION_LIMITS.md`](docs/PERSONAL_ACTION_LIMITS.md) | Permanent contract for per-player normal-action economy. |
 | [`WORKSPACE_PERSISTENCE.md`](docs/WORKSPACE_PERSISTENCE.md) | Future-Match WorkspaceSnapshot and structural Workspace-operation boundary. |
 | [`ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md) | Generic automated-action lifecycle. |
 | [`INTERCEPTION_ENGINE.md`](docs/INTERCEPTION_ENGINE.md) | Interception resolver and its boundary with Pass. |
@@ -92,7 +94,7 @@ docs/
 | [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md) | Frozen legacy automated-multiplayer model; reference only until reopening is approved. |
 | [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md) | Historical Multiplayer fixes and rejected approaches. |
 | [`CHANGELOG.md`](docs/CHANGELOG.md) | Compact release history. |
-| [`NEXT_CHAT_PROMPT_v20_46_2.md`](docs/NEXT_CHAT_PROMPT_v20_46_2.md) | The one active handoff for a new chat. |
+| [`NEXT_CHAT_PROMPT_v20_48_0.md`](docs/NEXT_CHAT_PROMPT_v20_48_0.md) | The one active handoff for a new chat. |
 
 ## Mandatory development rules
 

@@ -1,4 +1,31 @@
-# Changelog
+# Release Changelog
+
+This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
+
+## v20.48.0 — Personal Action Limits
+
+- Added canonical `tracker.personalActionsByPieceId` to Single Player MatchState.
+- The offline Engine enforces three personal actions for an attacking player and two for a defending player per numbered turn. Actions may be non-consecutive.
+- Normal MOVE, normal PASS, implemented manual declarations and each physically moved Group Move participant consume one personal action. Cancelling a pre-movement normal MOVE refunds it.
+- 3/2, Bonus Action, Free Move, Free Ball and Extra Roll do not consume personal actions. Group Move activation has no artificial player count.
+- The counter resets only when the existing rules start a new numbered turn, restart a match, reset Tracker actions or change possession.
+- Timeline, Undo/Redo, Replay and AI Analysis Export use the same canonical counter. AI export exposes the per-player usage and per-event actor maximum.
+- Inspector receives a three-slot personal tracker before INACTIVE; it is automatic in offline Match Mode and manually clickable in Editor Mode. Pucks display one green dot per used personal action.
+- Manual Multiplayer remains on its existing route. Its shared legacy calls deliberately do not opt into this Single Player Engine rule.
+
+## v20.47.0 — Phase 9 pre-multiplayer engine audit
+
+- Documentation-only audit of the application build `v20.46.7`; no runtime source files changed.
+- Accepted the completed Single Player Engine/Controller/Timeline boundary and corrected the stale Phase 8 status in the migration plan.
+- Verified `npm test` (231 passing) and `npm run build`.
+- Compared `src/multiplayer/` with the approved v20.46.6 baseline: no differences. `src/main.jsx` differs only by the v20.46.7 version label.
+- Automated Multiplayer remains frozen. The audit neither repairs nor reopens it.
+
+## v20.46.7 — Match render-test alignment
+
+- Updated only the stale `BoardCanvas` render assertion left from the old Match DOM path.
+- The test now confirms the current Match-only defensive fill/outline structure and confirms the deliberate absence of the old ball aura, owner-source tile and player-square markup.
+- No Match visual, gameplay rule, Engine, MatchState, Editor Mode or Manual Multiplayer behavior changed.
 
 ## v20.46.6 — Match defensive contour geometry correction
 
@@ -9,6 +36,7 @@
 - Genuine exterior sides remain visible beside a player (for example the goalkeeper's left/right sides, isolated RW perimeter, and team-area boundaries passing beside opposing players).
 - Blue/red overlap fill behavior from v20.46.4/v20.46.5 is preserved.
 - No Engine, MatchState, defensive geometry, Editor Mode, or Manual Multiplayer changes.
+- Post-build audit: production build succeeds; one stale BoardCanvas render assertion remains and is documented for the next approved code build.
 
 ## v20.46.5 — Match defensive contour topology correction
 
@@ -17,10 +45,6 @@
 - Adjacent cells no longer reconstruct a local square around LB, CB, GK, RW, or other area owners.
 - The real external contour of each defensive area remains closed, and Blue/Red overlap fill behavior from v20.46.4 is preserved.
 - No Engine, MatchState, defensive geometry, Editor Mode, or Manual Multiplayer behavior changed.
-
-# Release Changelog
-
-This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
 ## v20.46.4 — Match overlap blend and closed contours
 
@@ -178,4 +202,3 @@ This is the compact release history. Current architecture and rules are document
 
 - Built and corrected the Host Authority, semantic-intent and Interaction Layer approach.
 - Automated Multiplayer is now frozen while the Single Player architecture is completed. Detailed historical entries and rejected approaches remain in [`MULTIPLAYER_CHANGELOG.md`](MULTIPLAYER_CHANGELOG.md).
-

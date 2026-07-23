@@ -43,6 +43,7 @@ test("AI analysis export is compact, directional, and keeps one action ID across
       ...before.tracker,
       usedActions: { blue: 1, red: 0 },
       actionLog: { blue: [{ id: "move_1", type: "MOVE", pieceId: "A-1" }], red: [] },
+      personalActionsByPieceId: { "A-1": 1 },
       matchActionState: { byPieceId: { "A-1": { moveAuthorized: true, moveGroupId: "move_1" } } },
     },
   });
@@ -72,6 +73,8 @@ test("AI analysis export is compact, directional, and keeps one action ID across
   assert.equal(exported.semanticTimeline[0].actionId, "move_1");
   assert.equal(exported.semanticTimeline[0].actor.name, "Veer");
   assert.equal(exported.semanticTimeline[0].actionEconomyAfter.teamActionsUsed, 1);
+  assert.equal(exported.semanticTimeline[0].actionEconomyAfter.actorActionsUsed, 1);
+  assert.equal(exported.semanticTimeline[0].actionEconomyAfter.actorActionsMaximum, 3);
   assert.equal(exported.semanticTimeline[1].actionId, "move_1");
   assert.equal(exported.semanticTimeline[1].movementReason, "NORMAL_MOVE");
   assert.equal(exported.semanticTimeline[1].movements[0].origin, "I11");

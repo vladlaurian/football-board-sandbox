@@ -48,6 +48,7 @@ export function resetTrackerActions(state) {
         ...state.tracker,
         usedActions: emptyTurn.usedActions,
         actionLog: emptyTurn.actionLog,
+        personalActionsByPieceId: emptyTurn.personalActionsByPieceId,
         matchActionState: emptyTurn.matchActionState,
       },
     },
@@ -72,6 +73,7 @@ export function changeTrackerPossession(state) {
         startingTeam,
         usedActions: emptyTurn.usedActions,
         actionLog: emptyTurn.actionLog,
+        personalActionsByPieceId: emptyTurn.personalActionsByPieceId,
         matchActionState: emptyTurn.matchActionState,
         turnPhase: "attack",
       },
@@ -88,7 +90,7 @@ export function declareManualAction(state, command) {
   if (!piece || piece.team === "BALL" || piece.inactive || !actionType) return { accepted: false, reason: "MANUAL_ACTION_INVALID" };
   const team = teamKeyForPiece(piece);
   const tracker = normalizeTrackerSnapshot(state.tracker);
-  const activation = activateTrackerAction(tracker, { type: actionType, pieceId: piece.id, team, entryId: command.id });
+  const activation = activateTrackerAction(tracker, { type: actionType, pieceId: piece.id, team, entryId: command.id, enforcePersonalActions: true });
   if (!activation.allowed) return { accepted: false, reason: activation.reason || "MANUAL_ACTION_NOT_ALLOWED" };
   return {
     accepted: true,
@@ -98,6 +100,7 @@ export function declareManualAction(state, command) {
         ...state.tracker,
         actionLog: activation.actionLog,
         usedActions: activation.usedActions,
+        personalActionsByPieceId: activation.personalActionsByPieceId,
         matchActionState: activation.matchActionState,
       },
     },

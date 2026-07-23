@@ -6,6 +6,8 @@ import {
   canUseTrackerActionForPiece,
   createEmptyTrackerTurnState,
   hasGroupMoveAuthorization,
+  personalActionLimitForTeam,
+  personalActionStatusForPiece,
   movementAuthorizationForPiece,
   nextTrackerPhase,
   toggleFreeModeState,
@@ -63,10 +65,12 @@ test("action activation produces a reusable state transition", () => {
     pieceId: "A-9",
     team: "blue",
     entryId: "pass-1",
+    enforcePersonalActions: true,
   });
   assert.equal(pass.allowed, true);
   assert.equal(pass.actionLog.blue[0].type, "PASS");
   assert.equal(pass.usedActions.blue, 1);
+  assert.equal(pass.personalActionsByPieceId["A-9"], 1);
 
   const move = activateTrackerAction(tracker(), {
     type: "MOVE",
@@ -76,6 +80,37 @@ test("action activation produces a reusable state transition", () => {
   });
   assert.equal(move.matchActionState.byPieceId["A-9"].moveAuthorized, true);
   assert.equal(move.matchActionState.byPieceId["A-9"].moveGroupId, "move-1");
+});
+
+test("personal actions are canonical, non-consecutive, and limited by attack or defense role", () => {
+  let attack = tracker();
+  for (const [index, pieceId] of ["A-9", "A-7", "A-9", "A-9"].entries()) {
+    const result = activateTrackerAction(attack, { type: "PASS", pieceId, team: "blue", entryId: `attack-${index}`, enforcePersonalActions: true });
+    assert.equal(result.allowed, true);
+    attack = { ...attack, actionLog: result.actionLog, usedActions: result.usedActions, personalActionsByPieceId: result.personalActionsByPieceId, matchActionState: result.matchActionState };
+  }
+  assert.equal(personalActionLimitForTeam(attack, "blue"), 3);
+  assert.deepEqual(personalActionStatusForPiece(attack, { team: "blue", pieceId: "A-9" }), { limit: 3, used: 3, remaining: 0, exhausted: true });
+  assert.equal(activateTrackerAction(attack, { type: "PASS", pieceId: "A-9", team: "blue", entryId: "attack-blocked", enforcePersonalActions: true }).reason, "personal-actions-complete");
+
+  let defense = tracker({ startingTeam: "blue", turnPhase: "defense" });
+  for (const index of [0, 1]) {
+    const result = activateTrackerAction(defense, { type: "TACKLING", pieceId: "B-4", team: "red", entryId: `defense-${index}`, enforcePersonalActions: true });
+    assert.equal(result.allowed, true);
+    defense = { ...defense, actionLog: result.actionLog, usedActions: result.usedActions, personalActionsByPieceId: result.personalActionsByPieceId, matchActionState: result.matchActionState };
+  }
+  assert.equal(personalActionLimitForTeam(defense, "red"), 2);
+  assert.equal(activateTrackerAction(defense, { type: "PASS", pieceId: "B-4", team: "red", entryId: "defense-blocked", enforcePersonalActions: true }).reason, "personal-actions-complete");
+});
+
+test("Group Move activation has no fake personal actor count", () => {
+  const base = tracker({
+    usedActions: { blue: 4, red: 0 },
+    actionLog: { blue: [0, 1, 2, 3].map(index => ({ id: `action-${index}`, type: "PASS", pieceId: `A-${index}` })), red: [] },
+  });
+  const group = activateTrackerAction(base, { type: "GROUP_MOVE", pieceId: "group:blue", team: "blue", entryId: "group" });
+  assert.equal(group.allowed, true);
+  assert.deepEqual(group.personalActionsByPieceId, {});
 });
 
 test("group move remains available only as the final action", () => {

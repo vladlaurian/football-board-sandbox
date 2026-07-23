@@ -21,6 +21,7 @@ function playableFirstTurn(state, team, { restarted = false } = {}) {
         currentTurn: 1,
         usedActions: emptyTurn.usedActions,
         actionLog: emptyTurn.actionLog,
+        personalActionsByPieceId: emptyTurn.personalActionsByPieceId,
         matchActionState: emptyTurn.matchActionState,
         turnPhase: "attack",
       },

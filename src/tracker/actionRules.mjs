@@ -18,6 +18,40 @@ export function trackerActionLimitForTeam(rawTracker, team) {
     : tracker.settings.defenseActions;
 }
 
+export function personalActionLimitForTeam(rawTracker, team) {
+  const role = trackerRoleForTeam(rawTracker, team);
+  return role === "attack" ? 3 : role === "defense" ? 2 : 0;
+}
+
+export function personalActionStatusForPiece(rawTracker, { team, pieceId } = {}) {
+  const tracker = normalizeTrackerSnapshot(rawTracker);
+  const limit = personalActionLimitForTeam(tracker, team);
+  const used = clamp(Number(tracker.personalActionsByPieceId?.[pieceId]) || 0, 0, limit);
+  return { limit, used, remaining: Math.max(0, limit - used), exhausted: used >= limit };
+}
+
+export function addPersonalAction(rawTracker, { team, pieceId } = {}) {
+  const tracker = normalizeTrackerSnapshot(rawTracker);
+  const status = personalActionStatusForPiece(tracker, { team, pieceId });
+  if (!pieceId || status.exhausted) return { allowed: false, reason: "personal-actions-complete" };
+  return {
+    allowed: true,
+    personalActionsByPieceId: {
+      ...tracker.personalActionsByPieceId,
+      [pieceId]: status.used + 1,
+    },
+  };
+}
+
+export function removePersonalAction(rawTracker, { pieceId } = {}) {
+  const tracker = normalizeTrackerSnapshot(rawTracker);
+  const used = Math.max(0, Number(tracker.personalActionsByPieceId?.[pieceId]) || 0);
+  const personalActionsByPieceId = { ...tracker.personalActionsByPieceId };
+  if (used <= 1) delete personalActionsByPieceId[pieceId];
+  else personalActionsByPieceId[pieceId] = used - 1;
+  return personalActionsByPieceId;
+}
+
 export function trackerActionStatusForTeam(rawTracker, team, usedOverride = null) {
   const tracker = normalizeTrackerSnapshot(rawTracker);
   const limit = trackerActionLimitForTeam(tracker, team);
@@ -64,6 +98,7 @@ export function createEmptyTrackerTurnState() {
   return {
     usedActions: { red: 0, blue: 0 },
     actionLog: { red: [], blue: [] },
+    personalActionsByPieceId: {},
     matchActionState: normalizeMatchActionState({}),
     turnPhase: "attack",
     movementStateByPieceId: {},
@@ -136,7 +171,7 @@ export function toggleFreeModeState(rawActionState, { pieceId, team, timelineGro
   };
 }
 
-export function activateTrackerAction(rawTracker, { type, pieceId, team, entryId }) {
+export function activateTrackerAction(rawTracker, { type, pieceId, team, entryId, enforcePersonalActions = false }) {
   const tracker = normalizeTrackerSnapshot(rawTracker);
   const currentPieceState = tracker.matchActionState.byPieceId[pieceId] || {};
   if (hasGroupMoveAuthorization(tracker, team)) return { allowed: false, reason: "group-move-active" };
@@ -147,6 +182,10 @@ export function activateTrackerAction(rawTracker, { type, pieceId, team, entryId
   if (status.exhausted) return { allowed: false, reason: "actions-complete-end-turn" };
   if (type === "MOVE" && currentPieceState.moveUsed) return { allowed: false, reason: "move-already-used" };
   if (type === "GROUP_MOVE" && status.remaining !== 1) return { allowed: false, reason: "group-move-last-action-only" };
+  const personalAction = enforcePersonalActions && type !== "GROUP_MOVE"
+    ? addPersonalAction(tracker, { team, pieceId })
+    : { allowed: true, personalActionsByPieceId: tracker.personalActionsByPieceId };
+  if (!personalAction.allowed) return { allowed: false, reason: personalAction.reason };
 
   const entry = { id: String(entryId), type, pieceId: String(pieceId) };
   const actionLog = {
@@ -182,7 +221,7 @@ export function activateTrackerAction(rawTracker, { type, pieceId, team, entryId
       groupMove: { active: true, team, timelineGroupId: entry.id },
     });
   }
-  return { allowed: true, entry, actionLog, usedActions, matchActionState };
+  return { allowed: true, entry, actionLog, usedActions, matchActionState, personalActionsByPieceId: personalAction.personalActionsByPieceId };
 }
 
 export function toggleTrackerActionMarker(usedActions, team, index) {

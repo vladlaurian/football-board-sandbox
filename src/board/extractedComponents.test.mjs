@@ -92,11 +92,13 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   assert.match(boardMarkup, /selected-team-blue/);
   assert.match(boardMarkup, /has-possession/);
   assert.match(boardMarkup, /ball-held/);
-  assert.match(boardMarkup, /match-ball-aura/);
-  assert.match(boardMarkup, /match-def-area-cell/);
-  assert.match(boardMarkup, /def-area-owner-source/);
-  assert.match(boardMarkup, /def-area-player-square/);
-  assert.match(boardMarkup, /--def-top-alpha:0\.92/);
+  assert.match(boardMarkup, /match-def-area-fill/);
+  assert.match(boardMarkup, /match-def-area-outline/);
+  assert.match(boardMarkup, /def-area-player-fill/);
+  assert.match(boardMarkup, /--def-top:2px/);
+  assert.doesNotMatch(boardMarkup, /match-ball-aura/);
+  assert.doesNotMatch(boardMarkup, /def-area-owner-source/);
+  assert.doesNotMatch(boardMarkup, /def-area-player-square/);
 
   const historyMarkup = renderToStaticMarkup(
     React.createElement(HistoryPanel, {

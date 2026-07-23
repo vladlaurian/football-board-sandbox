@@ -37,6 +37,7 @@ export function createGameState(raw = {}) {
       currentTurn: Math.max(0, Number(tracker.currentTurn) || 0),
       usedActions: tracker.usedActions || { red: 0, blue: 0 },
       actionLog: tracker.actionLog || { red: [], blue: [] },
+      personalActionsByPieceId: tracker.personalActionsByPieceId || {},
       matchActionState: tracker.matchActionState || {},
       turnPhase: ["attack", "defense", "complete"].includes(tracker.turnPhase)
         ? tracker.turnPhase
@@ -80,6 +81,7 @@ export function mergeGameState(baseState, overrides = {}) {
       currentTurn: stateOverride(overrides, "trackerCurrentTurn", base.tracker.currentTurn),
       usedActions: stateOverride(overrides, "trackerUsedActions", base.tracker.usedActions),
       actionLog: stateOverride(overrides, "trackerActionLog", base.tracker.actionLog),
+      personalActionsByPieceId: stateOverride(overrides, "trackerPersonalActionsByPieceId", base.tracker.personalActionsByPieceId),
       matchActionState: stateOverride(overrides, "matchActionState", base.tracker.matchActionState),
       turnPhase: stateOverride(overrides, "turnPhase", base.tracker.turnPhase),
       settings: stateOverride(overrides, "trackerSettings", base.tracker.settings),

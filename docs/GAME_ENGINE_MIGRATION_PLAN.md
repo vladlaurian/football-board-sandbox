@@ -434,7 +434,7 @@ Acceptance:
 
 ## Phase 8 — Single Player Controller completion
 
-**Status:** In progress. Phase 8A is complete in v20.32.0, Phase 8B is complete in v20.33.0, Phase 8C.1 is complete in v20.34.0, Phase 8C.2a is complete in v20.35.0 and Phase 8C.2b is complete in v20.36.0.
+**Status:** Complete. Phase 8A is complete in v20.32.0, Phase 8B is complete in v20.33.0, Phase 8C.1 is complete in v20.34.0, Phase 8C.2a is complete in v20.35.0, Phase 8C.2b is complete in v20.36.0, and Phase 8C.2c is complete in v20.38.0. Phase 9 independently verified the completed boundary in the v20.47.0 documentation-only audit.
 
 Centralize Single Player dispatch and remove remaining direct Match Mode mutation paths from `main.jsx`, preserving Editor Mode, card editing, and Manual Multiplayer.
 
@@ -512,7 +512,7 @@ Acceptance:
 
 ## Phase 9 — Pre-multiplayer engine audit
 
-**Status:** Pending. No automated multiplayer feature is implemented here.
+**Status:** Complete in the v20.47.0 documentation-only audit. No automated multiplayer feature was implemented, repaired, or reopened.
 
 Acceptance:
 
@@ -521,6 +521,14 @@ Acceptance:
 - Timeline, Undo/Redo, Replay, and AI Export use same state;
 - Manual Multiplayer remains unchanged from baseline;
 - Firebase contains no newly introduced rule or deterministic-resolution logic.
+
+Audit result: accepted. The full report is [`PHASE_9_PRE_MULTIPLAYER_ENGINE_AUDIT.md`](PHASE_9_PRE_MULTIPLAYER_ENGINE_AUDIT.md). This closes the Single Player extraction/audit roadmap. It does **not** authorize automated Multiplayer implementation: that requires a later, separately approved clean-room scope after Single Player mechanics are sufficiently stable.
+
+## Post-audit approved rule amendment — Personal Action Limits
+
+**Status:** Complete in v20.48.0.
+
+This is a rule amendment, not a reopened migration phase. The permanent contract is [`PERSONAL_ACTION_LIMITS.md`](PERSONAL_ACTION_LIMITS.md). It extends the accepted Single Player Engine boundary without changing Manual Multiplayer: the canonical offline MatchState carries each player's normal-action usage, and the Engine enforces the approved attack/defense maxima wherever a normal action is consumed.
 
 ## Required update after every implementation build
 

@@ -216,7 +216,7 @@ export function confirmPassRoute(state, context, command) {
         usedActions: tracker.usedActions,
         matchActionState: tracker.matchActionState,
       }
-    : activateTrackerAction(tracker, { type: "PASS", pieceId: passer.id, team: pending.team, entryId: command.id });
+    : activateTrackerAction(tracker, { type: "PASS", pieceId: passer.id, team: pending.team, entryId: command.id, enforcePersonalActions: true });
   if (!activation.allowed) return { accepted: false, reason: activation.reason || "PASS_NOT_AVAILABLE" };
 
   const baseNext = {
@@ -227,6 +227,7 @@ export function confirmPassRoute(state, context, command) {
     entryId: activation.entry.id,
     actionLog: activation.actionLog,
     usedActions: activation.usedActions,
+    personalActionsByPieceId: activation.personalActionsByPieceId,
     matchActionState: activation.matchActionState,
     bonusContinuationId: bonusPass ? continuation.id : null,
     pendingDecision: null,
@@ -245,6 +246,7 @@ export function confirmPassRoute(state, context, command) {
           ...state.tracker,
           actionLog: activation.actionLog,
           usedActions: activation.usedActions,
+          personalActionsByPieceId: activation.personalActionsByPieceId,
           matchActionState: activation.matchActionState,
         },
       }),
@@ -588,6 +590,7 @@ function completeNormalInterception(state, pending, interceptor, { directHit = f
         currentTurn: nextTurn,
         usedActions: emptyTurn.usedActions,
         actionLog: emptyTurn.actionLog,
+        personalActionsByPieceId: emptyTurn.personalActionsByPieceId,
         matchActionState: emptyTurn.matchActionState,
         turnPhase: "attack",
       },

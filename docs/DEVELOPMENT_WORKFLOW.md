@@ -204,7 +204,7 @@ The summary must describe the delivered artifact, not the original intention.
 
 ## Historical multiplayer note — do not resume during the Single Player migration
 
-This describes the retained Manual Multiplayer compatibility path, not current implementation work. Automated multiplayer is frozen by ADR-020 and must not be repaired or extended until the completed Single Player migration and Phase 9 audit explicitly reopen it.
+This describes the retained Manual Multiplayer compatibility path, not current implementation work. Automated multiplayer is frozen by ADR-020. The Single Player migration and Phase 9 audit are prerequisites only; they do not reopen Multiplayer automatically. It must not be repaired or extended until a separate clean-room adapter phase is explicitly approved.
 
 - Keep Host Authority + Timeline + Intents as the canonical multiplayer architecture.
 - Do not rewrite multiplayer to solve current UI bugs.

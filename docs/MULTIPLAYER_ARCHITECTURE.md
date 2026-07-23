@@ -2,7 +2,7 @@
 
 ## Status and version
 
-**Status: frozen.** Automated Multiplayer development, Host Authority repair and synchronization work are paused until the Single Player Game Engine migration and Phase 9 audit explicitly reopen them. Manual Multiplayer remains retained and unchanged.
+**Status: frozen.** Automated Multiplayer development, Host Authority repair and synchronization work are paused. The Single Player Game Engine migration and Phase 9 audit are complete, but their completion does not reopen Multiplayer automatically: a later, separately approved clean-room adapter phase is required. Manual Multiplayer remains retained and unchanged.
 
 This is the authoritative description of the multiplayer model in Sandbox `v20.11.6` / Git package `20.11.6`.
 

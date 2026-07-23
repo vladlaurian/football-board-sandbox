@@ -28,6 +28,7 @@ export function endTrackerPhase(state, command) {
           currentTurn: nextTurn,
           usedActions: emptyTurn.usedActions,
           actionLog: emptyTurn.actionLog,
+          personalActionsByPieceId: emptyTurn.personalActionsByPieceId,
           matchActionState: emptyTurn.matchActionState,
           turnPhase: "attack",
         },

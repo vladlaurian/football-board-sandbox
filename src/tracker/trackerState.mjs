@@ -25,6 +25,16 @@ export function normalizeTrackerActionLog(raw) {
   return out;
 }
 
+export function normalizePersonalActionsByPieceId(raw) {
+  const out = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [pieceId, value] of Object.entries(raw)) {
+    const used = clamp(Math.floor(Number(value) || 0), 0, 3);
+    if (pieceId && used > 0) out[String(pieceId)] = used;
+  }
+  return out;
+}
+
 export function normalizeMatchActionState(raw) {
   const byPieceId = {};
   const legacyFreeEntry = raw?.byPieceId && typeof raw.byPieceId === "object"
@@ -111,6 +121,7 @@ export function normalizeTrackerSnapshot(raw = {}) {
     startingTeam,
     currentTurn: clamp(Number(raw.currentTurn) || 0, 0, settings.turns),
     actionLog: normalizeTrackerActionLog(raw.actionLog),
+    personalActionsByPieceId: normalizePersonalActionsByPieceId(raw.personalActionsByPieceId),
     matchActionState: normalizeMatchActionState(raw.matchActionState),
     turnPhase: ["attack", "defense", "complete"].includes(raw.turnPhase) ? raw.turnPhase : "attack",
     usedActions: {

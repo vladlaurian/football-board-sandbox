@@ -1,6 +1,6 @@
 import { getMovementGeometry, diagonalCostForDistance } from "../board/movementState.mjs";
 import { cardStat, teamKeyForPiece } from "../rules/passEngine.mjs";
-import { activateTrackerAction, isTeamActiveForTrackerPhase } from "../tracker/actionRules.mjs";
+import { activateTrackerAction, isTeamActiveForTrackerPhase, removePersonalAction } from "../tracker/actionRules.mjs";
 import { normalizeMatchActionState, normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 import { firstPlayerBlockingMovementPath } from "./movementPathRules.mjs";
 
@@ -32,7 +32,7 @@ export function startNormalMove(state, context, command) {
   const team = teamKeyForPiece(piece);
   if (!team) return { accepted: false, reason: "MOVE_TEAM_INVALID" };
   const tracker = normalizeTrackerSnapshot(state.tracker);
-  const activation = activateTrackerAction(tracker, { type: "MOVE", pieceId: piece.id, team, entryId: command.id });
+  const activation = activateTrackerAction(tracker, { type: "MOVE", pieceId: piece.id, team, entryId: command.id, enforcePersonalActions: true });
   if (!activation.allowed) return { accepted: false, reason: activation.reason || "MOVE_NOT_ALLOWED" };
   return {
     accepted: true,
@@ -42,6 +42,7 @@ export function startNormalMove(state, context, command) {
         ...state.tracker,
         actionLog: activation.actionLog,
         usedActions: activation.usedActions,
+        personalActionsByPieceId: activation.personalActionsByPieceId,
         matchActionState: activation.matchActionState,
       },
     },
@@ -72,9 +73,10 @@ export function cancelNormalMove(state, command) {
     byPieceId,
     activeMovement: { active: false, kind: null, pieceId: null, team: null, timelineGroupId: null },
   });
+  const personalActionsByPieceId = removePersonalAction(tracker, { pieceId: piece.id });
   return {
     accepted: true,
-    nextState: { ...state, tracker: { ...state.tracker, actionLog, usedActions, matchActionState } },
+    nextState: { ...state, tracker: { ...state.tracker, actionLog, usedActions, personalActionsByPieceId, matchActionState } },
     event: { type: "MOVE_CANCELLED", team, metadata: { pieceId: piece.id, movementReason: "NORMAL_MOVE" } },
     timeline: { groupId: active.timelineGroupId || null, undoMode: "step", allowNoop: true },
   };
