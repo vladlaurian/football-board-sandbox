@@ -546,6 +546,8 @@ The audit found that Phase 9 had accepted Engine-owned mutation and Timeline aut
 
 v20.52.2 corrects a projection-contract regression introduced by v20.52.0: Normal Move geometry is now returned by the Engine evaluator before ordinary Tracker authorization gates, so a rejected but valid hover intent remains renderable. Invalid presentation input has explicit nullable geometry and UI renders it as unavailable; it never recreates geometry locally. Regression coverage includes the exact pre-start and inactive-team selected-player hover states that previously emptied the React root.
 
+v20.52.3 closes four post-audit continuity defects without reopening Phase 10: ready Bonus Action controls bypass only normal Tracker presentation locks; progressive normal MOVE remains clickable after the last paid Tracker action; a ball-cell popup projects the Engine-owned 3/2 and Normal Move command routes, including the existing atomic direct-board normal-MOVE sequence; and the Match-to-Editor closing Timeline state clears Match-only interaction locks. Manual Multiplayer is unchanged.
+
 The next Engine mechanic must enter through this projection contract from its first build. Group Move diagonal/orthogonal is now eligible as the next approved scope and must use the same boundary.
 
 ## Required update after every implementation build

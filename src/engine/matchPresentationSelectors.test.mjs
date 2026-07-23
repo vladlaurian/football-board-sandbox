@@ -5,7 +5,7 @@ import { createGameState } from "../game/gameState.mjs";
 import { GAME_COMMAND_TYPE } from "./gameCommands.mjs";
 import { applyGameCommand } from "./gameEngine.mjs";
 import { createMatchContext } from "./matchContext.mjs";
-import { selectSinglePlayerDicePresentation, selectSinglePlayerFreeBallPresentation, selectSinglePlayerFreeMovePresentation, selectSinglePlayerGroupMovePieceStatuses, selectSinglePlayerNormalMovePresentation, selectSinglePlayerPassPresentation, selectSinglePlayerThreeTwoPresentation } from "./matchPresentationSelectors.mjs";
+import { selectSinglePlayerBallCellMoveChoicePresentation, selectSinglePlayerDicePresentation, selectSinglePlayerFreeBallPresentation, selectSinglePlayerFreeMovePresentation, selectSinglePlayerGroupMovePieceStatuses, selectSinglePlayerInspectorActionPresentation, selectSinglePlayerNormalMovePresentation, selectSinglePlayerPassPresentation, selectSinglePlayerThreeTwoPresentation } from "./matchPresentationSelectors.mjs";
 
 test("Single Player Pass selector projects persisted route and roll facts without recalculating them", () => {
   const projection = selectSinglePlayerPassPresentation({
@@ -142,6 +142,50 @@ test("Normal Move preview capability cannot be smuggled through a submitted comm
   const committed = applyGameCommand({ state, context, command: { id: "forged", type: GAME_COMMAND_TYPE.NORMAL_MOVE_COMMITTED, payload: { pieceId: "blue-1", x: 4, y: 3, presentationOnly: true } } });
   assert.equal(committed.accepted, false);
   assert.equal(committed.reason, "NORMAL_MOVE_NOT_ACTIVE");
+});
+
+test("ball-cell presentation exposes Engine-owned 3/2 and direct-board normal MOVE routes", () => {
+  const state = createGameState({
+    gameMode: "match",
+    pieces: [{ id: "ball", team: "BALL", x: 5, y: 3 }, { id: "blue-1", team: "A", cardId: "blue-card", x: 3, y: 3 }],
+    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+  });
+  const context = createMatchContext({ gameplayCards: [{ id: "blue-card", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 5 }] }] });
+  const choice = selectSinglePlayerBallCellMoveChoicePresentation(state, context, { piece: state.pieces[1], x: 5, y: 3 });
+  assert.equal(choice.threeTwo.legal, true);
+  assert.equal(choice.normal.legal, true);
+  assert.equal(choice.normal.mode, "start-and-commit");
+
+  const started = applyGameCommand({ state, context, command: { id: "card-move", type: GAME_COMMAND_TYPE.NORMAL_MOVE_STARTED, payload: { pieceId: "blue-1" } } });
+  const cardRoute = applyGameCommand({ state: started.nextState, context, command: { id: "card-move-commit", type: GAME_COMMAND_TYPE.NORMAL_MOVE_COMMITTED, payload: { pieceId: "blue-1", x: 5, y: 3 } } });
+  const boardStart = applyGameCommand({ state, context, command: { id: "board-move", type: GAME_COMMAND_TYPE.NORMAL_MOVE_STARTED, payload: { pieceId: "blue-1" } } });
+  const boardRoute = applyGameCommand({ state: boardStart.nextState, context, command: { id: "board-move-commit", type: GAME_COMMAND_TYPE.NORMAL_MOVE_COMMITTED, payload: { pieceId: "blue-1", x: 5, y: 3 } } });
+  assert.equal(cardRoute.accepted, true);
+  assert.equal(boardRoute.accepted, true);
+  assert.deepEqual(boardRoute.nextState.pieces, cardRoute.nextState.pieces);
+  assert.deepEqual(boardRoute.nextState.movementStateByPieceId, cardRoute.nextState.movementStateByPieceId);
+  assert.deepEqual(boardRoute.nextState.tracker.usedActions, cardRoute.nextState.tracker.usedActions);
+});
+
+test("ready Bonus Action controls do not inherit normal Tracker phase or action locks", () => {
+  const state = createGameState({
+    gameMode: "match",
+    pieces: [{ id: "ball", team: "BALL", x: 3, y: 3 }, { id: "blue-1", team: "A", cardId: "blue-card", x: 3, y: 3 }],
+    actionContinuation: { id: "bonus-blue", kind: "bonus-card-action", team: "blue", status: "ready" },
+    tracker: {
+      gameStarted: true,
+      startingTeam: "red",
+      currentTurn: 1,
+      turnPhase: "attack",
+      usedActions: { blue: 5, red: 0 },
+      actionLog: { blue: Array.from({ length: 5 }, (_, index) => ({ id: `blue-${index}`, type: "PASS" })), red: [] },
+      settings: { attackActions: 5, defenseActions: 4, turns: 20 },
+    },
+  });
+  const context = createMatchContext({ gameplayCards: [{ id: "blue-card", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 5 }] }] });
+  assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "MOVE" }).disabled, false);
+  assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "PASS" }).disabled, false);
+  assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "GROUP_MOVE" }).disabled, true);
 });
 
 test("Free Move and Free Ball projections use the same Engine validation as their commits", () => {

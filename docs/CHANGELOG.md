@@ -2,6 +2,13 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.52.3 — Action continuity and ball-cell choice
+
+- Ready offline Bonus Action controls no longer inherit normal Tracker phase/action exhaustion locks. Their owner may select one compatible individual card action; Group Move and Free Move remain unavailable.
+- Restored the established progressive normal-MOVE contract at the offline board entrance: an already-authorized player may spend remaining Speed in legal segments after the team exhausts normal Tracker actions. The player remains selected while such movement remains.
+- Replaced the ambiguous ball-cell 3/2 Yes/No prompt with Engine-projected `Rule 3/2`, `Normal move`, and `Cancel` routes. Direct-board Normal Move starts and commits atomically when authorization has not yet been created, matching Inspector MOVE.
+- Leaving offline Match for Editor now clears Match-only interaction locks in the closing Editor Timeline state, including Free Move. Manual Multiplayer remains unchanged.
+
 ## v20.52.2 — Normal Move projection hotfix
 
 - Fixed the offline Match black-screen regression introduced in v20.52.0: selecting a player and hovering the board before Tracker start or while that team is inactive no longer dereferences absent preview geometry.

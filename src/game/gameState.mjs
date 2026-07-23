@@ -96,6 +96,42 @@ export function mergeGameState(baseState, overrides = {}) {
   });
 }
 
+/**
+ * Editor Mode is not a suspended Match.  Leaving a Match therefore retains
+ * its board and Tracker record for the closing Timeline entry, but removes
+ * every Match-only interaction that would otherwise lock Editor controls.
+ */
+export function createEditorStateAfterMatchExit(rawState) {
+  const state = createGameState(rawState);
+  const current = state.tracker.matchActionState || {};
+  return createGameState({
+    ...state,
+    gameMode: "editor",
+    actionResolution: null,
+    actionContinuation: null,
+    tracker: {
+      ...state.tracker,
+      matchActionState: {
+        ...current,
+        freeMode: { active: false, pieceId: null, team: null, timelineGroupId: null },
+        groupMove: {
+          active: false,
+          team: null,
+          timelineGroupId: null,
+          zoneStartX: null,
+          zoneLength: 0,
+          maxPlayers: 0,
+          maxDistance: 0,
+          sameDirectionOnly: true,
+          movedPieceIds: [],
+          direction: null,
+        },
+        activeMovement: { active: false, kind: null, pieceId: null, team: null, timelineGroupId: null },
+      },
+    },
+  });
+}
+
 export function gameStatesEqual(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }

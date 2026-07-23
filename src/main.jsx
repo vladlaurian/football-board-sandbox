@@ -7,7 +7,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, runTransaction
 import { getFirestore } from "firebase/firestore";
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import { RotateCcw, Plus, Minus, Undo2, Redo2, Edit3, X, Dices } from "lucide-react";
-import { createGameState, mergeGameState } from "./game/gameState.mjs";
+import { createEditorStateAfterMatchExit, createGameState, mergeGameState } from "./game/gameState.mjs";
 import { GAME_COMMAND_TYPE } from "./engine/gameCommands.mjs";
 import { createMatchContext } from "./engine/matchContext.mjs";
 import { runSinglePlayerMatchCommand } from "./engine/singlePlayerMatchGateway.mjs";
@@ -21,6 +21,8 @@ import {
   selectSinglePlayerInspectorActionPresentation,
   selectSinglePlayerInspectorControlPresentation,
   selectSinglePlayerInterceptorChoicePresentation,
+  selectSinglePlayerBallCellMoveChoicePresentation,
+  selectSinglePlayerNormalMoveContinuationPresentation,
   selectSinglePlayerNormalMovePresentation,
   selectSinglePlayerPassPresentation,
   selectSinglePlayerPieceActionPresentation,
@@ -200,7 +202,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.52.2";
+const APP_VERSION = "v20.52.3";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5904,6 +5906,18 @@ function App() {
     if (speed === null) return { eligible: false, reason: "no-speed", geometry, current };
     return { eligible: true, geometry, current, speed };
   }
+  function openBallCellMoveChoice(piece, x, y) {
+    if (sessionCode || gameMode !== "match" || piece.team === "BALL" || matchActionState.freeMode?.active) return false;
+    const state = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const presentation = selectSinglePlayerBallCellMoveChoicePresentation(
+      state,
+      singlePlayerMatchContext(),
+      { piece, x, y },
+    );
+    if (!presentation.showChoice) return false;
+    setPendingThreeTwoMove({ pieceId: piece.id, x, y, presentation });
+    return true;
+  }
   function evaluateMove(piece, x, y) {
     if (!sessionCode && gameMode === "match") {
       const state = currentTimelineGameStateSnapshot() || captureTimelineGameState();
@@ -5997,19 +6011,23 @@ function App() {
   }
   function completeGameModeChange(next) {
     const leavingMatch = next === "editor";
-    const nextState = captureTimelineGameState({
-      gameMode: next,
-      ...(leavingMatch ? { actionResolution: null, actionContinuation: null } : {}),
-    });
+    const currentState = captureTimelineGameState();
+    const nextState = leavingMatch
+      ? createEditorStateAfterMatchExit(currentState)
+      : captureTimelineGameState({ gameMode: next });
     if (leavingMatch) {
       matchContextRef.current = null;
       cancelDelayedResolutionTimer();
       setLiveActionResolution(null);
       setLiveActionContinuation(null);
+      setMatchActionState(nextState.tracker.matchActionState);
       setSelectedId(null);
       setHoveredCell(null);
       setPassResultNotice(null);
       setFreeBallActive(false);
+      setPendingAutoMove(null);
+      setPendingThreeTwoMove(null);
+      setGroupMoveZoneDraft(null);
     }
     setGameMode(next);
     if (next === "match") {
@@ -6067,23 +6085,60 @@ function App() {
     completeGameModeChange("editor");
   }
 
+  function commitNormalMoveThroughEngine(piece, x, y, { startIfNeeded = false } = {}) {
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const context = singlePlayerMatchContext();
+    const moveAuthorized = Boolean(before.tracker.matchActionState?.byPieceId?.[piece.id]?.moveAuthorized);
+    const team = pieceTeamKey(piece);
+    const dispatched = startIfNeeded && !moveAuthorized
+      ? dispatchSinglePlayerGameCommandSequence({
+          preserveLocalSelection: true,
+          timeline: gameTimelineRef.current,
+          state: before,
+          context,
+          commands: [
+            {
+              command: { id: createActionEventId(`normal_move_start_${piece.id}`), type: GAME_COMMAND_TYPE.NORMAL_MOVE_STARTED, payload: { pieceId: piece.id } },
+              label: `${team === "blue" ? "Blue" : "Red"} MOVE: ${getPieceDisplayLabel(piece)}`,
+            },
+            {
+              command: { id: createActionEventId(`normal_move_commit_${piece.id}`), type: GAME_COMMAND_TYPE.NORMAL_MOVE_COMMITTED, payload: { pieceId: piece.id, x: Number(x), y: Number(y) } },
+              label: `${piece.team === "A" ? "Blue" : "Red"} ${piece.label} → ${toCoord(x, y)}`,
+            },
+          ],
+        })
+      : dispatchSinglePlayerGameCommand({
+          preserveLocalSelection: true,
+          timeline: gameTimelineRef.current,
+          state: before,
+          context,
+          command: {
+            id: createActionEventId(`normal_move_commit_${piece.id}`),
+            type: GAME_COMMAND_TYPE.NORMAL_MOVE_COMMITTED,
+            payload: { pieceId: piece.id, x: Number(x), y: Number(y) },
+          },
+          label: `${piece.team === "A" ? "Blue" : "Red"} ${piece.label} → ${toCoord(x, y)}`,
+        });
+    const accepted = startIfNeeded && !moveAuthorized ? dispatched.accepted : dispatched.result.accepted;
+    const result = startIfNeeded && !moveAuthorized ? dispatched.result : dispatched.result;
+    if (!accepted) {
+      if (result.reason !== "same") setIllegalMoveNotice({ reason: result.reason });
+      return false;
+    }
+    const nextState = dispatched.state;
+    if (!selectSinglePlayerNormalMoveContinuationPresentation(nextState, context, { piece }).allowed) {
+      setSelectedId(null);
+      setHoveredCell(null);
+    } else {
+      setSelectedId(piece.id);
+    }
+    return true;
+  }
+
   function commitPieceMove(piece, x, y, evaluation, { useThreeTwo = false, authorizationOverride = null, completeBonus = false } = {}) {
     const authorization = authorizationOverride || movementAuthorization(piece);
     if (!sessionCode && gameMode === "match" && !useThreeTwo && !authorizationOverride && authorization.mode === "normal") {
-      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
-      const dispatched = dispatchSinglePlayerGameCommand({
-        timeline: gameTimelineRef.current,
-        state: before,
-        context: singlePlayerMatchContext(),
-        command: {
-          id: createActionEventId(`normal_move_commit_${piece.id}`),
-          type: GAME_COMMAND_TYPE.NORMAL_MOVE_COMMITTED,
-          payload: { pieceId: piece.id, x: Number(x), y: Number(y) },
-        },
-        label: `${piece.team === "A" ? "Blue" : "Red"} ${piece.label} → ${toCoord(x, y)}`,
-      });
-      if (!dispatched.result.accepted) return false;
-      return true;
+      return commitNormalMoveThroughEngine(piece, x, y);
     }
     pushHistory(piecesRef.current || pieces, movementStateRef.current);
     const isFreePlacement = authorization.mode === "free";
@@ -6261,16 +6316,9 @@ function App() {
       return true;
     }
 
-    // 3/2 is an Engine-owned free action in offline Single Player. It must be
-    // be offered before Bonus MOVE and normal movement because it does not
-    // consume either Bonus Action or Tracker economy.
-    if (!sessionCode && gameMode === "match" && piece.team !== "BALL" && !matchActionState.freeMode?.active) {
-      const threeTwo = getThreeTwoEligibility(piece, x, y);
-      if (threeTwo.eligible) {
-        setPendingThreeTwoMove({ pieceId: piece.id, x, y });
-        return true;
-      }
-    }
+    // 3/2 is Engine-owned and is offered before Bonus MOVE or normal movement.
+    // Its popup projects both official command routes when normal MOVE is also legal.
+    if (openBallCellMoveChoice(piece, x, y)) return true;
 
     const continuation = actionContinuationRef.current;
     if (continuation?.kind === "bonus-card-action") {
@@ -6292,18 +6340,6 @@ function App() {
       setIllegalMoveNotice({ reason: phaseBlockReason() });
       return false;
     }
-    if (gameMode === "match" && piece.team !== "BALL" && !freeModeAuthorized && !groupMoveAuthorized && isTeamPhaseActive(phaseTeam) && getTeamActionStatus(phaseTeam).exhausted) {
-      setIllegalMoveNotice({ reason: "actions-complete-end-turn" });
-      return false;
-    }
-
-    // The 3/2 rule is a free action, but only during this team's active phase and before its action tracker is complete.
-    const threeTwo = getThreeTwoEligibility(piece, x, y);
-    if (!freeModeAuthorized && threeTwo.eligible) {
-      setPendingThreeTwoMove({ pieceId: piece.id, x, y, evaluation: threeTwo });
-      return true;
-    }
-
     const authorization = movementAuthorization(piece);
     if (!authorization.allowed) {
       if (gameMode === "match" && piece.team !== "BALL" && !authorization.reason) {
@@ -6364,6 +6400,7 @@ function App() {
     }
     const evaluation = authorization.mode === "group" ? evaluateGroupMove(piece, x, y) : evaluateMove(piece, x, y);
     if (!evaluation.legal) {
+      const threeTwo = getThreeTwoEligibility(piece, x, y);
       const notice = threeTwo.reason === "used" ? { ...evaluation, threeTwoAlreadyUsed: true } : evaluation;
       if (evaluation.reason !== "same" && gameMode === "match" && piece.team !== "BALL") setIllegalMoveNotice(notice);
       return false;
@@ -6371,13 +6408,14 @@ function App() {
     return commitPieceMove(piece, x, y, evaluation);
   }
 
-  function confirmThreeTwoMove(useThreeTwo) {
+  function confirmThreeTwoMove(choice) {
     const pending = pendingThreeTwoMove;
     setPendingThreeTwoMove(null);
     if (!pending) return;
+    if (choice === "cancel") return;
     const piece = (piecesRef.current || pieces).find(item => item.id === pending.pieceId);
     if (!piece || !canMovePiece(piece)) return;
-    if (useThreeTwo) {
+    if (choice === "three-two") {
       if (!sessionCode) {
         const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
         const dispatched = dispatchSinglePlayerGameCommand({
@@ -6400,6 +6438,10 @@ function App() {
       const refreshed = getThreeTwoEligibility(piece, pending.x, pending.y);
       if (!refreshed.eligible) return;
       commitPieceMove(piece, pending.x, pending.y, refreshed, { useThreeTwo: true });
+      return;
+    }
+    if (choice === "normal" && !sessionCode) {
+      commitNormalMoveThroughEngine(piece, pending.x, pending.y, { startIfNeeded: true });
       return;
     }
     const authorization = movementAuthorization(piece);
@@ -10758,28 +10800,7 @@ function App() {
     const piece = (piecesRef.current || pieces).find(item => item.id === pending.pieceId);
     if (!piece || !canMovePiece(piece) || !canUseActionForPiece(piece)) return;
     if (!sessionCode) {
-      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
-      const team = pieceTeamKey(piece);
-      const startId = createActionEventId(`normal_move_start_${piece.id}`);
-      const dispatched = dispatchSinglePlayerGameCommandSequence({
-        timeline: gameTimelineRef.current,
-        state: before,
-        context: singlePlayerMatchContext(),
-        commands: [
-          {
-            command: { id: startId, type: GAME_COMMAND_TYPE.NORMAL_MOVE_STARTED, payload: { pieceId: piece.id } },
-            label: `${team === "blue" ? "Blue" : "Red"} MOVE: ${getPieceDisplayLabel(piece)}`,
-          },
-          {
-            command: { id: createActionEventId(`normal_move_commit_${piece.id}`), type: GAME_COMMAND_TYPE.NORMAL_MOVE_COMMITTED, payload: { pieceId: piece.id, x: Number(pending.x), y: Number(pending.y) } },
-            label: `${piece.team === "A" ? "Blue" : "Red"} ${piece.label} → ${toCoord(pending.x, pending.y)}`,
-          },
-        ],
-      });
-      if (!dispatched.accepted) {
-        if (dispatched.result.reason && dispatched.result.reason !== "same") setIllegalMoveNotice({ reason: dispatched.result.reason });
-        return;
-      }
+      commitNormalMoveThroughEngine(piece, pending.x, pending.y, { startIfNeeded: true });
       return;
     }
     const team = pieceTeamKey(piece);
@@ -12404,15 +12425,20 @@ function App() {
       )}
 
       {pendingThreeTwoMove && (
-        <div className="modal-backdrop three-two-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setPendingThreeTwoMove(null); }}>
+        <div className="modal-backdrop three-two-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) confirmThreeTwoMove("cancel"); }}>
           <div className="modal three-two-modal" onPointerDown={e => e.stopPropagation()}>
-            <div className="modal-title"><strong>Use 3/2 rule?</strong></div>
+            <div className="modal-title"><strong>{pendingThreeTwoMove.presentation?.showNormalMove ? "Use 3/2 rule or normal move?" : "Use 3/2 rule?"}</strong></div>
             <div className="three-two-message">
-              Move into the ball cell without spending the distance travelled?
+              {pendingThreeTwoMove.presentation?.showNormalMove
+                ? "Move into the ball cell without spending speed points, or use normal speed points?"
+                : "Move into the ball cell without spending speed points?"}
             </div>
             <div className="modal-actions three-two-actions">
-              <button onClick={() => confirmThreeTwoMove(true)}>Yes</button>
-              <button onClick={() => confirmThreeTwoMove(false)}>No</button>
+              <button onClick={() => confirmThreeTwoMove("three-two")}>Rule 3/2</button>
+              {pendingThreeTwoMove.presentation?.showNormalMove && (
+                <button onClick={() => confirmThreeTwoMove("normal")}>Normal move</button>
+              )}
+              <button onClick={() => confirmThreeTwoMove("cancel")}>Cancel</button>
             </div>
           </div>
         </div>

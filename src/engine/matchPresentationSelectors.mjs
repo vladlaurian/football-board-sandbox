@@ -4,7 +4,8 @@
 
 import { evaluateNormalMove } from "./normalMoveRules.mjs";
 import { evaluateFreeMove } from "./freeMoveRules.mjs";
-import { evaluateFreeBallMoved } from "./gameEngine.mjs";
+import { applyGameCommand, evaluateFreeBallMoved } from "./gameEngine.mjs";
+import { GAME_COMMAND_TYPE } from "./gameCommands.mjs";
 import { evaluateThreeTwoMove } from "./threeTwoMoveRules.mjs";
 import { evaluateGroupMovePieceEligibility, evaluateGroupMovePlayer } from "./groupMoveRules.mjs";
 import { canUseTrackerActionForPiece, canUseTrackerFreeModeForPiece, hasGroupMoveAuthorization, isTeamActiveForTrackerPhase, movementAuthorizationForPiece, personalActionStatusForPiece, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
@@ -50,6 +51,54 @@ export function selectSinglePlayerNormalMovePresentation(state, context, { piece
 export function selectSinglePlayerThreeTwoPresentation(state, context, { piece, x, y } = {}) {
   const result = evaluateThreeTwoMove(state, context, previewCommand("THREE_TWO_MOVE_COMMITTED", piece, x, y));
   return { ...result, legal: Boolean(result.eligible) };
+}
+
+function selectNormalMoveRoutePresentation(state, context, { piece, x, y } = {}) {
+  const current = state?.tracker?.matchActionState?.byPieceId?.[piece?.id] || {};
+  if (current.moveAuthorized) {
+    const result = evaluateNormalMove(state, context, previewCommand(GAME_COMMAND_TYPE.NORMAL_MOVE_COMMITTED, piece, x, y));
+    return { ...result, legal: Boolean(result.accepted), mode: "existing-authorization" };
+  }
+  const start = applyGameCommand({
+    state,
+    context,
+    command: previewCommand(GAME_COMMAND_TYPE.NORMAL_MOVE_STARTED, piece, x, y),
+  });
+  if (!start.accepted) return { ...start, legal: false, mode: "start-and-commit" };
+  const commit = applyGameCommand({
+    state: start.nextState,
+    context,
+    command: previewCommand(GAME_COMMAND_TYPE.NORMAL_MOVE_COMMITTED, piece, x, y),
+  });
+  return { ...commit, legal: Boolean(commit.accepted), mode: "start-and-commit" };
+}
+
+// A ball-cell choice is a presentation of two Engine-owned command routes.
+// It deliberately evaluates the complete normal route when MOVE has not yet
+// been started, because a direct board click is a valid second entrance to it.
+export function selectSinglePlayerBallCellMoveChoicePresentation(state, context, { piece, x, y } = {}) {
+  const threeTwo = selectSinglePlayerThreeTwoPresentation(state, context, { piece, x, y });
+  const normal = selectNormalMoveRoutePresentation(state, context, { piece, x, y });
+  return {
+    threeTwo,
+    normal,
+    showChoice: Boolean(threeTwo.legal),
+    showNormalMove: Boolean(normal.legal),
+  };
+}
+
+export function selectSinglePlayerNormalMoveContinuationPresentation(state, context, { piece } = {}) {
+  const pieceState = state?.tracker?.matchActionState?.byPieceId?.[piece?.id] || {};
+  const movement = state?.movementStateByPieceId?.[piece?.id] || {};
+  const speed = frozenSpeed(context, piece);
+  return {
+    allowed: Boolean(
+      pieceState.moveAuthorized
+      && !movement.movementEnded
+      && speed !== null
+      && Number(movement.spent) < speed
+    ),
+  };
 }
 
 export function selectSinglePlayerGroupMovePresentation(state, context, { piece, x, y } = {}) {
@@ -186,23 +235,32 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
         ? false
         : normalMove.active
           ? true
-          : Boolean(
-              pending
-              || !control.teamOwnsContinuation
-              || (continuationReady ? type === "GROUP_MOVE" : Boolean(continuation))
-              || !control.teamActive
-              || !control.actionAllowed
-              || personalBlocked
-              || current.freeMode?.active
-              || current.groupMove?.active
-              || (type === "PASS" && !pieceHasBall(state, piece))
-              || (type === "MOVE" && pieceState.moveUsed && !normalHasRemaining)
-              || (type === "GROUP_MOVE" && control.actionStatus.remaining !== 1 && !trackerComplete)
-            );
+          : continuationReady
+            ? Boolean(
+                !control.teamOwnsContinuation
+                || type === "GROUP_MOVE"
+                || piece?.inactive
+                || current.freeMode?.active
+                || current.groupMove?.active
+                || (type === "PASS" && !pieceHasBall(state, piece))
+              )
+            : Boolean(
+                pending
+                || !control.teamOwnsContinuation
+                || Boolean(continuation)
+                || !control.teamActive
+                || !control.actionAllowed
+                || personalBlocked
+                || current.freeMode?.active
+                || current.groupMove?.active
+                || (type === "PASS" && !pieceHasBall(state, piece))
+                || (type === "MOVE" && pieceState.moveUsed && !normalHasRemaining)
+                || (type === "GROUP_MOVE" && control.actionStatus.remaining !== 1 && !trackerComplete)
+              );
   return {
     ...control,
     disabled,
-    actionLocked: trackerComplete && !passCancellable && !moveCancellable,
+    actionLocked: trackerComplete && !continuationReady && !passCancellable && !moveCancellable,
     label: passCancellable ? "CANCEL PASS" : (moveCancellable || bonusMoveCancellable) ? "CANCEL MOVE" : String(type || "").replace("GROUP_MOVE", "GROUP MOVE"),
   };
 }

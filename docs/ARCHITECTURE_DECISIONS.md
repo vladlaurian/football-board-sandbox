@@ -327,11 +327,14 @@ UI, Controller, timers, Firebase, and future multiplayer adapters may request or
 
 **Decision:** In offline Single Player, 3/2 is requested through `THREE_TWO_MOVE_COMMITTED` and resolved solely by the Game Engine. It consumes no Tracker action and remains legal after the active team has exhausted normal Tracker actions. It remains limited to the active team phase, one use per player, its established straight/diagonal range, a ball destination, and a destination not occupied by another player. Clicking the visible ball with an eligible selected player is only a UI entry to that same command.
 
+If that same destination also has a legal normal-MOVE route, the UI presents `Rule 3/2`, `Normal move`, and `Cancel`. It projects both routes from Engine evaluation. Normal Move commits directly only when the player already has `moveAuthorized`; otherwise the direct-board entrance uses the established atomic `NORMAL_MOVE_STARTED` then `NORMAL_MOVE_COMMITTED` command sequence. This is the same gameplay route as pressing MOVE in Inspector, not a third movement mechanic.
+
 **Reason:** Legacy UI gates treated a free action as unavailable when Tracker was exhausted, while the ball pointer handler stopped a direct destination click before 3/2 validation could run. Both paths made the rule unreliable and created a second gameplay interpretation outside canonical MatchState.
 
 **Consequences:**
 
 - `THREE_TWO_MOVE` remains the semantic Timeline/AI event.
+- Choosing Normal Move retains the existing `MOVE_ACTIVATED` and `PIECE_MOVED` Timeline/AI semantics; the popup choice itself is not a gameplay event.
 - Undo/Redo reconstructs the same engine-produced state.
 - Manual multiplayer keeps its legacy 3/2 implementation until multiplayer migration is explicitly reopened.
 

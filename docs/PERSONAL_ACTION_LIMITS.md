@@ -22,7 +22,7 @@ The Engine consumes one personal action for:
 - each player physically committed through `GROUP_MOVE_PLAYER_COMMITTED`;
 - implemented/manual normal `DRIBBLE`, `SHOT`, `CROSS` and `TACKLING` declarations.
 
-A normal MOVE may continue in any number of legal segments without consuming another personal action. Cancelling it before its first physical segment refunds its personal action together with the existing Tracker action refund.
+A normal MOVE may continue in any number of legal segments without consuming another personal action. This remains true after that MOVE spent the team's final normal Tracker action: the already-authorized player may spend remaining Speed until the active team phase ends or the player ends movement under the existing rules; no new normal action may begin. Cancelling it before its first physical segment refunds its personal action together with the existing Tracker action refund.
 
 The Engine rejects a further normal action for a player at their personal maximum with `personal-actions-complete`. This is validation, not a UI-only lock.
 

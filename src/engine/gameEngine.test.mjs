@@ -304,6 +304,22 @@ test("NORMAL_MOVE authorization permits later segments without another Tracker a
   assert.deepEqual(afterPhaseEnd, { accepted: false, reason: "wait-active-team" });
 });
 
+test("NORMAL_MOVE continues after its final paid Tracker action until End Turn", () => {
+  const start = normalMoveState({
+    tracker: {
+      ...normalMoveState().tracker,
+      settings: { attackActions: 1, defenseActions: 1, turns: 20 },
+    },
+  });
+  const activated = applyGameCommand({ state: start, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "last-action-start") });
+  assert.equal(activated.nextState.tracker.usedActions.blue, 1);
+  const first = applyGameCommand({ state: activated.nextState, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 4, y: 5 }, "last-action-first") });
+  const second = applyGameCommand({ state: first.nextState, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 6, y: 5 }, "last-action-second") });
+  assert.equal(second.accepted, true);
+  assert.equal(second.nextState.tracker.usedActions.blue, 1);
+  assert.equal(second.nextState.pieces.find(piece => piece.id === "blue-1").x, 6);
+});
+
 test("NORMAL_MOVE rejects invalid moves without mutating canonical MatchState", () => {
   const start = normalMoveState();
   const activated = applyGameCommand({ state: start, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "move-start-3") });

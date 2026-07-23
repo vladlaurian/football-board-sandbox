@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createGameState, mergeGameState } from "./gameState.mjs";
+import { createEditorStateAfterMatchExit, createGameState, mergeGameState } from "./gameState.mjs";
 
 function activeState() {
   return createGameState({
@@ -29,4 +29,25 @@ test("explicit null Timeline overrides clear nullable action and dice state", ()
   assert.equal(merged.actionContinuation, null);
   assert.equal(merged.dice.blueResult, null);
   assert.equal(merged.dice.redResult, null);
+});
+
+test("leaving Match creates an Editor state without Match-only interaction locks", () => {
+  const exited = createEditorStateAfterMatchExit(createGameState({
+    gameMode: "match",
+    actionResolution: { kind: "pass", status: "targeting" },
+    actionContinuation: { id: "bonus-1", kind: "bonus-card-action", team: "blue", status: "ready" },
+    tracker: {
+      matchActionState: {
+        freeMode: { active: true, pieceId: "blue-1", team: "blue", timelineGroupId: "free-1" },
+        groupMove: { active: true, team: "blue", zoneStartX: 2, zoneLength: 6, maxPlayers: 4, maxDistance: 6, movedPieceIds: ["blue-1"] },
+        activeMovement: { active: true, kind: "normal-move", pieceId: "blue-2", team: "blue", timelineGroupId: "move-1" },
+      },
+    },
+  }));
+  assert.equal(exited.gameMode, "editor");
+  assert.equal(exited.actionResolution, null);
+  assert.equal(exited.actionContinuation, null);
+  assert.equal(exited.tracker.matchActionState.freeMode.active, false);
+  assert.equal(exited.tracker.matchActionState.groupMove.active, false);
+  assert.equal(exited.tracker.matchActionState.activeMovement.active, false);
 });

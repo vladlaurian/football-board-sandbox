@@ -122,6 +122,10 @@ Persisted action facts (for example Pass route badges, Interception roll prompt 
 
 Free Ball and Free Move use the same boundary: the UI may arm a local tool, but its availability and destination feedback come from canonical state and Engine evaluation. Free Ball validates board bounds against the frozen MatchContext board settings. Inspector, End Turn and Bonus controls read one canonical control projection. Where a displayed card statistic belongs to an active Match decision, the selector reads `MatchContext.gameplayCardsById`, never the editable live card library.
 
+When a legal 3/2 destination is the ball cell, the offline popup is a UI-local choice between Engine-projected command routes. `Rule 3/2` dispatches `THREE_TWO_MOVE_COMMITTED`. `Normal move` dispatches `NORMAL_MOVE_COMMITTED` when that player already has normal-MOVE authorization; otherwise it dispatches the existing atomic `NORMAL_MOVE_STARTED` then `NORMAL_MOVE_COMMITTED` sequence. The popup does not derive legality or speed itself. This preserves identical canonical results for the direct-board and Inspector MOVE entrances.
+
+Leaving Match for Editor records an Editor closing state that clears Match-only interaction locks (`actionResolution`, `actionContinuation`, Free Move, Group Move and pre-segment normal MOVE). The prior Timeline cursor remains the exact playable Match state; the subsequent Editor state is intentionally not a suspended Match. This boundary does not apply to Manual Multiplayer.
+
 ## 5. Delayed resolution and manual dice
 
 Manual roll remains a permanent rule. `PASS_INTERCEPTION_ROLL_SUBMITTED` carries a unique RollEvent and is validated against the exact pending request. Chosen and random mechanic-requested rolls use the same contract. `EXTRA_ROLL_SUBMITTED` is the explicit administrative fallback: it records a die result without satisfying a gameplay request or consuming a Tracker action.
