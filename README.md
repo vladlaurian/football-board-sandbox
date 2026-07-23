@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.52.0` |
-| Git/package version | `20.52.0` |
-| Build name | `Final_Board_v20_52_0_authority_projection_remediation` |
-| Base build | `v20.51.1 Pass foot-orientation correction` |
+| Sandbox version | `v20.52.2` |
+| Git/package version | `20.52.2` |
+| Build name | `Final_Board_v20_52_2_normal_move_projection_hotfix` |
+| Base build | `v20.52.1 Phase 10B closure` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.52.0`. The repository version is in `package.json` as `20.52.0`. The browser title is `Sandbox v20.52.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.52.2`. The repository version is in `package.json` as `20.52.2`. The browser title is `Sandbox v20.52.2`.
 
 ## Current release
 
-v20.52.0 completes Phase 10B for all currently implemented offline Single Player mechanics. The UI now uses the Engine-backed Match presentation boundary for movement previews, Group Move candidate status, action availability and persisted Pass/Interception facts. It no longer directly imports movement evaluators or recreates an offline Interception result. Manual Multiplayer remains unchanged.
+v20.52.2 is a narrow correction over the Phase 10B closure. Normal Move presentation now receives Engine-owned geometry even when a valid requested destination is rejected before movement authorization, and the UI treats unavailable geometry as an illegal presentation rather than dereferencing it. This fixes the selected-player hover crash without restoring any local gameplay calculation. Manual Multiplayer remains unchanged.
 
 The audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

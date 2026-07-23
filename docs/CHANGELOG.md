@@ -2,9 +2,22 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
-## v20.52.0 — Phase 10B authority and projection remediation
+## v20.52.2 — Normal Move projection hotfix
 
-- Completed the full offline Single Player authority/projection remediation after the Phase 10A audit; v20.51.0 remains only the preparatory Pass/Interception slice.
+- Fixed the offline Match black-screen regression introduced in v20.52.0: selecting a player and hovering the board before Tracker start or while that team is inactive no longer dereferences absent preview geometry.
+- Normal Move geometry remains Engine-owned. The presentation selector declares it nullable only for invalid presentation input; valid player/destination requests retain Engine geometry even when rejected by a gameplay gate.
+- Added regression coverage for the pre-start and inactive-team hover states. Manual Multiplayer remains unchanged.
+
+## v20.52.1 — Phase 10B closure
+
+- Closes the intermediate v20.52.0 remediation. A Normal Move preview is now an evaluator-only capability; a submitted command cannot carry a preview bypass.
+- Added official Free Move and Free Ball projections. Free Ball destination bounds are now Engine-validated against frozen MatchContext board settings.
+- Inspector actions, End Turn, Free controls and Bonus-action control availability now use one offline Match projection. The Interceptor-choice popup reads the frozen gameplay-card snapshot.
+- Added regression tests for preview-command separation and Free Move/Free Ball projection equivalence. Manual Multiplayer remains unchanged.
+
+## v20.52.0 — Intermediate authority/projection remediation (not accepted Phase 10B closure)
+
+- Partial implementation after the Phase 10A audit; it is superseded by v20.52.1 and must not be treated as Phase 10B closure.
 - Added the Engine-backed Match presentation boundary for normal Move, 3/2, Group Move candidate/destination status, Inspector action availability and canonical dice-request availability. Offline `main.jsx` no longer imports direct movement evaluators.
 - Normal Move preview reuses Engine validation, including blocked paths, speed, axis and remaining distance. Group Move preview preserves the Engine-only exception that may cross players.
 - Offline Pass result presentation no longer recalculates an Interception result when its canonical Engine resolution is missing. Group Move zone configuration reads the frozen MatchContext Rule Set.

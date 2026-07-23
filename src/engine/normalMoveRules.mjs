@@ -85,7 +85,7 @@ export function cancelNormalMove(state, command) {
 // This is deliberately exported for the Single Player presentation boundary.
 // A preview must use the exact validation that the commit will use; the UI
 // must never recreate movement legality from its own copies of these rules.
-export function evaluateNormalMove(state, context, command) {
+export function evaluateNormalMove(state, context, command, { preview = false } = {}) {
   if (state.gameMode !== "match") return { accepted: false, reason: "MATCH_MODE_REQUIRED" };
   const piece = pieceForCommand(state, command);
   const team = teamKeyForPiece(piece);
@@ -93,26 +93,32 @@ export function evaluateNormalMove(state, context, command) {
   const y = Number(command.payload?.y);
   if (!piece || piece.team === "BALL" || piece.inactive || !team) return { accepted: false, reason: "MOVE_PIECE_INVALID" };
   if (!Number.isInteger(x) || !Number.isInteger(y)) return { accepted: false, reason: "MOVE_DESTINATION_INVALID" };
+  // Geometry is an Engine fact used by the Match presentation projection. It
+  // must be available even when a later gameplay gate rejects the move (for
+  // example before the Tracker starts or while the other team is active).
+  // UI never derives this geometry itself.
+  const geometry = getMovementGeometry(piece, { x, y });
   const tracker = normalizeTrackerSnapshot(state.tracker);
   const active = tracker.matchActionState.activeMovement || {};
   const pieceState = tracker.matchActionState.byPieceId[piece.id] || {};
-  const presentationOnly = Boolean(command.payload?.presentationOnly);
   const activeForPiece = active.active && active.kind === "normal-move"
     && String(active.pieceId || "") === String(piece.id) && active.team === team;
-  if (!isTeamActiveForTrackerPhase(tracker, team)) return { accepted: false, reason: "wait-active-team" };
-  if ((!pieceState.moveAuthorized && !(presentationOnly && !active.active)) || (!activeForPiece && active.active)) return { accepted: false, reason: "NORMAL_MOVE_NOT_ACTIVE" };
-  const geometry = getMovementGeometry(piece, { x, y });
-  if (state.pieces.some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === x && Number(item.y) === y)) return { accepted: false, reason: "occupied" };
-  if (geometry.kind === "same") return { accepted: false, reason: "same" };
-  if (geometry.kind === "mixed") return { accepted: false, reason: "mixed" };
+  if (!isTeamActiveForTrackerPhase(tracker, team)) return { accepted: false, reason: "wait-active-team", geometry };
+  // Preview is an evaluator-only capability. It is never read from command
+  // payload, so a submitted NORMAL_MOVE_COMMITTED command cannot bypass MOVE
+  // authorization by carrying UI metadata.
+  if ((!pieceState.moveAuthorized && !(preview && !active.active)) || (!activeForPiece && active.active)) return { accepted: false, reason: "NORMAL_MOVE_NOT_ACTIVE", geometry };
+  if (state.pieces.some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === x && Number(item.y) === y)) return { accepted: false, reason: "occupied", geometry };
+  if (geometry.kind === "same") return { accepted: false, reason: "same", geometry };
+  if (geometry.kind === "mixed") return { accepted: false, reason: "mixed", geometry };
   if (firstPlayerBlockingMovementPath({ pieces: state.pieces, movingPieceId: piece.id, from: piece, to: { x, y } })) {
-    return { accepted: false, reason: "path-blocked" };
+    return { accepted: false, reason: "path-blocked", geometry };
   }
   const current = normalMovementState(state.movementStateByPieceId[piece.id]);
-  if (current.movementEnded) return { accepted: false, reason: "movement-ended" };
+  if (current.movementEnded) return { accepted: false, reason: "movement-ended", geometry, current, remaining: 0 };
   const speed = normalMoveSpeed(piece, context);
-  if (speed === null) return { accepted: false, reason: "no-speed" };
-  if (current.axis && current.axis !== geometry.axis) return { accepted: false, reason: "axis" };
+  if (speed === null) return { accepted: false, reason: "no-speed", geometry, current };
+  if (current.axis && current.axis !== geometry.axis) return { accepted: false, reason: "axis", geometry, speed, current };
   const moveCost = geometry.kind === "diagonal"
     ? diagonalCostForDistance(current.distance + geometry.distance) - diagonalCostForDistance(current.distance)
     : geometry.cost;

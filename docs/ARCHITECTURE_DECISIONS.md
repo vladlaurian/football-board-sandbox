@@ -35,8 +35,11 @@ README records the current release. Changelogs record implementation history. Th
 **Consequences:**
 
 - a move, 3/2 or Group Move preview uses the same evaluator as its command; Group Move preserves its deliberate crossing exception;
+- a projection field that cannot exist for invalid presentation input is explicitly nullable; its consumer must render an illegal/unavailable presentation and must never recreate the missing gameplay fact locally;
 - Inspector availability and frozen Rule Set values cannot drift from the active Timeline cursor and MatchContext;
 - a persisted Pass/Interception fact is displayed rather than reconstructed by a popup fallback;
+- preview-only evaluator options are not command payload fields, so UI presentation cannot grant a submitted command additional authority;
+- Free Ball/Free Move, Inspector, End Turn and Bonus controls consume the same boundary, and active-decision card values come from frozen MatchContext cards;
 - Manual Multiplayer remains on its frozen legacy branch and is not routed through this contract implicitly.
 
 ## ADR-004 — Manual roll only

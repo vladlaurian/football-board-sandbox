@@ -15,6 +15,12 @@ import {
   selectSinglePlayerGroupMovePieceStatuses,
   selectSinglePlayerGroupMovePresentation,
   selectSinglePlayerDicePresentation,
+  selectSinglePlayerFreeBallControlPresentation,
+  selectSinglePlayerFreeBallPresentation,
+  selectSinglePlayerFreeMovePresentation,
+  selectSinglePlayerInspectorActionPresentation,
+  selectSinglePlayerInspectorControlPresentation,
+  selectSinglePlayerInterceptorChoicePresentation,
   selectSinglePlayerNormalMovePresentation,
   selectSinglePlayerPassPresentation,
   selectSinglePlayerPieceActionPresentation,
@@ -194,7 +200,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.52.0";
+const APP_VERSION = "v20.52.2";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5782,10 +5788,10 @@ function App() {
 
   function toggleFreeBall(piece = null) {
     if (gameMode !== "match" || replayModeRef.current) return;
-    if (!sessionCode && currentTimelineTrackerSnapshot().matchActionState.freeMode?.active) return;
-    if (!sessionCode && currentTimelineTrackerSnapshot().matchActionState.groupMove?.active) return;
-    if (!sessionCode && currentTimelineTrackerSnapshot().matchActionState.activeMovement?.active) return;
-    if (!sessionCode && actionContinuationRef.current?.kind === "bonus-card-action") return;
+    if (!sessionCode) {
+      const state = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      if (!selectSinglePlayerFreeBallControlPresentation(state, { replay: replayModeRef.current }).allowed) return;
+    }
     if (sessionCode && (!piece || piece.team === "BALL" || pieceTeamKey(piece) !== myTeam)) return;
     setFreeBallActive(active => {
       const next = !active;
@@ -5807,14 +5813,7 @@ function App() {
       const dispatched = dispatchSinglePlayerGameCommand({
         timeline: gameTimelineRef.current,
         state: before,
-        // Free Ball does not read cards or rules. The full persisted MatchContext
-        // is introduced with Match start; this phase keeps the controller contract
-        // explicit without changing current Match startup behavior.
-        context: {
-          id: gameTimelineRef.current?.recordingId || "",
-          ruleSet: before.ruleSet,
-          boardSettings: before.settings,
-        },
+        context: singlePlayerMatchContext(),
         command: {
           id: createActionEventId("free_ball_move"),
           type: "FREE_BALL_MOVED",
@@ -5871,6 +5870,14 @@ function App() {
       void requestHostFreeBallMove(x, y);
       cancelFreeBall();
       return true;
+    }
+    if (!sessionCode) {
+      const state = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const preview = selectSinglePlayerFreeBallPresentation(state, singlePlayerMatchContext(), { x, y });
+      if (!preview.legal) {
+        if (preview.reason !== "BALL_POSITION_UNCHANGED") setIllegalMoveNotice({ reason: preview.reason });
+        return false;
+      }
     }
     const committed = commitFreeBallMove(x, y);
     cancelFreeBall();
@@ -6322,12 +6329,13 @@ function App() {
       return false;
     }
     if (authorization.mode === "free" && piece.team !== "BALL") {
-      const occupied = (piecesRef.current || pieces).some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === Number(x) && Number(item.y) === Number(y));
-      if (occupied) { setIllegalMoveNotice({ reason: "occupied" }); return false; }
-      const geometry = getMovementGeometry(piece, { x, y });
-      if (geometry.kind === "same") return false;
-      if (sessionCode && isSessionGuest) { void requestHostFreeMove(piece, x, y); return true; }
       if (!sessionCode) {
+        const state = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+        const evaluation = selectSinglePlayerFreeMovePresentation(state, { piece, x, y });
+        if (!evaluation.legal) {
+          if (evaluation.reason !== "same") setIllegalMoveNotice(evaluation);
+          return false;
+        }
         const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
         const dispatched = dispatchSinglePlayerGameCommand({
           timeline: gameTimelineRef.current,
@@ -6347,6 +6355,11 @@ function App() {
         setSelectedId(piece.id);
         return true;
       }
+      const occupied = (piecesRef.current || pieces).some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === Number(x) && Number(item.y) === Number(y));
+      if (occupied) { setIllegalMoveNotice({ reason: "occupied" }); return false; }
+      const geometry = getMovementGeometry(piece, { x, y });
+      if (geometry.kind === "same") return false;
+      if (sessionCode && isSessionGuest) { void requestHostFreeMove(piece, x, y); return true; }
       return commitPieceMove(piece, x, y, { legal: true, geometry, moveCost: 0, remaining: 0 });
     }
     const evaluation = authorization.mode === "group" ? evaluateGroupMove(piece, x, y) : evaluateMove(piece, x, y);
@@ -8547,22 +8560,26 @@ function App() {
     const threeTwo = getThreeTwoEligibility(selectedPiece, hoveredCell.x, hoveredCell.y);
     if (threeTwo.eligible) return { ...threeTwo, legal: true, label: "3/2" };
     const result = evaluateMove(selectedPiece, hoveredCell.x, hoveredCell.y);
-    const axisIcon = movementAxisSymbol(result.geometry.axis);
+    // Geometry is projected by the Engine. It can be null only for an invalid
+    // presentation request, which must render as an illegal hover rather than
+    // crashing the React root.
+    const geometry = result.geometry;
+    const axisIcon = movementAxisSymbol(geometry?.axis);
     if (gameMode === "editor") {
       return {
         ...result,
-        label: result.geometry.kind === "mixed" ? "—" : `${axisIcon ? `${axisIcon} ` : ""}${result.geometry.cost ?? "—"}`,
+        label: geometry?.kind === "mixed" ? "—" : `${axisIcon ? `${axisIcon} ` : ""}${geometry?.cost ?? "—"}`,
       };
     }
     if (!result.legal) {
       return {
         ...result,
         label: result.reason === "speed"
-          ? `⚠ ${result.moveCost ?? result.geometry.cost} / ${result.remaining}`
+          ? `⚠ ${result.moveCost ?? geometry?.cost ?? "—"} / ${result.remaining}`
           : "🚫",
       };
     }
-    return { ...result, label: `${axisIcon ? `${axisIcon} ` : ""}${result.moveCost ?? result.geometry.cost} / ${result.remaining}` };
+    return { ...result, label: `${axisIcon ? `${axisIcon} ` : ""}${result.moveCost ?? geometry?.cost ?? "—"} / ${result.remaining}` };
   }, [selectedPiece, hoveredCell, gameMode, movementStateByPieceId, matchActionState, trackerUsedActions, cardState, sessionCardsById, sessionLibraryById, pieces, sessionCode, myTeam, cardVisibilityMode, cardRevealPermissions, user?.uid]);
 
   const groupMovePieceStatusById = useMemo(() => {
@@ -10822,6 +10839,12 @@ function App() {
 
   function requestEndTurn(piece) {
     const team = pieceTeamKey(piece);
+    if (!sessionCode && gameMode === "match") {
+      const state = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      if (!selectSinglePlayerInspectorControlPresentation(state, singlePlayerMatchContext(), { piece, replay: replayModeRef.current }).endTurnAllowed) return;
+      setPendingEndTurn({ team });
+      return;
+    }
     if (actionContinuationRef.current?.kind === "bonus-card-action") return;
     if (!canUseActionForPiece(piece) || matchActionState.freeMode?.active || matchActionState.activeMovement?.active || actionResolutionRef.current) return;
     if (!isTeamPhaseActive(team)) {
@@ -11886,6 +11909,10 @@ function App() {
                       type="button"
                       className={`inspector-flip-request-btn team-action-btn ${pieceTeamKey(inspectedPiece)}`}
                       disabled={(() => {
+                        if (!sessionCode && gameMode === "match") {
+                          const state = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+                          return !selectSinglePlayerInspectorControlPresentation(state, singlePlayerMatchContext(), { piece: inspectedPiece, replay: replayModeRef.current }).endTurnAllowed;
+                        }
                         if (actionContinuation?.kind === "bonus-card-action") return true;
                         return !canUseActionForPiece(inspectedPiece) || !isTeamPhaseActive(pieceTeamKey(inspectedPiece)) || matchActionState.freeMode?.active || matchActionState.activeMovement?.active || Boolean(actionResolution);
                       })()}
@@ -11897,7 +11924,9 @@ function App() {
                       <button
                         type="button"
                         className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${freeBallActive ? "is-active" : ""}`}
-                      disabled={replayModeRef.current || (!sessionCode && (matchActionState.freeMode?.active || matchActionState.groupMove?.active || matchActionState.activeMovement?.active || actionContinuation?.kind === "bonus-card-action")) || (Boolean(sessionCode) && pieceTeamKey(inspectedPiece) !== myTeam)}
+                      disabled={!sessionCode && gameMode === "match"
+                        ? !selectSinglePlayerInspectorControlPresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState(), singlePlayerMatchContext(), { piece: inspectedPiece, replay: replayModeRef.current }).freeBall.allowed
+                        : replayModeRef.current || (Boolean(sessionCode) && pieceTeamKey(inspectedPiece) !== myTeam)}
                         aria-pressed={freeBallActive}
                         onClick={() => toggleFreeBall(inspectedPiece)}
                       >
@@ -11908,7 +11937,9 @@ function App() {
                       <button
                         type="button"
                         className={`inspector-flip-request-btn free-action-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id ? "is-active" : ""}`}
-                      disabled={Boolean(!sessionCode && (actionContinuation?.kind === "bonus-card-action" || matchActionState.activeMovement?.active)) || !canUseFreeModeForPiece(inspectedPiece) || (matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId !== inspectedPiece.id)}
+                      disabled={!sessionCode && gameMode === "match"
+                        ? !selectSinglePlayerInspectorControlPresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState(), singlePlayerMatchContext(), { piece: inspectedPiece, replay: replayModeRef.current }).freeMoveAllowed
+                        : !canUseFreeModeForPiece(inspectedPiece) || (matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId !== inspectedPiece.id)}
                         aria-pressed={Boolean(matchActionState.freeMode?.active && matchActionState.freeMode?.pieceId === inspectedPiece.id)}
                         onClick={() => consumeInspectorAction("FREE", inspectedPiece)}
                       >
@@ -11919,6 +11950,14 @@ function App() {
                 </div>
                 <div className="match-action-row" aria-label="Match actions">
                   {["MOVE", "GROUP_MOVE", "PASS", "SHOT", "CROSS", "DRIBBLE", "TACKLING"].map(type => {
+                    if (!sessionCode && gameMode === "match") {
+                      const projection = selectSinglePlayerInspectorActionPresentation(
+                        currentTimelineGameStateSnapshot() || captureTimelineGameState(),
+                        singlePlayerMatchContext(),
+                        { piece: inspectedPiece, type, replay: replayModeRef.current },
+                      );
+                      return <button className={`team-action-btn ${projection.team} ${type === "GROUP_MOVE" ? "group-move-btn" : ""} ${projection.actionLocked ? "action-locked" : ""}`} key={type} type="button" disabled={projection.disabled} aria-disabled={projection.actionLocked || projection.disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{projection.label}</button>;
+                    }
                     const team = pieceTeamKey(inspectedPiece);
                     const status = getTeamActionStatus(team);
                     const pieceState = matchActionState.byPieceId[inspectedPiece.id] || {};
@@ -12277,8 +12316,11 @@ function App() {
       )}
 
       {actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interceptor-choice" && (() => {
-        const candidates = interceptorChoiceCandidates(actionResolution.plan?.interceptors, actionResolution.interceptorIndex);
-        const defenseTeam = teamKeyForPiece(candidates[0]?.defender);
+        const offlineProjection = !sessionCode && gameMode === "match"
+          ? selectSinglePlayerInterceptorChoicePresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState(), singlePlayerMatchContext())
+          : null;
+        const candidates = offlineProjection?.candidates || interceptorChoiceCandidates(actionResolution.plan?.interceptors, actionResolution.interceptorIndex);
+        const defenseTeam = offlineProjection?.team || teamKeyForPiece(candidates[0]?.defender);
         const canChoose = !sessionCode || myTeam === defenseTeam;
         const teamName = defenseTeam === "blue" ? "Blue" : "Red";
         return <div className="modal-backdrop interceptor-choice-backdrop">
@@ -12298,7 +12340,9 @@ function App() {
             {canChoose && <div className="interceptor-choice-options">
               {candidates.map(item => {
                 const defender = pieces.find(piece => piece.id === item.defender?.id) || item.defender;
-                const interception = cardStat(cardById[defender?.cardId], "stat:interception");
+                const interception = !sessionCode && gameMode === "match"
+                  ? Number(item.interception) || 0
+                  : cardStat(cardById[defender?.cardId], "stat:interception");
                 const sign = interception >= 0 ? "+" : "";
                 return <button key={defender?.id} type="button" onClick={() => choosePassInterceptor(defender?.id)}>
                   {getPieceIdentity(defender)} ({teamName}) — Interception {sign}{interception}
