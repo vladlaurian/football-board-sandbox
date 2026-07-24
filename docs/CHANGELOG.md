@@ -2,6 +2,13 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.53.4 — Pass invalid-target projection
+
+- `PASS_TARGET_SELECTED` now records an Engine-owned blocked preview for an empty square or goalkeeper: all route facts persist, no action is consumed, and route confirmation remains Engine-rejected.
+- The official Single Player Pass selector projects that preview as disabled grey trajectories and origin badges while the existing target-rule message remains visible.
+- Corrected offline Pass Cancel to preserve the selected passer through the canonical Timeline projection.
+- Manual Multiplayer remains unchanged.
+
 ## v20.53.3 — Timeline-null render hotfix
 
 - Fixed the v20.53.2 render crash caused by reading `gameTimeline.cursor` while Timeline is still `null`.

@@ -209,7 +209,12 @@ export function selectPassTarget(state, context, command) {
   const targetPlayer = state.pieces.find(piece => piece && piece.team !== "BALL" && !piece.inactive
     && Number(piece.x) === x && Number(piece.y) === y
     && context?.gameplayCardsById?.[String(piece.cardId || "")]?.position !== "GK");
-  if (context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !targetPlayer) return { accepted: false, reason: "PASS_TARGET_FIELD_PLAYER_REQUIRED" };
+  // Selecting an invalid target is still a canonical preview state. It gives
+  // the player visible blocked routes and the official reason, but it never
+  // grants a confirmable PASS route or consumes a Tracker action.
+  const targetInvalidReason = context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !targetPlayer
+    ? "PASS_TARGET_FIELD_PLAYER_REQUIRED"
+    : null;
   const pathMode = context?.ruleSet?.actions?.pass?.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center";
   const cornerIds = pathMode === "center-to-center" ? [null] : PASS_CORNERS.map(corner => corner.id);
   const routePlans = cornerIds.map(cornerId => buildPassPlan({
@@ -238,12 +243,14 @@ export function selectPassTarget(state, context, command) {
     originBlocked: Boolean(plan.originBlocked),
     goalkeeperRouteBlocked: Boolean(plan.goalkeeperRouteBlocked),
     endpointBodyBlocked: Boolean(plan.endpointBodyBlocked),
+    targetInvalidReason,
     risk: Boolean(plan.interceptors?.length || plan.directHit?.team && plan.directHit.team !== pending.team),
   }));
   const next = {
     ...pending,
     target: { x, y },
     status: "route-selection",
+    targetInvalidReason,
     routePlans,
     routePresentation,
   };
@@ -287,7 +294,7 @@ export function confirmPassRoute(state, context, command) {
   });
   if (plan.originBlocked) return { accepted: false, reason: "PASS_ROUTE_ORIGIN_BLOCKED" };
   if (plan.goalkeeperRouteBlocked) return { accepted: false, reason: "PASS_ROUTE_GOALKEEPER_BLOCKED" };
-  if (context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !plan.targetPlayerId) return { accepted: false, reason: "PASS_TARGET_FIELD_PLAYER_REQUIRED" };
+  if (pending.targetInvalidReason === "PASS_TARGET_FIELD_PLAYER_REQUIRED" || (context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !plan.targetPlayerId)) return { accepted: false, reason: "PASS_TARGET_FIELD_PLAYER_REQUIRED" };
   if (plan.isLong && !plan.attackerTargetStatId) return { accepted: false, reason: "PASS_LONG_STAT_NOT_CONFIGURED" };
 
   const continuation = normalizeActionContinuation(state.actionContinuation);

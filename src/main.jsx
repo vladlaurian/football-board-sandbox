@@ -203,7 +203,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.53.3";
+const APP_VERSION = "v20.53.4";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -6231,6 +6231,7 @@ function App() {
     if (!sessionCode && gameMode === "match" && matchActionState.groupMove?.active) {
       const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
       const dispatched = dispatchSinglePlayerGameCommand({
+        preserveLocalSelection: true,
         timeline: gameTimelineRef.current,
         state: before,
         context: singlePlayerMatchContext(),
@@ -9402,6 +9403,7 @@ function App() {
     if (!sessionCode) {
       const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
       const dispatched = dispatchSinglePlayerGameCommand({
+        preserveLocalSelection: true,
         timeline: gameTimelineRef.current,
         state: before,
         context: singlePlayerMatchContext(),
@@ -9480,6 +9482,7 @@ function App() {
     if (!sessionCode) {
       const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
       const dispatched = dispatchSinglePlayerGameCommand({
+        preserveLocalSelection: true,
         timeline: gameTimelineRef.current,
         state: before,
         context: singlePlayerMatchContext(),
@@ -9490,12 +9493,14 @@ function App() {
         },
         label: `Pass target selected: ${toCoord(x, y)}`,
       });
-      if (!dispatched.result.accepted) {
-        if (dispatched.result.reason === "PASS_TARGET_FIELD_PLAYER_REQUIRED") setIllegalMoveNotice({ reason: "pass-target-field-player-required" });
-        return false;
+      if (!dispatched.result.accepted) return false;
+      if (dispatched.state.actionResolution?.targetInvalidReason === "PASS_TARGET_FIELD_PLAYER_REQUIRED") {
+        setIllegalMoveNotice({ reason: "pass-target-field-player-required" });
+      } else {
+        setIllegalMoveNotice(null);
       }
       setHoveredCell(null);
-      if (singlePlayerMatchContext().ruleSet.actions?.pass?.pathMode === "center-to-center") {
+      if (!dispatched.state.actionResolution?.targetInvalidReason && singlePlayerMatchContext().ruleSet.actions?.pass?.pathMode === "center-to-center") {
         confirmPassRoute(null);
       }
       return true;

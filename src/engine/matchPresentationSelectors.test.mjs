@@ -44,6 +44,24 @@ test("Single Player Pass selector projects persisted route and roll facts withou
   assert.equal(projection.rollPrompt.modifierSources[0].value, 7);
 });
 
+test("Single Player Pass selector renders Engine-invalid targets as blocked routes", () => {
+  const projection = selectSinglePlayerPassPresentation({
+    actionResolution: {
+      kind: "pass",
+      status: "route-selection",
+      target: { x: 8, y: 4 },
+      targetInvalidReason: "PASS_TARGET_FIELD_PLAYER_REQUIRED",
+      routePresentation: [{
+        id: "top-left", cornerId: "top-left", origin: { x: 3, y: 2 }, endpoint: { x: 8.5, y: 4.5 }, foot: "LF",
+        modifier: 0, isLong: false, originBlocked: false, goalkeeperRouteBlocked: false, endpointBodyBlocked: false, risk: false,
+        targetInvalidReason: "PASS_TARGET_FIELD_PLAYER_REQUIRED",
+      }],
+    },
+  });
+  assert.equal(projection.routeOptions[0].status, "blocked");
+  assert.equal(projection.routeOptions[0].disabled, true);
+});
+
 test("Single Player Pass selector keeps a dominant-foot origin badge neutral and compact", () => {
   const projection = selectSinglePlayerPassPresentation({
     actionResolution: {

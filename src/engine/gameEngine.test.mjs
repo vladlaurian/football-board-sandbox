@@ -1019,7 +1019,7 @@ test("PASS_TARGET_SELECTED rejects stale, non-integer, and out-of-bounds targets
   }
 });
 
-test("configured Short/Long Pass requires an active outfield target before route selection", () => {
+test("configured Short/Long Pass projects an invalid free-cell target as blocked routes without consuming Tracker", () => {
   const context = createMatchContext({
     boardSettings: { cols: 20, rows: 12 },
     ruleSet: { actions: { pass: { requireFieldPlayerTarget: true, longPassThreshold: 16 } } },
@@ -1033,7 +1033,16 @@ test("configured Short/Long Pass requires an active outfield target before route
     state: started.nextState, context,
     command: { id: "field-target-select", type: "PASS_TARGET_SELECTED", payload: { passId: "field-target", x: 9, y: 5 } },
   });
-  assert.deepEqual(selected, { accepted: false, reason: "PASS_TARGET_FIELD_PLAYER_REQUIRED" });
+  assert.equal(selected.accepted, true);
+  assert.equal(selected.nextState.actionResolution.status, "route-selection");
+  assert.equal(selected.nextState.actionResolution.targetInvalidReason, "PASS_TARGET_FIELD_PLAYER_REQUIRED");
+  assert.equal(selected.nextState.actionResolution.routePresentation.length, 4);
+  assert.equal(selected.nextState.tracker.usedActions.blue, 0);
+  const confirmed = applyGameCommand({
+    state: selected.nextState, context,
+    command: { id: "field-target-confirm", type: "PASS_ROUTE_CONFIRMED", payload: { passId: "field-target", cornerId: "top-left" } },
+  });
+  assert.deepEqual(confirmed, { accepted: false, reason: "PASS_TARGET_FIELD_PLAYER_REQUIRED" });
 });
 
 test("PASS_TARGET_SELECTED remains in the atomic Bonus Pass transaction without touching Tracker", () => {

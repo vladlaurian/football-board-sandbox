@@ -22,8 +22,8 @@ export function selectSinglePlayerPassPresentation(state) {
   const routeOptions = (pending.routePresentation || []).map(route => ({
     ...route,
     modifierLabel: formatSigned(route.modifier),
-    status: route.goalkeeperRouteBlocked || route.endpointBodyBlocked ? "blocked" : route.risk ? "risk" : "clear",
-    disabled: Boolean(route.goalkeeperRouteBlocked || route.endpointBodyBlocked),
+    status: route.targetInvalidReason || route.goalkeeperRouteBlocked || route.endpointBodyBlocked ? "blocked" : route.risk ? "risk" : "clear",
+    disabled: Boolean(route.targetInvalidReason || route.goalkeeperRouteBlocked || route.endpointBodyBlocked),
   }));
   const selectedRoute = routeOptions.find(route => route.cornerId === pending.cornerId)
     || routeOptions[0]

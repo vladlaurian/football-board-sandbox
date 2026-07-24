@@ -71,6 +71,10 @@ The pass is classified as Long Pass only when centre-to-centre distance is stric
 
 `≤ threshold` is Short Pass; `> threshold` is Long Pass. Both require an active outfield player as target; a goalkeeper is not a direct target.
 
+### Invalid target preview
+
+Selecting an empty square or goalkeeper in offline Match does not relax that rule. The Engine records a blocked Pass preview with the canonical reason, so the board can show every trajectory and origin badge in grey. No Tracker action is consumed and route confirmation remains rejected until the player selects an active outfield target.
+
 Short Pass retains the ground route: bodies and goalkeeper route blocking use the established route semantics. Its attacker target is the stable `stat:passing` value, whose visible global name may be renamed to **Short Pass**.
 
 Long Pass is aerial. It ignores defensive areas and bodies in the middle of the route. A player body matters only in the launch/landing neighbourhood when the actual selected-corner-to-target-centre trajectory touches that body cell, including edge/corner contact; merely being adjacent does not matter. The first such body is the direct contact: an opponent intercepts directly and a teammate receives directly. Long Pass checks eligible defenders whose defensive area contains the passer, resolves that complete group, then checks the destination group whose area contains the actual receiver. Both groups are one progressive Interception sequence; stacks and carried Natural-1 disadvantage do not restart at reception.
