@@ -22,7 +22,7 @@ export function endTrackerPhase(state, command) {
       accepted: true,
       nextState: {
         ...state,
-        movementStateByPieceId: {},
+        movementStateByPieceId: {}, throughBallOpportunity: null,
         tracker: {
           ...baseTracker,
           currentTurn: nextTurn,
@@ -43,7 +43,7 @@ export function endTrackerPhase(state, command) {
   }
   return {
     accepted: true,
-    nextState: { ...state, tracker: { ...baseTracker, turnPhase: nextPhase } },
+    nextState: { ...state, throughBallOpportunity: null, tracker: { ...baseTracker, turnPhase: nextPhase } },
     event: {
       type: "PHASE_ENDED",
       team,

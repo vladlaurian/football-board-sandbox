@@ -10,6 +10,10 @@ Player stat definitions and values are not owned by Rule Sets. Stats are selecte
 
 ## v20 action configuration
 
+### v20.54.0 — Through Ball and triggered 3/2
+
+Schema v11 adds `actions.throughBall.maxDistance` (default `16`) and `actions.threeTwo.allowMovementAfterPriorMove` (default `false`). Old Rule Sets normalize these fields to their defaults, so existing saved sets remain valid. Both are frozen in `MatchContext` at Match start. Through Ball itself uses the existing Pass path geometry setting; that geometry changes the physical corner route, never the centre-to-centre range measurement.
+
 Rule Set schema version 8 configures common Dice Modifiers plus:
 
 ```text

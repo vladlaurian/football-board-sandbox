@@ -82,6 +82,7 @@ test("Single Player movement projections reuse Engine evaluators instead of UI-l
       { id: "blue-blocker", team: "A", x: 4, y: 3 },
     ],
     tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+    throughBallOpportunity: { team: "blue", passerId: "other", target: { x: 5, y: 3 }, turn: 1 },
   });
   const context = createMatchContext({ boardSettings: { cols: 20, rows: 12 }, gameplayCards: [{ id: "blue-card", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 6 }] }] });
   const normal = selectSinglePlayerNormalMovePresentation(state, context, { piece: state.pieces[1], x: 5, y: 3 });
@@ -252,6 +253,7 @@ test("Normal Move preview capability cannot be smuggled through a submitted comm
     gameMode: "match",
     pieces: [{ id: "ball", team: "BALL", x: 8, y: 3 }, { id: "blue-1", team: "A", cardId: "blue-card", x: 3, y: 3 }],
     tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+    throughBallOpportunity: { team: "blue", passerId: "other", target: { x: 5, y: 3 }, turn: 1 },
   });
   const context = createMatchContext({ boardSettings: { cols: 20, rows: 12 }, gameplayCards: [{ id: "blue-card", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 6 }] }] });
   const preview = selectSinglePlayerNormalMovePresentation(state, context, { piece: state.pieces[1], x: 4, y: 3 });
@@ -266,6 +268,7 @@ test("ball-cell presentation exposes Engine-owned 3/2 and direct-board normal MO
     gameMode: "match",
     pieces: [{ id: "ball", team: "BALL", x: 5, y: 3 }, { id: "blue-1", team: "A", cardId: "blue-card", x: 3, y: 3 }],
     tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+    throughBallOpportunity: { team: "blue", passerId: "other", target: { x: 5, y: 3 }, turn: 1 },
   });
   const context = createMatchContext({ gameplayCards: [{ id: "blue-card", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 5 }] }] });
   const choice = selectSinglePlayerBallCellMoveChoicePresentation(state, context, { piece: state.pieces[1], x: 5, y: 3 });

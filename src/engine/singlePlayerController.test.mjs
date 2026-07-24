@@ -160,6 +160,7 @@ test("Single Player Controller records THREE_TWO_MOVE through Timeline and suppo
       { id: "ball", team: "BALL", x: 5, y: 5 },
       { id: "blue-1", team: "A", cardId: "card-blue-1", x: 2, y: 5 },
     ],
+    throughBallOpportunity: { team: "blue", passerId: "other", target: { x: 5, y: 5 }, turn: 1 },
   });
   const dispatched = dispatchSinglePlayerGameCommand({
     state: start,

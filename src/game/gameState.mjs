@@ -31,6 +31,7 @@ export function createGameState(raw = {}) {
     actionContinuation: raw.actionContinuation && typeof raw.actionContinuation === "object"
       ? raw.actionContinuation
       : null,
+    throughBallOpportunity: raw.throughBallOpportunity && typeof raw.throughBallOpportunity === "object" ? raw.throughBallOpportunity : null,
     tracker: {
       gameStarted: Boolean(tracker.gameStarted),
       startingTeam: tracker.startingTeam === "blue" ? "blue" : "red",
@@ -75,6 +76,7 @@ export function mergeGameState(baseState, overrides = {}) {
     ruleSet: stateOverride(overrides, "ruleSet", base.ruleSet),
     actionResolution: stateOverride(overrides, "actionResolution", base.actionResolution),
     actionContinuation: stateOverride(overrides, "actionContinuation", base.actionContinuation),
+    throughBallOpportunity: stateOverride(overrides, "throughBallOpportunity", base.throughBallOpportunity),
     tracker: {
       gameStarted: stateOverride(overrides, "trackerGameStarted", base.tracker.gameStarted),
       startingTeam: stateOverride(overrides, "trackerStartingTeam", base.tracker.startingTeam),

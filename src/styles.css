@@ -5441,6 +5441,12 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   opacity: .45;
   cursor: not-allowed;
 }
+.inspector-card-zoom-tools .inspector-inline-action {
+  padding: 3px 6px;
+  font-size: 9px;
+  line-height: 1;
+  white-space: nowrap;
+}
 .inspector-card-zoom-viewport {
   width: 100%;
   max-height: min(70vh, 760px);

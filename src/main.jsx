@@ -203,7 +203,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.53.6";
+const APP_VERSION = "v20.54.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -6477,13 +6477,14 @@ function App() {
       return;
     }
 
-    if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting" && canControlActiveResolution(actionResolutionRef.current)) {
+    if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "targeting" && canControlActiveResolution(actionResolutionRef.current)) {
+      if (actionResolutionRef.current.kind === "through-ball") { chooseThroughBallTarget(piece.x, piece.y); return; }
       choosePassTarget(piece.x, piece.y);
       return;
     }
     // Pass state blocks gameplay actions, not inspection. The non-controlling
     // client may always select any puck while the active player resolves Pass.
-    if (actionResolutionRef.current?.kind === "pass") {
+    if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind)) {
       setSelectedId(pieceId);
       setHoveredCell(null);
       return;
@@ -6956,6 +6957,17 @@ function App() {
 
   const passPreview = useMemo(() => {
     const pending = actionResolution;
+    if (pending?.kind === "through-ball" && pending.passerId && pending.target) {
+      const routes = pending.routes || [];
+      return {
+        plans: routes,
+        selectedPlan: routes.find(route => route.cornerId === pending.cornerId) || routes[0] || null,
+        target: pending.target,
+        visibleCells: [], blockedCells: [],
+        lines: routes.map(route => ({ id: route.cornerId, origin: route.origin, endpoint: route.endpoint, status: route.legal ? "clear" : "blocked", selected: route.cornerId === pending.cornerId })),
+        routes: pending.status === "route-selection" ? routes.map(route => ({ id: route.cornerId, cornerId: route.cornerId, origin: route.origin, foot: "TB", modifier: "", status: route.legal ? "clear" : "blocked", disabled: !route.legal })) : [],
+      };
+    }
     if (pending?.kind !== "pass" || !pending.passerId || !pending.target) return null;
     const singlePlayerMatch = !sessionCode && gameMode === "match";
     if (singlePlayerMatch) {
@@ -7057,11 +7069,15 @@ function App() {
   const passInterceptionRollRequired = actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interception-roll";
   const passTargetDistance = useMemo(() => {
     const pending = actionResolution;
-    if (pending?.kind !== "pass" || pending.status !== "targeting" || !hoveredCell) return null;
+    if (!["pass", "through-ball"].includes(pending?.kind) || pending.status !== "targeting" || !hoveredCell) return null;
     if (hoveredCell.x < 0 || hoveredCell.y < 0 || hoveredCell.x >= settings.cols || hoveredCell.y >= settings.rows) return null;
     const passer = pieces.find(piece => piece.id === pending.passerId);
     if (!passer) return null;
     const distance = Math.hypot((hoveredCell.x + .5) - (passer.x + .5), (hoveredCell.y + .5) - (passer.y + .5));
+    if (pending.kind === "through-ball") {
+      const maximum = Number(matchContextRef.current?.ruleSet?.actions?.throughBall?.maxDistance) || 16;
+      return { x: hoveredCell.x, y: hoveredCell.y, label: `${distance.toFixed(2)} ${distance > maximum ? "MAX" : "TB"}` };
+    }
     const frozenPassRules = matchContextRef.current?.ruleSet?.actions?.pass || {};
     const longPassThreshold = Number(frozenPassRules.longPassThreshold) || 16;
     const maxPassDistance = Math.max(longPassThreshold, Number(frozenPassRules.maxPassDistance) || 32);
@@ -8824,7 +8840,7 @@ function App() {
 
   function moveBoardPan(e) {
     const pass = actionResolutionRef.current;
-    if (pass?.kind === "pass" && pass.status !== "targeting") {
+    if (["pass", "through-ball"].includes(pass?.kind) && pass.status !== "targeting") {
       setHoveredCell(null);
     } else if ((selectedId || activeInteractionPieceId) && e.pointerType !== "touch") {
       setHoveredCell(gridPointFromClient(e.clientX, e.clientY, { clampToBoard: false }));
@@ -8856,13 +8872,14 @@ function App() {
 
     // Route badges are the only allowed board click after a pass target is set.
     // This prevents the underlying square from being treated as a player move.
-    if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "route-selection") return;
+    if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "route-selection") return;
 
     const point = gridPointFromClient(e.clientX, e.clientY);
     if (!point) return;
     if (groupMoveZoneDraft) return;
-    if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting") {
+    if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "targeting") {
       if (!canControlActiveResolution(actionResolutionRef.current)) return;
+      if (actionResolutionRef.current.kind === "through-ball") { chooseThroughBallTarget(point.x, point.y); return; }
       choosePassTarget(point.x, point.y);
       return;
     }
@@ -9404,6 +9421,56 @@ function App() {
       after: mergeTimelineGameState(before, { actionResolution: pending }), allowNoop: true,
     });
     return pending;
+  }
+
+  function beginThroughBallTargeting(piece) {
+    if (sessionCode || gameMode !== "match" || !playerHasBall(piece)) return null;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`through_ball_start_${piece.id}`), type: GAME_COMMAND_TYPE.THROUGH_BALL_STARTED, payload: { pieceId: piece.id } },
+      label: `${pieceTeamKey(piece) === "blue" ? "Blue" : "Red"} THROUGH BALL: choose free target`,
+    });
+    if (!dispatched.result.accepted) { setIllegalMoveNotice({ reason: dispatched.result.reason }); return null; }
+    setSelectedId(piece.id); setHoveredCell(null); return dispatched.state.actionResolution;
+  }
+
+  function chooseThroughBallTarget(x, y) {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "through-ball" || pending.status !== "targeting" || !canControlActiveResolution(pending) || sessionCode) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`through_ball_target_${pending.id}`), type: GAME_COMMAND_TYPE.THROUGH_BALL_TARGET_SELECTED, payload: { x: Number(x), y: Number(y) } },
+      label: `Through Ball target selected: ${toCoord(x, y)}`,
+    });
+    if (!dispatched.result.accepted) { setIllegalMoveNotice({ reason: dispatched.result.reason }); return false; }
+    setIllegalMoveNotice(null); setHoveredCell(null); return true;
+  }
+
+  function commitThroughBallRoute(cornerId) {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "through-ball" || pending.status !== "route-selection" || sessionCode) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`through_ball_route_${pending.id}`), type: GAME_COMMAND_TYPE.THROUGH_BALL_COMMITTED, payload: { cornerId } },
+      label: `Through Ball executed: ${toCoord(pending.target.x, pending.target.y)}`,
+    });
+    if (!dispatched.result.accepted) { setIllegalMoveNotice({ reason: dispatched.result.reason }); return false; }
+    setIllegalMoveNotice(null); return true;
+  }
+
+  function cancelThroughBallTargeting() {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "through-ball" || !["targeting", "route-selection"].includes(pending.status) || sessionCode) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`through_ball_cancel_${pending.id}`), type: GAME_COMMAND_TYPE.THROUGH_BALL_CANCELLED, payload: {} },
+      label: "Through Ball cancelled",
+    });
+    return Boolean(dispatched.result.accepted);
   }
 
   function commitPassCancellation(pending = actionResolutionRef.current) {
@@ -10407,11 +10474,15 @@ function App() {
       }
       return;
     }
-    if (type === "PASS" && gameMode === "match" && !playerHasBall(piece)) {
+    if (["PASS", "THROUGH_BALL"].includes(type) && gameMode === "match" && !playerHasBall(piece)) {
       setIllegalMoveNotice({ reason: "pass-requires-ball" });
       return;
     }
     const pendingPass = actionResolutionRef.current;
+    if (pendingPass?.kind === "through-ball") {
+      if (type === "THROUGH_BALL" && pendingPass.passerId === piece.id) cancelThroughBallTargeting();
+      return;
+    }
     if (pendingPass?.kind === "pass") {
       if (type === "PASS" && pendingPass.passerId === piece.id && isPassPreviewCancellable(pendingPass)) cancelPassTargeting();
       return;
@@ -10510,6 +10581,14 @@ function App() {
       }
       cancelFreeBall();
       beginPassTargeting(piece);
+      return;
+    }
+    if (type === "THROUGH_BALL") {
+      if (gameMode === "match") {
+        if (!isTeamPhaseActive(team)) { setIllegalMoveNotice({ reason: phaseBlockReason() }); return; }
+        if (getTeamActionStatus(team).exhausted) { setIllegalMoveNotice({ reason: "actions-complete-end-turn" }); return; }
+      }
+      beginThroughBallTargeting(piece);
       return;
     }
     if (type === "MOVE" && sessionCode && isSessionGuest) {
@@ -11636,11 +11715,11 @@ function App() {
         rulerMarkers={rulerMarkers}
         defensiveAreaOverlays={defensiveAreaOverlays}
         passPreview={passPreview}
-        passTargeting={actionResolution?.kind === "pass" && actionResolution.status === "targeting" && canControlActiveResolution(actionResolution)}
-        passActive={passActive && canControlActiveResolution(actionResolution)}
+        passTargeting={["pass", "through-ball"].includes(actionResolution?.kind) && actionResolution.status === "targeting" && canControlActiveResolution(actionResolution)}
+        passActive={(passActive || actionResolution?.kind === "through-ball") && canControlActiveResolution(actionResolution)}
         passTargetDistance={passTargetDistance}
-        passRouteInteractive={actionResolution?.kind === "pass" && actionResolution.status === "route-selection" && canControlActiveResolution(actionResolution)}
-        onSelectPassRoute={confirmPassRoute}
+        passRouteInteractive={["pass", "through-ball"].includes(actionResolution?.kind) && actionResolution.status === "route-selection" && canControlActiveResolution(actionResolution)}
+        onSelectPassRoute={cornerId => actionResolution?.kind === "through-ball" ? commitThroughBallRoute(cornerId) : confirmPassRoute(cornerId)}
         groupMoveZone={groupMoveZoneDraft
           ? { ...groupMoveZoneDraft, confirmable: true }
           : null}
@@ -11896,6 +11975,22 @@ function App() {
                   <div className="inspector-card-zoom-block">
                     <div className="inspector-card-zoom-tools">
                       <span>Zoom {Math.round(inspectorCardZoom * 100)}%</span>
+                      {!sessionCode && gameMode === "match" && (() => {
+                        const team = pieceTeamKey(inspectedPiece);
+                        const pending = actionResolution;
+                        const active = pending?.kind === "through-ball" && pending.passerId === inspectedPiece.id;
+                        const disabled = active ? false : !playerHasBall(inspectedPiece)
+                          || !isTeamPhaseActive(team)
+                          || getTeamActionStatus(team).exhausted
+                          || !canUseActionForPiece(inspectedPiece)
+                          || Boolean(pending)
+                          || Boolean(matchActionState.freeMode?.active)
+                          || Boolean(matchActionState.activeMovement?.active);
+                        return <>
+                          <button className={`team-action-btn ${team} inspector-inline-action`} type="button" disabled={disabled} onClick={() => consumeInspectorAction("THROUGH_BALL", inspectedPiece)}>{active ? "CANCEL THROUGH" : "THROUGH BALL"}</button>
+                          <button className={`team-action-btn ${team} inspector-inline-action`} type="button" disabled>LOFTED THROUGH</button>
+                        </>;
+                      })()}
                       <button type="button" onClick={resetInspectorCardView} disabled={inspectorCardZoom <= 1 && inspectorCardPan.x === 0 && inspectorCardPan.y === 0}>Reset</button>
                     </div>
                     <div
@@ -12422,6 +12517,23 @@ function App() {
                 <input disabled={ruleSetEditingLocked} type="number" min="0" max="5000" step="100" value={ruleSetDraft.actions?.pass?.resolutionDelayMs ?? 1500} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, resolutionDelayMs: clamp(Math.floor(Number(e.target.value) || 0), 0, 5000) } } }))} />
               </label>
               <span className="rule-manual-pill">Dice: manual roll only</span>
+            </section>
+            <section className="rule-action-card">
+              <div><strong>Through Ball</strong><span>Configured automation — no roll</span></div>
+              <p>Target must be a free cell outside all opposing defensive areas. Bodies and opposing defensive areas block its route. Distance is measured centre-to-centre.</p>
+              <label>Maximum distance (whole squares)
+                <input disabled={ruleSetEditingLocked} type="number" min="1" step="1" value={ruleSetDraft.actions?.throughBall?.maxDistance ?? 16} onChange={e => setRuleSetDraft(draft => {
+                  const raw = e.target.value;
+                  return { ...draft, actions: { ...draft.actions, throughBall: { ...draft.actions?.throughBall, maxDistance: raw === "" ? "" : Math.max(1, Math.floor(Number(raw)) || 1) } } };
+                })} onBlur={() => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, throughBall: { ...draft.actions?.throughBall, maxDistance: Math.max(1, Math.floor(Number(draft.actions?.throughBall?.maxDistance)) || 16) } } }))} />
+              </label>
+            </section>
+            <section className="rule-action-card">
+              <div><strong>3/2 reception</strong><span>Through Ball only</span></div>
+              <label className="rule-checkbox-label">
+                <input disabled={ruleSetEditingLocked} type="checkbox" checked={ruleSetDraft.actions?.threeTwo?.allowMovementAfterPriorMove === true} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, threeTwo: { ...draft.actions?.threeTwo, allowMovementAfterPriorMove: e.target.checked } } }))} />
+                Allow remaining normal movement after a player moved before using 3/2
+              </label>
             </section>
             <section className="rule-action-card">
               <div><strong>Dice modifiers</strong><span>Shared semantic definitions</span></div>

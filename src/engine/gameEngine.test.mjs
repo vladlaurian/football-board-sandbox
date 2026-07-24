@@ -377,6 +377,7 @@ test("THREE_TWO_MOVE_COMMITTED is a free active-phase action and preserves the b
       usedActions: { blue: 5, red: 0 },
       actionLog: { blue: Array.from({ length: 5 }, (_, index) => ({ id: `action-${index}`, type: "PASS", pieceId: "blue-1" })), red: [] },
     },
+    throughBallOpportunity: { team: "blue", passerId: "other", target: { x: 5, y: 5 }, turn: 1 },
   });
   const command = {
     id: "three-two-1",
@@ -397,7 +398,7 @@ test("THREE_TWO_MOVE_COMMITTED is a free active-phase action and preserves the b
   assert.equal(result.events[0].metadata.movementReason, "THREE_TWO");
 });
 
-test("THREE_TWO_MOVE remains available to the Bonus Action owner outside the Tracker phase", () => {
+test("THREE_TWO_MOVE is not available to a Bonus Action owner outside the active Tracker phase", () => {
   const state = createGameState({
     gameMode: "match",
     pieces: [
@@ -419,9 +420,8 @@ test("THREE_TWO_MOVE remains available to the Bonus Action owner outside the Tra
     context,
     command: { id: "bonus-three-two", type: "THREE_TWO_MOVE_COMMITTED", payload: { pieceId: "red-1", x: 5, y: 5 } },
   });
-  assert.equal(result.accepted, true);
-  assert.equal(result.nextState.tracker.usedActions.red, 0);
-  assert.equal(result.nextState.actionContinuation.id, "bonus-red");
+  assert.equal(result.accepted, false);
+  assert.equal(result.reason, "wait-active-team");
 });
 
 test("Bonus Action locks unrelated Engine commands while retaining Three Two", () => {
@@ -617,6 +617,7 @@ test("THREE_TWO_MOVE_COMMITTED rejects an occupied ball square, reuse, and inact
       { id: "blue-1", team: "A", cardId: "card-blue-1", x: 2, y: 5 },
       { id: "red-1", team: "B", cardId: "card-blue-1", x: 5, y: 5 },
     ],
+    throughBallOpportunity: { team: "blue", passerId: "other", target: { x: 5, y: 5 }, turn: 1 },
   });
   const command = { id: "three-two-rejected", type: "THREE_TWO_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 5, y: 5 } };
   const before = structuredClone(base);
@@ -642,6 +643,7 @@ test("THREE_TWO_MOVE_COMMITTED rejects a player blocking the path to the ball", 
       { id: "blue-1", team: "A", cardId: "card-blue-1", x: 2, y: 5 },
       { id: "blue-2", team: "A", x: 3, y: 5 },
     ],
+    throughBallOpportunity: { team: "blue", passerId: "other", target: { x: 5, y: 5 }, turn: 1 },
   });
   const before = structuredClone(state);
   assert.deepEqual(applyGameCommand({

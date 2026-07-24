@@ -6,6 +6,7 @@ import {
   findRuleSet,
   normalizeRuleSet,
   normalizeRuleSets,
+  RULE_SET_SCHEMA_VERSION,
 } from "./ruleSets.mjs";
 
 test("a Rule Set always keeps dice resolution manual", () => {
@@ -46,7 +47,7 @@ test("legacy Pass interception settings migrate into the separate Interception a
     name: "Legacy",
     actions: { pass: { modifierCap: 3, equalRollOutcome: "interception" } },
   });
-  assert.equal(normalized.schemaVersion, 10);
+  assert.equal(normalized.schemaVersion, RULE_SET_SCHEMA_VERSION);
   assert.equal(normalized.diceModifiers.stackCap, 3);
   assert.equal(normalized.actions.interception.equalRollOutcome, "interception");
   assert.equal(normalized.actions.interception.defenderRollStatId, "stat:interception");

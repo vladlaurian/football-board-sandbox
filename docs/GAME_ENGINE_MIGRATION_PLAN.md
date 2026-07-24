@@ -568,6 +568,8 @@ v20.52.9 closes the audit loop for future work without a new extraction: the per
 
 v20.53.2 corrects the Pass-family rule build through that Gate. `PASS_TARGET_SELECTED` and `PASS_ROUTE_CONFIRMED` remain the existing Engine commands, but their canonical plan stores centre-to-centre Short/Long classification, a MatchContext-resolved stable Long Pass stat, direct endpoint contact, and one progressive Long reaction sequence ordered origin before reception. The offline presentation reads the persisted route facts and emits only those existing commands; Timeline/Undo/Redo/Replay retain the plan and AI exports the frozen Rule Set fields. The `sessionCode`/Manual Multiplayer branch explicitly retains its former plan calculation and is not migrated.
 
+v20.54.0 applies the Mechanic Integration Gate to Through Ball. The offline Engine owns `THROUGH_BALL_STARTED`, target selection, route confirmation and cancellation; the Rule Set maximum distance and 3/2 continuation choice are normalized and frozen in MatchContext. A canonical opportunity records the passing team, passer, target and turn. It permits 3/2 only for another teammate that reaches that free ball in the same turn, and is cleared by use or phase change. Target/race eligibility is deterministic and recorded in Timeline state; Manual Multiplayer is not routed through this feature.
+
 ## Required update after every implementation build
 
 - mark only completed items complete;

@@ -1,4 +1,4 @@
-export const RULE_SET_SCHEMA_VERSION = 10;
+export const RULE_SET_SCHEMA_VERSION = 11;
 export const DEFAULT_RULE_SET_ID = "default-rules";
 
 function cleanText(value, fallback = "") {
@@ -33,6 +33,8 @@ export function createDefaultRuleSet() {
         requireFieldPlayerTarget: true,
         resolutionDelayMs: 2000,
       },
+      throughBall: { status: "configured", maxDistance: 16 },
+      threeTwo: { allowMovementAfterPriorMove: false },
       interception: {
         status: "configured",
         rollMode: "manual",
@@ -81,6 +83,8 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
   const pass = source.actions?.pass && typeof source.actions.pass === "object" ? source.actions.pass : {};
   const interception = source.actions?.interception && typeof source.actions.interception === "object" ? source.actions.interception : {};
   const groupMove = source.actions?.groupMove && typeof source.actions.groupMove === "object" ? source.actions.groupMove : {};
+  const throughBall = source.actions?.throughBall && typeof source.actions.throughBall === "object" ? source.actions.throughBall : {};
+  const threeTwo = source.actions?.threeTwo && typeof source.actions.threeTwo === "object" ? source.actions.threeTwo : {};
   const fallbackInterception = fallbackSet.actions?.interception || createDefaultRuleSet().actions.interception;
   // Schema v6 changes only Group Move's stored distance shape.  A v4/v5
   // Rule Set already has explicit action configuration, so it must not gain
@@ -117,6 +121,11 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
         requireFieldPlayerTarget: pass.requireFieldPlayerTarget !== false,
         resolutionDelayMs: Math.max(0, Math.min(5000, Math.floor(Number(pass.resolutionDelayMs) || 2000))),
       },
+      throughBall: {
+        status: usesPreActionConfigurationDefaults || throughBall.status === "configured" ? "configured" : "not-configured",
+        maxDistance: Math.max(1, Math.floor(Number(throughBall.maxDistance) || 16)),
+      },
+      threeTwo: { allowMovementAfterPriorMove: threeTwo.allowMovementAfterPriorMove === true },
       interception: {
         status: usesPreActionConfigurationDefaults || interception.status === "configured" ? "configured" : "not-configured",
         rollMode: "manual",

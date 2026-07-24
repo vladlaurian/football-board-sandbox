@@ -344,3 +344,10 @@ This is the compact release history. Current architecture and rules are document
 
 - Built and corrected the Host Authority, semantic-intent and Interaction Layer approach.
 - Automated Multiplayer is now frozen while the Single Player architecture is completed. Detailed historical entries and rejected approaches remain in [`MULTIPLAYER_CHANGELOG.md`](MULTIPLAYER_CHANGELOG.md).
+## v20.54.0 — Through Ball and triggered 3/2
+
+- Added the offline Engine commands for Through Ball start, target selection, route confirmation and cancellation; only route confirmation consumes its own `THROUGH_BALL` normal action.
+- Added frozen Rule Set settings for Through Ball maximum range and the approved 3/2 continuation toggle.
+- Through Ball targets a free cell, uses the shared physical corner trajectory, blocks on bodies and enemy defensive areas, and resolves recovery by centre-to-centre distance, then Speed, then defence on a remaining tie.
+- Replaced generic free-ball 3/2 eligibility with the temporary Through Ball opportunity: same team and turn, passer excluded, one use per player; it clears on use or phase change. Bonus Action is no longer a 3/2 exception.
+- Added Inspector Through Ball and disabled Lofted Through controls inside the existing Zoom/Reset row. Manual Multiplayer is unchanged.
