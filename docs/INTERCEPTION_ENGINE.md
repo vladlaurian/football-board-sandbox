@@ -7,7 +7,7 @@ v20 separates **who may attempt an interception** from **how an interception rol
 - Pass geometry determines the route, defensive-area crossings, body-blocking, eligible defenders, and their order.
 - The Interception engine resolves one eligible defender's manual D20 against an attacker target value.
 
-This is an infrastructure build. It does not yet implement the new Long Pass endpoint-only geometry.
+Long Pass is now a client of this generic resolver. It supplies its own attacker statistic and endpoint-only eligibility; it does not create a second roll engine.
 
 ## Authoritative resolver
 
@@ -66,6 +66,7 @@ actions: {
   pass: {
     pathMode,
     longPassThreshold,
+    longPassAttackerStatId,
     resolutionDelayMs,
   },
   interception: {
@@ -130,15 +131,14 @@ The exact interception resolution continues to be stored with its numeric values
 
 `resolveInterceptionRoll(...)` remains as a temporary compatibility wrapper in the new Interception module for legacy tests/imports. New runtime code calls `resolveInterception(...)` with generic parameter names.
 
-## Deferred work
+## Long Pass eligibility contract
 
-Not implemented in v20:
+Long Pass remains one `PASS` action and one Pass plan. It is aerial: middle defensive areas and bodies do not create interceptors. Eligibility is evaluated in this exact order:
 
-- Normal Pass / Long Pass profiles.
-- Long Pass target statistic selection.
-- Long Pass endpoint-only interception geometry.
-- Separate origin and destination interception groups.
-- Progressive-bonus reset between Long Pass endpoint groups.
+1. all visible defenders whose defensive area contains the passer's square;
+2. only after that group has failed, all visible defenders whose defensive area contains the intended recipient's square.
+
+Within each group, priority is defender-square-centre to the relevant endpoint-square-centre; equal defenders use the existing defending-coach choice. The progressive interceptor order and carried Natural-1 stacks begin again at `0` for the destination group. The frozen plan stores the chosen Long Pass attacker stat ID/value, both group identities, modifiers, rolls and results, so Timeline, Undo/Redo, Replay and AI never reconstruct them from UI.
 
 ## Multiplayer authority boundary
 

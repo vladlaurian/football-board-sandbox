@@ -22,8 +22,8 @@ export function selectSinglePlayerPassPresentation(state) {
   const routeOptions = (pending.routePresentation || []).map(route => ({
     ...route,
     modifierLabel: formatSigned(route.modifier),
-    status: route.goalkeeperRouteBlocked ? "blocked" : route.risk ? "risk" : "clear",
-    disabled: Boolean(route.goalkeeperRouteBlocked),
+    status: route.goalkeeperRouteBlocked || route.endpointBodyBlocked ? "blocked" : route.risk ? "risk" : "clear",
+    disabled: Boolean(route.goalkeeperRouteBlocked || route.endpointBodyBlocked),
   }));
   const selectedRoute = routeOptions.find(route => route.cornerId === pending.cornerId)
     || routeOptions[0]
@@ -293,7 +293,7 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
     ...control,
     disabled,
     actionLocked: trackerComplete && !continuationReady && !passCancellable && !moveCancellable,
-    label: passCancellable ? "CANCEL PASS" : (moveCancellable || bonusMoveCancellable) ? "CANCEL MOVE" : String(type || "").replace("GROUP_MOVE", "GROUP MOVE"),
+    label: passCancellable ? "CANCEL PASS" : (moveCancellable || bonusMoveCancellable) ? "CANCEL MOVE" : type === "PASS" ? "PASS SHORT/LONG" : String(type || "").replace("GROUP_MOVE", "GROUP MOVE"),
   };
 }
 

@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.53.0` |
-| Git/package version | `20.53.0` |
-| Build name | `Final_Board_v20_53_0_card_editor_focus_stability` |
-| Base build | `v20.52.9 Mechanic Integration Gate` |
+| Sandbox version | `v20.53.1` |
+| Git/package version | `20.53.1` |
+| Build name | `Final_Board_v20_53_1_short_long_pass` |
+| Base build | `v20.53.0 Card Editor focus stability` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.53.0`. The repository version is in `package.json` as `20.53.0`. The browser title is `Sandbox v20.53.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.53.1`. The repository version is in `package.json` as `20.53.1`. The browser title is `Sandbox v20.53.1`.
 
 ## Current release
 
-v20.53.0 fixes Card Editor input stability. Editing a stat name, title or other card-editor field no longer remounts its form subtree after every character, so focus and the editor's scroll position remain stable. The stateful Star Menu now has a stable module-level component too. No card data model, gameplay, Engine, Match Timeline or Manual Multiplayer behavior changed.
+v20.53.1 introduces the approved offline Single Player **Short/Long Pass** split under the existing PASS action. Distance is universally centre-to-centre; `≤ threshold` is Short Pass and `> threshold` is Long Pass. Both require an active outfield player target. Long Pass is aerial, uses the Rule Set-selected stable Long Pass stat, ignores middle bodies/areas, and resolves origin defenders before destination defenders with a fresh progressive stack. Manual Multiplayer remains on its preserved legacy branch.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

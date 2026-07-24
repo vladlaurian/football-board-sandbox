@@ -1,4 +1,4 @@
-export const RULE_SET_SCHEMA_VERSION = 6;
+export const RULE_SET_SCHEMA_VERSION = 7;
 export const DEFAULT_RULE_SET_ID = "default-rules";
 
 function cleanText(value, fallback = "") {
@@ -28,7 +28,11 @@ export function createDefaultRuleSet() {
         status: "configured",
         rollMode: "manual",
         pathMode: "corner-to-center",
-        longPassThreshold: 15,
+        longPassThreshold: 16,
+        requireFieldPlayerTarget: true,
+        // Selected from the global card-stat registry. It is intentionally an
+        // ID, never a display name, so a cosmetic rename cannot change play.
+        longPassAttackerStatId: "",
         resolutionDelayMs: 2000,
       },
       interception: {
@@ -104,7 +108,9 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
         status: usesPreActionConfigurationDefaults || pass.status === "configured" ? "configured" : "not-configured",
         rollMode: "manual",
         pathMode,
-        longPassThreshold: Math.max(0.01, Number(pass.longPassThreshold) || 15),
+        longPassThreshold: Math.max(0.01, Number(pass.longPassThreshold) || 16),
+        requireFieldPlayerTarget: pass.requireFieldPlayerTarget !== false,
+        longPassAttackerStatId: cleanText(pass.longPassAttackerStatId, ""),
         resolutionDelayMs: Math.max(0, Math.min(5000, Math.floor(Number(pass.resolutionDelayMs) || 2000))),
       },
       interception: {

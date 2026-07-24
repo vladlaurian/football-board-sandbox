@@ -206,6 +206,10 @@ export function selectPassTarget(state, context, command) {
   const bonusPass = Boolean(pending.continuationId && continuation?.id === pending.continuationId);
   const passer = state.pieces.find(piece => String(piece?.id || "") === String(pending.passerId || ""));
   if (!passer) return { accepted: false, reason: "PASSER_INVALID" };
+  const targetPlayer = state.pieces.find(piece => piece && piece.team !== "BALL" && !piece.inactive
+    && Number(piece.x) === x && Number(piece.y) === y
+    && context?.gameplayCardsById?.[String(piece.cardId || "")]?.position !== "GK");
+  if (context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !targetPlayer) return { accepted: false, reason: "PASS_TARGET_FIELD_PLAYER_REQUIRED" };
   const pathMode = context?.ruleSet?.actions?.pass?.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center";
   const cornerIds = pathMode === "center-to-center" ? [null] : PASS_CORNERS.map(corner => corner.id);
   const routePlans = cornerIds.map(cornerId => buildPassPlan({
@@ -229,8 +233,11 @@ export function selectPassTarget(state, context, command) {
     modifier: plan.foot?.dominant ? 0 : resolveDiceModifierStacks(context.ruleSet?.diceModifiers, "disadvantage"),
     modifierType: plan.foot?.dominant ? null : "disadvantage",
     isLong: plan.isLong,
+    passType: plan.passType,
+    distance: plan.distance,
     originBlocked: Boolean(plan.originBlocked),
     goalkeeperRouteBlocked: Boolean(plan.goalkeeperRouteBlocked),
+    endpointBodyBlocked: Boolean(plan.endpointBodyBlocked),
     risk: Boolean(plan.interceptors?.length || plan.directHit?.team && plan.directHit.team !== pending.team),
   }));
   const next = {
@@ -280,6 +287,9 @@ export function confirmPassRoute(state, context, command) {
   });
   if (plan.originBlocked) return { accepted: false, reason: "PASS_ROUTE_ORIGIN_BLOCKED" };
   if (plan.goalkeeperRouteBlocked) return { accepted: false, reason: "PASS_ROUTE_GOALKEEPER_BLOCKED" };
+  if (context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !plan.targetPlayerId) return { accepted: false, reason: "PASS_TARGET_FIELD_PLAYER_REQUIRED" };
+  if (plan.endpointBodyBlocked) return { accepted: false, reason: "PASS_LONG_ENDPOINT_BODY_BLOCKED" };
+  if (plan.isLong && !plan.attackerTargetStatId) return { accepted: false, reason: "PASS_LONG_STAT_NOT_CONFIGURED" };
 
   const continuation = normalizeActionContinuation(state.actionContinuation);
   const bonusPass = Boolean(pending.continuationId && continuation?.id === pending.continuationId);
@@ -340,6 +350,8 @@ export function confirmPassRoute(state, context, command) {
         passId,
         passerId: passer.id,
         cornerId: plan.origin.cornerId,
+        passType: plan.passType,
+        distance: plan.distance,
         status: nextResolution.status,
         continuationId: bonusPass ? continuation.id : null,
       },
@@ -734,10 +746,15 @@ function completeNaturalTwentyInterception(state, pending, interceptor) {
 function advanceFailedInterception(state, pending, context) {
   const nextIndex = Math.max(0, Number(pending.interceptorIndex) || 0) + 1;
   if (nextIndex >= (pending.plan?.interceptors || []).length) return completePass(state, pending);
+  const currentGroup = String(pending.plan?.interceptors?.[pending.interceptorIndex]?.reactionGroup || "short-route");
+  const nextGroup = String(pending.plan?.interceptors?.[nextIndex]?.reactionGroup || "short-route");
+  const startsNewLongEndpointGroup = currentGroup !== nextGroup;
   const next = pendingPassInput({
     ...pending,
     interceptorIndex: nextIndex,
-    naturalOneDisadvantageStacks: (Number(pending.naturalOneDisadvantageStacks) || 0) + (Number(pending.lastResolution?.natural) === 1 ? 1 : 0),
+    // Long Pass resolves launch defenders completely before landing defenders.
+    // A new endpoint group starts its own progressive/Natural-1 sequence.
+    naturalOneDisadvantageStacks: startsNewLongEndpointGroup ? 0 : (Number(pending.naturalOneDisadvantageStacks) || 0) + (Number(pending.lastResolution?.natural) === 1 ? 1 : 0),
     lastRoll: null,
     lastResolution: null,
     lastRollEvent: null,
@@ -755,6 +772,7 @@ function advanceFailedInterception(state, pending, context) {
         passId: pending.id,
         defenderId: pending.plan?.interceptors?.[pending.interceptorIndex]?.defender?.id || null,
         nextInterceptorIndex: nextIndex,
+        nextReactionGroup: nextGroup,
         nextStatus: next.status,
         naturalOneDisadvantageStacks: next.naturalOneDisadvantageStacks,
       }),

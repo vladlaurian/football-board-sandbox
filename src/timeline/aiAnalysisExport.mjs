@@ -131,6 +131,8 @@ function compactRuleSet(ruleSet) {
         rollMode: "manual",
         pathMode: normalized.actions.pass.pathMode,
         longPassThreshold: normalized.actions.pass.longPassThreshold,
+        longPassAttackerStatId: normalized.actions.pass.longPassAttackerStatId || null,
+        requireFieldPlayerTarget: normalized.actions.pass.requireFieldPlayerTarget !== false,
         resolutionDelayMs: normalized.actions.pass.resolutionDelayMs,
       },
       interception: {

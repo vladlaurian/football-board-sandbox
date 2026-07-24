@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   applyInterceptorChoice,
   buildPassPlan,
+  PASS_CORNERS,
   cardStat,
   interceptorChoiceCandidates,
   interceptorPriorityDistanceSquared,
@@ -10,6 +11,8 @@ import {
   opponentBlockingPassOrigin,
   footForPass,
   passRequiresInterceptionSequence,
+  passMeasurementDistance,
+  segmentTouchesClosedRect,
   segmentIntersectsOpenRect,
   traversedCells,
 } from "./passEngine.mjs";
@@ -80,6 +83,57 @@ test("a segment which only touches a square corner does not enter it", () => {
   assert.equal(segmentIntersectsOpenRect({ x: 0, y: 0 }, { x: 2, y: 2 }, { x: 1, y: 0 }), false);
   assert.equal(segmentIntersectsOpenRect({ x: 0, y: 0 }, { x: 2, y: 2 }, { x: 1, y: 1 }), true);
   assert.deepEqual(traversedCells({ x: 0, y: 0 }, { x: 2, y: 2 }, { cols: 3, rows: 3 }).map(cell => [cell.x, cell.y]), [[0, 0], [1, 1]]);
+});
+
+test("pass range always measures square centre to square centre, never the selected corner", () => {
+  const passer = { id: "passer", team: "A", x: 2, y: 2, cardId: "pass-card" };
+  const receiver = { id: "receiver", team: "A", x: 18, y: 2, cardId: "receiver-card" };
+  const cards = {
+    "pass-card": { passiveAttributes: [{ id: "stat:passing", name: "Short Pass", value: 10 }] },
+    "receiver-card": {},
+  };
+  const plans = PASS_CORNERS.map(corner => buildPassPlan({
+    passer, passerCard: cards["pass-card"], pieces: [passer, receiver], cardById: cards,
+    settings: { cols: 24, rows: 12 }, target: { x: 18, y: 2 }, cornerId: corner.id,
+    rules: { actions: { pass: { pathMode: "corner-to-center", longPassThreshold: 16, longPassAttackerStatId: "stat:long-pass" } } },
+  }));
+  assert.deepEqual(plans.map(plan => plan.distance), [16, 16, 16, 16]);
+  assert.deepEqual(plans.map(plan => plan.passType), ["SHORT_PASS", "SHORT_PASS", "SHORT_PASS", "SHORT_PASS"]);
+  assert.equal(passMeasurementDistance(passer, receiver), 16);
+});
+
+test("Long Pass ignores middle bodies but blocks a body actually touched at launch or landing", () => {
+  const passer = { id: "passer", team: "A", x: 2, y: 3, cardId: "pass-card" };
+  const receiver = { id: "receiver", team: "A", x: 20, y: 3, cardId: "receiver-card" };
+  const middle = { id: "middle", team: "B", x: 11, y: 4, cardId: "body-card" };
+  const endpoint = { id: "endpoint", team: "B", x: 3, y: 3, cardId: "body-card" };
+  const cards = {
+    "pass-card": { passiveAttributes: [{ id: "stat:passing", name: "Short Pass", value: 10 }], bonuses: [{ id: "stat:long-pass", name: "Long Pass", value: 17 }] },
+    "receiver-card": {}, "body-card": {},
+  };
+  const clear = buildPassPlan({ passer, passerCard: cards["pass-card"], pieces: [passer, receiver, middle], cardById: cards, settings: { cols: 24, rows: 12 }, target: receiver, cornerId: "bottom-right", rules: { actions: { pass: { pathMode: "corner-to-center", longPassThreshold: 16, longPassAttackerStatId: "stat:long-pass" } } } });
+  const blocked = buildPassPlan({ passer, passerCard: cards["pass-card"], pieces: [passer, receiver, endpoint], cardById: cards, settings: { cols: 24, rows: 12 }, target: receiver, cornerId: "bottom-right", rules: { actions: { pass: { pathMode: "corner-to-center", longPassThreshold: 16, longPassAttackerStatId: "stat:long-pass" } } } });
+  assert.equal(clear.isLong, true);
+  assert.equal(clear.endpointBodyBlocked, false);
+  assert.equal(blocked.endpointBodyBlocked, true);
+  assert.equal(segmentTouchesClosedRect({ x: 3, y: 4 }, { x: 20.5, y: 3.5 }, { x: 3, y: 3 }), true);
+});
+
+test("Long Pass resolves source and destination defensive groups with a fresh progressive stack", () => {
+  const passer = { id: "passer", team: "A", x: 2, y: 3, cardId: "pass-card" };
+  const receiver = { id: "receiver", team: "A", x: 20, y: 3, cardId: "receiver-card" };
+  const sourceDefender = { id: "source", team: "B", x: 5, y: 3, cardId: "def-card" };
+  const destinationDefender = { id: "destination", team: "B", x: 23, y: 3, cardId: "def-card" };
+  const cards = {
+    "pass-card": { bonuses: [{ id: "stat:long-pass", name: "Long Pass", value: 17 }] },
+    "receiver-card": {}, "def-card": { defensiveArea: [{ dx: 0, dy: -3 }] },
+  };
+  const plan = buildPassPlan({ passer, passerCard: cards["pass-card"], pieces: [passer, receiver, sourceDefender, destinationDefender], cardById: cards, settings: { cols: 24, rows: 12 }, target: receiver, cornerId: "top-right", rules: { actions: { pass: { pathMode: "corner-to-center", longPassThreshold: 16, longPassAttackerStatId: "stat:long-pass" } }, diceModifiers: { advantage: 1, stackCap: 4 } } });
+  assert.deepEqual(plan.interceptors.map(item => [item.defender.id, item.reactionGroup, item.orderModifier]), [
+    ["source", "long-origin", 0],
+    ["destination", "long-destination", 0],
+  ]);
+  assert.deepEqual(plan.interceptionGroups, { origin: ["source"], destination: ["destination"] });
 });
 
 test("an opponent square blocks defensive-line visibility but a teammate does not", () => {

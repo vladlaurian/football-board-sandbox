@@ -1019,6 +1019,23 @@ test("PASS_TARGET_SELECTED rejects stale, non-integer, and out-of-bounds targets
   }
 });
 
+test("configured Short/Long Pass requires an active outfield target before route selection", () => {
+  const context = createMatchContext({
+    boardSettings: { cols: 20, rows: 12 },
+    ruleSet: { actions: { pass: { requireFieldPlayerTarget: true, longPassThreshold: 16 } } },
+    gameplayCards: [{ id: "card-blue-1", passiveAttributes: [{ id: "stat:passing", name: "Short Pass", value: 13 }] }],
+  });
+  const started = applyGameCommand({
+    state: normalMoveState(), context,
+    command: { id: "field-target-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "field-target" } },
+  });
+  const selected = applyGameCommand({
+    state: started.nextState, context,
+    command: { id: "field-target-select", type: "PASS_TARGET_SELECTED", payload: { passId: "field-target", x: 9, y: 5 } },
+  });
+  assert.deepEqual(selected, { accepted: false, reason: "PASS_TARGET_FIELD_PLAYER_REQUIRED" });
+});
+
 test("PASS_TARGET_SELECTED remains in the atomic Bonus Pass transaction without touching Tracker", () => {
   const start = createGameState({
     ...normalMoveState(),

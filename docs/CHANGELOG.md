@@ -2,6 +2,14 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.53.1 — Short/Long Pass
+
+- Added the approved offline Single Player Short/Long Pass family under the existing PASS command and renamed its offline Inspector label to `PASS SHORT/LONG`.
+- All Pass range classification now measures source-square centre to target-square centre. Corner selection remains execution/foot geometry only.
+- Short Pass now requires an active outfield target and retains ground-route behaviour. Long Pass uses the frozen Rule Set-selected stable attacker stat, aerial middle-route semantics, endpoint-only interception groups, and an independent progressive stack for each endpoint group.
+- Added the Long Pass Rule Set selector, frozen MatchContext compatibility link for one unambiguous existing `Long Pass` global stat, stable stat IDs in compact gameplay cards, canonical plan/AI fields, and Engine/UI reason projections.
+- Manual Multiplayer retains its legacy planning branch and was not migrated to the new offline rule family.
+
 ## v20.53.0 — Card Editor focus stability
 
 - Fixed the Card Editor's focus/scroll regression: nested field subcomponents had been recreated on every card update, so React remounted their inputs after each typed or deleted character.

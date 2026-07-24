@@ -56,6 +56,19 @@ README records the current release. Changelogs record implementation history. Th
 - Editor and frozen Manual Multiplayer/session compatibility are explicitly classified instead of being altered by implication;
 - structural sentinels protect the established offline UI-to-selector-to-gateway boundary, while the Gate makes the design review itself auditable for each future mechanic.
 
+## ADR-051 — Pass family separates measurement, execution route and interception eligibility
+
+**Status:** Active
+
+**Decision:** Offline Single Player PASS is one Engine command with a canonical Short/Long classification. Every range measurement is source-square-centre to target-square-centre; a selected corner is execution geometry only. Short and Long both require an active outfield target. Short retains the ground-route plan. Long uses its frozen Rule Set stable attacker stat, ignores middle-route bodies/areas, and resolves independent origin then destination interception groups through the existing generic Interception engine.
+
+**Consequences:**
+
+- Rule Set schema v7 owns the threshold and Long Pass attacker-stat ID; MatchContext freezes an unambiguous legacy `Long Pass` name link only when needed.
+- Compact MatchContext gameplay cards retain stable stat IDs, so visible stat renames cannot alter a frozen match.
+- The Long plan persists group identity and resets progressive/Natural-1 sequencing at the destination group; Timeline, Replay and AI display stored facts rather than recomputing geometry or values.
+- The frozen Manual Multiplayer/session branch remains on its legacy Pass plan and is not silently migrated by this decision.
+
 ## ADR-004 — Manual roll only
 
 **Status:** Active

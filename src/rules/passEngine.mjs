@@ -39,6 +39,13 @@ export function passDistance(origin, target) {
   return Math.hypot(Number(target.x) - Number(origin.x), Number(target.y) - Number(origin.y));
 }
 
+// Rule measurement is deliberately separate from the visual/execution route:
+// every pass measures occupied square centre to occupied square centre. A
+// selected origin corner models the foot and can affect the route, never range.
+export function passMeasurementDistance(passer, target) {
+  return Math.hypot(Number(target.x) - Number(passer.x), Number(target.y) - Number(passer.y));
+}
+
 export function segmentIntersectsOpenRect(a, b, rect) {
   // Liang-Barsky clipping against the rectangle's *open* interior. Touching
   // only an edge/corner is intentionally not an intersection.
@@ -68,6 +75,26 @@ export function segmentIntersectsOpenRect(a, b, rect) {
   }
   // Ensure there is a non-zero section strictly inside the square.
   return t1 - t0 > EPSILON && t1 > EPSILON && t0 < 1 - EPSILON;
+}
+
+// Unlike ordinary ground-pass collision, Long Pass endpoint contact treats a
+// touch on an edge/corner as physical contact. This closed test is used only
+// in the launch/landing neighbourhood, never to make middle bodies block air.
+export function segmentTouchesClosedRect(a, b, rect) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  let t0 = 0;
+  let t1 = 1;
+  for (const [p, q] of [[-dx, a.x - rect.x], [dx, rect.x + 1 - a.x], [-dy, a.y - rect.y], [dy, rect.y + 1 - a.y]]) {
+    if (Math.abs(p) < EPSILON) {
+      if (q < -EPSILON) return false;
+      continue;
+    }
+    const r = q / p;
+    if (p < 0) t0 = Math.max(t0, r);
+    else t1 = Math.min(t1, r);
+  }
+  return t0 <= t1 + EPSILON && t1 >= -EPSILON && t0 <= 1 + EPSILON;
 }
 
 export function segmentEntryT(a, b, rect) {
@@ -129,11 +156,11 @@ export function opponentBlockingPassOrigin(origin, passer, pieces) {
   }) || null;
 }
 
-export function isCellVisibleToDefender(defender, cell, pieces) {
+export function isCellVisibleToDefender(defender, cell, pieces, { ignorePieceId = null } = {}) {
   const from = { x: Number(defender.x) + 0.5, y: Number(defender.y) + 0.5 };
   const to = { x: Number(cell.x) + 0.5, y: Number(cell.y) + 0.5 };
   return !(pieces || []).some(piece => {
-    if (!piece || piece.id === defender.id || piece.team === "BALL" || piece.inactive) return false;
+    if (!piece || piece.id === defender.id || String(piece.id) === String(ignorePieceId || "") || piece.team === "BALL" || piece.inactive) return false;
     // Only an opposing player's actual square blocks the geometric sightline.
     if (teamKeyForPiece(piece) === teamKeyForPiece(defender)) return false;
     return segmentIntersectsOpenRect(from, to, { x: Number(piece.x), y: Number(piece.y) });
@@ -176,7 +203,9 @@ export function cardStat(card, nameOrId) {
   const semanticName = wanted.startsWith("stat:") ? wanted.slice(5) : wanted;
   // Stable global stat IDs are authoritative. Name matching remains as a
   // compatibility fallback for old match recordings and imported cards.
-  const acceptedNames = semanticName === "pass" ? new Set(["pass", "passing"]) : new Set([semanticName]);
+  const acceptedNames = semanticName === "pass" || semanticName === "passing"
+    ? new Set(["pass", "passing", "short pass"])
+    : new Set([semanticName]);
   const sources = [card?.bonuses, card?.passiveAttributes, card?.attributes];
   for (const source of sources) {
     const row = Array.isArray(source) && source.find(item => {
@@ -195,9 +224,9 @@ export function cardStat(card, nameOrId) {
  * With square centres on the same unit grid, comparing squared distances gives
  * exactly the same order as Euclidean distance and avoids rounding tie errors.
  */
-export function interceptorPriorityDistanceSquared(passer, defender) {
-  const dx = Number(defender?.x) - Number(passer?.x);
-  const dy = Number(defender?.y) - Number(passer?.y);
+export function interceptorPriorityDistanceSquared(anchor, defender) {
+  const dx = Number(defender?.x) - Number(anchor?.x);
+  const dy = Number(defender?.y) - Number(anchor?.y);
   if (!Number.isFinite(dx) || !Number.isFinite(dy)) return Infinity;
   return dx * dx + dy * dy;
 }
@@ -207,7 +236,8 @@ export function interceptorChoiceCandidates(interceptors, index = 0) {
   const safeIndex = Math.max(0, Math.floor(Number(index) || 0));
   const current = list[safeIndex];
   if (!current) return [];
-  return list.slice(safeIndex).filter(item => item.priorityDistanceSquared === current.priorityDistanceSquared);
+  return list.slice(safeIndex).filter(item => item.priorityDistanceSquared === current.priorityDistanceSquared
+    && String(item.reactionGroup || "short-route") === String(current.reactionGroup || "short-route"));
 }
 
 export function applyInterceptorChoice(interceptors, index, selectedPieceId, diceModifiers) {
@@ -218,15 +248,17 @@ export function applyInterceptorChoice(interceptors, index, selectedPieceId, dic
   const selected = candidates.find(item => String(item?.defender?.id) === String(selectedPieceId));
   if (!selected || candidates.length < 2) return null;
   const candidateIds = new Set(candidates.map(item => String(item?.defender?.id)));
-  const reordered = [
+  const reorderedBase = [
     ...list.slice(0, safeIndex),
     selected,
     ...list.slice(safeIndex).filter(item => candidateIds.has(String(item?.defender?.id)) && item !== selected),
     ...list.slice(safeIndex).filter(item => !candidateIds.has(String(item?.defender?.id))),
-  ].map((item, orderIndex) => ({
-    ...item,
-    orderModifier: Math.min(modifiers.stackCap, resolveDiceModifierStacks(modifiers, "advantage", orderIndex)),
-  }));
+  ];
+  const reordered = reorderedBase.map((item, orderIndex) => {
+    const group = String(item.reactionGroup || "short-route");
+    const groupIndex = reorderedGroupIndex(reorderedBase, orderIndex, group);
+    return { ...item, orderModifier: Math.min(modifiers.stackCap, resolveDiceModifierStacks(modifiers, "advantage", groupIndex)) };
+  });
   return {
     interceptors: reordered,
     selection: {
@@ -239,7 +271,36 @@ export function applyInterceptorChoice(interceptors, index, selectedPieceId, dic
   };
 }
 
-export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, target, cornerId, rules }) {
+function reorderedGroupIndex(items, index, group) {
+  return items.slice(0, index).filter(item => String(item.reactionGroup || "short-route") === group).length;
+}
+
+function activeFieldPlayerAt(pieces, cardById, target) {
+  return (pieces || []).find(piece => piece && piece.team !== "BALL" && !piece.inactive
+    && Number(piece.x) === Number(target.x) && Number(piece.y) === Number(target.y)
+    && !isGoalkeeperPiece(piece, cardById)) || null;
+}
+
+function progressiveInterceptors(items, rules, diceModifiers, reactionGroup) {
+  return items
+    .sort((left, right) => left.priorityDistanceSquared - right.priorityDistanceSquared || String(left.defender.id).localeCompare(String(right.defender.id)))
+    .map((item, index) => ({
+      ...item,
+      reactionGroup,
+      orderModifier: rules.useProgressiveBonus === false ? 0 : Math.min(diceModifiers.stackCap, resolveDiceModifierStacks(diceModifiers, "advantage", index)),
+    }));
+}
+
+function endpointBodyBlockers(origin, targetPoint, passer, targetPlayer, pieces) {
+  return (pieces || []).filter(piece => {
+    if (!piece || piece.id === passer?.id || piece.id === targetPlayer?.id || piece.team === "BALL" || piece.inactive) return false;
+    const nearPasser = Math.max(Math.abs(Number(piece.x) - Number(passer.x)), Math.abs(Number(piece.y) - Number(passer.y))) === 1;
+    const nearTarget = Math.max(Math.abs(Number(piece.x) - Number(targetPlayer.x)), Math.abs(Number(piece.y) - Number(targetPlayer.y))) === 1;
+    return (nearPasser || nearTarget) && segmentTouchesClosedRect(origin, targetPoint, { x: Number(piece.x), y: Number(piece.y) });
+  });
+}
+
+export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, target, cornerId, rules, legacyManual = false }) {
   const passRules = rules?.actions?.pass || rules || {};
   const interceptionRules = rules?.actions?.interception || {};
   const diceModifiers = normalizeDiceModifiers(rules?.diceModifiers);
@@ -247,8 +308,12 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
   const origin = pointForPassOrigin(passer, pathMode, cornerId);
   const originBlocker = opponentBlockingPassOrigin(origin, passer, pieces);
   const targetPoint = pointForPassTarget(target);
-  const distance = passDistance(origin, targetPoint);
-  const hit = firstPlayerHit(origin, targetPoint, pieces, passer.id);
+  const distance = legacyManual ? passDistance(origin, targetPoint) : passMeasurementDistance(passer, target);
+  const longPassThreshold = Number(passRules.longPassThreshold) || 16;
+  const passType = distance > longPassThreshold ? "LONG_PASS" : "SHORT_PASS";
+  const aerialLongPass = passType === "LONG_PASS" && !legacyManual;
+  const targetPlayer = activeFieldPlayerAt(pieces, cardById, target);
+  const hit = !aerialLongPass ? firstPlayerHit(origin, targetPoint, pieces, passer.id) : null;
   const goalkeeperBlocker = hit && isGoalkeeperPiece(hit.piece, cardById)
     ? { pieceId: hit.piece.id, team: teamKeyForPiece(hit.piece), entryT: hit.entryT }
     : null;
@@ -257,12 +322,12 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
   const foot = footForPass(origin, targetPoint, passer, passerCard?.preferredFoot);
   const passCells = traversedCells(origin, effectiveTargetPoint, settings).filter(cell => !(cell.x === Number(passer.x) && cell.y === Number(passer.y)));
   const defenseTeam = oppositeTeam(teamKeyForPiece(passer));
-  const defensiveAreaCrossings = (pieces || [])
+  const defensiveAreaCrossings = !aerialLongPass ? (pieces || [])
     .filter(piece => teamKeyForPiece(piece) === defenseTeam && !piece.inactive)
     .flatMap(defender => defensiveCellsForPiece(defender, cardById?.[defender.cardId], settings)
       .map(cell => ({ defenderId: defender.id, ...cell, entryT: segmentEntryT(origin, effectiveTargetPoint, cell) }))
-      .filter(cell => cell.entryT !== null));
-  const interceptors = (pieces || [])
+      .filter(cell => cell.entryT !== null)) : [];
+  const shortInterceptors = (pieces || [])
     .filter(piece => teamKeyForPiece(piece) === defenseTeam && !piece.inactive)
     .map(defender => {
       const cells = defensiveCellsForPiece(defender, cardById?.[defender.cardId], settings)
@@ -280,9 +345,25 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
         priorityMethod: "passer-square-center-to-defender-square-center",
       };
     })
-    .filter(item => item.visibleCells.length)
-    .sort((left, right) => left.priorityDistanceSquared - right.priorityDistanceSquared || String(left.defender.id).localeCompare(String(right.defender.id)))
-    .map((item, index) => ({ ...item, orderModifier: interceptionRules.useProgressiveBonus === false ? 0 : Math.min(diceModifiers.stackCap, resolveDiceModifierStacks(diceModifiers, "advantage", index)) }));
+    .filter(item => item.visibleCells.length);
+  const longGroup = (group, anchor) => (pieces || [])
+    .filter(piece => teamKeyForPiece(piece) === defenseTeam && !piece.inactive)
+    .map(defender => {
+      const cells = defensiveCellsForPiece(defender, cardById?.[defender.cardId], settings);
+      const matching = cells.filter(cell => cell.x === Number(anchor.x) && cell.y === Number(anchor.y));
+      const visibleCells = matching.filter(cell => isCellVisibleToDefender(defender, anchor, pieces, { ignorePieceId: anchor.id }));
+      const priorityDistanceSquared = interceptorPriorityDistanceSquared(anchor, defender);
+      return { defender, cells: matching, visibleCells, firstEntryT: null, priorityDistanceSquared, priorityDistance: Math.sqrt(priorityDistanceSquared), priorityMethod: `${group}-endpoint-square-center-to-defender-square-center` };
+    }).filter(item => item.visibleCells.length);
+  const originInterceptors = aerialLongPass ? progressiveInterceptors(longGroup("origin", passer), interceptionRules, diceModifiers, "long-origin") : [];
+  const destinationInterceptors = aerialLongPass ? progressiveInterceptors(longGroup("destination", target), interceptionRules, diceModifiers, "long-destination") : [];
+  const interceptors = aerialLongPass
+    ? [...originInterceptors, ...destinationInterceptors]
+    : progressiveInterceptors(shortInterceptors, interceptionRules, diceModifiers, "short-route");
+  const longBodyBlockers = aerialLongPass && targetPlayer
+    ? endpointBodyBlockers(origin, targetPoint, passer, targetPlayer, pieces)
+    : [];
+  const attackerTargetStatId = aerialLongPass ? String(passRules.longPassAttackerStatId || "") : "stat:passing";
   return {
     kind: "pass-plan",
     pathMode,
@@ -293,10 +374,13 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     target: effectiveTarget,
     endpoint: effectiveTargetPoint,
     distance,
-    isLong: distance > (Number(passRules.longPassThreshold) || 15),
+    passType,
+    isLong: passType === "LONG_PASS",
+    longPassThreshold,
+    targetPlayerId: targetPlayer?.id || null,
     foot,
-    attackerTargetStatId: "stat:passing",
-    attackerTargetValue: cardStat(passerCard, "stat:passing"),
+    attackerTargetStatId,
+    attackerTargetValue: cardStat(passerCard, attackerTargetStatId),
     passerPass: cardStat(passerCard, "stat:passing"), // legacy projection
     // Freeze the Interception configuration into the canonical action plan so
     // host and guest always resolve the same roll in multiplayer.
@@ -307,12 +391,15 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
       diceModifiers,
       equalRollOutcome: interceptionRules.equalRollOutcome === "interception" ? "interception" : "pass-succeeds",
     },
-    directHit: hit ? { pieceId: hit.piece.id, team: teamKeyForPiece(hit.piece), entryT: hit.entryT } : null,
+    directHit: hit ? { pieceId: hit.piece.id, team: teamKeyForPiece(hit.piece), entryT: hit.entryT }
+      : aerialLongPass && targetPlayer ? { pieceId: targetPlayer.id, team: teamKeyForPiece(targetPlayer), entryT: 1 } : null,
     // A goalkeeper is a physical route blocker, not a possible pass recipient.
     // The route remains represented for Single Player preview, but the Engine
     // must reject its confirmation before Tracker action consumption.
     goalkeeperRouteBlocked: Boolean(goalkeeperBlocker),
     goalkeeperBlocker,
+    endpointBodyBlocked: longBodyBlockers.length > 0,
+    endpointBodyBlockers: longBodyBlockers.map(piece => ({ pieceId: piece.id, team: teamKeyForPiece(piece) })),
     passCells,
     defensiveAreaCrossings,
     interceptorPriority: {
@@ -322,6 +409,10 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
       selections: [],
     },
     interceptors,
+    interceptionGroups: aerialLongPass ? {
+      origin: originInterceptors.map(item => item.defender.id),
+      destination: destinationInterceptors.map(item => item.defender.id),
+    } : null,
   };
 }
 

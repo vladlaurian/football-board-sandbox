@@ -7,7 +7,7 @@ test("gameplay card projection retains only rule-relevant card data", () => {
     id: "card-1",
     name: "Victor",
     position: "GK",
-    passiveAttributes: [{ name: "Reflexes", value: "17" }, { name: "", value: 4 }],
+    passiveAttributes: [{ id: "stat:reflexes", name: "Reflexes", value: "17" }, { name: "", value: 4 }],
     bonuses: [{ name: "Save", value: 2 }],
     preferredFoot: "Right",
     specialAbility: "Wall",
@@ -15,7 +15,7 @@ test("gameplay card projection retains only rule-relevant card data", () => {
     graphics: { frontDataUrl: "not-exported" },
   };
   const compact = compactGameplayCard(source);
-  assert.deepEqual(compact.passiveAttributes, [{ name: "Reflexes", value: 17 }]);
+  assert.deepEqual(compact.passiveAttributes, [{ id: "stat:reflexes", name: "Reflexes", value: 17 }]);
   assert.equal(compact.graphics, undefined);
   assert.equal(createGameplayCardMap([source]).get("card-1").name, "Victor");
 });

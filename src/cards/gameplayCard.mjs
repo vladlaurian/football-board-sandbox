@@ -1,9 +1,13 @@
 export function namedGameplayValues(values) {
   return (Array.isArray(values) ? values : [])
-    .map(value => ({
-      name: String(value?.name || "").trim(),
-      value: Number.isFinite(Number(value?.value)) ? Number(value.value) : 0,
-    }))
+    .map(value => {
+      const id = String(value?.id || "").trim();
+      return {
+        ...(id ? { id } : {}),
+        name: String(value?.name || "").trim(),
+        value: Number.isFinite(Number(value?.value)) ? Number(value.value) : 0,
+      };
+    })
     .filter(value => value.name);
 }
 
