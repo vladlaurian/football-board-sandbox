@@ -150,9 +150,8 @@ test("Group Move draft activation projects Engine availability and frozen zone s
 test("Single Player UI imports the presentation boundary, not direct gameplay evaluators", () => {
   const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
   assert.match(source, /from "\.\/engine\/matchPresentationSelectors\.mjs"/);
-  assert.doesNotMatch(source, /from "\.\/engine\/movementPathRules\.mjs"/);
-  assert.doesNotMatch(source, /from "\.\/engine\/threeTwoMoveRules\.mjs"/);
-  assert.doesNotMatch(source, /from "\.\/engine\/groupMoveRules\.mjs"/);
+  assert.match(source, /from "\.\/engine\/singlePlayerMatchGateway\.mjs"/);
+  assert.doesNotMatch(source, /from "\.\/engine\/(?:gameEngine|movementPathRules|normalMoveRules|threeTwoMoveRules|groupMoveRules|bonusMoveRules|freeMoveRules|passStartRules|matchAdministrationRules|matchLifecycleRules|trackerPhaseRules)\.mjs"/);
 });
 
 function localFunctionSource(source, name) {

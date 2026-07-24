@@ -2,6 +2,13 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.52.9 — Mechanic Integration Gate
+
+- Added the permanent seven-row Mechanic Integration Gate for every future offline Match mechanic: Rule Set/compatibility, frozen MatchContext, Engine command, official projection, Timeline/Undo/Replay, AI mapping, and explicit mode-boundary/verification evidence.
+- Added ADR-050 and workflow enforcement, so the gate is required both before approval and before release rather than being an informal recommendation.
+- Widened the static Single Player UI sentinel: `main.jsx` must import the official presentation boundary and gateway, and cannot directly import listed Engine implementation modules.
+- No runtime gameplay behavior changed; Manual Multiplayer remains unchanged.
+
 ## v20.52.8 — Group Move draft projection
 
 - Replaced offline Group Move draft activation's local Tracker and Rule Set reads with an official presentation projection evaluated from the same Engine confirmation command.

@@ -126,6 +126,22 @@ When a legal 3/2 destination is the ball cell, the offline popup is a UI-local c
 
 Leaving Match for Editor records an Editor closing state that clears Match-only interaction locks (`actionResolution`, `actionContinuation`, Free Move, Group Move and pre-segment normal MOVE) and the closed Match's personal-action map. The prior Timeline cursor remains the exact playable Match state; the subsequent Editor state is intentionally not a suspended Match. Editor can create new manual personal-action markers from this clean state. This boundary does not apply to Manual Multiplayer.
 
+### Mechanic Integration Gate
+
+Every new or materially changed offline Match mechanic must pass this gate before implementation approval and before release. It is a completeness contract, not a second engine or a UI checklist. The proposal and final delivery must contain one explicit evidence row for each item below; an item may be `not applicable` only with a reason.
+
+| Required evidence | Contract |
+|---|---|
+| Rule Set and compatibility | State whether the mechanic has editable rules, their normalized schema/defaults, and how old Rule Sets normalize. |
+| Frozen MatchContext | List every gameplay-relevant value captured at Match start and prove active Match UI/Engine never reads its editable future-Match source. |
+| Engine command | Name every serializable command, validation/rejection behavior, deterministic transition and semantic event. |
+| Official projection | Name the selector for every offline UI availability, preview, badge, popup or result. UI may display it and send its command intent; it may not calculate a duplicate legality, cost, modifier, limit, or fallback resolution. |
+| Canonical history | State the Timeline grouping and prove Undo, Redo and Replay reconstruct the same MatchState. |
+| AI Analysis Export | State the semantic mapping and tests, or explicitly justify why the mechanic creates no analysis-relevant gameplay fact. |
+| Mode boundary and verification | State the Manual Multiplayer/Editor boundary and give Engine, projection, Timeline/AI and sentinel/boundary tests. |
+
+The Engine remains the sole authority even when UI offers several projected command routes. A temporary local UI fallback, a UI-authored Timeline event, or a gameplay calculation hidden in a popup is not an acceptable intermediate implementation. A retained legacy path must be identified as Editor or frozen Manual Multiplayer/session compatibility code; it must not be changed implicitly by an offline mechanic. Release evidence names the affected commands, selectors, events and exact tests, so a later mechanic cannot silently skip a consumer.
+
 ## 5. Delayed resolution and manual dice
 
 Manual roll remains a permanent rule. `PASS_INTERCEPTION_ROLL_SUBMITTED` carries a unique RollEvent and is validated against the exact pending request. Chosen and random mechanic-requested rolls use the same contract. `EXTRA_ROLL_SUBMITTED` is the explicit administrative fallback: it records a die result without satisfying a gameplay request or consuming a Tracker action.

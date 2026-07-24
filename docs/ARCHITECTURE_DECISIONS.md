@@ -42,6 +42,20 @@ README records the current release. Changelogs record implementation history. Th
 - Free Ball/Free Move, Inspector, End Turn and Bonus controls consume the same boundary, and active-decision card values come from frozen MatchContext cards;
 - Manual Multiplayer remains on its frozen legacy branch and is not routed through this contract implicitly.
 
+## ADR-050 — Every offline Match mechanic has a mandatory integration gate
+
+**Status:** Active
+
+**Decision:** A new or materially changed offline Single Player Match mechanic cannot be proposed for approval or released without the explicit seven-row Mechanic Integration Gate defined in `GAME_ENGINE_ARCHITECTURE.md`: Rule Set/compatibility, frozen MatchContext, Engine commands, official projection, canonical Timeline history, AI Analysis Export, and mode-boundary/verification evidence.
+
+**Consequences:**
+
+- UI may offer only official projected command routes and must not acquire a temporary gameplay fallback while a mechanic is incomplete;
+- every gameplay-facing display, including badges, popups and results, has a named canonical source before implementation;
+- Timeline, Undo/Redo, Replay and AI review are completion requirements rather than follow-up work;
+- Editor and frozen Manual Multiplayer/session compatibility are explicitly classified instead of being altered by implication;
+- structural sentinels protect the established offline UI-to-selector-to-gateway boundary, while the Gate makes the design review itself auditable for each future mechanic.
+
 ## ADR-004 — Manual roll only
 
 **Status:** Active

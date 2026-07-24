@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.52.8` |
-| Git/package version | `20.52.8` |
-| Build name | `Final_Board_v20_52_8_group_move_draft_projection` |
-| Base build | `v20.52.7 Phase 11 boundary and dependency audit` |
+| Sandbox version | `v20.52.9` |
+| Git/package version | `20.52.9` |
+| Build name | `Final_Board_v20_52_9_mechanic_integration_gate` |
+| Base build | `v20.52.8 Group Move draft projection` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.52.8`. The repository version is in `package.json` as `20.52.8`. The browser title is `Sandbox v20.52.8`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.52.9`. The repository version is in `package.json` as `20.52.9`. The browser title is `Sandbox v20.52.9`.
 
 ## Current release
 
-v20.52.8 closes the Group Move projection debt found by the v20.52.7 audit. Before opening the local draft band, offline Match UI now receives an official projection evaluated from the same Engine command as later zone confirmation. That projection supplies availability, reason, owning team, frozen zone length, centred default start and drag boundary. The draft remains UI-only and confirmation remains the only action-consuming Timeline transition. Manual Multiplayer is unchanged.
+v20.52.9 installs a permanent Mechanic Integration Gate for every future offline Match mechanic. Before approval and release, the mechanic must show explicit evidence for Rule Set compatibility, frozen MatchContext, Engine commands, official UI projections, Timeline/Undo/Replay, AI Analysis Export, and its Editor/Manual Multiplayer boundary. Structural sentinels now also reject direct offline UI imports of Engine implementation modules. This build changes no gameplay behavior and leaves Manual Multiplayer unchanged.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 
