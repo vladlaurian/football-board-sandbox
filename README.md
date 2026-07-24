@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.53.1` |
-| Git/package version | `20.53.1` |
-| Build name | `Final_Board_v20_53_1_short_long_pass` |
+| Sandbox version | `v20.53.2` |
+| Git/package version | `20.53.2` |
+| Build name | `Final_Board_v20_53_2_long_pass_reception_pass_ux` |
 | Base build | `v20.53.0 Card Editor focus stability` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.53.1`. The repository version is in `package.json` as `20.53.1`. The browser title is `Sandbox v20.53.1`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.53.2`. The repository version is in `package.json` as `20.53.2`. The browser title is `Sandbox v20.53.2`.
 
 ## Current release
 
-v20.53.1 introduces the approved offline Single Player **Short/Long Pass** split under the existing PASS action. Distance is universally centre-to-centre; `≤ threshold` is Short Pass and `> threshold` is Long Pass. Both require an active outfield player target. Long Pass is aerial, uses the Rule Set-selected stable Long Pass stat, ignores middle bodies/areas, and resolves origin defenders before destination defenders with a fresh progressive stack. Manual Multiplayer remains on its preserved legacy branch.
+v20.53.2 corrects the approved offline Single Player **Short/Long Pass** family. Distance is universally centre-to-centre; `≤ threshold` is Short Pass and `> threshold` is Long Pass. Both require an active outfield player target. Long Pass is aerial, ignores middle bodies/areas, treats actual endpoint body contact as direct reception/interception, and resolves origin defenders before destination defenders in one progressive sequence. Manual Multiplayer remains on its preserved legacy branch.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

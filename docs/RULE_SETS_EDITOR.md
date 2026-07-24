@@ -10,7 +10,7 @@ Player stat definitions and values are not owned by Rule Sets. Stats are selecte
 
 ## v20 action configuration
 
-Rule Set schema version 7 configures common Dice Modifiers plus:
+Rule Set schema version 8 configures common Dice Modifiers plus:
 
 ```text
 Pass → geometry and pass classification
@@ -73,11 +73,11 @@ The pass is classified as Long Pass only when centre-to-centre distance is stric
 
 Short Pass retains the ground route: bodies and goalkeeper route blocking use the established route semantics. Its attacker target is the stable `stat:passing` value, whose visible global name may be renamed to **Short Pass**.
 
-Long Pass is aerial. It ignores defensive areas and bodies in the middle of the route. A player body blocks only in the launch/landing neighbourhood when the actual selected-corner-to-target-centre trajectory touches that body cell, including edge/corner contact; merely being adjacent does not block. Long Pass checks eligible defenders whose defensive area contains the passer, resolves that complete group, then checks the destination group whose area contains the intended recipient. The progressive interceptor bonus and carried Natural-1 sequence restart at the second group.
+Long Pass is aerial. It ignores defensive areas and bodies in the middle of the route. A player body matters only in the launch/landing neighbourhood when the actual selected-corner-to-target-centre trajectory touches that body cell, including edge/corner contact; merely being adjacent does not matter. The first such body is the direct contact: an opponent intercepts directly and a teammate receives directly. Long Pass checks eligible defenders whose defensive area contains the passer, resolves that complete group, then checks the destination group whose area contains the actual receiver. Both groups are one progressive Interception sequence; stacks and carried Natural-1 disadvantage do not restart at reception.
 
 ### Long Pass Attacker Statistic
 
-Select the stable global stat ID used as the Long Pass attacker target. The editor displays the current global Attribute/Bonus names but stores the ID, so a later visible rename does not change the rule. When an older Rule Set has no selection and the frozen MatchContext finds exactly one global stat named `Long Pass`, it links that ID once while creating the Match; otherwise Long Pass is rejected until Rules selects a statistic.
+Long Pass always uses the global statistic named `Long Pass`. It is not an editable Rule Set choice. MatchContext resolves its stable ID once at Match start, so later visible changes cannot alter the frozen Match.
 
 ### Resolution Delay
 
@@ -145,7 +145,7 @@ Natural 1 and Natural 20 override this setting.
 
 ## Migration from earlier Rule Sets
 
-Rule Set schema version 2 stored `modifierCap` and `equalRollOutcome` under Pass. Schema version 3 migrated those values into the Interception action automatically. Schema version 4 added Group Move settings. Schema version 6 replaces its former single `maxDistance` with `maxOrthogonalDistance` and `maxDiagonalDistance`. Schema version 7 adds the Long Pass attacker-stat selector and makes the approved Short/Long target policy explicit. A saved Rule Set that has the former single Group Move value migrates it into both values, preserving its existing behavior; Rule Sets with no Group Move setting receive the approved `6` orthogonal / `4` diagonal defaults automatically.
+Rule Set schema version 2 stored `modifierCap` and `equalRollOutcome` under Pass. Schema version 3 migrated those values into the Interception action automatically. Schema version 4 added Group Move settings. Schema version 6 replaces its former single `maxDistance` with `maxOrthogonalDistance` and `maxDiagonalDistance`. Schema version 7 made the approved Short/Long target policy explicit. Schema version 8 removes the Long Pass attacker-stat and Interception-modifier UI variants: offline Match resolves the stable global `Long Pass` ID and keeps standard/progressive modifiers active. A saved Rule Set that has the former single Group Move value migrates it into both values, preserving its existing behavior; Rule Sets with no Group Move setting receive the approved `6` orthogonal / `4` diagonal defaults automatically.
 
 Migration defaults preserve v19.x behavior:
 

@@ -293,7 +293,7 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
     ...control,
     disabled,
     actionLocked: trackerComplete && !continuationReady && !passCancellable && !moveCancellable,
-    label: passCancellable ? "CANCEL PASS" : (moveCancellable || bonusMoveCancellable) ? "CANCEL MOVE" : type === "PASS" ? "PASS SHORT/LONG" : String(type || "").replace("GROUP_MOVE", "GROUP MOVE"),
+    label: passCancellable ? "CANCEL PASS" : (moveCancellable || bonusMoveCancellable) ? "CANCEL MOVE" : type === "PASS" ? "PASS S/L" : String(type || "").replace("GROUP_MOVE", "GROUP MOVE"),
   };
 }
 

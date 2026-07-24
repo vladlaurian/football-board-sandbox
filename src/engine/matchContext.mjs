@@ -29,16 +29,14 @@ function normalizeGameplayCards(raw) {
   return byId;
 }
 
-function linkLegacyLongPassStat(ruleSet, gameplayCardsById) {
-  if (ruleSet?.actions?.pass?.longPassAttackerStatId) return ruleSet;
+function resolveLongPassStat(ruleSet, gameplayCardsById) {
   const candidates = Object.values(gameplayCardsById || {}).flatMap(card => [
     ...(card?.passiveAttributes || []),
     ...(card?.bonuses || []),
   ]).filter(stat => String(stat?.name || "").trim().toLowerCase() === "long pass" && stat?.id);
   const ids = [...new Set(candidates.map(stat => String(stat.id)))];
-  // This is a one-time compatibility link while freezing a MatchContext. A
-  // unique existing Long Pass global stat is unambiguous; otherwise the Rule
-  // Set must explicitly select one in Rules.
+  // The global Long Pass stat is a fixed gameplay contract. Resolve its stable
+  // ID once while freezing MatchContext; UI never supplies an alternate stat.
   if (ids.length !== 1) return ruleSet;
   return {
     ...ruleSet,
@@ -60,7 +58,7 @@ export function createMatchContext(raw = {}) {
     ...normalizedRuleSet,
     actions: { ...normalizedRuleSet.actions, pass: { ...normalizedRuleSet.actions.pass, requireFieldPlayerTarget: false } },
   };
-  const ruleSet = linkLegacyLongPassStat(configuredRuleSet, gameplayCardsById);
+  const ruleSet = resolveLongPassStat(configuredRuleSet, gameplayCardsById);
   return deepFreeze({
     schemaVersion: MATCH_CONTEXT_SCHEMA_VERSION,
     id: String(source.id || "").trim(),

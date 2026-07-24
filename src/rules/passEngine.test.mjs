@@ -12,6 +12,7 @@ import {
   footForPass,
   passRequiresInterceptionSequence,
   passMeasurementDistance,
+  segmentClosedContactT,
   segmentTouchesClosedRect,
   segmentIntersectsOpenRect,
   traversedCells,
@@ -102,7 +103,7 @@ test("pass range always measures square centre to square centre, never the selec
   assert.equal(passMeasurementDistance(passer, receiver), 16);
 });
 
-test("Long Pass ignores middle bodies but blocks a body actually touched at launch or landing", () => {
+test("Long Pass ignores middle bodies and turns an endpoint contact into direct reception or interception", () => {
   const passer = { id: "passer", team: "A", x: 2, y: 3, cardId: "pass-card" };
   const receiver = { id: "receiver", team: "A", x: 20, y: 3, cardId: "receiver-card" };
   const middle = { id: "middle", team: "B", x: 11, y: 4, cardId: "body-card" };
@@ -115,11 +116,14 @@ test("Long Pass ignores middle bodies but blocks a body actually touched at laun
   const blocked = buildPassPlan({ passer, passerCard: cards["pass-card"], pieces: [passer, receiver, endpoint], cardById: cards, settings: { cols: 24, rows: 12 }, target: receiver, cornerId: "bottom-right", rules: { actions: { pass: { pathMode: "corner-to-center", longPassThreshold: 16, longPassAttackerStatId: "stat:long-pass" } } } });
   assert.equal(clear.isLong, true);
   assert.equal(clear.endpointBodyBlocked, false);
-  assert.equal(blocked.endpointBodyBlocked, true);
+  assert.equal(blocked.endpointBodyBlocked, false);
+  assert.deepEqual(blocked.directHit, { pieceId: "endpoint", team: "red", entryT: 0 });
+  assert.equal(passRequiresInterceptionSequence(blocked, "blue"), false);
   assert.equal(segmentTouchesClosedRect({ x: 3, y: 4 }, { x: 20.5, y: 3.5 }, { x: 3, y: 3 }), true);
+  assert.equal(segmentClosedContactT({ x: 3, y: 4 }, { x: 20.5, y: 3.5 }, { x: 3, y: 3 }), 0);
 });
 
-test("Long Pass resolves source and destination defensive groups with a fresh progressive stack", () => {
+test("Long Pass resolves source then destination defensive groups in one progressive stack", () => {
   const passer = { id: "passer", team: "A", x: 2, y: 3, cardId: "pass-card" };
   const receiver = { id: "receiver", team: "A", x: 20, y: 3, cardId: "receiver-card" };
   const sourceDefender = { id: "source", team: "B", x: 5, y: 3, cardId: "def-card" };
@@ -131,7 +135,7 @@ test("Long Pass resolves source and destination defensive groups with a fresh pr
   const plan = buildPassPlan({ passer, passerCard: cards["pass-card"], pieces: [passer, receiver, sourceDefender, destinationDefender], cardById: cards, settings: { cols: 24, rows: 12 }, target: receiver, cornerId: "top-right", rules: { actions: { pass: { pathMode: "corner-to-center", longPassThreshold: 16, longPassAttackerStatId: "stat:long-pass" } }, diceModifiers: { advantage: 1, stackCap: 4 } } });
   assert.deepEqual(plan.interceptors.map(item => [item.defender.id, item.reactionGroup, item.orderModifier]), [
     ["source", "long-origin", 0],
-    ["destination", "long-destination", 0],
+    ["destination", "long-destination", 1],
   ]);
   assert.deepEqual(plan.interceptionGroups, { origin: ["source"], destination: ["destination"] });
 });
@@ -239,7 +243,7 @@ test("maximum total modifier clamps negative totals symmetrically", () => {
 });
 
 
-test("pass plan freezes Interception rules for canonical multiplayer resolution", () => {
+test("offline pass plan freezes the permanent Interception modifier contract", () => {
   const passer = { id: "passer", team: "A", x: 1, y: 1, cardId: "pass-card" };
   const passerCard = { passiveAttributes: [{ id: "stat:passing", name: "Passing", value: 12 }] };
   const plan = buildPassPlan({
@@ -265,8 +269,8 @@ test("pass plan freezes Interception rules for canonical multiplayer resolution"
   });
   assert.deepEqual(plan.interceptionRules, {
     defenderRollStatId: "stat:tackling",
-    useStandardModifiers: false,
-    useProgressiveBonus: false,
+    useStandardModifiers: true,
+    useProgressiveBonus: true,
     diceModifiers: { advantage: 1, majorAdvantage: 3, disadvantage: -1, majorDisadvantage: -3, stackCap: 2 },
     equalRollOutcome: "interception",
   });

@@ -46,7 +46,7 @@ test("legacy Pass interception settings migrate into the separate Interception a
     name: "Legacy",
     actions: { pass: { modifierCap: 3, equalRollOutcome: "interception" } },
   });
-  assert.equal(normalized.schemaVersion, 7);
+  assert.equal(normalized.schemaVersion, 8);
   assert.equal(normalized.diceModifiers.stackCap, 3);
   assert.equal(normalized.actions.interception.equalRollOutcome, "interception");
   assert.equal(normalized.actions.interception.defenderRollStatId, "stat:interception");

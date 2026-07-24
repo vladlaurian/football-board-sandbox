@@ -2,6 +2,14 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.53.2 — Long Pass reception and Pass UX corrections
+
+- Corrected Long Pass endpoint contact: a body actually touched near launch or landing becomes the direct receiver (teammate) or direct interceptor (opponent); it never rejects the Pass as blocked.
+- Corrected destination Interception to evaluate the actual receiver and preserve one progressive/Natural-1 sequence across origin and reception groups.
+- Removed the Long Pass attacker-stat selector and the two Interception modifier toggles from Rules. Offline MatchContext now freezes the stable global `Long Pass` statistic and the permanent active modifier contract.
+- Pass Cancel now preserves the selected passer in offline Single Player; hover shows centre-to-centre distance with `SP`/`LP`; the offline button reads `PASS S/L`.
+- Manual Multiplayer remains unchanged.
+
 ## v20.53.1 — Short/Long Pass
 
 - Added the approved offline Single Player Short/Long Pass family under the existing PASS command and renamed its offline Inspector label to `PASS SHORT/LONG`.

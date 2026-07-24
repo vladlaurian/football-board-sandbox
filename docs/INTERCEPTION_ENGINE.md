@@ -92,8 +92,8 @@ Rules → Rule Sets
 It contains:
 
 - **Defender roll statistic** — populated from the global back-card stat schema; default `stat:interception`.
-- **Use standard modifiers** — controls the current preferred-foot modifier and the carried Natural 1 penalty.
-- **Use progressive interceptor bonus** — controls the ordered `+0, +1, +2...` bonus.
+- **Standard modifiers** are permanently active in offline Single Player: the preferred-foot transfer and carried Natural 1 penalty always apply where eligible.
+- **Progressive interceptor bonus** is permanently active in offline Single Player: eligible rolls receive ordered `+0, +1, +2...` stacks up to the global cap.
 - **Maximum total modifier** — symmetric cap displayed as `±X`.
 - **Equal total outcome** — either Pass continues or Interception succeeds.
 
@@ -138,7 +138,7 @@ Long Pass remains one `PASS` action and one Pass plan. It is aerial: middle defe
 1. all visible defenders whose defensive area contains the passer's square;
 2. only after that group has failed, all visible defenders whose defensive area contains the intended recipient's square.
 
-Within each group, priority is defender-square-centre to the relevant endpoint-square-centre; equal defenders use the existing defending-coach choice. The progressive interceptor order and carried Natural-1 stacks begin again at `0` for the destination group. The frozen plan stores the chosen Long Pass attacker stat ID/value, both group identities, modifiers, rolls and results, so Timeline, Undo/Redo, Replay and AI never reconstruct them from UI.
+Within each group, priority is defender-square-centre to the relevant endpoint-square-centre; equal defenders use the existing defending-coach choice. The two groups are one Long Pass contest: destination starts after every origin roll, so progressive stacks and carried Natural-1 disadvantage continue without reset, up to the shared global cap. The frozen plan stores the resolved stable Long Pass attacker stat ID/value, both group identities, modifiers, rolls and results, so Timeline, Undo/Redo, Replay and AI never reconstruct them from UI.
 
 ## Multiplayer authority boundary
 

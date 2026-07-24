@@ -203,7 +203,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.53.1";
+const APP_VERSION = "v20.53.2";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5921,8 +5921,7 @@ function App() {
     else if (result.reason === "pass-origin-blocked") primary = <>A pass cannot start from a corner shared with an opposing player.</>;
     else if (result.reason === "pass-goalkeeper-blocked") primary = <>A pass route cannot cross a goalkeeper.</>;
     else if (result.reason === "pass-target-field-player-required") primary = <>Short and Long Pass must target an active outfield player.</>;
-    else if (result.reason === "pass-long-endpoint-body-blocked") primary = <>This Long Pass route touches a player at its launch or landing area.</>;
-    else if (result.reason === "pass-long-stat-not-configured") primary = <>Select the Long Pass attacker statistic in Rules before starting this Match.</>;
+    else if (result.reason === "pass-long-stat-not-configured") primary = <>The global Long Pass statistic is required before starting this Match.</>;
     else if (result.reason === "pass-requires-ball") primary = <>Only the player who has the ball can start a pass in Match Mode.</>;
     else if (result.reason === "free-ball-required") primary = <>Press FREE BALL before moving the ball in Match Mode.</>;
     else if (result.reason === "team-exhausted") primary = <>Wait for opponent team or advance to next turn.</>;
@@ -7056,12 +7055,13 @@ function App() {
     const passer = pieces.find(piece => piece.id === pending.passerId);
     if (!passer) return null;
     const distance = Math.hypot((hoveredCell.x + .5) - (passer.x + .5), (hoveredCell.y + .5) - (passer.y + .5));
+    const longPassThreshold = Number(matchContextRef.current?.ruleSet?.actions?.pass?.longPassThreshold) || 16;
     return {
       x: hoveredCell.x,
       y: hoveredCell.y,
-      label: `${distance.toFixed(2)} sq`,
+      label: `${distance.toFixed(2)} ${distance > longPassThreshold ? "LP" : "SP"}`,
     };
-  }, [actionResolution, hoveredCell, pieces, settings.cols, settings.rows]);
+  }, [actionResolution, hoveredCell, pieces, settings.cols, settings.rows, gameTimeline.cursor]);
 
   const defAreaButtonLabel = defAreaMode === 0 ? "D.A OFF" : defAreaMode === 1 ? "D.A.1" : "D.A.2";
   useEffect(() => {
@@ -9366,6 +9366,7 @@ function App() {
       const team = pieceTeamKey(piece);
       const passId = createActionEventId(`pass_start_${piece.id}`);
       const dispatched = dispatchSinglePlayerGameCommand({
+        preserveLocalSelection: true,
         timeline: gameTimelineRef.current,
         state: before,
         context: singlePlayerMatchContext(),
@@ -9412,7 +9413,6 @@ function App() {
         label: "Pass cancelled before route confirmation",
       });
       if (!dispatched.result.accepted) return false;
-      setSelectedId(null);
       setHoveredCell(null);
       return true;
     }
@@ -9709,7 +9709,6 @@ function App() {
       if (!dispatched.result.accepted) {
         if (dispatched.result.reason === "PASS_ROUTE_ORIGIN_BLOCKED") setIllegalMoveNotice({ reason: "pass-origin-blocked" });
         if (dispatched.result.reason === "PASS_ROUTE_GOALKEEPER_BLOCKED") setIllegalMoveNotice({ reason: "pass-goalkeeper-blocked" });
-        if (dispatched.result.reason === "PASS_LONG_ENDPOINT_BODY_BLOCKED") setIllegalMoveNotice({ reason: "pass-long-endpoint-body-blocked" });
         if (dispatched.result.reason === "PASS_LONG_STAT_NOT_CONFIGURED") setIllegalMoveNotice({ reason: "pass-long-stat-not-configured" });
         return false;
       }
@@ -11871,7 +11870,7 @@ function App() {
                             || groupMoveActive
                             || (type === "MOVE" && pieceState.moveUsed && !hasRemainingNormalMove)
                             || (type === "GROUP_MOVE" && status.remaining !== 1 && !trackerComplete);
-                    const label = isPassCancel ? "CANCEL PASS" : (isMoveCancel || isBonusMoveCancel) ? "CANCEL MOVE" : type === "PASS" && !sessionCode ? "PASS SHORT/LONG" : type.replace("GROUP_MOVE", "GROUP MOVE");
+                    const label = isPassCancel ? "CANCEL PASS" : (isMoveCancel || isBonusMoveCancel) ? "CANCEL MOVE" : type === "PASS" && !sessionCode ? "PASS S/L" : type.replace("GROUP_MOVE", "GROUP MOVE");
                     const actionLocked = trackerComplete && !isPassCancel && !isMoveCancel;
                     return <button className={`team-action-btn ${team} ${type === "GROUP_MOVE" ? "group-move-btn" : ""} ${actionLocked ? "action-locked" : ""}`} key={type} type="button" disabled={disabled} aria-disabled={actionLocked || disabled} onClick={() => consumeInspectorAction(type, inspectedPiece)}>{label}</button>;
                   })}
@@ -12379,12 +12378,6 @@ function App() {
               <label>Long pass threshold (squares; strictly greater than)
                 <input disabled={ruleSetEditingLocked} type="number" min="0.01" step="0.01" value={ruleSetDraft.actions?.pass?.longPassThreshold ?? 16} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, longPassThreshold: Math.max(0.01, Number(e.target.value) || 16) } } }))} />
               </label>
-              <label>Long Pass attacker statistic
-                <select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.pass?.longPassAttackerStatId || [...(cardState?.backStatsSchema?.passiveAttributes || []), ...(cardState?.backStatsSchema?.bonuses || [])].find(stat => String(stat?.name || "").trim().toLowerCase() === "long pass")?.id || ""} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, longPassAttackerStatId: e.target.value } } }))}>
-                  <option value="">Select Long Pass statistic</option>
-                  {[...(cardState?.backStatsSchema?.passiveAttributes || []), ...(cardState?.backStatsSchema?.bonuses || [])].map(stat => <option key={stat.id} value={stat.id}>{stat.name}</option>)}
-                </select>
-              </label>
               <label>Resolution delay (ms)
                 <input disabled={ruleSetEditingLocked} type="number" min="0" max="5000" step="100" value={ruleSetDraft.actions?.pass?.resolutionDelayMs ?? 1500} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, resolutionDelayMs: clamp(Math.floor(Number(e.target.value) || 0), 0, 5000) } } }))} />
               </label>
@@ -12404,14 +12397,6 @@ function App() {
                 <select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.interception?.defenderRollStatId || "stat:interception"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, interception: { ...draft.actions?.interception, defenderRollStatId: e.target.value } } }))}>
                   {[...(cardState?.backStatsSchema?.passiveAttributes || []), ...(cardState?.backStatsSchema?.bonuses || [])].map(stat => <option key={stat.id} value={stat.id}>{stat.name}</option>)}
                 </select>
-              </label>
-              <label className="rule-checkbox-label">
-                <input disabled={ruleSetEditingLocked} type="checkbox" checked={ruleSetDraft.actions?.interception?.useStandardModifiers !== false} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, interception: { ...draft.actions?.interception, useStandardModifiers: e.target.checked } } }))} />
-                Use standard modifiers
-              </label>
-              <label className="rule-checkbox-label">
-                <input disabled={ruleSetEditingLocked} type="checkbox" checked={ruleSetDraft.actions?.interception?.useProgressiveBonus !== false} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, interception: { ...draft.actions?.interception, useProgressiveBonus: e.target.checked } } }))} />
-                Use progressive interceptor bonus
               </label>
               <label>Equal total outcome
                 <select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.interception?.equalRollOutcome || "pass-succeeds"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, interception: { ...draft.actions?.interception, equalRollOutcome: e.target.value } } }))}>

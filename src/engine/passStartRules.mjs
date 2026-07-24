@@ -288,7 +288,6 @@ export function confirmPassRoute(state, context, command) {
   if (plan.originBlocked) return { accepted: false, reason: "PASS_ROUTE_ORIGIN_BLOCKED" };
   if (plan.goalkeeperRouteBlocked) return { accepted: false, reason: "PASS_ROUTE_GOALKEEPER_BLOCKED" };
   if (context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !plan.targetPlayerId) return { accepted: false, reason: "PASS_TARGET_FIELD_PLAYER_REQUIRED" };
-  if (plan.endpointBodyBlocked) return { accepted: false, reason: "PASS_LONG_ENDPOINT_BODY_BLOCKED" };
   if (plan.isLong && !plan.attackerTargetStatId) return { accepted: false, reason: "PASS_LONG_STAT_NOT_CONFIGURED" };
 
   const continuation = normalizeActionContinuation(state.actionContinuation);
@@ -746,15 +745,13 @@ function completeNaturalTwentyInterception(state, pending, interceptor) {
 function advanceFailedInterception(state, pending, context) {
   const nextIndex = Math.max(0, Number(pending.interceptorIndex) || 0) + 1;
   if (nextIndex >= (pending.plan?.interceptors || []).length) return completePass(state, pending);
-  const currentGroup = String(pending.plan?.interceptors?.[pending.interceptorIndex]?.reactionGroup || "short-route");
   const nextGroup = String(pending.plan?.interceptors?.[nextIndex]?.reactionGroup || "short-route");
-  const startsNewLongEndpointGroup = currentGroup !== nextGroup;
   const next = pendingPassInput({
     ...pending,
     interceptorIndex: nextIndex,
-    // Long Pass resolves launch defenders completely before landing defenders.
-    // A new endpoint group starts its own progressive/Natural-1 sequence.
-    naturalOneDisadvantageStacks: startsNewLongEndpointGroup ? 0 : (Number(pending.naturalOneDisadvantageStacks) || 0) + (Number(pending.lastResolution?.natural) === 1 ? 1 : 0),
+    // Long Pass resolves launch defenders before landing defenders, but it is
+    // one contested execution: Natural-1 disadvantage carries across both.
+    naturalOneDisadvantageStacks: (Number(pending.naturalOneDisadvantageStacks) || 0) + (Number(pending.lastResolution?.natural) === 1 ? 1 : 0),
     lastRoll: null,
     lastResolution: null,
     lastRollEvent: null,

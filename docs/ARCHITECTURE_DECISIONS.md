@@ -64,9 +64,9 @@ README records the current release. Changelogs record implementation history. Th
 
 **Consequences:**
 
-- Rule Set schema v7 owns the threshold and Long Pass attacker-stat ID; MatchContext freezes an unambiguous legacy `Long Pass` name link only when needed.
+- Rule Set schema v8 owns the threshold; MatchContext resolves and freezes the stable global `Long Pass` stat ID without exposing a Rule Set selector.
 - Compact MatchContext gameplay cards retain stable stat IDs, so visible stat renames cannot alter a frozen match.
-- The Long plan persists group identity and resets progressive/Natural-1 sequencing at the destination group; Timeline, Replay and AI display stored facts rather than recomputing geometry or values.
+- The Long plan persists group identity and carries progressive/Natural-1 sequencing from origin through destination; Timeline, Replay and AI display stored facts rather than recomputing geometry or values.
 - The frozen Manual Multiplayer/session branch remains on its legacy Pass plan and is not silently migrated by this decision.
 
 ## ADR-004 — Manual roll only
