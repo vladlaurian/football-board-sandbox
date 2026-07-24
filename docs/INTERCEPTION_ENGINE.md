@@ -140,6 +140,8 @@ Long Pass remains one `PASS` action and one Pass plan. It is aerial: middle defe
 
 Within each group, priority is defender-square-centre to the relevant endpoint-square-centre; equal defenders use the existing defending-coach choice. The two groups are one Long Pass contest: destination starts after every origin roll, so progressive stacks and carried Natural-1 disadvantage continue without reset, up to the shared global cap. The frozen plan stores the resolved stable Long Pass attacker stat ID/value, both group identities, modifiers, rolls and results, so Timeline, Undo/Redo, Replay and AI never reconstruct them from UI.
 
+The passer/receiver square used by those eligibility groups is always the body position at the square centre. A selected Pass corner changes the physical trajectory and foot only; it never moves the player into or out of a defensive area.
+
 ## Multiplayer authority boundary
 
 The Interception result is resolved only by the session host. When a player rolls, the shared Timeline carries the manual dice event and identity data. The host then reads the canonical pending pass action and the Interception configuration frozen into its pass plan, recomputes the result, and commits the outcome.

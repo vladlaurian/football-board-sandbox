@@ -4,6 +4,7 @@ import {
   applyInterceptorChoice,
   buildPassPlan,
   PASS_CORNERS,
+  bodyBlockingPassOrigin,
   cardStat,
   interceptorChoiceCandidates,
   interceptorPriorityDistanceSquared,
@@ -118,7 +119,7 @@ test("Long Pass ignores middle bodies and turns an endpoint contact into direct 
   const passer = { id: "passer", team: "A", x: 2, y: 3, cardId: "pass-card" };
   const receiver = { id: "receiver", team: "A", x: 20, y: 3, cardId: "receiver-card" };
   const middle = { id: "middle", team: "B", x: 11, y: 4, cardId: "body-card" };
-  const endpoint = { id: "endpoint", team: "B", x: 3, y: 3, cardId: "body-card" };
+  const endpoint = { id: "endpoint", team: "B", x: 19, y: 3, cardId: "body-card" };
   const cards = {
     "pass-card": { passiveAttributes: [{ id: "stat:passing", name: "Short Pass", value: 10 }], bonuses: [{ id: "stat:long-pass", name: "Long Pass", value: 17 }] },
     "receiver-card": {}, "body-card": {},
@@ -128,10 +129,12 @@ test("Long Pass ignores middle bodies and turns an endpoint contact into direct 
   assert.equal(clear.isLong, true);
   assert.equal(clear.endpointBodyBlocked, false);
   assert.equal(blocked.endpointBodyBlocked, false);
-  assert.deepEqual(blocked.directHit, { pieceId: "endpoint", team: "red", entryT: 0 });
+  assert.equal(blocked.directHit?.pieceId, "endpoint");
+  assert.equal(blocked.directHit?.team, "red");
+  assert.ok(blocked.directHit?.entryT > 0 && blocked.directHit?.entryT < 1);
   assert.equal(passRequiresInterceptionSequence(blocked, "blue"), false);
-  assert.equal(segmentTouchesClosedRect({ x: 3, y: 4 }, { x: 20.5, y: 3.5 }, { x: 3, y: 3 }), true);
-  assert.equal(segmentClosedContactT({ x: 3, y: 4 }, { x: 20.5, y: 3.5 }, { x: 3, y: 3 }), 0);
+  assert.equal(segmentTouchesClosedRect({ x: 3, y: 4 }, { x: 20.5, y: 3.5 }, { x: 19, y: 3 }), true);
+  assert.ok(segmentClosedContactT({ x: 3, y: 4 }, { x: 20.5, y: 3.5 }, { x: 19, y: 3 }) > 0);
 });
 
 test("Long Pass resolves source then destination defensive groups in one progressive stack", () => {
@@ -162,13 +165,15 @@ test("an opponent square blocks defensive-line visibility but a teammate does no
   assert.equal(plan.interceptors.length, 0);
 });
 
-test("a corner-to-centre pass cannot begin from a corner shared with an opponent square", () => {
+test("offline corner execution is blocked by any adjacent body, while legacy Manual Multiplayer remains opponent-only", () => {
   const passer = { id: "passer", team: "A", x: 5, y: 5 };
   const diagonalOpponent = { id: "red-diagonal", team: "B", x: 4, y: 4 };
   const teammate = { id: "blue-diagonal", team: "A", x: 4, y: 4 };
   const sharedOrigin = { x: 5, y: 5, cornerId: "top-left" };
   assert.equal(opponentBlockingPassOrigin(sharedOrigin, passer, [passer, diagonalOpponent])?.id, "red-diagonal");
   assert.equal(opponentBlockingPassOrigin(sharedOrigin, passer, [passer, teammate]), null);
+  assert.equal(bodyBlockingPassOrigin(sharedOrigin, passer, [passer, diagonalOpponent])?.id, "red-diagonal");
+  assert.equal(bodyBlockingPassOrigin(sharedOrigin, passer, [passer, teammate])?.id, "blue-diagonal");
 
   const cardById = { "pass-card": { passiveAttributes: [{ name: "Passing", value: 10 }] } };
   const blockedPlan = buildPassPlan({
@@ -183,6 +188,31 @@ test("a corner-to-centre pass cannot begin from a corner shared with an opponent
   });
   assert.equal(blockedPlan.originBlocked, true);
   assert.equal(blockedPlan.originBlocker.pieceId, "red-diagonal");
+
+  const teammateBlockedPlan = buildPassPlan({
+    passer: { ...passer, cardId: "pass-card" },
+    passerCard: cardById["pass-card"],
+    pieces: [passer, teammate],
+    cardById,
+    settings: { cols: 12, rows: 12 },
+    target: { x: 8, y: 5 },
+    cornerId: "top-left",
+    rules: { pathMode: "corner-to-center" },
+  });
+  assert.equal(teammateBlockedPlan.originBlocked, true);
+
+  const manualTeammatePlan = buildPassPlan({
+    passer: { ...passer, cardId: "pass-card" },
+    passerCard: cardById["pass-card"],
+    pieces: [passer, teammate],
+    cardById,
+    settings: { cols: 12, rows: 12 },
+    target: { x: 8, y: 5 },
+    cornerId: "top-left",
+    rules: { pathMode: "corner-to-center" },
+    legacyManual: true,
+  });
+  assert.equal(manualTeammatePlan.originBlocked, false);
 });
 
 test("centre-to-centre passing is not affected by corner-origin blockers", () => {

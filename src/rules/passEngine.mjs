@@ -177,6 +177,23 @@ export function opponentBlockingPassOrigin(origin, passer, pieces) {
   }) || null;
 }
 
+// Offline Match contract: a selected corner models the ball at a specific
+// foot.  A body occupying any of the three neighbouring squares that share
+// that corner leaves no physical room for that execution point.  This is
+// deliberately team-neutral: a teammate can obstruct the foot just as an
+// opponent can.  Manual Multiplayer retains its historical opponent-only
+// origin rule through opponentBlockingPassOrigin above.
+export function bodyBlockingPassOrigin(origin, passer, pieces) {
+  if (!origin?.cornerId) return null;
+  return (pieces || []).find(piece => {
+    if (!piece || piece.id === passer?.id || piece.team === "BALL" || piece.inactive) return false;
+    return PASS_CORNERS.some(corner => (
+      Math.abs(Number(piece.x) + corner.x - Number(origin.x)) < EPSILON
+      && Math.abs(Number(piece.y) + corner.y - Number(origin.y)) < EPSILON
+    ));
+  }) || null;
+}
+
 export function isCellVisibleToDefender(defender, cell, pieces, { ignorePieceId = null } = {}) {
   const from = { x: Number(defender.x) + 0.5, y: Number(defender.y) + 0.5 };
   const to = { x: Number(cell.x) + 0.5, y: Number(cell.y) + 0.5 };
@@ -334,7 +351,9 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
   const diceModifiers = normalizeDiceModifiers(rules?.diceModifiers);
   const pathMode = passRules.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center";
   const origin = pointForPassOrigin(passer, pathMode, cornerId);
-  const originBlocker = opponentBlockingPassOrigin(origin, passer, pieces);
+  const originBlocker = legacyManual
+    ? opponentBlockingPassOrigin(origin, passer, pieces)
+    : bodyBlockingPassOrigin(origin, passer, pieces);
   const targetPoint = pointForPassTarget(target);
   const distance = legacyManual ? passDistance(origin, targetPoint) : passMeasurementDistance(passer, target);
   const longPassThreshold = Number(passRules.longPassThreshold) || 16;

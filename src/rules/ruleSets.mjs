@@ -1,4 +1,4 @@
-export const RULE_SET_SCHEMA_VERSION = 9;
+export const RULE_SET_SCHEMA_VERSION = 10;
 export const DEFAULT_RULE_SET_ID = "default-rules";
 
 function cleanText(value, fallback = "") {
@@ -92,8 +92,10 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
     ? Number(interception.modifierCap)
     : legacyModifierCap;
   const migratedEqualOutcome = interception.equalRollOutcome || pass.equalRollOutcome;
-  const normalizedLongPassThreshold = Math.max(0.01, Number(pass.longPassThreshold) || 16);
-  const normalizedMaxPassDistance = Math.max(normalizedLongPassThreshold, Number(pass.maxPassDistance) || 32);
+  // Pass thresholds are board-cell counts. They are deliberately integral;
+  // older decimal Rule Sets migrate down to the same whole-cell threshold.
+  const normalizedLongPassThreshold = Math.max(1, Math.floor(Number(pass.longPassThreshold) || 16));
+  const normalizedMaxPassDistance = Math.max(normalizedLongPassThreshold, Math.floor(Number(pass.maxPassDistance) || 32));
   const diceModifiers = normalizeDiceModifiers({
     ...source.diceModifiers,
     stackCap: source.diceModifiers?.stackCap ?? migratedModifierCap,

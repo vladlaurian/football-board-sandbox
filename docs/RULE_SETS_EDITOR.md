@@ -63,17 +63,28 @@ Options:
 - **Corner → Center**
 - **Center → Center**
 
-This setting determines execution origin, route, traversed cells, defensive-area intersections, eligible interceptors, and corner-selection flow. It never changes the measured distance: all pass classification is centre-to-centre.
+This setting determines the execution origin, route, traversed cells, defensive-area intersections, eligible interceptors, and corner-selection flow. It never changes the measured distance: all pass classification is centre-to-centre.
+
+#### Pass coordinate contract
+
+Pass has two deliberately separate coordinate meanings:
+
+- **body / board position:** the centre of the passer's square. This is the sole reference for distance, Short/Long classification, maximum range, and whether the passer or receiver occupies a defensive area;
+- **execution trajectory:** the selected corner of the passer's square. It selects the foot, sets the pass line and determines physical route contact.
+
+The selected corner never changes a player's board position or range. It can change the line, because Left and Right Foot are different physical execution angles.
+
+In offline Match, a corner is unavailable when any active player body occupies one of the three neighbouring cells sharing that corner. Team does not matter: a teammate can physically obstruct the selected foot exactly as an opponent can. The adjacent body is a blocked origin, not an automatic receiver/interceptor. This corner rule applies to every future corner-origin execution mechanic; Manual Multiplayer retains its historical behavior.
 
 ### Long Pass Threshold
 
-The pass is classified as Long Pass only when centre-to-centre distance is strictly greater than the configured threshold. The default is `16`.
+The pass is classified as Long Pass only when centre-to-centre distance is strictly greater than the configured whole-square threshold. The default is `16`.
 
 `≤ threshold` is Short Pass; `> threshold` is Long Pass. Both require an active outfield player as target; a goalkeeper is not a direct target.
 
 ### Maximum Pass Distance
 
-No Pass may exceed this centre-to-centre distance. The default is `32`, and the value cannot be lower than the Long Pass threshold. A farther selected target produces a canonical blocked preview with the maximum-distance reason; it consumes no action and cannot be confirmed.
+No Pass may exceed this whole-square centre-to-centre distance. The default is `32`, and the value cannot be lower than the Long Pass threshold. A farther selected target produces a canonical blocked preview with the maximum-distance reason; it consumes no action and cannot be confirmed. The editor accepts temporary empty text while a value is being replaced, but normalizes on blur/save; saved Rule Sets never contain an empty or fractional pass limit.
 
 ### Invalid target preview
 
@@ -81,7 +92,7 @@ Selecting an empty square or goalkeeper in offline Match does not relax that rul
 
 Short Pass retains the ground route: bodies and goalkeeper route blocking use the established route semantics. Its attacker target is the stable `stat:passing` value, whose visible global name may be renamed to **Short Pass**.
 
-Long Pass is aerial. It ignores defensive areas and bodies in the middle of the route. A player body matters only in the launch/landing neighbourhood when the actual selected-corner-to-target-centre trajectory touches that body cell, including edge/corner contact; merely being adjacent does not matter. The first such body is the direct contact: an opponent intercepts directly and a teammate receives directly. Long Pass checks eligible defenders whose defensive area contains the passer, resolves that complete group, then checks the destination group whose area contains the actual receiver. Both groups are one progressive Interception sequence; stacks and carried Natural-1 disadvantage do not restart at reception.
+Long Pass is aerial. It ignores defensive areas and bodies in the middle of the route. A player body matters only in the launch/landing neighbourhood when the actual selected-corner-to-target-centre trajectory touches that body cell, including edge/corner contact; merely being adjacent does not matter. A launch-adjacent body instead disables the shared execution corner before route confirmation. The first remaining such body is the direct contact: an opponent intercepts directly and a teammate receives directly. Long Pass checks eligible defenders whose defensive area contains the passer, resolves that complete group, then checks the destination group whose area contains the actual receiver. Both groups are one progressive Interception sequence; stacks and carried Natural-1 disadvantage do not restart at reception.
 
 ### Long Pass Attacker Statistic
 
@@ -153,7 +164,7 @@ Natural 1 and Natural 20 override this setting.
 
 ## Migration from earlier Rule Sets
 
-Rule Set schema version 2 stored `modifierCap` and `equalRollOutcome` under Pass. Schema version 3 migrated those values into the Interception action automatically. Schema version 4 added Group Move settings. Schema version 6 replaces its former single `maxDistance` with `maxOrthogonalDistance` and `maxDiagonalDistance`. Schema version 7 made the approved Short/Long target policy explicit. Schema version 8 removes the Long Pass attacker-stat and Interception-modifier UI variants: offline Match resolves the stable global `Long Pass` ID and keeps standard/progressive modifiers active. Schema version 9 adds maximum Pass distance, defaulting older Rule Sets to `32`. A saved Rule Set that has the former single Group Move value migrates it into both values, preserving its existing behavior; Rule Sets with no Group Move setting receive the approved `6` orthogonal / `4` diagonal defaults automatically.
+Rule Set schema version 2 stored `modifierCap` and `equalRollOutcome` under Pass. Schema version 3 migrated those values into the Interception action automatically. Schema version 4 added Group Move settings. Schema version 6 replaces its former single `maxDistance` with `maxOrthogonalDistance` and `maxDiagonalDistance`. Schema version 7 made the approved Short/Long target policy explicit. Schema version 8 removes the Long Pass attacker-stat and Interception-modifier UI variants: offline Match resolves the stable global `Long Pass` ID and keeps standard/progressive modifiers active. Schema version 9 adds maximum Pass distance, defaulting older Rule Sets to `32`. Schema version 10 normalizes pass thresholds and maximum distance to whole squares. A saved Rule Set that has the former single Group Move value migrates it into both values, preserving its existing behavior; Rule Sets with no Group Move setting receive the approved `6` orthogonal / `4` diagonal defaults automatically.
 
 Migration defaults preserve v19.x behavior:
 

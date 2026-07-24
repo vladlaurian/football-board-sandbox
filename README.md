@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.53.5` |
-| Git/package version | `20.53.5` |
-| Build name | `Final_Board_v20_53_5_long_pass_contact_and_max_distance` |
+| Sandbox version | `v20.53.6` |
+| Git/package version | `20.53.6` |
+| Build name | `Final_Board_v20_53_6_pass_coordinate_contract_and_integer_limits` |
 | Base build | `v20.53.0 Card Editor focus stability` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.53.5`. The repository version is in `package.json` as `20.53.5`. The browser title is `Sandbox v20.53.5`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.53.6`. The repository version is in `package.json` as `20.53.6`. The browser title is `Sandbox v20.53.6`.
 
 ## Current release
 
-v20.53.5 adds the frozen, editable maximum Pass distance (default `32`) and corrects Long Pass contact feedback. A selected intended destination remains visible: the trajectory is green/red only to direct reception/interception, then grey to the intended destination, whose ghost ball is grey. Manual Multiplayer remains unchanged.
+v20.53.6 formalizes Pass coordinates: player position, range and defensive-area eligibility use square centres; the selected corner remains the physical foot/trajectory. An adjacent body now disables that execution corner for offline Match, and pass limits are editable only as whole squares. Manual Multiplayer remains unchanged.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

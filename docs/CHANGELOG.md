@@ -2,6 +2,12 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.53.6 — Pass coordinate contract and integer limits
+
+- Corrected offline corner-origin handling: a selected corner still determines foot and physical route, while body position, distance and defensive-area eligibility use the passer-square centre.
+- An offline execution corner shared by any adjacent player body is unavailable; teammates and opponents both block that foot. This prevents an adjacent body from being silently converted into a Long Pass receiver/interceptor merely because one corner touches it. Manual Multiplayer retains its legacy opponent-only corner rule.
+- Pass distance thresholds and maximum distance are now whole-square values. Rules fields accept temporary blank text while editing and normalize to valid integral values on blur/save.
+
 ## v20.53.5 — Long Pass contact projection and maximum distance
 
 - Added Rule Set `Maximum Pass distance`, default `32`, frozen in MatchContext. Targets beyond it create the same canonical blocked preview pattern and remain Engine-illegal to confirm.

@@ -203,7 +203,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.53.5";
+const APP_VERSION = "v20.53.6";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5918,7 +5918,7 @@ function App() {
     else if (result.reason === "movement-ended") primary = <>This player has no legal movement remaining during the current turn.</>;
     else if (result.reason === "match-not-started") primary = <>Start the match in Tracker before moving players.</>;
     else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE MOVE before moving this player, or advance to next turn.</>;
-    else if (result.reason === "pass-origin-blocked") primary = <>A pass cannot start from a corner shared with an opposing player.</>;
+    else if (result.reason === "pass-origin-blocked") primary = <>This execution corner is blocked by an adjacent player.</>;
     else if (result.reason === "pass-goalkeeper-blocked") primary = <>A pass route cannot cross a goalkeeper.</>;
     else if (result.reason === "pass-target-field-player-required") primary = <>Short and Long Pass must target an active outfield player.</>;
     else if (result.reason === "pass-max-distance-exceeded") primary = <>The maximum Pass distance is {result.maxPassDistance ?? 32} squares.</>;
@@ -12390,16 +12390,32 @@ function App() {
                   <option value="center-to-center">Center → Center</option>
                 </select>
               </label>
-              <label>Long pass threshold (squares; strictly greater than)
-                <input disabled={ruleSetEditingLocked} type="number" min="0.01" step="0.01" value={ruleSetDraft.actions?.pass?.longPassThreshold ?? 16} onChange={e => setRuleSetDraft(draft => {
-                  const longPassThreshold = Math.max(0.01, Number(e.target.value) || 16);
-                  return { ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, longPassThreshold, maxPassDistance: Math.max(longPassThreshold, Number(draft.actions?.pass?.maxPassDistance) || 32) } } };
+              <label>Long pass threshold (whole squares; strictly greater than)
+                <input disabled={ruleSetEditingLocked} type="number" min="1" step="1" value={ruleSetDraft.actions?.pass?.longPassThreshold ?? 16} onChange={e => setRuleSetDraft(draft => {
+                  const raw = e.target.value;
+                  if (raw === "") return { ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, longPassThreshold: "" } } };
+                  const longPassThreshold = Math.max(1, Math.floor(Number(raw)) || 1);
+                  const currentMaximum = draft.actions?.pass?.maxPassDistance;
+                  const maxPassDistance = currentMaximum === "" ? "" : Math.max(longPassThreshold, Math.floor(Number(currentMaximum)) || 32);
+                  return { ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, longPassThreshold, maxPassDistance } } };
+                })} onBlur={() => setRuleSetDraft(draft => {
+                  const rawThreshold = draft.actions?.pass?.longPassThreshold;
+                  const longPassThreshold = Math.max(1, Math.floor(Number(rawThreshold)) || 16);
+                  const rawMaximum = draft.actions?.pass?.maxPassDistance;
+                  const maxPassDistance = Math.max(longPassThreshold, Math.floor(Number(rawMaximum)) || Math.max(32, longPassThreshold));
+                  return { ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, longPassThreshold, maxPassDistance } } };
                 })} />
               </label>
               <label>Maximum Pass distance (squares)
-                <input disabled={ruleSetEditingLocked} type="number" min={ruleSetDraft.actions?.pass?.longPassThreshold ?? 16} step="0.01" value={ruleSetDraft.actions?.pass?.maxPassDistance ?? 32} onChange={e => setRuleSetDraft(draft => {
-                  const longPassThreshold = Number(draft.actions?.pass?.longPassThreshold) || 16;
-                  return { ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, maxPassDistance: Math.max(longPassThreshold, Number(e.target.value) || 32) } } };
+                <input disabled={ruleSetEditingLocked} type="number" min={Math.max(1, Math.floor(Number(ruleSetDraft.actions?.pass?.longPassThreshold)) || 16)} step="1" value={ruleSetDraft.actions?.pass?.maxPassDistance ?? 32} onChange={e => setRuleSetDraft(draft => {
+                  const raw = e.target.value;
+                  if (raw === "") return { ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, maxPassDistance: "" } } };
+                  const longPassThreshold = Math.max(1, Math.floor(Number(draft.actions?.pass?.longPassThreshold)) || 16);
+                  return { ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, maxPassDistance: Math.max(longPassThreshold, Math.floor(Number(raw)) || longPassThreshold) } } };
+                })} onBlur={() => setRuleSetDraft(draft => {
+                  const longPassThreshold = Math.max(1, Math.floor(Number(draft.actions?.pass?.longPassThreshold)) || 16);
+                  const maxPassDistance = Math.max(longPassThreshold, Math.floor(Number(draft.actions?.pass?.maxPassDistance)) || Math.max(32, longPassThreshold));
+                  return { ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, longPassThreshold, maxPassDistance } } };
                 })} />
               </label>
               <label>Resolution delay (ms)
