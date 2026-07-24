@@ -2,6 +2,12 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.53.3 — Timeline-null render hotfix
+
+- Fixed the v20.53.2 render crash caused by reading `gameTimeline.cursor` while Timeline is still `null`.
+- Added a static render-safety sentinel for the Pass hover dependency path.
+- No gameplay, Rule Set, MatchState, MatchContext, Timeline semantics, or Manual Multiplayer behavior changed.
+
 ## v20.53.2 — Long Pass reception and Pass UX corrections
 
 - Corrected Long Pass endpoint contact: a body actually touched near launch or landing becomes the direct receiver (teammate) or direct interceptor (opponent); it never rejects the Pass as blocked.

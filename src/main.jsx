@@ -203,7 +203,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.53.2";
+const APP_VERSION = "v20.53.3";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -7061,7 +7061,7 @@ function App() {
       y: hoveredCell.y,
       label: `${distance.toFixed(2)} ${distance > longPassThreshold ? "LP" : "SP"}`,
     };
-  }, [actionResolution, hoveredCell, pieces, settings.cols, settings.rows, gameTimeline.cursor]);
+  }, [actionResolution, hoveredCell, pieces, settings.cols, settings.rows, gameTimeline?.cursor]);
 
   const defAreaButtonLabel = defAreaMode === 0 ? "D.A OFF" : defAreaMode === 1 ? "D.A.1" : "D.A.2";
   useEffect(() => {

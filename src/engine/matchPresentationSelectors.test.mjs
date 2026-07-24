@@ -154,6 +154,12 @@ test("Single Player UI imports the presentation boundary, not direct gameplay ev
   assert.doesNotMatch(source, /from "\.\/engine\/(?:gameEngine|movementPathRules|normalMoveRules|threeTwoMoveRules|groupMoveRules|bonusMoveRules|freeMoveRules|passStartRules|matchAdministrationRules|matchLifecycleRules|trackerPhaseRules)\.mjs"/);
 });
 
+test("pass hover remains render-safe before a Timeline exists", () => {
+  const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
+  assert.match(source, /gameTimeline\?\.cursor/);
+  assert.doesNotMatch(source, /settings\.rows, gameTimeline\.cursor\]/);
+});
+
 function localFunctionSource(source, name) {
   const start = source.indexOf(`function ${name}(`);
   assert.notEqual(start, -1, `expected main.jsx to retain ${name}`);
