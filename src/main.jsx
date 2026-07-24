@@ -13,6 +13,7 @@ import { createMatchContext } from "./engine/matchContext.mjs";
 import { runSinglePlayerMatchCommand } from "./engine/singlePlayerMatchGateway.mjs";
 import {
   selectSinglePlayerGroupMovePieceStatuses,
+  selectSinglePlayerGroupMoveDraftPresentation,
   selectSinglePlayerGroupMovePresentation,
   selectSinglePlayerDicePresentation,
   selectSinglePlayerFreeBallControlPresentation,
@@ -202,7 +203,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.52.6";
+const APP_VERSION = "v20.52.8";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -10601,18 +10602,19 @@ function App() {
         setGroupMoveZoneDraft(null);
         return;
       }
-      const team = pieceTeamKey(piece);
-      const tracker = currentTimelineTrackerSnapshot();
-      if (!canUseActionForPiece(piece) || !isTeamPhaseActive(team) || tracker.matchActionState.groupMove?.active) return;
-      if (getTeamActionStatus(team).remaining !== 1) {
-        setIllegalMoveNotice({ reason: "group-move-last-action-only" });
+      const draft = selectSinglePlayerGroupMoveDraftPresentation(
+        currentTimelineGameStateSnapshot() || captureTimelineGameState(),
+        singlePlayerMatchContext(),
+        { piece, replay: replayModeRef.current },
+      );
+      if (!draft.allowed) {
+        if (draft.reason) setIllegalMoveNotice({ reason: draft.reason });
         return;
       }
-      const configuredLength = Math.max(1, Math.min(settings.cols, Number(singlePlayerMatchContext().ruleSet.actions?.groupMove?.zoneLength) || 10));
       setGroupMoveZoneDraft({
-        team,
-        zoneStartX: Math.max(0, Math.floor((settings.cols - configuredLength) / 2)),
-        zoneLength: configuredLength,
+        team: draft.team,
+        zoneStartX: draft.defaultZoneStartX,
+        zoneLength: draft.zoneLength,
       });
       cancelFreeBall();
       setSelectedId(null);

@@ -554,11 +554,15 @@ The next Engine mechanic must enter through this projection contract from its fi
 
 ## Phase 11 — Code ownership and legacy-cleanup audit
 
-**Status:** Audit complete in v20.52.5; first classified deletion-only remediation completed in v20.52.6.
+**Status:** Initial audit complete in v20.52.5; first classified deletion-only remediation completed in v20.52.6; boundary-and-dependency audit completed in v20.52.7; identified Group Move projection debt remediated in v20.52.8.
 
 This audit inventories offline Single Player Match command entrances, Engine/Controller/Gateway publication, presentation selectors, direct React setters, retained session/Manual Multiplayer branches, and production-reachable versus test-only exports. Its rule is evidence before deletion: a setter or legacy helper is not dead merely because it appears in `main.jsx`; it may be a deliberate Editor Workspace or frozen Manual Multiplayer route. No candidate is removed in the audit build without a call-site and mode-boundary proof.
 
 The audit confirms that offline Match commands route through `runSinglePlayerMatchCommand()` and Engine-backed selectors, while legacy direct mutations observed in `main.jsx` are gated to Editor or `sessionCode` paths. v20.52.6 removes the first classified set only after call-site proof: the obsolete local browser Save/Load helpers and their isolated settings migration helper, unused card-zone mutation helpers, unused view-fit helpers, and three production-unused exports. Compatibility/test-only exports remain until their dependent compatibility contract is explicitly retired. The audit also corrects the Match → Editor boundary so `personalActionsByPieceId` is cleared with the closing Match interaction state; Editor may then create its own manual markers. Manual Multiplayer remains excluded.
+
+v20.52.7 rechecks the active boundary rather than assuming the earlier audit remains true after continuity fixes. It traces all migrated offline command entrances—Free Ball, Normal Move, 3/2, Free Move, Group Move confirmation and piece move, Bonus Move, Pass/Interception, dice, End Turn, Match lifecycle and Tracker administration—to `runSinglePlayerMatchCommand()` through the local UI wrappers. It also verifies that `main.jsx` uses the presentation selectors before the retained direct movement fallbacks; those fallbacks serve the frozen session/Manual Multiplayer path and Editor Workspace, not offline Match. Static regression sentinels protect both facts.
+
+The audit found one narrow projection-debt item and v20.52.8 remediates it: Group Move draft activation now consumes an official projection produced by evaluating the same `GROUP_MOVE_ZONE_CONFIRMED` Engine command with a non-published preview input. It returns availability/reason, team, frozen zone length, centred default start and drag boundary. The local draft remains presentation-only; confirmation remains the only action-consuming canonical transition. No deletion, extraction, Manual Multiplayer change or gameplay-rule change was made.
 
 ## Required update after every implementation build
 

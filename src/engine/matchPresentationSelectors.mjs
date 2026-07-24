@@ -106,6 +106,38 @@ export function selectSinglePlayerGroupMovePresentation(state, context, { piece,
   return { ...result, legal: Boolean(result.accepted) };
 }
 
+// The draft band is local presentation, but its availability and frozen shape
+// are projected by evaluating the same Engine command that will confirm it.
+// The preview transition is never published to Timeline.
+export function selectSinglePlayerGroupMoveDraftPresentation(state, context, { piece, replay = false } = {}) {
+  const team = teamKeyForPiece(piece);
+  if (replay) return { allowed: false, reason: "REPLAY_READ_ONLY", team, zoneLength: null, defaultZoneStartX: null, maxZoneStartX: null };
+  const result = applyGameCommand({
+    state,
+    context,
+    command: {
+      id: `presentation:group-move-zone:${team || "unknown"}`,
+      type: GAME_COMMAND_TYPE.GROUP_MOVE_ZONE_CONFIRMED,
+      payload: { team, zoneStartX: 0 },
+    },
+  });
+  if (!result.accepted) {
+    return { allowed: false, reason: result.reason || "GROUP_MOVE_NOT_ALLOWED", team, zoneLength: null, defaultZoneStartX: null, maxZoneStartX: null };
+  }
+  const group = result.nextState?.tracker?.matchActionState?.groupMove || {};
+  const cols = Math.max(1, Number(context?.boardSettings?.cols) || 0);
+  const zoneLength = Math.max(1, Math.min(cols, Number(group.zoneLength) || 1));
+  const maxZoneStartX = Math.max(0, cols - zoneLength);
+  return {
+    allowed: true,
+    reason: null,
+    team: group.team,
+    zoneLength,
+    defaultZoneStartX: Math.floor(maxZoneStartX / 2),
+    maxZoneStartX,
+  };
+}
+
 export function selectSinglePlayerGroupMovePieceStatuses(state) {
   const group = state?.tracker?.matchActionState?.groupMove;
   if (!group?.active) return {};

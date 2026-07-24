@@ -2,6 +2,21 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.52.8 — Group Move draft projection
+
+- Replaced offline Group Move draft activation's local Tracker and Rule Set reads with an official presentation projection evaluated from the same Engine confirmation command.
+- The projection returns availability/reason, team, frozen zone length, centred start and drag boundary. Opening, dragging and cancelling the draft remain UI-only; only `GROUP_MOVE_ZONE_CONFIRMED` consumes an action and enters Timeline.
+- Added regression coverage for the projected final-action gate and frozen zone shape, plus a static sentinel against restoring the local reads in `main.jsx`.
+- Manual Multiplayer remains unchanged.
+
+## v20.52.7 — Phase 11 boundary and dependency audit
+
+- Verified every migrated offline Match command entrance in `main.jsx` dispatches through the Single Player gateway; no direct offline mutation was found for Free Ball, Normal Move, 3/2, Free Move, Group Move confirmation/piece move, Bonus Move, Pass/Interception, dice, End Turn, Match start/restart, or Tracker administration.
+- Added static regression sentinels that require those command entrances to retain a gateway dispatch and require the direct movement-preview fallbacks to stay behind the `sessionCode` boundary.
+- Classified the remaining direct movement, Pass, Interception, Tracker and Firebase calculations as retained Editor or Manual Multiplayer/session compatibility code; they are not safe to delete or extract under this build.
+- Recorded one separate remediation candidate: offline Group Move draft activation still repeats pre-confirmation availability and frozen zone-length reads locally. The Engine remains authoritative at confirmation, so there is no gameplay divergence in this build; the next Group Move change must replace that draft gate with an official projection.
+- Manual Multiplayer and runtime gameplay behavior remain unchanged.
+
 ## v20.52.6 — Proven dead-code removal
 
 - Removed only the unreferenced helpers classified by the v20.52.5 audit: an obsolete local browser Save/Load route with its isolated settings migration helper, unused card-zone mutation helpers, and unused view-fit helpers.

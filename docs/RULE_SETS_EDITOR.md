@@ -28,7 +28,7 @@ For Pass, the origin foot is evaluated from the passer standing at the centre of
 
 ## Group Move settings
 
-Group Move is available only as the final normal action of the active team. Pressing it opens a temporary full-width zone preview, positioned by dragging the band; only confirming that zone consumes the action and freezes its Rule Set values in the MatchContext. After confirmation the band disappears, while eligible candidates are highlighted and ineligible candidates inside the frozen zone show a grey outline and lock.
+Group Move is available only as the final normal action of the active team. Pressing it first requests an official offline Match projection of the same Engine command later used to confirm the zone; it supplies availability, frozen zone length, centred default start and drag boundary. The temporary full-width zone preview may then be positioned by dragging the band; only confirming that zone consumes the action and freezes its Rule Set values in the MatchContext. After confirmation the band disappears, while eligible candidates are highlighted and ineligible candidates inside the frozen zone show a grey outline and lock.
 
 ### Maximum Players
 

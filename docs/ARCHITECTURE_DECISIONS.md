@@ -36,7 +36,7 @@ README records the current release. Changelogs record implementation history. Th
 
 - a move, 3/2 or Group Move preview uses the same evaluator as its command; Group Move preserves its deliberate crossing exception;
 - a projection field that cannot exist for invalid presentation input is explicitly nullable; its consumer must render an illegal/unavailable presentation and must never recreate the missing gameplay fact locally;
-- Inspector availability and frozen Rule Set values cannot drift from the active Timeline cursor and MatchContext;
+- Inspector availability and frozen Rule Set values cannot drift from the active Timeline cursor and MatchContext; this includes Group Move draft activation, whose local band shape is supplied by an Engine-command preview rather than by `main.jsx` reading Rule Set or Tracker fields;
 - a persisted Pass/Interception fact is displayed rather than reconstructed by a popup fallback;
 - preview-only evaluator options are not command payload fields, so UI presentation cannot grant a submitted command additional authority;
 - Free Ball/Free Move, Inspector, End Turn and Bonus controls consume the same boundary, and active-decision card values come from frozen MatchContext cards;
@@ -365,7 +365,7 @@ Players must begin in the confirmed zone, have no ball, and have no gameplay mov
 - Rule Set schema v6 owns Group Move's separate orthogonal and diagonal limits; MatchContext freezes both at Match start, and zone confirmation copies both into canonical active Group Move state. Old Rule Sets and old canonical Group Move state migrate their one historical limit into both values at their normalization boundary.
 - Preview-zone repositioning is UI-only; only confirmation and physical moves enter Timeline.
 - End Turn clears the active Group Move state before recording the next phase; the Engine lock can never cross to the opposing team.
-- UI eligibility marks are presentation only and derive from the Engine's pure eligibility evaluator. Destination preview derives from the corresponding pure Engine evaluator, including the Engine-projected applicable distance limit; it never derives geometry limits from normal-MOVE or card-Speed rules.
+- UI eligibility marks are presentation only and derive from the Engine's pure eligibility evaluator. Before the draft band opens, its availability, frozen length, centred default start and drag boundary derive from a preview of `GROUP_MOVE_ZONE_CONFIRMED`; `main.jsx` does not independently read Group Move Rule Set or Tracker fields. Destination preview derives from the corresponding pure Engine evaluator, including the Engine-projected applicable distance limit; it never derives geometry limits from normal-MOVE or card-Speed rules.
 - Timeline preserves `GROUP_MOVE_ACTIVATED` and `GROUP_MOVE_PIECE`; Undo/Redo, Replay, and AI export retain their existing semantic vocabulary.
 - Manual Multiplayer and Editor Mode retain their legacy behavior.
 
