@@ -147,7 +147,7 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
       trackerActionCountFor: team => team === "blue" ? 5 : 4,
       usedActions: { blue: 1, red: 0 },
       gameMode: "match",
-      actionLog: { blue: [{ type: "MOVE" }], red: [] },
+      actionLog: { blue: [{ type: "MOVE", trackerMarker: "MV" }], red: [] },
       onToggleAction: noop,
       onRemoveLastAction: noop,
       currentTurn: 1,

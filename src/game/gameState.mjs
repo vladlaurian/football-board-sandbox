@@ -1,4 +1,5 @@
 import { normalizeRuleSet } from "../rules/ruleSets.mjs";
+import { normalizeTrackerActionLog } from "../tracker/trackerState.mjs";
 
 export const GAME_STATE_SCHEMA_VERSION = 2;
 
@@ -37,7 +38,7 @@ export function createGameState(raw = {}) {
       startingTeam: tracker.startingTeam === "blue" ? "blue" : "red",
       currentTurn: Math.max(0, Number(tracker.currentTurn) || 0),
       usedActions: tracker.usedActions || { red: 0, blue: 0 },
-      actionLog: tracker.actionLog || { red: [], blue: [] },
+      actionLog: normalizeTrackerActionLog(tracker.actionLog),
       personalActionsByPieceId: tracker.personalActionsByPieceId || {},
       matchActionState: tracker.matchActionState || {},
       turnPhase: ["attack", "defense", "complete"].includes(tracker.turnPhase)

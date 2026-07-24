@@ -325,7 +325,14 @@ export function confirmPassRoute(state, context, command) {
         usedActions: tracker.usedActions,
         matchActionState: tracker.matchActionState,
       }
-    : activateTrackerAction(tracker, { type: "PASS", pieceId: passer.id, team: pending.team, entryId: command.id, enforcePersonalActions: true });
+    : activateTrackerAction(tracker, {
+        type: "PASS",
+        trackerMarker: plan.isLong ? "LP" : "SP",
+        pieceId: passer.id,
+        team: pending.team,
+        entryId: command.id,
+        enforcePersonalActions: true,
+      });
   if (!activation.allowed) return { accepted: false, reason: activation.reason || "PASS_NOT_AVAILABLE" };
 
   const baseNext = {

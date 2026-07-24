@@ -358,3 +358,13 @@ This is the compact release history. Current architecture and rules are document
 - Fixed the 3/2 continuation setting: it preserves the preceding movement axis, exact direction and remaining Speed; reverse movement on that axis is rejected.
 - Added an explicit self-Through-Ball 3/2 explanation and repeat-target cancellation for offline Pass and Through Ball.
 - Added Engine sentinel tests for frozen Through Ball range, equal defender selection/recovery handoff, and 3/2 direction continuity. Manual Multiplayer remains unchanged.
+
+## v20.54.2 — Through Ball resolution and Match entry integrity
+
+- Repaired the Tracker action-record contract: Engine writes canonical markers (`SP`, `LP`, `TB`, `LT`), state normalization preserves valid types, and an unknown type remains explicit `UNKNOWN` instead of being silently rewritten as `PASS`.
+- Added the manual `LOFTED_THROUGH_BALL` Engine action and enabled the existing Inspector control. It consumes a normal and personal action, is recorded as `LT`, and intentionally has no board consequence until the full mechanic is approved.
+- Made reselecting a Through Ball target return canonically from route selection to target selection while retaining that target; full cancellation remains explicit.
+- Added Undo/Redo controls to blocking recovery/result/turn gameplay popups.
+- MatchContext is now created from the exact Timeline baseline at offline Match entry, removing the save-then-immediate-Match Rule Set capture race.
+- Corrected the direction restriction so it applies only to the approved continuation after 3/2, not to ordinary segmented MOVE.
+- AI Export now includes Tracker markers, Through Ball maximum range, and recovery/race facts. Manual Multiplayer remains unchanged.

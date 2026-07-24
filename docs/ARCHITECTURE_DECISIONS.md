@@ -167,6 +167,20 @@ README records the current release. Changelogs record implementation history. Th
 - Export schema changes require tests and a schema-version review.
 
 **Reference:** `docs/DEVELOPMENT_WORKFLOW.md`.
+
+## ADR-016 — Action identity is lossless across official consumers
+
+**Status:** Active
+
+**Decision:** Every Engine action recorded in the Tracker action log stores a canonical semantic `type` and an Engine-owned `trackerMarker`. MatchState normalization may validate malformed data, but must retain malformed/unknown identity explicitly as `UNKNOWN`; it must never substitute another valid gameplay action. Tracker UI, History/Replay projections and AI Export display or export stored action identity rather than deducing it from geometry, labels or current UI state.
+
+**Reason:** Rewriting an unrecognized action as `PASS` hid a Through Ball record while leaving all surrounding gameplay state apparently valid. That made a data-integrity fault look like a visual label defect.
+
+**Consequences:**
+
+- Pass classification is stored by Engine as `SP` or `LP`; Through Ball is `TB`; manual Lofted Through is `LT` until its full mechanic exists.
+- Unknown action records are visible to tests and diagnostics as `UNKNOWN` / `?` instead of silently changing game meaning.
+- Any new action must add its Engine record, tracker marker, normalization coverage, Timeline/Replay preservation and AI Export mapping in the same build.
 ## ADR-015 — Back-card stat definitions are global; card values remain local
 
 **Status:** Active

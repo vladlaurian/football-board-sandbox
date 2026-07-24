@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.54.1` |
-| Git/package version | `20.54.1` |
-| Build name | `Final_Board_v20_54_1_through_ball_recovery_and_three_two_continuity` |
-| Base build | `v20.53.0 Card Editor focus stability` |
+| Sandbox version | `v20.54.2` |
+| Git/package version | `20.54.2` |
+| Build name | `Final_Board_v20_54_2_through_ball_resolution_and_match_entry_integrity` |
+| Base build | `v20.54.1 Through Ball recovery and 3/2 continuity` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.54.1`. The repository version is in `package.json` as `20.54.1`. The browser title is `Sandbox v20.54.1`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.54.2`. The repository version is in `package.json` as `20.54.2`. The browser title is `Sandbox v20.54.2`.
 
 ## Current release
 
-v20.54.1 completes Through Ball recovery and 3/2 continuity: equal defensive recoverers require a coach choice; recovery is explained before an Engine-owned possession/turn handoff; 3/2 preserves prior direction and remaining Speed when its Rule Set option is enabled. Manual Multiplayer remains unchanged.
+v20.54.2 makes action identity lossless across Engine, MatchState, Timeline, Tracker and AI Export. Passes store `SP`/`LP`, Through Ball stores `TB`, and the new manual Lofted Through control stores `LT` while deliberately leaving its future board mechanic unresolved. Through target re-selection returns to canonical targeting with the target retained; blocking gameplay popups expose Undo/Redo; MatchContext is frozen from the exact Timeline baseline at Match entry. The 3/2 direction lock applies only after the approved post-3/2 continuation case. Manual Multiplayer remains unchanged.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

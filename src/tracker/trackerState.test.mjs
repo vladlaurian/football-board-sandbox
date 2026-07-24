@@ -16,7 +16,8 @@ test("tracker snapshot keeps the current attacking-team field and clamps action 
   assert.equal(tracker.currentTurn, 20);
   assert.equal(tracker.usedActions.blue, 6);
   assert.equal(tracker.usedActions.red, 3);
-  assert.equal(tracker.actionLog.red[0].type, "PASS");
+  assert.equal(tracker.actionLog.red[0].type, "UNKNOWN");
+  assert.equal(tracker.actionLog.red[0].trackerMarker, "?");
   assert.equal(TRACKER_ACTION_ABBR.TACKLING, "TK");
 });
 

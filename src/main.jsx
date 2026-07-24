@@ -203,7 +203,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.54.1";
+const APP_VERSION = "v20.54.2";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5686,6 +5686,14 @@ function App() {
     if (!replayModeRef.current) void enqueueTimelineSync(current, result.timeline, result.state);
   }
 
+  function renderBlockingGameplayHistoryControls() {
+    if (sessionCode && !isSessionHost) return null;
+    return <div className="pending-decision-history-controls">
+      <button type="button" onClick={undo} disabled={!gameTimeline?.cursor} title="Undo"><Undo2 size={15} /></button>
+      <button type="button" onClick={redo} disabled={(gameTimeline?.cursor || 0) >= (gameTimeline?.entries?.length || 0)} title="Redo"><Redo2 size={15} /></button>
+    </div>;
+  }
+
   function gridPointFromClient(clientX, clientY, { clampToBoard = true } = {}) {
     const pitch = pitchRef.current;
     if (!pitch) return null;
@@ -5988,7 +5996,18 @@ function App() {
     setGameMode(next);
     if (next === "match") {
       matchPlayableStartEstablishedRef.current = false;
-      startGameTimeline(nextState, { syncSession: Boolean(sessionCode) });
+      const timeline = startGameTimeline(nextState, { syncSession: Boolean(sessionCode) });
+      // Freeze the MatchContext from the exact state used as this Timeline's
+      // baseline. This removes the former lazy read of a live Rule Set ref
+      // when Rules is saved and Match Mode is entered immediately afterwards.
+      if (!sessionCode) {
+        matchContextRef.current = createMatchContext({
+          id: timeline.recordingId,
+          ruleSet: nextState.ruleSet,
+          boardSettings: nextState.settings,
+          gameplayCards: captureAvailableMatchCards(),
+        });
+      }
     }
     else if (gameTimelineRef.current) {
       matchPlayableStartEstablishedRef.current = false;
@@ -6490,7 +6509,9 @@ function App() {
 
     if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "route-selection" && canControlActiveResolution(actionResolutionRef.current)
       && Number(actionResolutionRef.current.target?.x) === Number(piece.x) && Number(actionResolutionRef.current.target?.y) === Number(piece.y)) {
-      if (actionResolutionRef.current.kind === "through-ball") cancelThroughBallTargeting(); else cancelPassTargeting();
+      if (actionResolutionRef.current.kind === "through-ball") {
+        if (sessionCode) cancelThroughBallTargeting(); else returnThroughBallToTargeting();
+      } else cancelPassTargeting();
       return;
     }
     if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "targeting" && canControlActiveResolution(actionResolutionRef.current)) {
@@ -8893,7 +8914,9 @@ function App() {
     if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "route-selection") {
       const pending = actionResolutionRef.current;
       if (canControlActiveResolution(pending) && Number(pending.target?.x) === Number(point.x) && Number(pending.target?.y) === Number(point.y)) {
-        if (pending.kind === "through-ball") cancelThroughBallTargeting(); else cancelPassTargeting();
+        if (pending.kind === "through-ball") {
+          if (sessionCode) cancelThroughBallTargeting(); else returnThroughBallToTargeting();
+        } else cancelPassTargeting();
       }
       return;
     }
@@ -9510,6 +9533,18 @@ function App() {
       preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
       command: { id: createActionEventId(`through_ball_cancel_${pending.id}`), type: GAME_COMMAND_TYPE.THROUGH_BALL_CANCELLED, payload: {} },
       label: "Through Ball cancelled",
+    });
+    return Boolean(dispatched.result.accepted);
+  }
+
+  function returnThroughBallToTargeting() {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "through-ball" || pending.status !== "route-selection" || sessionCode) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`through_ball_route_cancel_${pending.id}`), type: GAME_COMMAND_TYPE.THROUGH_BALL_ROUTE_CANCELLED, payload: {} },
+      label: `Through Ball route cancelled: ${toCoord(pending.target.x, pending.target.y)} remains selected`,
     });
     return Boolean(dispatched.result.accepted);
   }
@@ -10640,7 +10675,7 @@ function App() {
       commitNormalMoveStart(piece);
       return;
     }
-    if (!sessionCode && ["SHOT", "CROSS", "DRIBBLE", "TACKLING"].includes(type)) {
+    if (!sessionCode && ["SHOT", "CROSS", "DRIBBLE", "TACKLING", "LOFTED_THROUGH_BALL"].includes(type)) {
       const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
       const dispatched = dispatchSinglePlayerGameCommand({
         timeline: gameTimelineRef.current,
@@ -12020,16 +12055,22 @@ function App() {
                         const team = pieceTeamKey(inspectedPiece);
                         const pending = actionResolution;
                         const active = pending?.kind === "through-ball" && pending.passerId === inspectedPiece.id;
-                        const disabled = active ? false : !playerHasBall(inspectedPiece)
+                        const throughDisabled = active ? false : !playerHasBall(inspectedPiece)
                           || !isTeamPhaseActive(team)
                           || getTeamActionStatus(team).exhausted
                           || !canUseActionForPiece(inspectedPiece)
                           || Boolean(pending)
                           || Boolean(matchActionState.freeMode?.active)
                           || Boolean(matchActionState.activeMovement?.active);
+                        const lofted = selectSinglePlayerInspectorActionPresentation(
+                          currentTimelineGameStateSnapshot() || captureTimelineGameState(),
+                          singlePlayerMatchContext(),
+                          { piece: inspectedPiece, type: "LOFTED_THROUGH_BALL", replay: replayModeRef.current },
+                        );
+                        const loftedDisabled = lofted.disabled || Boolean(pending);
                         return <>
-                          <button className={`team-action-btn ${team} inspector-inline-action`} type="button" disabled={disabled} onClick={() => consumeInspectorAction("THROUGH_BALL", inspectedPiece)}>{active ? "CANCEL THROUGH" : "THROUGH BALL"}</button>
-                          <button className={`team-action-btn ${team} inspector-inline-action`} type="button" disabled>LOFTED THROUGH</button>
+                          <button className={`team-action-btn ${team} inspector-inline-action`} type="button" disabled={throughDisabled} onClick={() => consumeInspectorAction("THROUGH_BALL", inspectedPiece)}>{active ? "CANCEL THROUGH" : "THROUGH BALL"}</button>
+                          <button className={`team-action-btn ${team} inspector-inline-action`} type="button" disabled={loftedDisabled} onClick={() => consumeInspectorAction("LOFTED_THROUGH_BALL", inspectedPiece)}>LOFTED THROUGH</button>
                         </>;
                       })()}
                       <button type="button" onClick={resetInspectorCardView} disabled={inspectorCardZoom <= 1 && inspectorCardPan.x === 0 && inspectorCardPan.y === 0}>Reset</button>
@@ -12325,10 +12366,7 @@ function App() {
           <div className={`modal interceptor-choice-modal ${defenseTeam || ""}`} role="dialog" aria-modal="true">
             <div className="modal-title">
               <strong>Choose interceptor</strong>
-              {(!sessionCode || isSessionHost) && <div className="pending-decision-history-controls">
-                <button type="button" onClick={undo} disabled={!gameTimeline?.cursor} title="Undo"><Undo2 size={15} /></button>
-                <button type="button" onClick={redo} disabled={(gameTimeline?.cursor || 0) >= (gameTimeline?.entries?.length || 0)} title="Redo"><Redo2 size={15} /></button>
-              </div>}
+              {renderBlockingGameplayHistoryControls()}
             </div>
             <div className="interceptor-choice-message">
               {canChoose
@@ -12372,7 +12410,7 @@ function App() {
         const team = actionResolution.team === "blue" ? "red" : "blue";
         return <div className="modal-backdrop interceptor-choice-backdrop">
           <div className={`modal interceptor-choice-modal ${team}`} role="dialog" aria-modal="true">
-            <div className="modal-title"><strong>Choose recovering defender</strong></div>
+            <div className="modal-title"><strong>Choose recovering defender</strong>{renderBlockingGameplayHistoryControls()}</div>
             <div className="interceptor-choice-message">Two or more defenders are equally closest and have the same Speed. Choose who recovers the ball.</div>
             <div className="interceptor-choice-options">
               {candidates.map(candidate => {
@@ -12388,7 +12426,7 @@ function App() {
         const recoverer = pieces.find(piece => piece.id === actionResolution.recovery?.selectedRecovererId);
         return <div className="modal-backdrop pass-result-backdrop">
           <div className={`modal pass-result-modal ${pieceTeamKey(recoverer) || ""}`} role="dialog" aria-modal="true">
-            <div className="modal-title"><strong>Through Ball recovered</strong></div>
+            <div className="modal-title"><strong>Through Ball recovered</strong>{renderBlockingGameplayHistoryControls()}</div>
             <div className="pass-result-lines"><p>{getPieceIdentity(recoverer)} is closer to the ball and recovers it.</p><p>Your turn ends. Possession changes.</p></div>
             <div className="modal-actions"><button className="save-label" onClick={confirmThroughBallRecovery}>Continue</button></div>
           </div>
@@ -12422,7 +12460,7 @@ function App() {
       {passResultNotice && (
         <div className="modal-backdrop pass-result-backdrop">
           <div className={`modal pass-result-modal ${passResultNotice.team || ""}`} role="dialog" aria-modal="true">
-            <div className="modal-title"><strong>{passResultNotice.title}</strong></div>
+            <div className="modal-title"><strong>{passResultNotice.title}</strong>{renderBlockingGameplayHistoryControls()}</div>
             <div className="pass-result-lines">{passResultNotice.lines.map((line, index) => <p key={index}>{line}</p>)}</div>
             <div className="modal-actions"><button className="save-label" onClick={() => setPassResultNotice(null)}>OK</button></div>
           </div>
@@ -12491,7 +12529,7 @@ function App() {
       {startedTurnNotice !== null && (
         <div className="modal-backdrop turn-confirm-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setStartedTurnNotice(null); }}>
           <div className="modal turn-confirm-modal" onPointerDown={e => e.stopPropagation()}>
-            <div className="modal-title"><strong>TURN {startedTurnNotice}</strong></div>
+            <div className="modal-title"><strong>TURN {startedTurnNotice}</strong>{renderBlockingGameplayHistoryControls()}</div>
             <div className="turn-confirm-message">Turn {startedTurnNotice} begins.</div>
             <div className="modal-actions turn-confirm-actions">
               <button onClick={() => setStartedTurnNotice(null)}>OK</button>

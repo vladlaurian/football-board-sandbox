@@ -11,6 +11,7 @@ function normalMovementState(value) {
     distance: Math.max(0, Number(value?.distance) || 0),
     threeTwoUsed: Boolean(value?.threeTwoUsed),
     movementEnded: Boolean(value?.movementEnded),
+    ...(value?.directionLocked ? { directionLocked: true } : {}),
     ...(value?.direction && Number.isInteger(Number(value.direction.dx)) && Number.isInteger(Number(value.direction.dy)) ? { direction: { dx: Math.sign(Number(value.direction.dx)), dy: Math.sign(Number(value.direction.dy)) } } : {}),
   };
 }
@@ -121,7 +122,7 @@ export function evaluateNormalMove(state, context, command, { preview = false } 
   if (speed === null) return { accepted: false, reason: "no-speed", geometry, current };
   if (current.axis && current.axis !== geometry.axis) return { accepted: false, reason: "axis", geometry, speed, current };
   const direction = { dx: Math.sign(x - Number(piece.x)), dy: Math.sign(y - Number(piece.y)) };
-  if (current.direction && (current.direction.dx !== direction.dx || current.direction.dy !== direction.dy)) return { accepted: false, reason: "direction", geometry, speed, current };
+  if (current.directionLocked && current.direction && (current.direction.dx !== direction.dx || current.direction.dy !== direction.dy)) return { accepted: false, reason: "direction", geometry, speed, current };
   const moveCost = geometry.kind === "diagonal"
     ? diagonalCostForDistance(current.distance + geometry.distance) - diagonalCostForDistance(current.distance)
     : geometry.cost;
@@ -146,6 +147,7 @@ export function commitNormalMove(state, context, command) {
       ...current,
       axis: current.axis || geometry.axis,
       direction: current.direction || { dx: Math.sign(x - Number(piece.x)), dy: Math.sign(y - Number(piece.y)) },
+      ...(current.directionLocked ? { directionLocked: true } : {}),
       spent: current.spent + moveCost,
       distance: current.distance + geometry.distance,
     },

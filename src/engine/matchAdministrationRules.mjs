@@ -3,7 +3,7 @@ import { teamKeyForPiece } from "../rules/passEngine.mjs";
 import { activateTrackerAction, createEmptyTrackerTurnState, opposingTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 
-const MANUAL_ACTION_TYPES = new Set(["SHOT", "CROSS", "DRIBBLE", "TACKLING"]);
+const MANUAL_ACTION_TYPES = new Set(["SHOT", "CROSS", "DRIBBLE", "TACKLING", "LOFTED_THROUGH_BALL"]);
 
 function pieceForCommand(state, command) {
   const pieceId = String(command.payload?.pieceId || "");

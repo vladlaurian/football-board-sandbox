@@ -135,6 +135,9 @@ function compactRuleSet(ruleSet) {
         requireFieldPlayerTarget: normalized.actions.pass.requireFieldPlayerTarget !== false,
         resolutionDelayMs: normalized.actions.pass.resolutionDelayMs,
       },
+      throughBall: {
+        maxDistance: normalized.actions.throughBall.maxDistance,
+      },
       interception: {
         status: normalized.actions.interception.status,
         rollMode: "manual",
@@ -194,6 +197,7 @@ function addedTrackerActions(before, after) {
         added.push({
           id: String(entry?.id || ""),
           type: String(entry?.type || "UNKNOWN"),
+          trackerMarker: String(entry?.trackerMarker || "?") || "?",
           pieceId: String(entry?.pieceId || "") || null,
           team,
         });
@@ -292,6 +296,7 @@ function semanticEvent(entry, sequence, cardsById) {
     || passResolution?.lastResolution
     || null;
   const continuation = after?.actionContinuation || before?.actionContinuation || null;
+  const throughBallMetadata = String(entry.type || "").startsWith("THROUGH_BALL_") ? entry.metadata || {} : null;
   return {
     eventId: String(entry.id),
     sequence,
@@ -327,7 +332,21 @@ function semanticEvent(entry, sequence, cardsById) {
     actionEconomyAfter: actionEconomy(after, team, actor?.pieceId),
     possessionBefore: possessionForState(before),
     possessionAfter: possessionForState(after),
-    resolution: entry.metadata?.manualResolutionRequired ? {
+    resolution: throughBallMetadata ? {
+      status: String(entry.type || "THROUGH_BALL").replace(/^THROUGH_BALL_/, ""),
+      throughBall: {
+        passerId: throughBallMetadata.passerId || null,
+        target: throughBallMetadata.target || null,
+        cornerId: throughBallMetadata.cornerId || null,
+        attackDistance: Number.isFinite(Number(throughBallMetadata.attackDistance)) ? Number(throughBallMetadata.attackDistance) : null,
+        defenseDistance: Number.isFinite(Number(throughBallMetadata.defenseDistance)) ? Number(throughBallMetadata.defenseDistance) : null,
+        attackSpeed: Number.isFinite(Number(throughBallMetadata.attackSpeed)) ? Number(throughBallMetadata.attackSpeed) : null,
+        defenseSpeed: Number.isFinite(Number(throughBallMetadata.defenseSpeed)) ? Number(throughBallMetadata.defenseSpeed) : null,
+        defenderWins: typeof throughBallMetadata.defenderWins === "boolean" ? throughBallMetadata.defenderWins : null,
+        recovererId: throughBallMetadata.recovererId || null,
+        startedTurn: Number.isInteger(Number(throughBallMetadata.startedTurn)) ? Number(throughBallMetadata.startedTurn) : null,
+      },
+    } : entry.metadata?.manualResolutionRequired ? {
       status: "MANUAL_DECLARATION",
       reason: `The ${String(entry.metadata?.actionType || "gameplay")} action was declared canonically; its board consequence was intentionally resolved manually during this test match.`,
     } : passPlan ? {

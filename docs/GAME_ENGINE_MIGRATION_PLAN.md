@@ -572,6 +572,8 @@ v20.54.0 applies the Mechanic Integration Gate to Through Ball. The offline Engi
 
 v20.54.1 corrects three incomplete v20.54.0 consequences. Through Ball recovery now has explicit canonical stages: ball arrival at the requested free target, optional equal-defender choice, recovery acknowledgement, then possession/turn handoff to the recovering team. A player’s post-3/2 continuation preserves both the prior axis and signed direction, plus its already-spent Speed, rather than replacing those facts with the route used to reach the ball. Frozen range is protected by a direct Engine sentinel. Manual Multiplayer remains excluded.
 
+v20.54.2 closes the action-identity audit found during Through Ball testing. Tracker action records now carry an Engine-owned semantic type plus a stored short marker; presentation displays the marker and never infers a pass class. Unknown legacy/corrupt action types remain explicit rather than being normalized to `PASS`. The same record passes intact through MatchState, Timeline, Undo/Redo, Replay and AI Export. The build also freezes MatchContext directly from the Timeline baseline at offline Match entry, returns a reselected Through target to canonical targeting without discarding it, and limits signed-direction enforcement to post-3/2 continuation only. Manual Multiplayer remains excluded.
+
 ## Required update after every implementation build
 
 - mark only completed items complete;

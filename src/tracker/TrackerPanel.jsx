@@ -1,5 +1,4 @@
 import React from "react";
-import { TRACKER_ACTION_ABBR } from "./trackerState.mjs";
 
 // Visual-only Tracker surface. The App shell deliberately owns all state,
 // Timeline/Firebase writes, permissions, and pointer-state transitions.
@@ -79,7 +78,7 @@ export function TrackerPanel({
                           onClick={() => editorMode ? onToggleAction(team, index) : (index === used - 1 && onRemoveLastAction(team))}
                           disabled={!canEditDot}
                           aria-disabled={!canEditDot}
-                        >{isUsed && !editorMode ? (TRACKER_ACTION_ABBR[actionLog[team]?.[index]?.type] || "•") : ""}</button>
+                        >{isUsed && !editorMode ? (actionLog[team]?.[index]?.trackerMarker || "?") : ""}</button>
                       );
                     })}
                   </div>

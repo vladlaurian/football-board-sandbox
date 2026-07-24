@@ -63,6 +63,15 @@ export function cancelThroughBall(state) {
   return { accepted: true, nextState: { ...state, actionResolution: null }, event: { type: "THROUGH_BALL_CANCELLED", team: pending.team }, timeline: { allowNoop: true } };
 }
 
+export function cancelThroughBallRoute(state) {
+  const pending = state.actionResolution;
+  if (!pending || pending.kind !== "through-ball" || pending.status !== "route-selection") return { accepted: false, reason: "THROUGH_BALL_NOT_ROUTE_SELECTION" };
+  // Re-selecting the chosen target does not abandon the action. It returns to
+  // canonical target selection while retaining the visible target marker.
+  const { routes, cornerId, ...targeting } = pending;
+  return { accepted: true, nextState: { ...state, actionResolution: { ...targeting, status: "targeting" } }, event: { type: "THROUGH_BALL_ROUTE_CANCELLED", team: pending.team, metadata: { target: pending.target } }, timeline: { allowNoop: true } };
+}
+
 function recoveryCandidates(state, context, team, passer, target) {
   const ranked = requestedTeam => state.pieces.filter(piece => teamKeyForPiece(piece) === requestedTeam && !piece.inactive && piece.id !== passer.id)
     .map(piece => ({ piece, distance: distance(piece, target), speed: speed(context, piece) }));
@@ -89,7 +98,7 @@ export function commitThroughBall(state, context, command) {
   if (!passer || !Number.isInteger(target.x) || !Number.isInteger(target.y) || !PASS_CORNERS.some(corner => corner.id === cornerId)) return { accepted: false, reason: "THROUGH_BALL_INVALID" };
   const route = planThroughBall(state, context, passer, target, cornerId);
   if (!route.legal) return { accepted: false, reason: route.distance > route.maxDistance ? "THROUGH_BALL_MAX_DISTANCE" : "THROUGH_BALL_ROUTE_BLOCKED" };
-  const activation = activateTrackerAction(state.tracker, { type: "THROUGH_BALL", pieceId: passer.id, team: pending.team, entryId: command.id, enforcePersonalActions: true });
+  const activation = activateTrackerAction(state.tracker, { type: "THROUGH_BALL", trackerMarker: "TB", pieceId: passer.id, team: pending.team, entryId: command.id, enforcePersonalActions: true });
   if (!activation.allowed) return { accepted: false, reason: activation.reason };
   const recovery = recoveryCandidates(state, context, pending.team, passer, target);
   const tracker = { ...state.tracker, actionLog: activation.actionLog, usedActions: activation.usedActions, personalActionsByPieceId: activation.personalActionsByPieceId, matchActionState: activation.matchActionState };

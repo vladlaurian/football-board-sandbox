@@ -1,11 +1,13 @@
 import { clamp } from "../game/numberUtils.mjs";
 
-const TRACKER_ACTION_TYPES = new Set(["MOVE", "GROUP_MOVE", "PASS", "SHOT", "CROSS", "DRIBBLE", "TACKLING"]);
+const TRACKER_ACTION_TYPES = new Set(["MOVE", "GROUP_MOVE", "PASS", "THROUGH_BALL", "LOFTED_THROUGH_BALL", "SHOT", "CROSS", "DRIBBLE", "TACKLING"]);
 
 export const TRACKER_ACTION_ABBR = {
   MOVE: "MV",
   GROUP_MOVE: "GM",
   PASS: "PS",
+  THROUGH_BALL: "TB",
+  LOFTED_THROUGH_BALL: "LT",
   SHOT: "SH",
   CROSS: "CR",
   DRIBBLE: "DR",
@@ -16,11 +18,16 @@ export function normalizeTrackerActionLog(raw) {
   const out = { red: [], blue: [] };
   for (const team of ["red", "blue"]) {
     const list = Array.isArray(raw?.[team]) ? raw[team] : [];
-    out[team] = list.map((item, index) => ({
-      id: String(item?.id || `${team}-${index}`),
-      type: TRACKER_ACTION_TYPES.has(item?.type) ? item.type : "PASS",
-      pieceId: item?.pieceId ? String(item.pieceId) : "",
-    }));
+    out[team] = list.map((item, index) => {
+      const type = TRACKER_ACTION_TYPES.has(item?.type) ? item.type : "UNKNOWN";
+      const trackerMarker = String(item?.trackerMarker || TRACKER_ACTION_ABBR[type] || "?").trim() || "?";
+      return {
+        id: String(item?.id || `${team}-${index}`),
+        type,
+        trackerMarker,
+        pieceId: item?.pieceId ? String(item.pieceId) : "",
+      };
+    });
   }
   return out;
 }

@@ -132,6 +132,24 @@ test("manual declared actions remain explicit rather than pretending their rule 
   assert.equal(exported.semanticTimeline[0].explicitOutcome, "MANUAL_RESOLUTION_REQUIRED");
 });
 
+test("AI export preserves canonical Tracker markers and Through Ball recovery facts", () => {
+  const before = state({ ruleSet: { actions: { throughBall: { maxDistance: 11 } } } });
+  const after = state({
+    ruleSet: before.ruleSet,
+    tracker: { ...before.tracker, usedActions: { blue: 1, red: 0 }, actionLog: { blue: [{ id: "tb", type: "THROUGH_BALL", trackerMarker: "TB", pieceId: "A-1" }], red: [] } },
+  });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, {
+    id: "tb", type: "THROUGH_BALL_AUTO_RECOVERY_PENDING", label: "Through Ball recovered", team: "red",
+    metadata: { passerId: "A-1", target: { x: 15, y: 8 }, defenseDistance: 2, attackDistance: 4, defenseSpeed: 5, attackSpeed: 4, defenderWins: true }, before, after,
+  });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  assert.equal(exported.rulesetSnapshot.ruleSet.actions.throughBall.maxDistance, 11);
+  assert.deepEqual(exported.semanticTimeline[0].trackerActions[0], { id: "tb", type: "THROUGH_BALL", trackerMarker: "TB", pieceId: "A-1", team: "blue" });
+  assert.equal(exported.semanticTimeline[0].resolution.throughBall.defenderWins, true);
+  assert.equal(exported.semanticTimeline[0].resolution.throughBall.defenseDistance, 2);
+});
+
 test("Free Ball is explicitly identified in AI export", () => {
   const before = state();
   const after = state({ pieces: [before.pieces[0], before.pieces[1], { ...before.pieces[2], x: 14, y: 9 }] });

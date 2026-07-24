@@ -148,6 +148,18 @@ test("Through Ball freezes its configured maximum distance in the Engine", () =>
   assert.deepEqual(result, { accepted: false, reason: "THROUGH_BALL_MAX_DISTANCE" });
 });
 
+test("reselecting a Through Ball target returns to canonical targeting without losing that target", () => {
+  const state = normalMoveState({ pieces: [{ id: "ball", team: "BALL", x: 1, y: 1 }, { id: "blue-1", team: "A", cardId: "blue-1", x: 1, y: 1 }] });
+  const context = throughBallContext();
+  const started = applyGameCommand({ state, context, command: { id: "tb-start-return", type: "THROUGH_BALL_STARTED", payload: { pieceId: "blue-1" } } });
+  const selected = applyGameCommand({ state: started.nextState, context, command: { id: "tb-target-return", type: "THROUGH_BALL_TARGET_SELECTED", payload: { x: 4, y: 1 } } });
+  const returned = applyGameCommand({ state: selected.nextState, context, command: { id: "tb-route-return", type: "THROUGH_BALL_ROUTE_CANCELLED", payload: {} } });
+  assert.equal(returned.accepted, true);
+  assert.equal(returned.nextState.actionResolution.status, "targeting");
+  assert.deepEqual(returned.nextState.actionResolution.target, { x: 4, y: 1 });
+  assert.equal(returned.nextState.actionResolution.routes, undefined);
+});
+
 test("Through Ball requires defender choice on equal recovery distance and speed, then starts the recovering team turn", () => {
   const state = normalMoveState({ pieces: [
     { id: "ball", team: "BALL", x: 1, y: 1 },
@@ -158,6 +170,7 @@ test("Through Ball requires defender choice on equal recovery distance and speed
   ] });
   const routed = beginThroughBall(state, throughBallContext(), { x: 5, y: 1 });
   assert.equal(routed.accepted, true);
+  assert.deepEqual(routed.nextState.tracker.actionLog.blue[0], { id: "tb-route", type: "THROUGH_BALL", trackerMarker: "TB", pieceId: "blue-1" });
   assert.equal(routed.nextState.actionResolution.status, "awaiting-recoverer-choice");
   assert.deepEqual(routed.nextState.actionResolution.recovery.defenderCandidates.map(item => item.pieceId).sort(), ["red-1", "red-2"]);
   const selected = applyGameCommand({ state: routed.nextState, context: throughBallContext(), command: { id: "tb-pick", type: "THROUGH_BALL_RECOVERER_SELECTED", payload: { pieceId: "red-2" } } });
@@ -178,7 +191,7 @@ test("3/2 preserves prior direction and remaining Speed when the Rule Set contin
   const context = throughBallContext();
   const threeTwo = applyGameCommand({ state, context, command: { id: "tb-three-two", type: "THREE_TWO_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 5, y: 5 } } });
   assert.equal(threeTwo.accepted, true);
-  assert.deepEqual(threeTwo.nextState.movementStateByPieceId["blue-1"], { axis: "diagonal-nw-se", direction: { dx: 1, dy: 1 }, spent: 1, distance: 1, threeTwoUsed: true, movementEnded: false });
+  assert.deepEqual(threeTwo.nextState.movementStateByPieceId["blue-1"], { axis: "diagonal-nw-se", direction: { dx: 1, dy: 1 }, spent: 1, distance: 1, threeTwoUsed: true, movementEnded: false, directionLocked: true });
   const forward = applyGameCommand({ state: threeTwo.nextState, context, command: { id: "tb-forward", type: "NORMAL_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 6, y: 6 } } });
   assert.equal(forward.accepted, true);
   const reverse = applyGameCommand({ state: threeTwo.nextState, context, command: { id: "tb-reverse", type: "NORMAL_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 4, y: 4 } } });
@@ -364,6 +377,15 @@ test("NORMAL_MOVE authorization permits later segments without another Tracker a
   const phaseEnded = createGameState({ ...second.nextState, tracker: { ...second.nextState.tracker, turnPhase: "defense" } });
   const afterPhaseEnd = applyGameCommand({ state: phaseEnded, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 7, y: 5 }, "move-after-phase-end") });
   assert.deepEqual(afterPhaseEnd, { accepted: false, reason: "wait-active-team" });
+});
+
+test("ordinary segmented MOVE may reverse on its established axis before 3/2 locks direction", () => {
+  const start = normalMoveState();
+  const activated = applyGameCommand({ state: start, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "move-start-reverse") });
+  const first = applyGameCommand({ state: activated.nextState, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 5, y: 5 }, "move-forward") });
+  const reverse = applyGameCommand({ state: first.nextState, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 4, y: 5 }, "move-reverse") });
+  assert.equal(reverse.accepted, true);
+  assert.equal(reverse.nextState.movementStateByPieceId["blue-1"].directionLocked, undefined);
 });
 
 test("NORMAL_MOVE continues after its final paid Tracker action until End Turn", () => {
@@ -1644,6 +1666,19 @@ test("unimplemented normal actions become canonical manual declarations without 
   assert.deepEqual(result.events[0].metadata, { actionType: "DRIBBLE", pieceId: "blue-1", manualResolutionRequired: true });
   assert.equal(result.nextState.tracker.usedActions.blue, 1);
   assert.equal(result.nextState.tracker.actionLog.blue[0].type, "DRIBBLE");
+  assert.deepEqual(result.nextState.pieces, state.pieces);
+});
+
+test("Lofted Through is a canonical manual action with Tracker and personal-action cost", () => {
+  const state = normalMoveState();
+  const result = applyGameCommand({
+    state, context: normalMoveContext(),
+    command: { id: "manual-lofted-through", type: "MANUAL_ACTION_DECLARED", payload: { pieceId: "blue-1", actionType: "LOFTED_THROUGH_BALL" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.nextState.tracker.usedActions.blue, 1);
+  assert.equal(result.nextState.tracker.personalActionsByPieceId["blue-1"], 1);
+  assert.deepEqual(result.nextState.tracker.actionLog.blue[0], { id: "manual-lofted-through", type: "LOFTED_THROUGH_BALL", trackerMarker: "LT", pieceId: "blue-1" });
   assert.deepEqual(result.nextState.pieces, state.pieces);
 });
 

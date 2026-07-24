@@ -171,7 +171,7 @@ export function toggleFreeModeState(rawActionState, { pieceId, team, timelineGro
   };
 }
 
-export function activateTrackerAction(rawTracker, { type, pieceId, team, entryId, enforcePersonalActions = false }) {
+export function activateTrackerAction(rawTracker, { type, trackerMarker, pieceId, team, entryId, enforcePersonalActions = false }) {
   const tracker = normalizeTrackerSnapshot(rawTracker);
   const currentPieceState = tracker.matchActionState.byPieceId[pieceId] || {};
   if (hasGroupMoveAuthorization(tracker, team)) return { allowed: false, reason: "group-move-active" };
@@ -187,7 +187,14 @@ export function activateTrackerAction(rawTracker, { type, pieceId, team, entryId
     : { allowed: true, personalActionsByPieceId: tracker.personalActionsByPieceId };
   if (!personalAction.allowed) return { allowed: false, reason: personalAction.reason };
 
-  const entry = { id: String(entryId), type, pieceId: String(pieceId) };
+  const entry = {
+    id: String(entryId),
+    type,
+    // This is canonical MatchState data. Presentation consumers may display
+    // it, but never infer a pass class or action subtype on their own.
+    trackerMarker: String(trackerMarker || ({ MOVE: "MV", GROUP_MOVE: "GM", PASS: "SP", THROUGH_BALL: "TB", LOFTED_THROUGH_BALL: "LT", SHOT: "SH", CROSS: "CR", DRIBBLE: "DR", TACKLING: "TK" }[type] || "?")).trim() || "?",
+    pieceId: String(pieceId),
+  };
   const actionLog = {
     ...tracker.actionLog,
     [team]: [...tracker.actionLog[team], entry],

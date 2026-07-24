@@ -69,6 +69,7 @@ test("action activation produces a reusable state transition", () => {
   });
   assert.equal(pass.allowed, true);
   assert.equal(pass.actionLog.blue[0].type, "PASS");
+  assert.equal(pass.actionLog.blue[0].trackerMarker, "SP");
   assert.equal(pass.usedActions.blue, 1);
   assert.equal(pass.personalActionsByPieceId["A-9"], 1);
 
@@ -80,6 +81,13 @@ test("action activation produces a reusable state transition", () => {
   });
   assert.equal(move.matchActionState.byPieceId["A-9"].moveAuthorized, true);
   assert.equal(move.matchActionState.byPieceId["A-9"].moveGroupId, "move-1");
+});
+
+test("Tracker markers are Engine-owned data, including Through and Lofted Through", () => {
+  const through = activateTrackerAction(tracker(), { type: "THROUGH_BALL", pieceId: "A-9", team: "blue", entryId: "through", enforcePersonalActions: true });
+  assert.equal(through.actionLog.blue[0].trackerMarker, "TB");
+  const lofted = activateTrackerAction(tracker(), { type: "LOFTED_THROUGH_BALL", pieceId: "A-9", team: "blue", entryId: "lofted", enforcePersonalActions: true });
+  assert.equal(lofted.actionLog.blue[0].trackerMarker, "LT");
 });
 
 test("personal actions are canonical, non-consecutive, and limited by attack or defense role", () => {

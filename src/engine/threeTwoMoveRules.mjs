@@ -11,6 +11,7 @@ function threeTwoMovementState(value) {
     distance: Math.max(0, Number(value?.distance) || 0),
     threeTwoUsed: Boolean(value?.threeTwoUsed),
     movementEnded: Boolean(value?.movementEnded),
+    ...(value?.directionLocked ? { directionLocked: true } : {}),
     ...(value?.direction && Number.isInteger(Number(value.direction.dx)) && Number.isInteger(Number(value.direction.dy)) ? { direction: { dx: Math.sign(Number(value.direction.dx)), dy: Math.sign(Number(value.direction.dy)) } } : {}),
   };
 }
@@ -71,6 +72,7 @@ export function commitThreeTwoMove(state, context, command) {
       distance: hadMoved ? current.distance : 0,
       threeTwoUsed: true,
       movementEnded: hadMoved && !continueAfterPriorMove,
+      ...(hadMoved && continueAfterPriorMove ? { directionLocked: true } : {}),
     },
   };
   return {

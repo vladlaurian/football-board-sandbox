@@ -30,11 +30,12 @@ export function normalizeMovementState(raw) {
       : inferMovementDistance(axis, spent);
     const threeTwoUsed = Boolean(value?.threeTwoUsed);
     const movementEnded = Boolean(value?.movementEnded);
+    const directionLocked = Boolean(value?.directionLocked);
     const direction = value?.direction && Number.isInteger(Number(value.direction.dx)) && Number.isInteger(Number(value.direction.dy))
       ? { dx: Math.sign(Number(value.direction.dx)), dy: Math.sign(Number(value.direction.dy)) }
       : null;
-    if (axis || spent || distance || threeTwoUsed || movementEnded) {
-      out[id] = { axis, spent, distance, threeTwoUsed, movementEnded, ...(direction ? { direction } : {}) };
+    if (axis || spent || distance || threeTwoUsed || movementEnded || directionLocked) {
+      out[id] = { axis, spent, distance, threeTwoUsed, movementEnded, ...(directionLocked ? { directionLocked: true } : {}), ...(direction ? { direction } : {}) };
     }
   }
   return out;
