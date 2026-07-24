@@ -46,7 +46,7 @@ test("legacy Pass interception settings migrate into the separate Interception a
     name: "Legacy",
     actions: { pass: { modifierCap: 3, equalRollOutcome: "interception" } },
   });
-  assert.equal(normalized.schemaVersion, 5);
+  assert.equal(normalized.schemaVersion, 6);
   assert.equal(normalized.diceModifiers.stackCap, 3);
   assert.equal(normalized.actions.interception.equalRollOutcome, "interception");
   assert.equal(normalized.actions.interception.defenderRollStatId, "stat:interception");
@@ -67,10 +67,19 @@ test("Interception configuration normalizes independent modifier toggles", () =>
 test("Group Move rules are present by default and legacy Rule Sets receive stable defaults", () => {
   const defaultRules = createDefaultRuleSet();
   assert.deepEqual(defaultRules.actions.groupMove, {
-    status: "configured", maxPlayers: 4, zoneLength: 10, maxDistance: 6, sameDirectionOnly: true,
+    status: "configured", maxPlayers: 4, zoneLength: 10, maxOrthogonalDistance: 6, maxDiagonalDistance: 4, sameDirectionOnly: true,
   });
   const legacy = normalizeRuleSet({ id: "legacy-group", schemaVersion: 3, actions: {} });
   assert.deepEqual(legacy.actions.groupMove, defaultRules.actions.groupMove);
+});
+
+test("legacy single Group Move distance migrates into both frozen movement limits", () => {
+  const migrated = normalizeRuleSet({ id: "legacy-distance", schemaVersion: 5, actions: { pass: { status: "not-configured" }, interception: { status: "not-configured" }, groupMove: { status: "configured", maxDistance: 8 } } });
+  assert.equal(migrated.actions.groupMove.maxOrthogonalDistance, 8);
+  assert.equal(migrated.actions.groupMove.maxDiagonalDistance, 8);
+  assert.equal(migrated.actions.groupMove.maxDistance, undefined);
+  assert.equal(migrated.actions.pass.status, "not-configured");
+  assert.equal(migrated.actions.interception.status, "not-configured");
 });
 
 test("Dice modifier semantics retain their required signs while preserving configured magnitudes", () => {

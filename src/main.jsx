@@ -13,6 +13,7 @@ import { createMatchContext } from "./engine/matchContext.mjs";
 import { runSinglePlayerMatchCommand } from "./engine/singlePlayerMatchGateway.mjs";
 import {
   selectSinglePlayerGroupMovePieceStatuses,
+  selectSinglePlayerGroupMoveDraftPresentation,
   selectSinglePlayerGroupMovePresentation,
   selectSinglePlayerDicePresentation,
   selectSinglePlayerFreeBallControlPresentation,
@@ -180,7 +181,7 @@ import { HistoryPanel } from "./match/HistoryPanel.jsx";
 import { TrackerPanel } from "./tracker/TrackerPanel.jsx";
 import { CardPreview } from "./cards/CardPreview.jsx";
 import { CardVisualCanvas } from "./cards/CardVisualCanvas.jsx";
-import { CardEditorPanel } from "./cards/CardEditorPanel.jsx";
+import { CardEditorPanel, CardStarMenuEditor } from "./cards/CardEditorPanel.jsx";
 import { CardsPanel } from "./cards/CardsPanel.jsx";
 import { AssignCardModal } from "./cards/AssignCardModal.jsx";
 import "./styles.css";
@@ -202,7 +203,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.52.3";
+const APP_VERSION = "v20.53.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5204,65 +5205,6 @@ function App() {
     window.setTimeout(() => { isApplyingCloudRef.current = false; }, 300);
   }
 
-  function saveBoard() {
-    if (singlePlayerMatchWorkspaceLocked) return;
-    localStorage.setItem("football-board-sandbox-v35", JSON.stringify({ settings, pieces: sanitizePiecesCardIds(pieces, cardState, settings), zoom, cardState: buildCardLibraryState(cardState) }));
-    alert("Salvat în browser.");
-  }
-
-  function normalizeLoadedSettings(s) {
-    if ("penaltyDistance" in s) return normalizeSettingsForApp(s);
-    const penaltyDistance = s.penaltyLeftX ?? DEFAULT_SETTINGS.penaltyDistance;
-    const penaltyY = s.penaltyLeftY ?? Math.floor((s.rows ?? DEFAULT_SETTINGS.rows) / 2);
-    return normalizeSettingsForApp({
-      ...DEFAULT_SETTINGS,
-      ...s,
-      penaltyDistance,
-      penaltyY,
-    });
-  }
-
-  function loadBoard() {
-    if (singlePlayerMatchWorkspaceLocked) return;
-    const raw =
-      localStorage.getItem("football-board-sandbox-v35") ||
-      localStorage.getItem("football-board-sandbox-v34") ||
-      localStorage.getItem("football-board-sandbox-v22") ||
-      localStorage.getItem("football-board-sandbox-v21") ||
-      localStorage.getItem("football-board-sandbox-v20") ||
-      localStorage.getItem("football-board-sandbox-v19") ||
-      localStorage.getItem("football-board-sandbox-v18") ||
-      localStorage.getItem("football-board-sandbox-v17") ||
-      localStorage.getItem("football-board-sandbox-v16") ||
-      localStorage.getItem("football-board-sandbox-v15") ||
-      localStorage.getItem("football-board-sandbox-v14") ||
-      localStorage.getItem("football-board-sandbox-v13") ||
-      localStorage.getItem("football-board-sandbox-v12") ||
-      localStorage.getItem("football-board-sandbox-v11") ||
-      localStorage.getItem("football-board-sandbox-v10") ||
-      localStorage.getItem("football-board-sandbox-v09") ||
-      localStorage.getItem("football-board-sandbox-v08") ||
-      localStorage.getItem("football-board-sandbox-v07") ||
-      localStorage.getItem("football-board-sandbox-v06") ||
-      localStorage.getItem("football-board-sandbox-v05") ||
-      localStorage.getItem("football-board-sandbox-v04") ||
-      localStorage.getItem("football-board-sandbox-v03");
-    if (!raw) return alert("Nu există salvare încă.");
-    const saved = JSON.parse(raw);
-    const loadedSettings = normalizeLoadedSettings(saved.settings);
-    const loadedCardState = saved.cardState ? normalizeCardState(saved.cardState) : cardState;
-    const legacyAssignments = getLegacyAssignments(saved.cardState);
-    const loadedPieces = ensureBenchReserveCount(
-      sanitizePiecesCardIds(saved.pieces, loadedCardState, loadedSettings, legacyAssignments),
-      loadedSettings
-    );
-    setSettings(loadedSettings);
-    piecesRef.current = loadedPieces;
-    setPieces(loadedPieces);
-    if (saved.cardState) setCardState(loadedCardState);
-    setZoom(saved.zoom ?? 1);
-  }
-
   function logSnapshot(label, nextPieces = piecesRef.current || pieces, options = {}) {
     const before = pendingTimelineBeforeRef.current || captureTimelineGameState();
     pendingTimelineBeforeRef.current = null;
@@ -8111,30 +8053,6 @@ function App() {
     }));
   }
 
-  function updateCardCustomZone(cardId, zoneId, patch) {
-    if (!cardId || !zoneId) return;
-    updateCardState(prev => ({
-      ...prev,
-      cards: prev.cards.map(card => card.id === cardId ? {
-        ...card,
-        customZones: normalizeCustomZones(card).map(zone => zone.id === zoneId ? { ...zone, ...patch } : zone),
-        updatedAt: new Date().toISOString(),
-      } : card),
-    }));
-  }
-
-  function deleteCardCustomZone(cardId, zoneId) {
-    if (!cardId || !zoneId) return;
-    updateCardState(prev => ({
-      ...prev,
-      cards: prev.cards.map(card => card.id === cardId ? {
-        ...card,
-        customZones: normalizeCustomZones(card).filter(zone => zone.id !== zoneId),
-        updatedAt: new Date().toISOString(),
-      } : card),
-    }));
-  }
-
   function deleteSelectedLayoutZone(cardId) {
     if (!cardId || !selectedLayout || selectedLayout.cardId !== cardId) return;
     const sideLabel = selectedLayout.side === "front" ? "front" : "back";
@@ -8366,100 +8284,18 @@ function App() {
     );
   }
 
-  function StarMenuEditor({ card }) {
-    const stars = normalizeFrontStars(card?.starsFront);
-    const [starRangeDraft, setStarRangeDraft] = useState({});
-    const controls = [
-      { key: "count", label: "Stars", min: 0, max: 10, step: 1 },
-      { key: "size", label: "Size", min: 4, max: 80, step: 1 },
-      { key: "spacing", label: "Spacing", min: 0, max: 80, step: 1 },
-      { key: "x", label: "X", min: -120, max: 120, step: 1 },
-      { key: "y", label: "Y", min: -120, max: 120, step: 1 },
-    ];
-    const clampStarValue = (control, rawValue) => {
-      const numericValue = Number(rawValue);
-      if (!Number.isFinite(numericValue)) return Number(stars[control.key] || 0);
-      return Math.min(control.max, Math.max(control.min, numericValue));
-    };
-    const displayStarValue = control => starRangeDraft[control.key] ?? stars[control.key];
-    const commitStarValue = (control, rawValue) => {
-      const clampedValue = clampStarValue(control, rawValue);
-      setStarRangeDraft(prev => ({ ...prev, [control.key]: clampedValue }));
-      updateFrontStars(card.id, { [control.key]: clampedValue });
-    };
-    const draftStarValue = (control, rawValue) => {
-      const clampedValue = clampStarValue(control, rawValue);
-      setStarRangeDraft(prev => ({ ...prev, [control.key]: clampedValue }));
-      updateFrontStars(card.id, { [control.key]: clampedValue });
-    };
-    const nudgeStarValue = (control, delta) => {
-      const currentValue = Number(displayStarValue(control) || 0);
-      commitStarValue(control, currentValue + (delta * control.step));
-    };
-    const stopControlEvent = e => e.stopPropagation();
-    return (
-      <div className="card-edit-section star-menu-section">
-        <div className="card-edit-section-title"><strong>Star Menu</strong></div>
-        <div className="star-menu-controls star-menu-controls-compact">
-          {controls.map(control => (
-            <div key={control.key} className="star-control-compact">
-              <span className="star-control-label">{control.label}</span>
-              <div className="star-control-inline">
-                <button type="button" className="star-control-step" onClick={() => nudgeStarValue(control, -1)} aria-label={`Decrease ${control.label}`}>−</button>
-                <input
-                  className="star-control-range"
-                  type="range"
-                  min={control.min}
-                  max={control.max}
-                  step={control.step}
-                  value={displayStarValue(control)}
-                  onPointerDown={stopControlEvent}
-                  onMouseDown={stopControlEvent}
-                  onTouchStart={stopControlEvent}
-                  onInput={e => draftStarValue(control, e.currentTarget.value)}
-                  onPointerUp={e => commitStarValue(control, e.currentTarget.value)}
-                  onPointerCancel={e => commitStarValue(control, e.currentTarget.value)}
-                  onMouseUp={e => commitStarValue(control, e.currentTarget.value)}
-                  onTouchEnd={e => commitStarValue(control, e.currentTarget.value)}
-                  onBlur={e => commitStarValue(control, e.currentTarget.value)}
-                  onKeyUp={e => {
-                    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Enter"].includes(e.key)) commitStarValue(control, e.currentTarget.value);
-                  }}
-                  aria-label={control.label}
-                />
-                <button type="button" className="star-control-step" onClick={() => nudgeStarValue(control, 1)} aria-label={`Increase ${control.label}`}>+</button>
-              </div>
-              <input
-                className="star-control-number"
-                type="number"
-                min={control.min}
-                max={control.max}
-                step={control.step}
-                value={displayStarValue(control)}
-                onPointerDown={stopControlEvent}
-                onMouseDown={stopControlEvent}
-                onTouchStart={stopControlEvent}
-                onChange={e => commitStarValue(control, e.currentTarget.value)}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   function renderCardEditor(card) {
     return <CardEditorPanel card={card} controller={{
       renderContext: cardPreviewRenderContext,
-      renderLayoutEditor: current => <CardLayoutEditor card={current} />,
+      renderLayoutEditor: current => CardLayoutEditor({ card: current }),
       renderColorPicker,
       renderTextStyleControls,
-      renderStarMenu: current => <StarMenuEditor card={current} />,
-      renderSectionTitleEditor: (current, titleKey, colorKey, label) => <SectionTitleEditor card={current} titleKey={titleKey} colorKey={colorKey} label={label} />,
-      renderAttributeListEditor: (current, section, title, toolbarLeft) => <AttributeListEditor card={current} section={section} title={title} hideHeader={true} toolbarLeft={toolbarLeft} />,
-      renderDefensiveGridAdjustControl: current => <DefensiveGridAdjustControl card={current} />,
-      renderOpponentGoalTextControl: current => <OpponentGoalTextControl card={current} />,
-      renderDefensiveAreaEditor: current => <DefensiveAreaEditor card={current} />,
+      renderStarMenu: current => <CardStarMenuEditor cardId={current.id} stars={normalizeFrontStars(current?.starsFront)} onUpdate={patch => updateFrontStars(current.id, patch)} />,
+      renderSectionTitleEditor: (current, titleKey, colorKey, label) => SectionTitleEditor({ card: current, titleKey, colorKey, label }),
+      renderAttributeListEditor: (current, section, title, toolbarLeft) => AttributeListEditor({ card: current, section, title, hideHeader: true, toolbarLeft }),
+      renderDefensiveGridAdjustControl: current => DefensiveGridAdjustControl({ card: current }),
+      renderOpponentGoalTextControl: current => OpponentGoalTextControl({ card: current }),
+      renderDefensiveAreaEditor: current => DefensiveAreaEditor({ card: current }),
       updateCardField,
       positionOptions: CARD_POSITION_OPTIONS,
       preferredFootOptions: PREFERRED_FOOT_OPTIONS,
@@ -8596,7 +8432,7 @@ function App() {
       return {
         ...result,
         legal: true,
-        label: `${axisIcon ? `${axisIcon} ` : ""}GM ${result.geometry.distance} / ${groupMove.maxDistance}`,
+        label: `${axisIcon ? `${axisIcon} ` : ""}GM ${result.geometry.distance} / ${result.distanceLimit}`,
       };
     }
     const threeTwo = getThreeTwoEligibility(selectedPiece, hoveredCell.x, hoveredCell.y);
@@ -10684,18 +10520,19 @@ function App() {
         setGroupMoveZoneDraft(null);
         return;
       }
-      const team = pieceTeamKey(piece);
-      const tracker = currentTimelineTrackerSnapshot();
-      if (!canUseActionForPiece(piece) || !isTeamPhaseActive(team) || tracker.matchActionState.groupMove?.active) return;
-      if (getTeamActionStatus(team).remaining !== 1) {
-        setIllegalMoveNotice({ reason: "group-move-last-action-only" });
+      const draft = selectSinglePlayerGroupMoveDraftPresentation(
+        currentTimelineGameStateSnapshot() || captureTimelineGameState(),
+        singlePlayerMatchContext(),
+        { piece, replay: replayModeRef.current },
+      );
+      if (!draft.allowed) {
+        if (draft.reason) setIllegalMoveNotice({ reason: draft.reason });
         return;
       }
-      const configuredLength = Math.max(1, Math.min(settings.cols, Number(singlePlayerMatchContext().ruleSet.actions?.groupMove?.zoneLength) || 10));
       setGroupMoveZoneDraft({
-        team,
-        zoneStartX: Math.max(0, Math.floor((settings.cols - configuredLength) / 2)),
-        zoneLength: configuredLength,
+        team: draft.team,
+        zoneStartX: draft.defaultZoneStartX,
+        zoneLength: draft.zoneLength,
       });
       cancelFreeBall();
       setSelectedId(null);
@@ -11312,26 +11149,6 @@ function App() {
   function onRulerPanelPointerUp() {
     setRulerPanelDragging(null);
     setRulerPanelResizing(null);
-  }
-
-  function fitWidth() {
-    const wrap = boardWrapRef.current;
-    if (!wrap) return;
-    const pitchWidth = settings.cols * settings.cellSize + 6;
-    const available = Math.max(240, wrap.clientWidth - 28);
-    setZoom(clamp(Number((available / pitchWidth).toFixed(2)), 0.2, 3));
-  }
-
-  function fitHeight() {
-    const wrap = boardWrapRef.current;
-    if (!wrap) return;
-    const pitchHeight = settings.rows * settings.cellSize + 6;
-    const available = Math.max(240, wrap.clientHeight - 28);
-    setZoom(clamp(Number((available / pitchHeight).toFixed(2)), 0.2, 3));
-  }
-
-  function resetView() {
-    setZoom(lockUI ? 1.0 : 0.8);
   }
 
   function touchDistance(t1, t2) {
@@ -12597,8 +12414,11 @@ function App() {
               <label>Zone length (squares)
                 <input disabled={ruleSetEditingLocked} type="number" min="1" max="100" step="1" value={ruleSetDraft.actions?.groupMove?.zoneLength ?? 10} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, zoneLength: clamp(Math.floor(Number(e.target.value) || 1), 1, 100) } } }))} />
               </label>
-              <label>Maximum distance/player
-                <input disabled={ruleSetEditingLocked} type="number" min="1" max="100" step="1" value={ruleSetDraft.actions?.groupMove?.maxDistance ?? 6} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, maxDistance: clamp(Math.floor(Number(e.target.value) || 1), 1, 100) } } }))} />
+              <label>Maximum orthogonal distance/player
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="100" step="1" value={ruleSetDraft.actions?.groupMove?.maxOrthogonalDistance ?? 6} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, maxOrthogonalDistance: clamp(Math.floor(Number(e.target.value) || 1), 1, 100) } } }))} />
+              </label>
+              <label>Maximum diagonal distance/player
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="100" step="1" value={ruleSetDraft.actions?.groupMove?.maxDiagonalDistance ?? 4} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, maxDiagonalDistance: clamp(Math.floor(Number(e.target.value) || 1), 1, 100) } } }))} />
               </label>
               <label className="rule-checkbox-label">
                 <input disabled={ruleSetEditingLocked} type="checkbox" checked={ruleSetDraft.actions?.groupMove?.sameDirectionOnly !== false} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, sameDirectionOnly: e.target.checked } } }))} />

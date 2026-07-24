@@ -2,6 +2,54 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.53.0 — Card Editor focus stability
+
+- Fixed the Card Editor's focus/scroll regression: nested field subcomponents had been recreated on every card update, so React remounted their inputs after each typed or deleted character.
+- Stabilized the field rendering path and moved the stateful Star Menu to the card-editor module. Editing statistic names, section titles and related inputs now retains the active input and the editor's scroll position.
+- Added a structural regression sentinel for the stable editor-subform boundary. No card data shape, gameplay, Match, Engine, Timeline or Manual Multiplayer behavior changed.
+
+## v20.52.9 — Mechanic Integration Gate
+
+- Added the permanent seven-row Mechanic Integration Gate for every future offline Match mechanic: Rule Set/compatibility, frozen MatchContext, Engine command, official projection, Timeline/Undo/Replay, AI mapping, and explicit mode-boundary/verification evidence.
+- Added ADR-050 and workflow enforcement, so the gate is required both before approval and before release rather than being an informal recommendation.
+- Widened the static Single Player UI sentinel: `main.jsx` must import the official presentation boundary and gateway, and cannot directly import listed Engine implementation modules.
+- No runtime gameplay behavior changed; Manual Multiplayer remains unchanged.
+
+## v20.52.8 — Group Move draft projection
+
+- Replaced offline Group Move draft activation's local Tracker and Rule Set reads with an official presentation projection evaluated from the same Engine confirmation command.
+- The projection returns availability/reason, team, frozen zone length, centred start and drag boundary. Opening, dragging and cancelling the draft remain UI-only; only `GROUP_MOVE_ZONE_CONFIRMED` consumes an action and enters Timeline.
+- Added regression coverage for the projected final-action gate and frozen zone shape, plus a static sentinel against restoring the local reads in `main.jsx`.
+- Manual Multiplayer remains unchanged.
+
+## v20.52.7 — Phase 11 boundary and dependency audit
+
+- Verified every migrated offline Match command entrance in `main.jsx` dispatches through the Single Player gateway; no direct offline mutation was found for Free Ball, Normal Move, 3/2, Free Move, Group Move confirmation/piece move, Bonus Move, Pass/Interception, dice, End Turn, Match start/restart, or Tracker administration.
+- Added static regression sentinels that require those command entrances to retain a gateway dispatch and require the direct movement-preview fallbacks to stay behind the `sessionCode` boundary.
+- Classified the remaining direct movement, Pass, Interception, Tracker and Firebase calculations as retained Editor or Manual Multiplayer/session compatibility code; they are not safe to delete or extract under this build.
+- Recorded one separate remediation candidate: offline Group Move draft activation still repeats pre-confirmation availability and frozen zone-length reads locally. The Engine remains authoritative at confirmation, so there is no gameplay divergence in this build; the next Group Move change must replace that draft gate with an official projection.
+- Manual Multiplayer and runtime gameplay behavior remain unchanged.
+
+## v20.52.6 — Proven dead-code removal
+
+- Removed only the unreferenced helpers classified by the v20.52.5 audit: an obsolete local browser Save/Load route with its isolated settings migration helper, unused card-zone mutation helpers, and unused view-fit helpers.
+- Removed three production-unused exports (`isInsideGoalMouthY`, `clearPendingInput`, and `clampModifier`) after confirming no production or test call sites.
+- No active Editor, offline Match, Engine, Timeline, Rule Set, AI Export or Manual Multiplayer route was changed. This build makes no extraction or organizational refactor.
+
+## v20.52.5 — Code ownership audit and Editor marker reset
+
+- Completed a static code-ownership audit of offline Match command, projection and legacy-mode boundaries. It classifies deletion candidates for a separate evidence-based cleanup build; no behavior-bearing legacy route was removed by name search.
+- Leaving Match for Editor now clears the closed Match's personal-action map, so pucks no longer retain Match dots in Editor. Editor's unrestricted manual three-slot marker remains available from a clean state.
+- Corrected the browser title version, which had remained at `v20.52.3` despite later runtime releases. Visible app, package and browser-title versions now agree at `v20.52.5`.
+- Manual Multiplayer remains unchanged.
+
+## v20.52.4 — Group Move geometry limits
+
+- Replaced Group Move's single Rule Set movement limit with editable orthogonal and diagonal limits, defaulting to `6` and `4` respectively.
+- Both limits are frozen in MatchContext and canonical confirmed Group Move state. The Engine selects the limit from exact movement geometry and the offline UI displays its projected value.
+- Rule Sets and stored active Group Move state from earlier builds migrate their former single limit into both new limits, preserving their behavior. Timeline activation metadata records both values; existing Timeline/Undo/Redo/Replay/AI Group Move semantics remain unchanged.
+- Manual Multiplayer remains unchanged.
+
 ## v20.52.3 — Action continuity and ball-cell choice
 
 - Ready offline Bonus Action controls no longer inherit normal Tracker phase/action exhaustion locks. Their owner may select one compatible individual card action; Group Move and Free Move remain unavailable.

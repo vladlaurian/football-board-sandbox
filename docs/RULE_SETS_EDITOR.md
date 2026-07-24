@@ -10,7 +10,7 @@ Player stat definitions and values are not owned by Rule Sets. Stats are selecte
 
 ## v20 action configuration
 
-Rule Set schema version 5 configures common Dice Modifiers plus:
+Rule Set schema version 6 configures common Dice Modifiers plus:
 
 ```text
 Pass → geometry and pass classification
@@ -28,7 +28,7 @@ For Pass, the origin foot is evaluated from the passer standing at the centre of
 
 ## Group Move settings
 
-Group Move is available only as the final normal action of the active team. Pressing it opens a temporary full-width zone preview, positioned by dragging the band; only confirming that zone consumes the action and freezes its Rule Set values in the MatchContext. After confirmation the band disappears, while eligible candidates are highlighted and ineligible candidates inside the frozen zone show a grey outline and lock.
+Group Move is available only as the final normal action of the active team. Pressing it first requests an official offline Match projection of the same Engine command later used to confirm the zone; it supplies availability, frozen zone length, centred default start and drag boundary. The temporary full-width zone preview may then be positioned by dragging the band; only confirming that zone consumes the action and freezes its Rule Set values in the MatchContext. After confirmation the band disappears, while eligible candidates are highlighted and ineligible candidates inside the frozen zone show a grey outline and lock.
 
 ### Maximum Players
 
@@ -38,9 +38,15 @@ The maximum number of different eligible players that may make one Group Move se
 
 The longitudinal length of the full-width zone selected on the board before confirmation. Default: `10` squares.
 
-### Maximum Distance per Player
+### Maximum Orthogonal Distance per Player
 
-The maximum one-segment distance for each chosen player. Card Speed is not used. Default: `6` squares.
+The maximum one-segment horizontal or vertical distance for each chosen player. Card Speed is not used. Default: `6` squares.
+
+### Maximum Diagonal Distance per Player
+
+The maximum one-segment exact diagonal distance for each chosen player. Card Speed is not used. Default: `4` squares.
+
+The Engine classifies the actual Group Move geometry first, chooses exactly one of these frozen limits, then returns that limit with its official destination projection. The UI does not choose a limit or calculate one itself.
 
 ### Same Direction as First Move
 
@@ -131,7 +137,7 @@ Natural 1 and Natural 20 override this setting.
 
 ## Migration from earlier Rule Sets
 
-Rule Set schema version 2 stored `modifierCap` and `equalRollOutcome` under Pass. Schema version 3 migrated those values into the Interception action automatically. Schema version 4 adds Group Move settings; older Rule Sets receive the approved Group Move defaults automatically.
+Rule Set schema version 2 stored `modifierCap` and `equalRollOutcome` under Pass. Schema version 3 migrated those values into the Interception action automatically. Schema version 4 added Group Move settings. Schema version 6 replaces its former single `maxDistance` with `maxOrthogonalDistance` and `maxDiagonalDistance`. A saved Rule Set that has the former single value migrates it into both values, preserving its existing behavior; Rule Sets with no Group Move setting receive the approved `6` orthogonal / `4` diagonal defaults automatically.
 
 Migration defaults preserve v19.x behavior:
 

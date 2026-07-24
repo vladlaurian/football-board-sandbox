@@ -307,10 +307,12 @@ test("Single Player Controller records Group Move zone confirmation and each pla
     ],
     tracker: { ...normalMoveState().tracker, usedActions: { blue: 4, red: 0 }, actionLog: { blue: Array.from({ length: 4 }, (_, index) => ({ id: `a-${index}`, type: "PASS" })), red: [] } },
   });
-  const context = { ...normalMoveContext(), boardSettings: { cols: 20, rows: 12 }, ruleSet: { actions: { groupMove: { maxPlayers: 4, zoneLength: 6, maxDistance: 6, sameDirectionOnly: true } } } };
+  const context = { ...normalMoveContext(), boardSettings: { cols: 20, rows: 12 }, ruleSet: { actions: { groupMove: { maxPlayers: 4, zoneLength: 6, maxOrthogonalDistance: 6, maxDiagonalDistance: 4, sameDirectionOnly: true } } } };
   const zone = dispatchSinglePlayerGameCommand({ state: start, context, command: { id: "group-zone", type: "GROUP_MOVE_ZONE_CONFIRMED", payload: { team: "blue", zoneStartX: 2 } } });
   const moved = dispatchSinglePlayerGameCommand({ timeline: zone.timeline, state: zone.state, context, command: { id: "group-move", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-1", x: 7, y: 5 } } });
   assert.deepEqual(moved.timeline.entries.map(entry => entry.type), ["GROUP_MOVE_ACTIVATED", "GROUP_MOVE_PIECE"]);
+  assert.deepEqual(moved.timeline.entries[0].metadata.maxOrthogonalDistance, 6);
+  assert.deepEqual(moved.timeline.entries[0].metadata.maxDiagonalDistance, 4);
   const undone = undoTimeline(moved.timeline);
   assert.equal(undone.state.tracker.matchActionState.groupMove.active, true);
   assert.equal(undone.state.pieces.find(piece => piece.id === "blue-1").x, 3);

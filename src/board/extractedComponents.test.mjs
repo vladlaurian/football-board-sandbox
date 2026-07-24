@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -36,7 +37,7 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   const { TrackerPanel } = await server.ssrLoadModule("/src/tracker/TrackerPanel.jsx");
   const { CardPreview } = await server.ssrLoadModule("/src/cards/CardPreview.jsx");
   const { CardVisualCanvas } = await server.ssrLoadModule("/src/cards/CardVisualCanvas.jsx");
-  const { CardEditorPanel } = await server.ssrLoadModule("/src/cards/CardEditorPanel.jsx");
+  const { CardEditorPanel, CardStarMenuEditor } = await server.ssrLoadModule("/src/cards/CardEditorPanel.jsx");
   const { CardsPanel } = await server.ssrLoadModule("/src/cards/CardsPanel.jsx");
   const { AssignCardModal } = await server.ssrLoadModule("/src/cards/AssignCardModal.jsx");
 
@@ -231,6 +232,14 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   assert.match(editorMarkup, /card-front/);
   assert.match(editorMarkup, /card-back/);
 
+  const starMenuMarkup = renderToStaticMarkup(React.createElement(CardStarMenuEditor, {
+    cardId: editorCard.id,
+    stars: { count: 2, size: 12, spacing: 4, x: 0, y: 0 },
+    onUpdate: noop,
+  }));
+  assert.match(starMenuMarkup, /star-menu-section/);
+  assert.match(starMenuMarkup, /Decrease Stars/);
+
   const panelMarkup = renderToStaticMarkup(React.createElement(CardsPanel, {
     controller: {
       editingCard: editorCard, editingCardId: editorCard.id, cardsView: "library", cardState: { cards: [editorCard] }, cardById: { [editorCard.id]: editorCard }, rosterSlots: { blue: { starting: [], substitutes: [] }, red: { starting: [], substitutes: [] } }, pieces: [], sessionCode: "", workspaceLocked: false, themeOptions: ["Style 1"], selectedTheme: "Style 1", graphicImportSide: "front", exportCardId: editorCard.id, libraryPositionFilter: "ALL", libraryPositionOptions: ["GK"], visibleLibraryCards: [editorCard], renderCardEditor: () => React.createElement("div", { className: "editor-slot" }), getCardThemeSelection: noop, setGraphicImportSide: noop, setExportCardId: noop, setLibraryPositionFilter: noop, setCardsView: noop, setEditingCardId: noop, close: noop, startGraphicImport: noop, deleteSelectedGraphic: noop, canDeleteGraphic: false, exportSelectedCard: noop, importCardBackup: noop, exportSelectedCardPng: noop, graphicFrontInputRef: { current: null }, graphicBackInputRef: { current: null }, handleFrontGraphicFile: noop, handleBackGraphicFile: noop, createCardFromPosition: noop, sortCardsByPosition: noop, cloneCard: noop, deleteCard: noop, canAssignPiece: () => true, setAssignTarget: noop, removePieceCard: noop,
@@ -244,4 +253,15 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   }));
   assert.match(assignMarkup, /assign-modal/);
   assert.match(assignMarkup, /card-back/);
+});
+
+test("card editor field subforms do not recreate local React component types on every card update", () => {
+  const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
+  assert.match(source, /import \{ CardEditorPanel, CardStarMenuEditor \} from "\.\/cards\/CardEditorPanel\.jsx"/);
+  assert.match(source, /renderAttributeListEditor: \(current, section, title, toolbarLeft\) => AttributeListEditor\(\{/);
+  assert.match(source, /renderSectionTitleEditor: \(current, titleKey, colorKey, label\) => SectionTitleEditor\(\{/);
+  assert.match(source, /renderDefensiveAreaEditor: current => DefensiveAreaEditor\(\{/);
+  assert.match(source, /renderStarMenu: current => <CardStarMenuEditor /);
+  assert.doesNotMatch(source, /renderAttributeListEditor:[\s\S]*?<AttributeListEditor /);
+  assert.doesNotMatch(source, /function StarMenuEditor\(/);
 });

@@ -742,7 +742,7 @@ test("GROUP_MOVE confirms a zone only as the final action and then moves eligibl
       actionLog: { blue: Array.from({ length: 4 }, (_, index) => ({ id: `action-${index}`, type: "PASS", pieceId: "blue-1" })), red: [] },
     },
   });
-  const context = createMatchContext({ ...normalMoveContext(), boardSettings: { cols: 20, rows: 12 }, ruleSet: { actions: { groupMove: { maxPlayers: 2, zoneLength: 5, maxDistance: 6, sameDirectionOnly: true } } } });
+  const context = createMatchContext({ ...normalMoveContext(), boardSettings: { cols: 20, rows: 12 }, ruleSet: { actions: { groupMove: { maxPlayers: 2, zoneLength: 5, maxOrthogonalDistance: 6, maxDiagonalDistance: 4, sameDirectionOnly: true } } } });
   const confirmed = applyGameCommand({
     state: start, context,
     command: { id: "group-zone", type: "GROUP_MOVE_ZONE_CONFIRMED", payload: { team: "blue", zoneStartX: 3 } },
@@ -750,6 +750,8 @@ test("GROUP_MOVE confirms a zone only as the final action and then moves eligibl
   assert.equal(confirmed.accepted, true);
   assert.equal(confirmed.nextState.tracker.usedActions.blue, 5);
   assert.deepEqual(confirmed.nextState.tracker.matchActionState.groupMove.movedPieceIds, []);
+  assert.equal(confirmed.nextState.tracker.matchActionState.groupMove.maxOrthogonalDistance, 6);
+  assert.equal(confirmed.nextState.tracker.matchActionState.groupMove.maxDiagonalDistance, 4);
   assert.equal(confirmed.events[0].type, "GROUP_MOVE_ACTIVATED");
   assert.deepEqual(applyGameCommand({
     state: confirmed.nextState, context,
@@ -787,7 +789,7 @@ test("GROUP_MOVE preview evaluator uses the Engine rule and permits crossing a b
       actionLog: { blue: Array.from({ length: 4 }, (_, index) => ({ id: `action-${index}`, type: "PASS" })), red: [] },
     },
   });
-  const context = createMatchContext({ boardSettings: { cols: 20, rows: 12 }, ruleSet: { actions: { groupMove: { maxPlayers: 4, zoneLength: 5, maxDistance: 6, sameDirectionOnly: true } } } });
+  const context = createMatchContext({ boardSettings: { cols: 20, rows: 12 }, ruleSet: { actions: { groupMove: { maxPlayers: 4, zoneLength: 5, maxOrthogonalDistance: 6, maxDiagonalDistance: 4, sameDirectionOnly: true } } } });
   const active = applyGameCommand({ state: start, context, command: { id: "group-zone-preview", type: "GROUP_MOVE_ZONE_CONFIRMED", payload: { team: "blue", zoneStartX: 3 } } });
   const before = structuredClone(active.nextState);
   const eligible = evaluateGroupMovePieceEligibility(active.nextState, { payload: { pieceId: "blue-1" } });
@@ -798,7 +800,39 @@ test("GROUP_MOVE preview evaluator uses the Engine rule and permits crossing a b
   assert.deepEqual(alreadyMoved, { accepted: false, reason: "GROUP_MOVE_PIECE_ALREADY_MOVED" });
   assert.equal(preview.accepted, true);
   assert.equal(preview.geometry.distance, 4);
+  assert.equal(preview.distanceLimit, 6);
   assert.deepEqual(active.nextState, before);
+});
+
+test("GROUP_MOVE applies separate frozen orthogonal and diagonal limits", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 15, y: 10 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 3, y: 3 },
+    ],
+    tracker: { ...normalMoveState().tracker, usedActions: { blue: 4, red: 0 }, actionLog: { blue: Array.from({ length: 4 }, (_, index) => ({ id: `a-${index}`, type: "PASS" })), red: [] } },
+  });
+  const context = createMatchContext({
+    boardSettings: { cols: 20, rows: 12 },
+    ruleSet: { actions: { groupMove: { maxPlayers: 4, zoneLength: 5, maxOrthogonalDistance: 7, maxDiagonalDistance: 3, sameDirectionOnly: true } } },
+  });
+  const active = applyGameCommand({ state: start, context, command: { id: "zone-limits", type: "GROUP_MOVE_ZONE_CONFIRMED", payload: { team: "blue", zoneStartX: 2 } } });
+  const straight = evaluateGroupMovePlayer(active.nextState, context, { payload: { pieceId: "blue-1", x: 10, y: 3 } });
+  const diagonal = evaluateGroupMovePlayer(active.nextState, context, { payload: { pieceId: "blue-1", x: 6, y: 6 } });
+  const diagonalFar = evaluateGroupMovePlayer(active.nextState, context, { payload: { pieceId: "blue-1", x: 7, y: 7 } });
+  const straightFar = evaluateGroupMovePlayer(active.nextState, context, { payload: { pieceId: "blue-1", x: 11, y: 3 } });
+
+  assert.equal(straight.accepted, true);
+  assert.equal(straight.distanceLimit, 7);
+  assert.equal(diagonal.accepted, true);
+  assert.equal(diagonal.distanceLimit, 3);
+  assert.equal(diagonalFar.accepted, false);
+  assert.equal(diagonalFar.reason, "GROUP_MOVE_DISTANCE");
+  assert.equal(diagonalFar.distanceLimit, 3);
+  assert.equal(straightFar.accepted, false);
+  assert.equal(straightFar.reason, "GROUP_MOVE_DISTANCE");
+  assert.equal(straightFar.distanceLimit, 7);
 });
 
 test("GROUP_MOVE rejects unconfirmed, moved, outside-zone, ball, occupied, distance, and wrong-direction destinations", () => {
@@ -814,7 +848,7 @@ test("GROUP_MOVE rejects unconfirmed, moved, outside-zone, ball, occupied, dista
     movementStateByPieceId: { "blue-moved": { spent: 1, distance: 1 } },
     tracker: { ...normalMoveState().tracker, usedActions: { blue: 4, red: 0 }, actionLog: { blue: Array.from({ length: 4 }, (_, index) => ({ id: `a-${index}`, type: "PASS" })), red: [] } },
   });
-  const context = createMatchContext({ boardSettings: { cols: 20, rows: 12 }, ruleSet: { actions: { groupMove: { maxPlayers: 1, zoneLength: 4, maxDistance: 3, sameDirectionOnly: true } } } });
+  const context = createMatchContext({ boardSettings: { cols: 20, rows: 12 }, ruleSet: { actions: { groupMove: { maxPlayers: 1, zoneLength: 4, maxOrthogonalDistance: 3, maxDiagonalDistance: 3, sameDirectionOnly: true } } } });
   assert.deepEqual(applyGameCommand({ state: start, context, command: { id: "unconfirmed", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-1", x: 4, y: 5 } } }), { accepted: false, reason: "GROUP_MOVE_NOT_ACTIVE" });
   const active = applyGameCommand({ state: start, context, command: { id: "zone", type: "GROUP_MOVE_ZONE_CONFIRMED", payload: { team: "blue", zoneStartX: 3 } } });
   assert.deepEqual(applyGameCommand({ state: active.nextState, context, command: { id: "moved", type: "GROUP_MOVE_PLAYER_COMMITTED", payload: { pieceId: "blue-moved", x: 6, y: 4 } } }), { accepted: false, reason: "GROUP_MOVE_PIECE_ALREADY_MOVED" });

@@ -97,7 +97,3 @@ export function withPendingDecision(flow, decision) {
 export function withPendingRoll(flow, pendingRoll) {
   return { ...flow, status: ACTION_FLOW_STAGE.AWAIT_ROLL, pendingDecision: null, pendingRoll };
 }
-
-export function clearPendingInput(flow, status = flow?.status) {
-  return { ...flow, status, pendingDecision: null, pendingRoll: null };
-}

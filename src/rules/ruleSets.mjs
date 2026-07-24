@@ -1,4 +1,4 @@
-export const RULE_SET_SCHEMA_VERSION = 5;
+export const RULE_SET_SCHEMA_VERSION = 6;
 export const DEFAULT_RULE_SET_ID = "default-rules";
 
 function cleanText(value, fallback = "") {
@@ -43,7 +43,8 @@ export function createDefaultRuleSet() {
         status: "configured",
         maxPlayers: 4,
         zoneLength: 10,
-        maxDistance: 6,
+        maxOrthogonalDistance: 6,
+        maxDiagonalDistance: 4,
         sameDirectionOnly: true,
       },
     },
@@ -77,7 +78,10 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
   const interception = source.actions?.interception && typeof source.actions.interception === "object" ? source.actions.interception : {};
   const groupMove = source.actions?.groupMove && typeof source.actions.groupMove === "object" ? source.actions.groupMove : {};
   const fallbackInterception = fallbackSet.actions?.interception || createDefaultRuleSet().actions.interception;
-  const isLegacyRuleSet = Number(source.schemaVersion || 0) < RULE_SET_SCHEMA_VERSION;
+  // Schema v6 changes only Group Move's stored distance shape.  A v4/v5
+  // Rule Set already has explicit action configuration, so it must not gain
+  // configured actions merely because its Group Move value is migrated.
+  const usesPreActionConfigurationDefaults = Number(source.schemaVersion || 0) < 4;
   const pathMode = pass.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center";
   const legacyModifierCap = Number.isFinite(Number(pass.modifierCap)) ? Number(pass.modifierCap) : undefined;
   const migratedModifierCap = Number.isFinite(Number(interception.modifierCap))
@@ -97,14 +101,14 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
     diceModifiers,
     actions: {
       pass: {
-        status: isLegacyRuleSet || pass.status === "configured" ? "configured" : "not-configured",
+        status: usesPreActionConfigurationDefaults || pass.status === "configured" ? "configured" : "not-configured",
         rollMode: "manual",
         pathMode,
         longPassThreshold: Math.max(0.01, Number(pass.longPassThreshold) || 15),
         resolutionDelayMs: Math.max(0, Math.min(5000, Math.floor(Number(pass.resolutionDelayMs) || 2000))),
       },
       interception: {
-        status: isLegacyRuleSet || interception.status === "configured" ? "configured" : "not-configured",
+        status: usesPreActionConfigurationDefaults || interception.status === "configured" ? "configured" : "not-configured",
         rollMode: "manual",
         defenderRollStatId: cleanText(interception.defenderRollStatId, fallbackInterception.defenderRollStatId || "stat:interception"),
         useStandardModifiers: interception.useStandardModifiers !== false,
@@ -112,10 +116,13 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
         equalRollOutcome: migratedEqualOutcome === "interception" ? "interception" : "pass-succeeds",
       },
       groupMove: {
-        status: isLegacyRuleSet || groupMove.status === "configured" ? "configured" : "not-configured",
+        status: usesPreActionConfigurationDefaults || groupMove.status === "configured" ? "configured" : "not-configured",
         maxPlayers: Math.max(1, Math.min(11, Math.floor(Number(groupMove.maxPlayers) || 4))),
         zoneLength: Math.max(1, Math.min(100, Math.floor(Number(groupMove.zoneLength) || 10))),
-        maxDistance: Math.max(1, Math.min(100, Math.floor(Number(groupMove.maxDistance) || 6))),
+        // Schema v5 and earlier had one Group Move maximum.  Preserve an
+        // existing Rule Set exactly by migrating it into both new limits.
+        maxOrthogonalDistance: Math.max(1, Math.min(100, Math.floor(Number(groupMove.maxOrthogonalDistance ?? groupMove.maxDistance) || 6))),
+        maxDiagonalDistance: Math.max(1, Math.min(100, Math.floor(Number(groupMove.maxDiagonalDistance ?? groupMove.maxDistance) || 4))),
         sameDirectionOnly: groupMove.sameDirectionOnly !== false,
       },
     },

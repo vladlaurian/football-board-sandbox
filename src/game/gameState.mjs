@@ -111,6 +111,10 @@ export function createEditorStateAfterMatchExit(rawState) {
     actionContinuation: null,
     tracker: {
       ...state.tracker,
+      // Personal-action values belong to the Match that is being closed.
+      // Editor keeps its own manual marker, so it starts clean and may then
+      // be marked manually without inheriting completed Match activity.
+      personalActionsByPieceId: {},
       matchActionState: {
         ...current,
         freeMode: { active: false, pieceId: null, team: null, timelineGroupId: null },
@@ -121,7 +125,8 @@ export function createEditorStateAfterMatchExit(rawState) {
           zoneStartX: null,
           zoneLength: 0,
           maxPlayers: 0,
-          maxDistance: 0,
+          maxOrthogonalDistance: 0,
+          maxDiagonalDistance: 0,
           sameDirectionOnly: true,
           movedPieceIds: [],
           direction: null,

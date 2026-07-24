@@ -20,8 +20,9 @@ Before proposing or implementing any change:
 6. For multiplayer work, also read both `MULTIPLAYER_ARCHITECTURE.md` and `MULTIPLAYER_CHANGELOG.md`.
 7. Inspect the relevant code and tests.
 8. Identify the existing architecture, reusable logic, stable boundaries, previous failed approaches, and current source of truth.
-9. Explain what was understood, the exact files proposed for modification, the reason for each modification, the solution, and the risks.
-10. Do not implement until the user approves.
+9. For every new or changed offline Match mechanic, complete the **Mechanic Integration Gate** in `docs/GAME_ENGINE_ARCHITECTURE.md`; a proposal without its explicit evidence rows is incomplete.
+10. Explain what was understood, the exact files proposed for modification, the reason for each modification, the solution, and the risks.
+11. Do not implement until the user approves.
 
 Do not assume a feature is absent because it is not visible in the UI. Search documentation and code first. Do not recreate a solution that already exists.
 
@@ -150,6 +151,7 @@ Before delivery:
 6. Verify version/build metadata.
 7. For documentation-only work, compare runtime-code hashes before and after.
 8. Inspect the final archive contents.
+9. For every new or changed offline Match mechanic, verify the completed Mechanic Integration Gate evidence: Rule Set/normalization, frozen MatchContext, Engine command, official selector, Timeline/Undo/Replay, AI mapping, explicit mode boundary, and its exact regression/sentinel tests.
 
 Do not claim a test or build passed unless it was actually executed successfully.
 

@@ -5,7 +5,7 @@ import { createGameState } from "../game/gameState.mjs";
 import { GAME_COMMAND_TYPE } from "./gameCommands.mjs";
 import { applyGameCommand } from "./gameEngine.mjs";
 import { createMatchContext } from "./matchContext.mjs";
-import { selectSinglePlayerBallCellMoveChoicePresentation, selectSinglePlayerDicePresentation, selectSinglePlayerFreeBallPresentation, selectSinglePlayerFreeMovePresentation, selectSinglePlayerGroupMovePieceStatuses, selectSinglePlayerInspectorActionPresentation, selectSinglePlayerNormalMovePresentation, selectSinglePlayerPassPresentation, selectSinglePlayerThreeTwoPresentation } from "./matchPresentationSelectors.mjs";
+import { selectSinglePlayerBallCellMoveChoicePresentation, selectSinglePlayerDicePresentation, selectSinglePlayerFreeBallPresentation, selectSinglePlayerFreeMovePresentation, selectSinglePlayerGroupMoveDraftPresentation, selectSinglePlayerGroupMovePieceStatuses, selectSinglePlayerInspectorActionPresentation, selectSinglePlayerNormalMovePresentation, selectSinglePlayerPassPresentation, selectSinglePlayerThreeTwoPresentation } from "./matchPresentationSelectors.mjs";
 
 test("Single Player Pass selector projects persisted route and roll facts without recalculating them", () => {
   const projection = selectSinglePlayerPassPresentation({
@@ -108,18 +108,111 @@ test("Single Player projection boundary keeps Group Move crossing semantics in t
       { id: "blue-1", team: "A", x: 3, y: 3 },
       { id: "blue-blocker", team: "A", x: 4, y: 3 },
     ],
-    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", usedActions: { blue: 5, red: 0 }, actionLog: { blue: [{ id: "a", type: "PASS" }, { id: "b", type: "PASS" }, { id: "c", type: "PASS" }, { id: "d", type: "PASS" }, { id: "group", type: "GROUP_MOVE" }], red: [] }, matchActionState: { groupMove: { active: true, team: "blue", zoneStartX: 0, zoneLength: 8, maxPlayers: 4, maxDistance: 6, sameDirectionOnly: true, movedPieceIds: [], direction: null } }, settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", usedActions: { blue: 5, red: 0 }, actionLog: { blue: [{ id: "a", type: "PASS" }, { id: "b", type: "PASS" }, { id: "c", type: "PASS" }, { id: "d", type: "PASS" }, { id: "group", type: "GROUP_MOVE" }], red: [] }, matchActionState: { groupMove: { active: true, team: "blue", zoneStartX: 0, zoneLength: 8, maxPlayers: 4, maxOrthogonalDistance: 6, maxDiagonalDistance: 4, sameDirectionOnly: true, movedPieceIds: [], direction: null } }, settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
   });
   const statuses = selectSinglePlayerGroupMovePieceStatuses(state);
   assert.equal(statuses["blue-1"], "eligible");
 });
 
+test("Group Move draft activation projects Engine availability and frozen zone shape", () => {
+  const state = createGameState({
+    gameMode: "match",
+    pieces: [{ id: "ball", team: "BALL", x: 15, y: 5 }, { id: "blue-1", team: "A", x: 3, y: 5 }],
+    tracker: {
+      gameStarted: true,
+      startingTeam: "blue",
+      currentTurn: 1,
+      turnPhase: "attack",
+      usedActions: { blue: 4, red: 0 },
+      actionLog: { blue: Array.from({ length: 4 }, (_, index) => ({ id: `action-${index}`, type: "PASS" })), red: [] },
+      settings: { attackActions: 5, defenseActions: 4, turns: 20 },
+    },
+  });
+  const context = createMatchContext({ boardSettings: { cols: 20, rows: 12 }, ruleSet: { actions: { groupMove: { zoneLength: 6 } } } });
+  const allowed = selectSinglePlayerGroupMoveDraftPresentation(state, context, { piece: state.pieces[1] });
+  assert.deepEqual(allowed, {
+    allowed: true,
+    reason: null,
+    team: "blue",
+    zoneLength: 6,
+    defaultZoneStartX: 7,
+    maxZoneStartX: 14,
+  });
+
+  const notFinalAction = selectSinglePlayerGroupMoveDraftPresentation({
+    ...state,
+    tracker: { ...state.tracker, usedActions: { blue: 3, red: 0 }, actionLog: { ...state.tracker.actionLog, blue: state.tracker.actionLog.blue.slice(0, 3) } },
+  }, context, { piece: state.pieces[1] });
+  assert.equal(notFinalAction.allowed, false);
+  assert.equal(notFinalAction.reason, "group-move-last-action-only");
+});
+
 test("Single Player UI imports the presentation boundary, not direct gameplay evaluators", () => {
   const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
   assert.match(source, /from "\.\/engine\/matchPresentationSelectors\.mjs"/);
-  assert.doesNotMatch(source, /from "\.\/engine\/movementPathRules\.mjs"/);
-  assert.doesNotMatch(source, /from "\.\/engine\/threeTwoMoveRules\.mjs"/);
-  assert.doesNotMatch(source, /from "\.\/engine\/groupMoveRules\.mjs"/);
+  assert.match(source, /from "\.\/engine\/singlePlayerMatchGateway\.mjs"/);
+  assert.doesNotMatch(source, /from "\.\/engine\/(?:gameEngine|movementPathRules|normalMoveRules|threeTwoMoveRules|groupMoveRules|bonusMoveRules|freeMoveRules|passStartRules|matchAdministrationRules|matchLifecycleRules|trackerPhaseRules)\.mjs"/);
+});
+
+function localFunctionSource(source, name) {
+  const start = source.indexOf(`function ${name}(`);
+  assert.notEqual(start, -1, `expected main.jsx to retain ${name}`);
+  const bodyStart = source.indexOf(") {", start) + 2;
+  assert.notEqual(bodyStart, 1, `could not locate ${name} body start`);
+  let depth = 0;
+  for (let index = bodyStart; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    if (source[index] === "}") depth -= 1;
+    if (depth === 0) return source.slice(start, index + 1);
+  }
+  assert.fail(`could not read ${name} body`);
+}
+
+test("offline migrated Match command entrances retain the gateway route", () => {
+  const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
+  assert.match(source, /from "\.\/engine\/singlePlayerMatchGateway\.mjs"/);
+  [
+    "commitFreeBallMove",
+    "commitNormalMoveThroughEngine",
+    "confirmGroupMoveZone",
+    "startBonusMove",
+    "cancelBonusMove",
+    "commitBonusMoveSegment",
+    "commitDirectBoardBonusMove",
+    "beginPassTargeting",
+    "commitPassCancellation",
+    "commitPassTargetSelection",
+    "choosePassInterceptor",
+    "confirmPassRoute",
+    "confirmEndTurn",
+    "endBonusAction",
+    "startTrackedGame",
+    "resetTrackerActions",
+    "changeTrackerPossession",
+  ].forEach(name => {
+    const body = localFunctionSource(source, name);
+    assert.match(body, /dispatchSinglePlayer(?:GameCommand|GameCommandSequence|MatchStart)\(/, `${name} must retain an offline Engine gateway dispatch`);
+  });
+});
+
+test("offline movement and ball-cell previews keep their local fallback behind the session boundary", () => {
+  const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
+  [
+    ["getThreeTwoEligibility", "selectSinglePlayerThreeTwoPresentation"],
+    ["evaluateMove", "selectSinglePlayerNormalMovePresentation"],
+    ["evaluateGroupMove", "selectSinglePlayerGroupMovePresentation"],
+  ].forEach(([name, selector]) => {
+    const body = localFunctionSource(source, name);
+    assert.match(body, new RegExp(`if \\(!sessionCode[\\s\\S]*?return ${selector}\\(`), `${name} must return the offline presentation projection before its legacy fallback`);
+  });
+});
+
+test("offline Group Move draft uses its official projection instead of local Rule Set and Tracker reads", () => {
+  const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
+  const body = localFunctionSource(source, "consumeInspectorAction");
+  assert.match(body, /selectSinglePlayerGroupMoveDraftPresentation\(/);
+  assert.doesNotMatch(body, /singlePlayerMatchContext\(\)\.ruleSet\.actions\?\.groupMove\?\.zoneLength/);
+  assert.doesNotMatch(body, /getTeamActionStatus\(team\)\.remaining !== 1/);
 });
 
 test("Single Player dice availability projects the canonical pending request", () => {

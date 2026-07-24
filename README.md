@@ -6,19 +6,19 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.52.3` |
-| Git/package version | `20.52.3` |
-| Build name | `Final_Board_v20_52_3_action_continuity_ball_cell_choice` |
-| Base build | `v20.52.2 Normal Move projection hotfix` |
+| Sandbox version | `v20.53.0` |
+| Git/package version | `20.53.0` |
+| Build name | `Final_Board_v20_53_0_card_editor_focus_stability` |
+| Base build | `v20.52.9 Mechanic Integration Gate` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.52.3`. The repository version is in `package.json` as `20.52.3`. The browser title is `Sandbox v20.52.3`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.53.0`. The repository version is in `package.json` as `20.53.0`. The browser title is `Sandbox v20.53.0`.
 
 ## Current release
 
-v20.52.3 corrects four offline Single Player continuity failures: ready Bonus Actions no longer inherit normal Tracker locks; a paid normal MOVE may continue in legal segments after the team has spent its final normal action; the ball-cell choice presents Engine-projected 3/2 and Normal Move routes; and exiting Match clears Match-only interactions before Editor receives the closing Timeline state. Direct-board Normal Move uses the same atomic start-and-commit Engine sequence as Inspector MOVE when it needs initial authorization. Manual Multiplayer remains unchanged.
+v20.53.0 fixes Card Editor input stability. Editing a stat name, title or other card-editor field no longer remounts its form subtree after every character, so focus and the editor's scroll position remain stable. The stateful Star Menu now has a stable module-level component too. No card data model, gameplay, Engine, Match Timeline or Manual Multiplayer behavior changed.
 
-The audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
+The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 
 Older releases are summarized in [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Their durable technical consequences live in the appropriate architecture and subsystem documents, not in this README.
 

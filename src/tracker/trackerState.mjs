@@ -61,7 +61,10 @@ export function normalizeMatchActionState(raw) {
       zoneStartX: Number.isInteger(Number(raw?.groupMove?.zoneStartX)) ? Number(raw.groupMove.zoneStartX) : null,
       zoneLength: Math.max(0, Math.floor(Number(raw?.groupMove?.zoneLength) || 0)),
       maxPlayers: Math.max(0, Math.floor(Number(raw?.groupMove?.maxPlayers) || 0)),
-      maxDistance: Math.max(0, Math.floor(Number(raw?.groupMove?.maxDistance) || 0)),
+      // Historical MatchState stored one frozen Group Move limit. Normalize
+      // it once at the state boundary so the Engine never needs a legacy read.
+      maxOrthogonalDistance: Math.max(0, Math.floor(Number(raw?.groupMove?.maxOrthogonalDistance ?? raw?.groupMove?.maxDistance) || 0)),
+      maxDiagonalDistance: Math.max(0, Math.floor(Number(raw?.groupMove?.maxDiagonalDistance ?? raw?.groupMove?.maxDistance) || 0)),
       sameDirectionOnly: raw?.groupMove?.sameDirectionOnly !== false,
       movedPieceIds: Array.isArray(raw?.groupMove?.movedPieceIds) ? [...new Set(raw.groupMove.movedPieceIds.map(String).filter(Boolean))] : [],
       direction: raw?.groupMove?.direction && typeof raw.groupMove.direction === "object" ? {
@@ -98,7 +101,8 @@ export function clearGroupMoveState(rawActionState) {
       zoneStartX: null,
       zoneLength: 0,
       maxPlayers: 0,
-      maxDistance: 0,
+      maxOrthogonalDistance: 0,
+      maxDiagonalDistance: 0,
       movedPieceIds: [],
       direction: null,
     },

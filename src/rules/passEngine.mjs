@@ -189,11 +189,6 @@ export function cardStat(card, nameOrId) {
   return 0;
 }
 
-export function clampModifier(value, cap = 4) {
-  const safeCap = Math.max(0, Number.isFinite(Number(cap)) ? Number(cap) : 4);
-  return Math.max(-safeCap, Math.min(safeCap, Number(value) || 0));
-}
-
 /**
  * Interception priority is a board-game measurement between occupied squares,
  * not a measurement from the selected pass corner or along the pass segment.

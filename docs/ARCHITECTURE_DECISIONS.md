@@ -36,11 +36,25 @@ README records the current release. Changelogs record implementation history. Th
 
 - a move, 3/2 or Group Move preview uses the same evaluator as its command; Group Move preserves its deliberate crossing exception;
 - a projection field that cannot exist for invalid presentation input is explicitly nullable; its consumer must render an illegal/unavailable presentation and must never recreate the missing gameplay fact locally;
-- Inspector availability and frozen Rule Set values cannot drift from the active Timeline cursor and MatchContext;
+- Inspector availability and frozen Rule Set values cannot drift from the active Timeline cursor and MatchContext; this includes Group Move draft activation, whose local band shape is supplied by an Engine-command preview rather than by `main.jsx` reading Rule Set or Tracker fields;
 - a persisted Pass/Interception fact is displayed rather than reconstructed by a popup fallback;
 - preview-only evaluator options are not command payload fields, so UI presentation cannot grant a submitted command additional authority;
 - Free Ball/Free Move, Inspector, End Turn and Bonus controls consume the same boundary, and active-decision card values come from frozen MatchContext cards;
 - Manual Multiplayer remains on its frozen legacy branch and is not routed through this contract implicitly.
+
+## ADR-050 — Every offline Match mechanic has a mandatory integration gate
+
+**Status:** Active
+
+**Decision:** A new or materially changed offline Single Player Match mechanic cannot be proposed for approval or released without the explicit seven-row Mechanic Integration Gate defined in `GAME_ENGINE_ARCHITECTURE.md`: Rule Set/compatibility, frozen MatchContext, Engine commands, official projection, canonical Timeline history, AI Analysis Export, and mode-boundary/verification evidence.
+
+**Consequences:**
+
+- UI may offer only official projected command routes and must not acquire a temporary gameplay fallback while a mechanic is incomplete;
+- every gameplay-facing display, including badges, popups and results, has a named canonical source before implementation;
+- Timeline, Undo/Redo, Replay and AI review are completion requirements rather than follow-up work;
+- Editor and frozen Manual Multiplayer/session compatibility are explicitly classified instead of being altered by implication;
+- structural sentinels protect the established offline UI-to-selector-to-gateway boundary, while the Gate makes the design review itself auditable for each future mechanic.
 
 ## ADR-004 — Manual roll only
 
@@ -358,14 +372,14 @@ If that same destination also has a legal normal-MOVE route, the UI presents `Ru
 
 **Decision:** In offline Single Player, pressing GROUP MOVE opens only a local zone preview. The action is not consumed until `GROUP_MOVE_ZONE_CONFIRMED` establishes a full-width longitudinal zone in canonical MatchState. The draft band is positioned by drag and is UI-only. The confirmed zone consumes the final normal Tracker action and cannot be moved afterward; it is retained for Engine validation but deliberately not rendered after confirmation. `GROUP_MOVE_PLAYER_COMMITTED` then moves eligible players one at a time under the same canonical Group Move state until its configured player limit or End Turn.
 
-Players must begin in the confirmed zone, have no ball, and have no gameplay movement during the turn; administrative Free Move does not disqualify them. Each player moves once, ignores card Speed, respects configured maximum distance, and cannot finish on a player or ball. The first successful move fixes orientation and optionally exact direction for the group. Unlike normal movement, Group Move may cross players: this is a deliberate tactical tool for moving a line and creating an offside attempt.
+Players must begin in the confirmed zone, have no ball, and have no gameplay movement during the turn; administrative Free Move does not disqualify them. Each player moves once, ignores card Speed, and cannot finish on a player or ball. Horizontal/vertical movement respects the frozen orthogonal limit; exact diagonal movement respects the separately frozen diagonal limit. The first successful move fixes orientation and optionally exact direction for the group. Unlike normal movement, Group Move may cross players: this is a deliberate tactical tool for moving a line and creating an offside attempt.
 
 **Consequences:**
 
-- Rule Set schema v4 owns Group Move limits and MatchContext freezes them at Match start.
+- Rule Set schema v6 owns Group Move's separate orthogonal and diagonal limits; MatchContext freezes both at Match start, and zone confirmation copies both into canonical active Group Move state. Old Rule Sets and old canonical Group Move state migrate their one historical limit into both values at their normalization boundary.
 - Preview-zone repositioning is UI-only; only confirmation and physical moves enter Timeline.
 - End Turn clears the active Group Move state before recording the next phase; the Engine lock can never cross to the opposing team.
-- UI eligibility marks are presentation only and derive from the Engine's pure eligibility evaluator. Destination preview derives from the corresponding pure Engine evaluator, never from normal-MOVE or card-Speed rules.
+- UI eligibility marks are presentation only and derive from the Engine's pure eligibility evaluator. Before the draft band opens, its availability, frozen length, centred default start and drag boundary derive from a preview of `GROUP_MOVE_ZONE_CONFIRMED`; `main.jsx` does not independently read Group Move Rule Set or Tracker fields. Destination preview derives from the corresponding pure Engine evaluator, including the Engine-projected applicable distance limit; it never derives geometry limits from normal-MOVE or card-Speed rules.
 - Timeline preserves `GROUP_MOVE_ACTIVATED` and `GROUP_MOVE_PIECE`; Undo/Redo, Replay, and AI export retain their existing semantic vocabulary.
 - Manual Multiplayer and Editor Mode retain their legacy behavior.
 
