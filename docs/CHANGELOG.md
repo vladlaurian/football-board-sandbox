@@ -2,6 +2,12 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.53.5 — Long Pass contact projection and maximum distance
+
+- Added Rule Set `Maximum Pass distance`, default `32`, frozen in MatchContext. Targets beyond it create the same canonical blocked preview pattern and remain Engine-illegal to confirm.
+- Long Pass direct contact now preserves the selected intended destination in the projection: green/red segment to reception/interception, grey continuation to intended destination, and grey target ball.
+- Manual Multiplayer remains unchanged.
+
 ## v20.53.4 — Pass invalid-target projection
 
 - `PASS_TARGET_SELECTED` now records an Engine-owned blocked preview for an empty square or goalkeeper: all route facts persist, no action is consumed, and route confirmation remains Engine-rejected.

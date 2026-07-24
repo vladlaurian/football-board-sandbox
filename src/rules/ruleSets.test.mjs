@@ -46,7 +46,7 @@ test("legacy Pass interception settings migrate into the separate Interception a
     name: "Legacy",
     actions: { pass: { modifierCap: 3, equalRollOutcome: "interception" } },
   });
-  assert.equal(normalized.schemaVersion, 8);
+  assert.equal(normalized.schemaVersion, 9);
   assert.equal(normalized.diceModifiers.stackCap, 3);
   assert.equal(normalized.actions.interception.equalRollOutcome, "interception");
   assert.equal(normalized.actions.interception.defenderRollStatId, "stat:interception");
@@ -100,4 +100,10 @@ test("Dice modifier semantics retain their required signs while preserving confi
     majorDisadvantage: 0,
     stackCap: 6,
   });
+});
+
+test("Pass maximum distance is frozen no lower than the Long Pass threshold", () => {
+  const normalized = normalizeRuleSet({ actions: { pass: { longPassThreshold: 20, maxPassDistance: 18 } } });
+  assert.equal(normalized.actions.pass.longPassThreshold, 20);
+  assert.equal(normalized.actions.pass.maxPassDistance, 20);
 });

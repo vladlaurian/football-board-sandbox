@@ -338,6 +338,7 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
   const targetPoint = pointForPassTarget(target);
   const distance = legacyManual ? passDistance(origin, targetPoint) : passMeasurementDistance(passer, target);
   const longPassThreshold = Number(passRules.longPassThreshold) || 16;
+  const maxPassDistance = Math.max(longPassThreshold, Number(passRules.maxPassDistance) || 32);
   const passType = distance > longPassThreshold ? "LONG_PASS" : "SHORT_PASS";
   const aerialLongPass = passType === "LONG_PASS" && !legacyManual;
   const targetPlayer = activeFieldPlayerAt(pieces, cardById, target);
@@ -408,6 +409,8 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     passType,
     isLong: passType === "LONG_PASS",
     longPassThreshold,
+    maxPassDistance,
+    maxDistanceExceeded: !legacyManual && distance > maxPassDistance,
     targetPlayerId: targetPlayer?.id || null,
     foot,
     attackerTargetStatId,

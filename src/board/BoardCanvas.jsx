@@ -338,12 +338,12 @@ export function BoardCanvas({
 
           {passPreview?.lines?.length > 0 && <svg className="pass-preview-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
             {passPreview.lines.map(line => <g key={line.id} className={`pass-preview-line ${line.status || (line.risk ? "risk" : "clear")} ${line.selected ? "route-selected" : ""}`}>
-              <line x1={line.origin.x} y1={line.origin.y} x2={line.endpoint.x} y2={line.endpoint.y} />
+              {(line.segments || [{ origin: line.origin, endpoint: line.endpoint, status: line.status }]).map((segment, index) => <line key={index} className={segment.status || "clear"} x1={(segment.origin || line.origin).x} y1={(segment.origin || line.origin).y} x2={segment.endpoint.x} y2={segment.endpoint.y} />)}
               <circle cx={line.origin.x} cy={line.origin.y} r=".13" />
               <circle cx={line.endpoint.x} cy={line.endpoint.y} r=".13" />
             </g>)}
           </svg>}
-          {passPreview?.target && <div className="piece-hitbox ball-hitbox pass-target-ball" style={{ left: `calc(${passPreview.target.x} * var(--cell) + var(--cell) * .25)`, top: `calc(${passPreview.target.y} * var(--cell) + var(--cell) * .25)` }} aria-hidden="true">
+          {passPreview?.target && <div className={`piece-hitbox ball-hitbox pass-target-ball ${passPreview.targetStatus || "clear"}`} style={{ left: `calc(${passPreview.target.x} * var(--cell) + var(--cell) * .25)`, top: `calc(${passPreview.target.y} * var(--cell) + var(--cell) * .25)` }} aria-hidden="true">
             <div className="piece ball pass-target-ghost"><MatchBallIcon className="board-ball-icon" /></div>
           </div>}
           {passPreview?.routes?.map(route => <button

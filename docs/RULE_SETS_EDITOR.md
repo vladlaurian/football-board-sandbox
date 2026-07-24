@@ -71,6 +71,10 @@ The pass is classified as Long Pass only when centre-to-centre distance is stric
 
 `≤ threshold` is Short Pass; `> threshold` is Long Pass. Both require an active outfield player as target; a goalkeeper is not a direct target.
 
+### Maximum Pass Distance
+
+No Pass may exceed this centre-to-centre distance. The default is `32`, and the value cannot be lower than the Long Pass threshold. A farther selected target produces a canonical blocked preview with the maximum-distance reason; it consumes no action and cannot be confirmed.
+
 ### Invalid target preview
 
 Selecting an empty square or goalkeeper in offline Match does not relax that rule. The Engine records a blocked Pass preview with the canonical reason, so the board can show every trajectory and origin badge in grey. No Tracker action is consumed and route confirmation remains rejected until the player selects an active outfield target.
@@ -149,7 +153,7 @@ Natural 1 and Natural 20 override this setting.
 
 ## Migration from earlier Rule Sets
 
-Rule Set schema version 2 stored `modifierCap` and `equalRollOutcome` under Pass. Schema version 3 migrated those values into the Interception action automatically. Schema version 4 added Group Move settings. Schema version 6 replaces its former single `maxDistance` with `maxOrthogonalDistance` and `maxDiagonalDistance`. Schema version 7 made the approved Short/Long target policy explicit. Schema version 8 removes the Long Pass attacker-stat and Interception-modifier UI variants: offline Match resolves the stable global `Long Pass` ID and keeps standard/progressive modifiers active. A saved Rule Set that has the former single Group Move value migrates it into both values, preserving its existing behavior; Rule Sets with no Group Move setting receive the approved `6` orthogonal / `4` diagonal defaults automatically.
+Rule Set schema version 2 stored `modifierCap` and `equalRollOutcome` under Pass. Schema version 3 migrated those values into the Interception action automatically. Schema version 4 added Group Move settings. Schema version 6 replaces its former single `maxDistance` with `maxOrthogonalDistance` and `maxDiagonalDistance`. Schema version 7 made the approved Short/Long target policy explicit. Schema version 8 removes the Long Pass attacker-stat and Interception-modifier UI variants: offline Match resolves the stable global `Long Pass` ID and keeps standard/progressive modifiers active. Schema version 9 adds maximum Pass distance, defaulting older Rule Sets to `32`. A saved Rule Set that has the former single Group Move value migrates it into both values, preserving its existing behavior; Rule Sets with no Group Move setting receive the approved `6` orthogonal / `4` diagonal defaults automatically.
 
 Migration defaults preserve v19.x behavior:
 

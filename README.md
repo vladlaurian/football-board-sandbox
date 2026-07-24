@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.53.4` |
-| Git/package version | `20.53.4` |
-| Build name | `Final_Board_v20_53_4_pass_invalid_target_projection` |
+| Sandbox version | `v20.53.5` |
+| Git/package version | `20.53.5` |
+| Build name | `Final_Board_v20_53_5_long_pass_contact_and_max_distance` |
 | Base build | `v20.53.0 Card Editor focus stability` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.53.4`. The repository version is in `package.json` as `20.53.4`. The browser title is `Sandbox v20.53.4`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.53.5`. The repository version is in `package.json` as `20.53.5`. The browser title is `Sandbox v20.53.5`.
 
 ## Current release
 
-v20.53.4 corrects Pass feedback without changing the target rule. An empty square or goalkeeper can now be selected as an Engine-owned blocked preview: every route/origin is grey and disabled, with the canonical reason shown. Cancelling an offline Pass preserves the selected passer. Manual Multiplayer remains unchanged.
+v20.53.5 adds the frozen, editable maximum Pass distance (default `32`) and corrects Long Pass contact feedback. A selected intended destination remains visible: the trajectory is green/red only to direct reception/interception, then grey to the intended destination, whose ghost ball is grey. Manual Multiplayer remains unchanged.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

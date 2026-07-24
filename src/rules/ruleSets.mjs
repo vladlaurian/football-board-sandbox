@@ -1,4 +1,4 @@
-export const RULE_SET_SCHEMA_VERSION = 8;
+export const RULE_SET_SCHEMA_VERSION = 9;
 export const DEFAULT_RULE_SET_ID = "default-rules";
 
 function cleanText(value, fallback = "") {
@@ -29,6 +29,7 @@ export function createDefaultRuleSet() {
         rollMode: "manual",
         pathMode: "corner-to-center",
         longPassThreshold: 16,
+        maxPassDistance: 32,
         requireFieldPlayerTarget: true,
         resolutionDelayMs: 2000,
       },
@@ -91,6 +92,8 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
     ? Number(interception.modifierCap)
     : legacyModifierCap;
   const migratedEqualOutcome = interception.equalRollOutcome || pass.equalRollOutcome;
+  const normalizedLongPassThreshold = Math.max(0.01, Number(pass.longPassThreshold) || 16);
+  const normalizedMaxPassDistance = Math.max(normalizedLongPassThreshold, Number(pass.maxPassDistance) || 32);
   const diceModifiers = normalizeDiceModifiers({
     ...source.diceModifiers,
     stackCap: source.diceModifiers?.stackCap ?? migratedModifierCap,
@@ -107,7 +110,8 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
         status: usesPreActionConfigurationDefaults || pass.status === "configured" ? "configured" : "not-configured",
         rollMode: "manual",
         pathMode,
-        longPassThreshold: Math.max(0.01, Number(pass.longPassThreshold) || 16),
+        longPassThreshold: normalizedLongPassThreshold,
+        maxPassDistance: normalizedMaxPassDistance,
         requireFieldPlayerTarget: pass.requireFieldPlayerTarget !== false,
         resolutionDelayMs: Math.max(0, Math.min(5000, Math.floor(Number(pass.resolutionDelayMs) || 2000))),
       },

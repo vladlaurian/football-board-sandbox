@@ -1395,11 +1395,17 @@ select option {
 .pass-preview-line.clear line { stroke: #3dff8c; filter: drop-shadow(0 0 4px rgba(61,255,140,.95)); }
 .pass-preview-line.risk line { stroke: #ff565f; filter: drop-shadow(0 0 4px rgba(255,86,95,.95)); }
 .pass-preview-line.blocked line { stroke: #87909b; filter: drop-shadow(0 0 3px rgba(135,144,155,.65)); }
+.pass-preview-line line.clear { stroke: #3dff8c; filter: drop-shadow(0 0 4px rgba(61,255,140,.95)); }
+.pass-preview-line line.risk { stroke: #ff565f; filter: drop-shadow(0 0 4px rgba(255,86,95,.95)); }
+.pass-preview-line line.blocked { stroke: #87909b; filter: drop-shadow(0 0 3px rgba(135,144,155,.65)); }
 .pass-preview-line circle { fill: #f7fbff; stroke-width: .05; vector-effect: non-scaling-stroke; }
 .pass-preview-line.clear circle { stroke: #20be67; }
 .pass-preview-line.risk circle { stroke: #db3440; }
 .pass-preview-line.blocked circle { fill: #b7bec7; stroke: #66707c; }
 .pass-preview-line.route-selected line { stroke-width: .4; filter: drop-shadow(0 0 6px rgba(255,255,255,.98)); }
+.pass-preview-line.route-selected line.clear { stroke: #3dff8c; filter: drop-shadow(0 0 6px rgba(61,255,140,.98)); }
+.pass-preview-line.route-selected line.risk { stroke: #ff565f; filter: drop-shadow(0 0 6px rgba(255,86,95,.98)); }
+.pass-preview-line.route-selected line.blocked { stroke: #87909b; filter: drop-shadow(0 0 5px rgba(135,144,155,.78)); }
 .pass-route-badge { position:absolute; z-index:20; min-width:68px; min-height:43px; padding:4px 7px; border:2px solid; border-radius:7px; color:white; font-weight:900; line-height:1.05; box-shadow:0 3px 10px rgba(0,0,0,.6); cursor:pointer!important; display:grid; place-items:center; gap:2px; }
 .pass-route-badge.top-left { transform:translate(calc(-100% - 9px), calc(-100% - 9px)); }
 .pass-route-badge.top-right { transform:translate(9px, calc(-100% - 9px)); }
@@ -1420,6 +1426,7 @@ select option {
 .pass-route-badge:hover,.pass-route-badge:focus-visible { filter:brightness(1.16); outline:none; }
 .pass-target-ball { pointer-events:none; z-index:15; }
 .pass-target-ghost { opacity:.48; filter:saturate(.8) brightness(1.35); box-shadow:0 0 0 2px rgba(190,235,255,.5), 0 0 11px rgba(130,220,255,.7); }
+.pass-target-ball.blocked .pass-target-ghost { opacity:.42; filter:grayscale(1) brightness(1.12); box-shadow:0 0 0 2px rgba(188,198,208,.5), 0 0 11px rgba(130,145,160,.55); }
 .pass-target-distance { position:absolute; z-index:21; pointer-events:none; transform:translate(-50%,-50%); color:#eaf9ff; text-shadow:0 2px 4px #001018; }
 .pass-target-distance strong { position:absolute; top:10px; left:12px; padding:5px 9px; border:2px solid rgba(176,241,255,.92); border-radius:7px; background:rgba(6,24,35,.92); white-space:nowrap; font-size:clamp(14px, calc(var(--cell) * .34), 22px); line-height:1; }
 .pass-action-prompt { position: fixed; z-index: 80; left: 50%; top: 138px; transform: translateX(-50%); min-width: 320px; max-width: min(560px, calc(100vw - 30px)); padding: 12px 16px; border: 1px solid #d9ad35; border-radius: 10px; background: rgba(20, 29, 44, .96); box-shadow: 0 10px 30px rgba(0,0,0,.35); color: #fff5ca; display: grid; gap: 5px; text-align: center; }
@@ -7701,6 +7708,9 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .board-wrap.match-presentation .pass-preview-line.clear line { stroke: #8dffc0; filter: drop-shadow(0 0 6px rgba(92,255,167,.86)); }
 .board-wrap.match-presentation .pass-preview-line.risk line { stroke: #ff999e; filter: drop-shadow(0 0 6px rgba(255,99,108,.82)); }
 .board-wrap.match-presentation .pass-preview-line.blocked line { stroke: #c0cad2; filter: drop-shadow(0 0 4px rgba(185,198,210,.56)); }
+.board-wrap.match-presentation .pass-preview-line line.clear { stroke: #8dffc0; filter: drop-shadow(0 0 6px rgba(92,255,167,.86)); }
+.board-wrap.match-presentation .pass-preview-line line.risk { stroke: #ff999e; filter: drop-shadow(0 0 6px rgba(255,99,108,.82)); }
+.board-wrap.match-presentation .pass-preview-line line.blocked { stroke: #c0cad2; filter: drop-shadow(0 0 4px rgba(185,198,210,.56)); }
 .board-wrap.match-presentation .pass-route-badge {
   border-width: 1px;
   box-shadow: 0 8px 20px rgba(0,0,0,.40), inset 0 1px 0 rgba(255,255,255,.20);

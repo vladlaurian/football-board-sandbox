@@ -203,7 +203,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.53.4";
+const APP_VERSION = "v20.53.5";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5921,6 +5921,7 @@ function App() {
     else if (result.reason === "pass-origin-blocked") primary = <>A pass cannot start from a corner shared with an opposing player.</>;
     else if (result.reason === "pass-goalkeeper-blocked") primary = <>A pass route cannot cross a goalkeeper.</>;
     else if (result.reason === "pass-target-field-player-required") primary = <>Short and Long Pass must target an active outfield player.</>;
+    else if (result.reason === "pass-max-distance-exceeded") primary = <>The maximum Pass distance is {result.maxPassDistance ?? 32} squares.</>;
     else if (result.reason === "pass-long-stat-not-configured") primary = <>The global Long Pass statistic is required before starting this Match.</>;
     else if (result.reason === "pass-requires-ball") primary = <>Only the player who has the ball can start a pass in Match Mode.</>;
     else if (result.reason === "free-ball-required") primary = <>Press FREE BALL before moving the ball in Match Mode.</>;
@@ -6973,14 +6974,19 @@ function App() {
         lines: (presentation?.routeOptions || []).filter(route => !route.originBlocked).map(route => ({
           id: route.id,
           origin: route.origin,
-          endpoint: route.endpoint,
+          endpoint: route.requestedEndpoint || route.endpoint,
           status: route.status,
           selected: route.cornerId === pending.cornerId || (routePlans.length === 1 && !pending.cornerId),
+          segments: route.directContact ? [
+            { endpoint: route.directContact, status: route.directContact.team === pending.team ? "clear" : "risk" },
+            { origin: route.directContact, endpoint: route.requestedEndpoint || route.endpoint, status: "blocked" },
+          ] : null,
         })),
         routes: pending.status === "route-selection" ? (presentation?.routeOptions || []).filter(route => !route.originBlocked).map(route => ({
           ...route,
           modifier: route.modifierLabel,
         })) : [],
+        targetStatus: presentation?.selectedRoute?.directContact ? "blocked" : "clear",
       };
     }
     const passer = pieces.find(piece => piece.id === pending.passerId);
@@ -7056,11 +7062,13 @@ function App() {
     const passer = pieces.find(piece => piece.id === pending.passerId);
     if (!passer) return null;
     const distance = Math.hypot((hoveredCell.x + .5) - (passer.x + .5), (hoveredCell.y + .5) - (passer.y + .5));
-    const longPassThreshold = Number(matchContextRef.current?.ruleSet?.actions?.pass?.longPassThreshold) || 16;
+    const frozenPassRules = matchContextRef.current?.ruleSet?.actions?.pass || {};
+    const longPassThreshold = Number(frozenPassRules.longPassThreshold) || 16;
+    const maxPassDistance = Math.max(longPassThreshold, Number(frozenPassRules.maxPassDistance) || 32);
     return {
       x: hoveredCell.x,
       y: hoveredCell.y,
-      label: `${distance.toFixed(2)} ${distance > longPassThreshold ? "LP" : "SP"}`,
+      label: `${distance.toFixed(2)} ${distance > maxPassDistance ? "MAX" : distance > longPassThreshold ? "LP" : "SP"}`,
     };
   }, [actionResolution, hoveredCell, pieces, settings.cols, settings.rows, gameTimeline?.cursor]);
 
@@ -9496,6 +9504,8 @@ function App() {
       if (!dispatched.result.accepted) return false;
       if (dispatched.state.actionResolution?.targetInvalidReason === "PASS_TARGET_FIELD_PLAYER_REQUIRED") {
         setIllegalMoveNotice({ reason: "pass-target-field-player-required" });
+      } else if (dispatched.state.actionResolution?.targetInvalidReason === "PASS_MAX_DISTANCE_EXCEEDED") {
+        setIllegalMoveNotice({ reason: "pass-max-distance-exceeded", maxPassDistance: dispatched.state.actionResolution?.routePlans?.[0]?.maxPassDistance || 32 });
       } else {
         setIllegalMoveNotice(null);
       }
@@ -12381,7 +12391,16 @@ function App() {
                 </select>
               </label>
               <label>Long pass threshold (squares; strictly greater than)
-                <input disabled={ruleSetEditingLocked} type="number" min="0.01" step="0.01" value={ruleSetDraft.actions?.pass?.longPassThreshold ?? 16} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, longPassThreshold: Math.max(0.01, Number(e.target.value) || 16) } } }))} />
+                <input disabled={ruleSetEditingLocked} type="number" min="0.01" step="0.01" value={ruleSetDraft.actions?.pass?.longPassThreshold ?? 16} onChange={e => setRuleSetDraft(draft => {
+                  const longPassThreshold = Math.max(0.01, Number(e.target.value) || 16);
+                  return { ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, longPassThreshold, maxPassDistance: Math.max(longPassThreshold, Number(draft.actions?.pass?.maxPassDistance) || 32) } } };
+                })} />
+              </label>
+              <label>Maximum Pass distance (squares)
+                <input disabled={ruleSetEditingLocked} type="number" min={ruleSetDraft.actions?.pass?.longPassThreshold ?? 16} step="0.01" value={ruleSetDraft.actions?.pass?.maxPassDistance ?? 32} onChange={e => setRuleSetDraft(draft => {
+                  const longPassThreshold = Number(draft.actions?.pass?.longPassThreshold) || 16;
+                  return { ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, maxPassDistance: Math.max(longPassThreshold, Number(e.target.value) || 32) } } };
+                })} />
               </label>
               <label>Resolution delay (ms)
                 <input disabled={ruleSetEditingLocked} type="number" min="0" max="5000" step="100" value={ruleSetDraft.actions?.pass?.resolutionDelayMs ?? 1500} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, resolutionDelayMs: clamp(Math.floor(Number(e.target.value) || 0), 0, 5000) } } }))} />

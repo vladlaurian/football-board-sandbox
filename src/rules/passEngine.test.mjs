@@ -103,6 +103,17 @@ test("pass range always measures square centre to square centre, never the selec
   assert.equal(passMeasurementDistance(passer, receiver), 16);
 });
 
+test("Pass plan marks only offline distances beyond the frozen maximum as illegal", () => {
+  const passer = { id: "passer", team: "A", x: 1, y: 1, cardId: "pass-card" };
+  const receiver = { id: "receiver", team: "A", x: 18, y: 1, cardId: "receiver-card" };
+  const rules = { actions: { pass: { pathMode: "corner-to-center", longPassThreshold: 16, maxPassDistance: 16, longPassAttackerStatId: "stat:long-pass" } } };
+  const plan = buildPassPlan({ passer, passerCard: { bonuses: [{ id: "stat:long-pass", value: 17 }] }, pieces: [passer, receiver], cardById: { "receiver-card": {} }, settings: { cols: 24, rows: 12 }, target: receiver, cornerId: "top-left", rules });
+  assert.equal(plan.distance, 17);
+  assert.equal(plan.maxDistanceExceeded, true);
+  const legacy = buildPassPlan({ passer, passerCard: { bonuses: [{ id: "stat:long-pass", value: 17 }] }, pieces: [passer, receiver], cardById: { "receiver-card": {} }, settings: { cols: 24, rows: 12 }, target: receiver, cornerId: "top-left", rules, legacyManual: true });
+  assert.equal(legacy.maxDistanceExceeded, false);
+});
+
 test("Long Pass ignores middle bodies and turns an endpoint contact into direct reception or interception", () => {
   const passer = { id: "passer", team: "A", x: 2, y: 3, cardId: "pass-card" };
   const receiver = { id: "receiver", team: "A", x: 20, y: 3, cardId: "receiver-card" };

@@ -212,9 +212,6 @@ export function selectPassTarget(state, context, command) {
   // Selecting an invalid target is still a canonical preview state. It gives
   // the player visible blocked routes and the official reason, but it never
   // grants a confirmable PASS route or consumes a Tracker action.
-  const targetInvalidReason = context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !targetPlayer
-    ? "PASS_TARGET_FIELD_PLAYER_REQUIRED"
-    : null;
   const pathMode = context?.ruleSet?.actions?.pass?.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center";
   const cornerIds = pathMode === "center-to-center" ? [null] : PASS_CORNERS.map(corner => corner.id);
   const routePlans = cornerIds.map(cornerId => buildPassPlan({
@@ -227,11 +224,17 @@ export function selectPassTarget(state, context, command) {
     cornerId,
     rules: context.ruleSet,
   }));
+  const targetInvalidReason = routePlans.some(plan => plan.maxDistanceExceeded)
+    ? "PASS_MAX_DISTANCE_EXCEEDED"
+    : context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !targetPlayer
+      ? "PASS_TARGET_FIELD_PLAYER_REQUIRED"
+      : null;
   const routePresentation = routePlans.map(plan => ({
     id: plan.origin.cornerId || "center",
     cornerId: plan.origin.cornerId,
     origin: plan.origin,
     endpoint: plan.endpoint,
+    requestedEndpoint: { x: Number(x) + .5, y: Number(y) + .5 },
     foot: plan.foot?.foot === "Left" ? "LF" : plan.foot?.foot === "Right" ? "RF" : "BF",
     // Compact board badge: this is the numeric execution effect, resolved from
     // the frozen Rule Set's semantic Disadvantage definition.
@@ -244,6 +247,13 @@ export function selectPassTarget(state, context, command) {
     goalkeeperRouteBlocked: Boolean(plan.goalkeeperRouteBlocked),
     endpointBodyBlocked: Boolean(plan.endpointBodyBlocked),
     targetInvalidReason,
+    directContact: plan.isLong && plan.directHit && Number(plan.directHit.entryT) < 1
+      ? {
+          x: plan.origin.x + ((Number(x) + .5) - plan.origin.x) * Number(plan.directHit.entryT),
+          y: plan.origin.y + ((Number(y) + .5) - plan.origin.y) * Number(plan.directHit.entryT),
+          team: plan.directHit.team,
+        }
+      : null,
     risk: Boolean(plan.interceptors?.length || plan.directHit?.team && plan.directHit.team !== pending.team),
   }));
   const next = {
@@ -294,6 +304,7 @@ export function confirmPassRoute(state, context, command) {
   });
   if (plan.originBlocked) return { accepted: false, reason: "PASS_ROUTE_ORIGIN_BLOCKED" };
   if (plan.goalkeeperRouteBlocked) return { accepted: false, reason: "PASS_ROUTE_GOALKEEPER_BLOCKED" };
+  if (pending.targetInvalidReason === "PASS_MAX_DISTANCE_EXCEEDED" || plan.maxDistanceExceeded) return { accepted: false, reason: "PASS_MAX_DISTANCE_EXCEEDED" };
   if (pending.targetInvalidReason === "PASS_TARGET_FIELD_PLAYER_REQUIRED" || (context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !plan.targetPlayerId)) return { accepted: false, reason: "PASS_TARGET_FIELD_PLAYER_REQUIRED" };
   if (plan.isLong && !plan.attackerTargetStatId) return { accepted: false, reason: "PASS_LONG_STAT_NOT_CONFIGURED" };
 
