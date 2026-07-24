@@ -570,6 +570,8 @@ v20.53.2 corrects the Pass-family rule build through that Gate. `PASS_TARGET_SEL
 
 v20.54.0 applies the Mechanic Integration Gate to Through Ball. The offline Engine owns `THROUGH_BALL_STARTED`, target selection, route confirmation and cancellation; the Rule Set maximum distance and 3/2 continuation choice are normalized and frozen in MatchContext. A canonical opportunity records the passing team, passer, target and turn. It permits 3/2 only for another teammate that reaches that free ball in the same turn, and is cleared by use or phase change. Target/race eligibility is deterministic and recorded in Timeline state; Manual Multiplayer is not routed through this feature.
 
+v20.54.1 corrects three incomplete v20.54.0 consequences. Through Ball recovery now has explicit canonical stages: ball arrival at the requested free target, optional equal-defender choice, recovery acknowledgement, then possession/turn handoff to the recovering team. A player’s post-3/2 continuation preserves both the prior axis and signed direction, plus its already-spent Speed, rather than replacing those facts with the route used to reach the ball. Frozen range is protected by a direct Engine sentinel. Manual Multiplayer remains excluded.
+
 ## Required update after every implementation build
 
 - mark only completed items complete;

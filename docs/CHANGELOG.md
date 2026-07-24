@@ -351,3 +351,10 @@ This is the compact release history. Current architecture and rules are document
 - Through Ball targets a free cell, uses the shared physical corner trajectory, blocks on bodies and enemy defensive areas, and resolves recovery by centre-to-centre distance, then Speed, then defence on a remaining tie.
 - Replaced generic free-ball 3/2 eligibility with the temporary Through Ball opportunity: same team and turn, passer excluded, one use per player; it clears on use or phase change. Bonus Action is no longer a 3/2 exception.
 - Added Inspector Through Ball and disabled Lofted Through controls inside the existing Zoom/Reset row. Manual Multiplayer is unchanged.
+## v20.54.1 — Through Ball recovery and 3/2 continuity
+
+- Replaced Through Ball's accidental ID-based defender tie-break with a canonical defender-choice state when distance and Speed remain equal.
+- Recovery now preserves the target-cell arrival, shows a recovery explanation, then changes possession and begins the recovering team’s next turn through the Engine.
+- Fixed the 3/2 continuation setting: it preserves the preceding movement axis, exact direction and remaining Speed; reverse movement on that axis is rejected.
+- Added an explicit self-Through-Ball 3/2 explanation and repeat-target cancellation for offline Pass and Through Ball.
+- Added Engine sentinel tests for frozen Through Ball range, equal defender selection/recovery handoff, and 3/2 direction continuity. Manual Multiplayer remains unchanged.

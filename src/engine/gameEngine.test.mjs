@@ -99,6 +99,25 @@ function resolvedPassInterception(state, passId, natural, context = normalMoveCo
   return { ...rest, confirmed, rolled, resolved };
 }
 
+function throughBallContext(maxDistance = 16) {
+  return createMatchContext({
+    boardSettings: { cols: 20, rows: 12 },
+    ruleSet: { actions: { pass: { pathMode: "corner-to-center" }, throughBall: { maxDistance }, threeTwo: { allowMovementAfterPriorMove: true } } },
+    gameplayCards: [
+      { id: "blue-1", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 5 }] },
+      { id: "blue-2", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] },
+      { id: "red-1", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] },
+      { id: "red-2", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] },
+    ],
+  });
+}
+
+function beginThroughBall(state, context, target) {
+  const start = applyGameCommand({ state, context, command: { id: "tb-start", type: "THROUGH_BALL_STARTED", payload: { pieceId: "blue-1" } } });
+  const selected = applyGameCommand({ state: start.nextState, context, command: { id: "tb-target", type: "THROUGH_BALL_TARGET_SELECTED", payload: target } });
+  return applyGameCommand({ state: selected.nextState, context, command: { id: "tb-route", type: "THROUGH_BALL_COMMITTED", payload: { cornerId: "top-left" } } });
+}
+
 test("FREE_BALL_MOVED produces a deterministic MatchState transition and semantic event", () => {
   const state = matchState();
   const context = createMatchContext({ id: "context-1" });
@@ -121,6 +140,49 @@ test("FREE_BALL_MOVED produces a deterministic MatchState transition and semanti
     },
   }]);
   assert.deepEqual(first.timeline, { groupId: null, undoMode: "step", allowNoop: false });
+});
+
+test("Through Ball freezes its configured maximum distance in the Engine", () => {
+  const state = normalMoveState({ pieces: [{ id: "ball", team: "BALL", x: 1, y: 1 }, { id: "blue-1", team: "A", cardId: "blue-1", x: 1, y: 1 }] });
+  const result = beginThroughBall(state, throughBallContext(3), { x: 5, y: 1 });
+  assert.deepEqual(result, { accepted: false, reason: "THROUGH_BALL_MAX_DISTANCE" });
+});
+
+test("Through Ball requires defender choice on equal recovery distance and speed, then starts the recovering team turn", () => {
+  const state = normalMoveState({ pieces: [
+    { id: "ball", team: "BALL", x: 1, y: 1 },
+    { id: "blue-1", team: "A", cardId: "blue-1", x: 1, y: 1 },
+    { id: "blue-2", team: "A", cardId: "blue-2", x: 9, y: 1 },
+    { id: "red-1", team: "B", cardId: "red-1", x: 5, y: 0 },
+    { id: "red-2", team: "B", cardId: "red-2", x: 5, y: 2 },
+  ] });
+  const routed = beginThroughBall(state, throughBallContext(), { x: 5, y: 1 });
+  assert.equal(routed.accepted, true);
+  assert.equal(routed.nextState.actionResolution.status, "awaiting-recoverer-choice");
+  assert.deepEqual(routed.nextState.actionResolution.recovery.defenderCandidates.map(item => item.pieceId).sort(), ["red-1", "red-2"]);
+  const selected = applyGameCommand({ state: routed.nextState, context: throughBallContext(), command: { id: "tb-pick", type: "THROUGH_BALL_RECOVERER_SELECTED", payload: { pieceId: "red-2" } } });
+  const recovered = applyGameCommand({ state: selected.nextState, context: throughBallContext(), command: { id: "tb-confirm", type: "THROUGH_BALL_RECOVERY_CONFIRMED", payload: {} } });
+  assert.equal(recovered.accepted, true);
+  assert.equal(recovered.nextState.pieces.find(piece => piece.id === "ball").y, 2);
+  assert.equal(recovered.nextState.tracker.startingTeam, "red");
+  assert.equal(recovered.nextState.tracker.currentTurn, 2);
+});
+
+test("3/2 preserves prior direction and remaining Speed when the Rule Set continuation option is enabled", () => {
+  const state = normalMoveState({
+    pieces: [{ id: "ball", team: "BALL", x: 5, y: 5 }, { id: "blue-1", team: "A", cardId: "blue-1", x: 3, y: 3 }],
+    movementStateByPieceId: { "blue-1": { axis: "diagonal-nw-se", direction: { dx: 1, dy: 1 }, spent: 1, distance: 1 } },
+    throughBallOpportunity: { team: "blue", passerId: "other", target: { x: 5, y: 5 }, turn: 1 },
+    tracker: { ...normalMoveState().tracker, matchActionState: { byPieceId: { "blue-1": { moveAuthorized: true, moveUsed: true, moveGroupId: "move-1" } } } },
+  });
+  const context = throughBallContext();
+  const threeTwo = applyGameCommand({ state, context, command: { id: "tb-three-two", type: "THREE_TWO_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 5, y: 5 } } });
+  assert.equal(threeTwo.accepted, true);
+  assert.deepEqual(threeTwo.nextState.movementStateByPieceId["blue-1"], { axis: "diagonal-nw-se", direction: { dx: 1, dy: 1 }, spent: 1, distance: 1, threeTwoUsed: true, movementEnded: false });
+  const forward = applyGameCommand({ state: threeTwo.nextState, context, command: { id: "tb-forward", type: "NORMAL_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 6, y: 6 } } });
+  assert.equal(forward.accepted, true);
+  const reverse = applyGameCommand({ state: threeTwo.nextState, context, command: { id: "tb-reverse", type: "NORMAL_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 4, y: 4 } } });
+  assert.deepEqual(reverse, { accepted: false, reason: "direction" });
 });
 
 test("rejected commands do not mutate MatchState", () => {
@@ -276,7 +338,7 @@ test("NORMAL_MOVE_COMMITTED owns validation, movement, ball carry, and active-mo
   assert.equal(committed.accepted, true);
   assert.deepEqual(committed.nextState.pieces.find(piece => piece.id === "blue-1"), { id: "blue-1", team: "A", cardId: "card-blue-1", label: "Blue 1", x: 5, y: 5 });
   assert.deepEqual(committed.nextState.pieces.find(piece => piece.id === "ball"), { id: "ball", team: "BALL", x: 5, y: 5 });
-  assert.deepEqual(committed.nextState.movementStateByPieceId["blue-1"], { axis: "horizontal", spent: 2, distance: 2, threeTwoUsed: false, movementEnded: false });
+  assert.deepEqual(committed.nextState.movementStateByPieceId["blue-1"], { axis: "horizontal", direction: { dx: 1, dy: 0 }, spent: 2, distance: 2, threeTwoUsed: false, movementEnded: false });
   assert.equal(committed.nextState.tracker.matchActionState.activeMovement.active, false);
   assert.equal(committed.events[0].type, "PIECE_MOVED");
 });

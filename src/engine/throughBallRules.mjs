@@ -1,7 +1,8 @@
 import { PASS_CORNERS, bodyBlockingPassOrigin, defensiveCellsForPiece, pointForPassOrigin, pointForPassTarget, segmentIntersectsOpenRect, teamKeyForPiece } from "../rules/passEngine.mjs";
-import { activateTrackerAction, isTeamActiveForTrackerPhase } from "../tracker/actionRules.mjs";
+import { activateTrackerAction, createEmptyTrackerTurnState, isTeamActiveForTrackerPhase } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 
+const EPSILON = 1e-9;
 const otherTeam = team => team === "blue" ? "red" : "blue";
 const hasBall = (state, piece) => state.pieces.some(item => item?.team === "BALL" && Number(item.x) === Number(piece.x) && Number(item.y) === Number(piece.y));
 const distance = (a, b) => Math.hypot((Number(a.x) + .5) - (Number(b.x) + .5), (Number(a.y) + .5) - (Number(b.y) + .5));
@@ -10,21 +11,33 @@ const speed = (context, piece) => {
   const stat = [...(card?.passiveAttributes || []), ...(card?.bonuses || [])].find(value => value?.id === "stat:speed" || String(value?.name || "").toLowerCase() === "speed");
   return Number(stat?.value || 0);
 };
+
+function moveBall(state, target) {
+  return state.pieces.map(piece => piece.team === "BALL" ? { ...piece, x: Number(target.x), y: Number(target.y) } : piece);
+}
+
 function areaContains(piece, context, target) {
   return defensiveCellsForPiece(piece, context.gameplayCardsById[String(piece.cardId || "")], context.boardSettings)
     .some(cell => cell.x === Number(target.x) && cell.y === Number(target.y));
 }
+
 export function planThroughBall(state, context, passer, target, cornerId) {
-  const team = teamKeyForPiece(passer); const enemy = otherTeam(team);
+  const team = teamKeyForPiece(passer);
+  const enemy = otherTeam(team);
   const origin = pointForPassOrigin(passer, context.ruleSet.actions.pass.pathMode, cornerId);
-  const endpoint = pointForPassTarget(target); const maxDistance = context.ruleSet.actions.throughBall.maxDistance;
+  const endpoint = pointForPassTarget(target);
+  const maxDistance = context.ruleSet.actions.throughBall.maxDistance;
   const originBlocked = Boolean(bodyBlockingPassOrigin(origin, passer, state.pieces));
   const occupied = state.pieces.some(piece => piece?.team !== "BALL" && Number(piece.x) === Number(target.x) && Number(piece.y) === Number(target.y));
   const enemyPieces = state.pieces.filter(piece => teamKeyForPiece(piece) === enemy && !piece.inactive);
-  const areaBlocked = enemyPieces.some(piece => areaContains(piece, context, passer) || areaContains(piece, context, target) || defensiveCellsForPiece(piece, context.gameplayCardsById[String(piece.cardId || "")], context.boardSettings).some(cell => segmentIntersectsOpenRect(origin, endpoint, cell)));
+  const areaBlocked = enemyPieces.some(piece => areaContains(piece, context, passer)
+    || areaContains(piece, context, target)
+    || defensiveCellsForPiece(piece, context.gameplayCardsById[String(piece.cardId || "")], context.boardSettings).some(cell => segmentIntersectsOpenRect(origin, endpoint, cell)));
   const bodyBlocked = state.pieces.some(piece => piece?.id !== passer.id && piece?.team !== "BALL" && !piece.inactive && segmentIntersectsOpenRect(origin, endpoint, piece));
-  return { origin, endpoint, maxDistance, distance: distance(passer, target), originBlocked, occupied, areaBlocked, bodyBlocked, legal: !originBlocked && !occupied && !areaBlocked && !bodyBlocked && distance(passer, target) <= maxDistance };
+  const measuredDistance = distance(passer, target);
+  return { origin, endpoint, maxDistance, distance: measuredDistance, originBlocked, occupied, areaBlocked, bodyBlocked, legal: !originBlocked && !occupied && !areaBlocked && !bodyBlocked && measuredDistance <= maxDistance };
 }
+
 export function selectThroughBallTarget(state, context, command) {
   const pending = state.actionResolution;
   const target = { x: Number(command.payload?.x), y: Number(command.payload?.y) };
@@ -35,29 +48,77 @@ export function selectThroughBallTarget(state, context, command) {
   const routes = PASS_CORNERS.map(corner => ({ cornerId: corner.id, ...planThroughBall(state, context, passer, target, corner.id) }));
   return { accepted: true, nextState: { ...state, actionResolution: { ...pending, status: "route-selection", target, routes } }, event: { type: "THROUGH_BALL_TARGET_SELECTED", team: pending.team, metadata: { target } }, timeline: { allowNoop: true } };
 }
+
 export function startThroughBall(state, command) {
   const piece = state.pieces.find(item => String(item?.id) === String(command.payload?.pieceId)) || null;
-  const team = teamKeyForPiece(piece); const tracker = normalizeTrackerSnapshot(state.tracker);
-  if (!piece || !team || !hasBall(state, piece) || !isTeamActiveForTrackerPhase(tracker, team)) return { accepted:false, reason:"THROUGH_BALL_NOT_AVAILABLE" };
-  return { accepted:true, nextState:{...state, actionResolution:{ id:String(command.payload?.throughBallId || command.id), kind:"through-ball", status:"targeting", passerId:piece.id, team }}, event:{type:"THROUGH_BALL_TARGETING_STARTED",team}, timeline:{allowNoop:true} };
+  const team = teamKeyForPiece(piece);
+  const tracker = normalizeTrackerSnapshot(state.tracker);
+  if (!piece || !team || !hasBall(state, piece) || !isTeamActiveForTrackerPhase(tracker, team)) return { accepted: false, reason: "THROUGH_BALL_NOT_AVAILABLE" };
+  return { accepted: true, nextState: { ...state, actionResolution: { id: String(command.payload?.throughBallId || command.id), kind: "through-ball", status: "targeting", passerId: piece.id, team } }, event: { type: "THROUGH_BALL_TARGETING_STARTED", team }, timeline: { allowNoop: true } };
 }
+
 export function cancelThroughBall(state) {
   const pending = state.actionResolution;
   if (!pending || pending.kind !== "through-ball" || !["targeting", "route-selection"].includes(pending.status)) return { accepted: false, reason: "THROUGH_BALL_NOT_TARGETING" };
   return { accepted: true, nextState: { ...state, actionResolution: null }, event: { type: "THROUGH_BALL_CANCELLED", team: pending.team }, timeline: { allowNoop: true } };
 }
+
+function recoveryCandidates(state, context, team, passer, target) {
+  const ranked = requestedTeam => state.pieces.filter(piece => teamKeyForPiece(piece) === requestedTeam && !piece.inactive && piece.id !== passer.id)
+    .map(piece => ({ piece, distance: distance(piece, target), speed: speed(context, piece) }));
+  const attackers = ranked(team);
+  const defenders = ranked(otherTeam(team));
+  const bestDistance = list => list.length ? Math.min(...list.map(item => item.distance)) : null;
+  const attackDistance = bestDistance(attackers);
+  const defenseDistance = bestDistance(defenders);
+  const attackAtDistance = attackers.filter(item => Math.abs(item.distance - attackDistance) < EPSILON);
+  const defenseAtDistance = defenders.filter(item => Math.abs(item.distance - defenseDistance) < EPSILON);
+  const attackSpeed = attackAtDistance.length ? Math.max(...attackAtDistance.map(item => item.speed)) : null;
+  const defenseSpeed = defenseAtDistance.length ? Math.max(...defenseAtDistance.map(item => item.speed)) : null;
+  const defenderWins = defenseDistance !== null && (attackDistance === null || defenseDistance < attackDistance - EPSILON || (Math.abs(defenseDistance - attackDistance) < EPSILON && defenseSpeed >= attackSpeed));
+  const defenderCandidates = defenderWins ? defenseAtDistance.filter(item => item.speed === defenseSpeed) : [];
+  return { attackDistance, defenseDistance, attackSpeed, defenseSpeed, defenderWins, defenderCandidates };
+}
+
 export function commitThroughBall(state, context, command) {
-  const pending=state.actionResolution; if (!pending || pending.kind!=="through-ball" || pending.status!=="route-selection") return {accepted:false,reason:"THROUGH_BALL_NOT_ROUTE_SELECTION"};
-  const target={x:Number(pending.target?.x),y:Number(pending.target?.y)}; const passer=state.pieces.find(item=>item.id===pending.passerId); const cornerId=String(command.payload?.cornerId||"top-left");
-  const cols=Number(context.boardSettings?.cols), rows=Number(context.boardSettings?.rows);
-  if (!passer || !Number.isInteger(target.x)||!Number.isInteger(target.y)||!PASS_CORNERS.some(c=>c.id===cornerId) || target.x < 0 || target.y < 0 || (cols > 0 && target.x >= cols) || (rows > 0 && target.y >= rows)) return {accepted:false,reason:"THROUGH_BALL_INVALID"};
-  const route=planThroughBall(state,context,passer,target,cornerId); if(!route.legal) return {accepted:false,reason:"THROUGH_BALL_ROUTE_BLOCKED"};
-  const activation=activateTrackerAction(state.tracker,{type:"THROUGH_BALL",pieceId:passer.id,team:pending.team,entryId:command.id,enforcePersonalActions:true}); if(!activation.allowed)return{accepted:false,reason:activation.reason};
-  const attackers=state.pieces.filter(p=>teamKeyForPiece(p)===pending.team&&!p.inactive&&p.id!==passer.id); const defenders=state.pieces.filter(p=>teamKeyForPiece(p)===otherTeam(pending.team)&&!p.inactive);
-  const best=list=>list.map(p=>({p,d:distance(p,target),s:speed(context,p)})).sort((a,b)=>a.d-b.d||b.s-a.s||String(a.p.id).localeCompare(String(b.p.id)))[0]||null; const attack=best(attackers), defend=best(defenders);
-  const tiedDistance = attack && defend && Math.abs(defend.d - attack.d) < 1e-9;
-  const defenseWins=defend && (!attack || defend.d < attack.d - 1e-9 || (tiedDistance && defend.s >= attack.s));
-  const pieces=state.pieces.map(p=>p.team==="BALL"?{...p,x:defenseWins?defend.p.x:target.x,y:defenseWins?defend.p.y:target.y}:p);
+  const pending = state.actionResolution;
+  if (!pending || pending.kind !== "through-ball" || pending.status !== "route-selection") return { accepted: false, reason: "THROUGH_BALL_NOT_ROUTE_SELECTION" };
+  const target = { x: Number(pending.target?.x), y: Number(pending.target?.y) };
+  const passer = state.pieces.find(item => item.id === pending.passerId);
+  const cornerId = String(command.payload?.cornerId || "top-left");
+  if (!passer || !Number.isInteger(target.x) || !Number.isInteger(target.y) || !PASS_CORNERS.some(corner => corner.id === cornerId)) return { accepted: false, reason: "THROUGH_BALL_INVALID" };
+  const route = planThroughBall(state, context, passer, target, cornerId);
+  if (!route.legal) return { accepted: false, reason: route.distance > route.maxDistance ? "THROUGH_BALL_MAX_DISTANCE" : "THROUGH_BALL_ROUTE_BLOCKED" };
+  const activation = activateTrackerAction(state.tracker, { type: "THROUGH_BALL", pieceId: passer.id, team: pending.team, entryId: command.id, enforcePersonalActions: true });
+  if (!activation.allowed) return { accepted: false, reason: activation.reason };
+  const recovery = recoveryCandidates(state, context, pending.team, passer, target);
   const tracker = { ...state.tracker, actionLog: activation.actionLog, usedActions: activation.usedActions, personalActionsByPieceId: activation.personalActionsByPieceId, matchActionState: activation.matchActionState };
-  return {accepted:true,nextState:{...state,pieces,actionResolution:null,throughBallOpportunity:defenseWins?null:{team:pending.team,passerId:passer.id,target,turn:normalizeTrackerSnapshot(state.tracker).currentTurn},tracker},event:{type:defenseWins?"THROUGH_BALL_AUTO_RECOVERED":"THROUGH_BALL_COMPLETED",team:defenseWins?otherTeam(pending.team):pending.team,metadata:{passerId:passer.id,target,cornerId,automaticRecovery:defenseWins?defend.p.id:null,attackDistance:attack?.d ?? null,defenseDistance:defend?.d ?? null}},timeline:{allowNoop:false}};
+  if (!recovery.defenderWins) {
+    return { accepted: true, nextState: { ...state, pieces: moveBall(state, target), actionResolution: null, throughBallOpportunity: { team: pending.team, passerId: passer.id, target, turn: normalizeTrackerSnapshot(state.tracker).currentTurn }, tracker }, event: { type: "THROUGH_BALL_COMPLETED", team: pending.team, metadata: { passerId: passer.id, target, cornerId, ...recovery } }, timeline: { allowNoop: false } };
+  }
+  const choiceRequired = recovery.defenderCandidates.length > 1;
+  const selected = choiceRequired ? null : recovery.defenderCandidates[0]?.piece || null;
+  const resolution = { ...pending, status: choiceRequired ? "awaiting-recoverer-choice" : "awaiting-recovery-confirmation", target, cornerId, recovery: { ...recovery, defenderCandidates: recovery.defenderCandidates.map(item => ({ pieceId: item.piece.id, distance: item.distance, speed: item.speed })), selectedRecovererId: selected?.id || null } };
+  return { accepted: true, nextState: { ...state, pieces: moveBall(state, target), actionResolution: resolution, throughBallOpportunity: null, tracker }, event: { type: choiceRequired ? "THROUGH_BALL_RECOVERER_CHOICE_REQUIRED" : "THROUGH_BALL_AUTO_RECOVERY_PENDING", team: otherTeam(pending.team), metadata: { passerId: passer.id, target, cornerId, ...resolution.recovery } }, timeline: { allowNoop: false } };
+}
+
+export function selectThroughBallRecoverer(state, command) {
+  const pending = state.actionResolution;
+  const pieceId = String(command.payload?.pieceId || "");
+  if (!pending || pending.kind !== "through-ball" || pending.status !== "awaiting-recoverer-choice") return { accepted: false, reason: "THROUGH_BALL_RECOVERER_NOT_SELECTING" };
+  const valid = (pending.recovery?.defenderCandidates || []).some(candidate => String(candidate.pieceId) === pieceId);
+  if (!valid) return { accepted: false, reason: "THROUGH_BALL_RECOVERER_INVALID" };
+  return { accepted: true, nextState: { ...state, actionResolution: { ...pending, status: "awaiting-recovery-confirmation", recovery: { ...pending.recovery, selectedRecovererId: pieceId } } }, event: { type: "THROUGH_BALL_RECOVERER_SELECTED", team: otherTeam(pending.team), metadata: { pieceId, target: pending.target } }, timeline: { allowNoop: true } };
+}
+
+export function confirmThroughBallRecovery(state) {
+  const pending = state.actionResolution;
+  if (!pending || pending.kind !== "through-ball" || pending.status !== "awaiting-recovery-confirmation") return { accepted: false, reason: "THROUGH_BALL_RECOVERY_NOT_PENDING" };
+  const recoverer = state.pieces.find(piece => String(piece?.id) === String(pending.recovery?.selectedRecovererId || ""));
+  const nextTeam = teamKeyForPiece(recoverer);
+  if (!recoverer || !nextTeam) return { accepted: false, reason: "THROUGH_BALL_RECOVERER_INVALID" };
+  const tracker = normalizeTrackerSnapshot(state.tracker);
+  const emptyTurn = createEmptyTrackerTurnState();
+  const nextTurn = Math.min(tracker.settings.turns, Math.max(1, tracker.currentTurn + 1));
+  return { accepted: true, nextState: { ...state, pieces: moveBall(state, recoverer), movementStateByPieceId: {}, actionResolution: null, throughBallOpportunity: null, actionContinuation: null, tracker: { ...state.tracker, startingTeam: nextTeam, currentTurn: nextTurn, usedActions: emptyTurn.usedActions, actionLog: emptyTurn.actionLog, personalActionsByPieceId: emptyTurn.personalActionsByPieceId, matchActionState: emptyTurn.matchActionState, turnPhase: "attack" } }, event: { type: "THROUGH_BALL_AUTO_RECOVERED", team: nextTeam, metadata: { passerId: pending.passerId, target: pending.target, recovererId: recoverer.id, startedTurn: nextTurn } }, timeline: { allowNoop: false } };
 }

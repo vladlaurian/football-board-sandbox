@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.54.0` |
-| Git/package version | `20.54.0` |
-| Build name | `Final_Board_v20_54_0_through_ball_and_triggered_three_two` |
+| Sandbox version | `v20.54.1` |
+| Git/package version | `20.54.1` |
+| Build name | `Final_Board_v20_54_1_through_ball_recovery_and_three_two_continuity` |
 | Base build | `v20.53.0 Card Editor focus stability` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.54.0`. The repository version is in `package.json` as `20.54.0`. The browser title is `Sandbox v20.54.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.54.1`. The repository version is in `package.json` as `20.54.1`. The browser title is `Sandbox v20.54.1`.
 
 ## Current release
 
-v20.54.0 introduces the offline Through Ball command: Rule Set range frozen in MatchContext, free-cell targeting, four physical corner routes, body/defensive-area route blocking, deterministic centre-distance recovery and a one-turn Through-only 3/2 opportunity. Manual Multiplayer remains unchanged. Lofted Through is visible but deliberately disabled until its separate approved build.
+v20.54.1 completes Through Ball recovery and 3/2 continuity: equal defensive recoverers require a coach choice; recovery is explained before an Engine-owned possession/turn handoff; 3/2 preserves prior direction and remaining Speed when its Rule Set option is enabled. Manual Multiplayer remains unchanged.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

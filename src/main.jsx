@@ -203,7 +203,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.54.0";
+const APP_VERSION = "v20.54.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2273,6 +2273,7 @@ function App() {
       if (event.key !== "Escape") return;
       const pending = actionResolutionRef.current;
       if (pending?.kind === "pass" && ["targeting", "route-selection"].includes(pending.status)) cancelPassTargeting();
+      if (pending?.kind === "through-ball" && ["targeting", "route-selection"].includes(pending.status)) cancelThroughBallTargeting();
     };
     window.addEventListener("keydown", cancelPendingPassWithEscape);
     return () => window.removeEventListener("keydown", cancelPendingPassWithEscape);
@@ -5856,6 +5857,13 @@ function App() {
       singlePlayerMatchContext(),
       { piece, x, y },
     );
+    if (presentation.threeTwo?.reason === "three-two-not-granted"
+      && state.throughBallOpportunity?.passerId === piece.id
+      && Number(state.throughBallOpportunity?.target?.x) === Number(x)
+      && Number(state.throughBallOpportunity?.target?.y) === Number(y)) {
+      setIllegalMoveNotice({ reason: "three-two-not-granted" });
+      return true;
+    }
     if (!presentation.showChoice) return false;
     setPendingThreeTwoMove({ pieceId: piece.id, x, y, presentation });
     return true;
@@ -5903,6 +5911,8 @@ function App() {
     let primary;
     if (result.reason === "speed") primary = <>Movement cost: {result.moveCost ?? result.geometry.cost}<br/>Movement remaining: {result.remaining}</>;
     else if (result.reason === "axis") primary = <>The player cannot change movement axis during the same turn.</>;
+    else if (result.reason === "direction") primary = <>The player must continue in the same movement direction after using 3/2.</>;
+    else if (result.reason === "three-two-not-granted") primary = <>This player cannot use 3/2 on his own Through Ball.</>;
     else if (result.reason === "mixed") primary = <>Mixed movement is not allowed.</>;
     else if (result.reason === "no-speed") primary = <>No Speed value is assigned to this player.</>;
     else if (result.reason === "occupied") primary = <>The destination cell is occupied by another player.</>;
@@ -5924,6 +5934,7 @@ function App() {
     else if (result.reason === "pass-max-distance-exceeded") primary = <>The maximum Pass distance is {result.maxPassDistance ?? 32} squares.</>;
     else if (result.reason === "pass-long-stat-not-configured") primary = <>The global Long Pass statistic is required before starting this Match.</>;
     else if (result.reason === "pass-requires-ball") primary = <>Only the player who has the ball can start a pass in Match Mode.</>;
+    else if (result.reason === "THROUGH_BALL_MAX_DISTANCE") primary = <>This Through Ball exceeds the frozen maximum distance for this Match.</>;
     else if (result.reason === "free-ball-required") primary = <>Press FREE BALL before moving the ball in Match Mode.</>;
     else if (result.reason === "team-exhausted") primary = <>Wait for opponent team or advance to next turn.</>;
     else if (result.reason === "wait-opponent") primary = <>Wait for opponent team.</>;
@@ -6477,6 +6488,11 @@ function App() {
       return;
     }
 
+    if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "route-selection" && canControlActiveResolution(actionResolutionRef.current)
+      && Number(actionResolutionRef.current.target?.x) === Number(piece.x) && Number(actionResolutionRef.current.target?.y) === Number(piece.y)) {
+      if (actionResolutionRef.current.kind === "through-ball") cancelThroughBallTargeting(); else cancelPassTargeting();
+      return;
+    }
     if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "targeting" && canControlActiveResolution(actionResolutionRef.current)) {
       if (actionResolutionRef.current.kind === "through-ball") { chooseThroughBallTarget(piece.x, piece.y); return; }
       choosePassTarget(piece.x, piece.y);
@@ -8872,10 +8888,15 @@ function App() {
 
     // Route badges are the only allowed board click after a pass target is set.
     // This prevents the underlying square from being treated as a player move.
-    if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "route-selection") return;
-
     const point = gridPointFromClient(e.clientX, e.clientY);
     if (!point) return;
+    if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "route-selection") {
+      const pending = actionResolutionRef.current;
+      if (canControlActiveResolution(pending) && Number(pending.target?.x) === Number(point.x) && Number(pending.target?.y) === Number(point.y)) {
+        if (pending.kind === "through-ball") cancelThroughBallTargeting(); else cancelPassTargeting();
+      }
+      return;
+    }
     if (groupMoveZoneDraft) return;
     if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "targeting") {
       if (!canControlActiveResolution(actionResolutionRef.current)) return;
@@ -9459,6 +9480,26 @@ function App() {
     });
     if (!dispatched.result.accepted) { setIllegalMoveNotice({ reason: dispatched.result.reason }); return false; }
     setIllegalMoveNotice(null); return true;
+  }
+
+  function chooseThroughBallRecoverer(pieceId) {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "through-ball" || pending.status !== "awaiting-recoverer-choice" || sessionCode) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({ timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(), command: { id: createActionEventId(`through_ball_recoverer_${pending.id}`), type: GAME_COMMAND_TYPE.THROUGH_BALL_RECOVERER_SELECTED, payload: { pieceId } }, label: "Through Ball: defender chosen for recovery" });
+    if (!dispatched.result.accepted) { setIllegalMoveNotice({ reason: dispatched.result.reason }); return false; }
+    return true;
+  }
+
+  function confirmThroughBallRecovery() {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "through-ball" || pending.status !== "awaiting-recovery-confirmation" || sessionCode) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({ timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(), command: { id: createActionEventId(`through_ball_recovery_${pending.id}`), type: GAME_COMMAND_TYPE.THROUGH_BALL_RECOVERY_CONFIRMED, payload: {} }, label: "Through Ball: automatic recovery ends the turn" });
+    if (!dispatched.result.accepted) { setIllegalMoveNotice({ reason: dispatched.result.reason }); return false; }
+    const startedTurn = dispatched.result.events?.[0]?.metadata?.startedTurn;
+    if (Number.isInteger(startedTurn)) setStartedTurnNotice(startedTurn);
+    return true;
   }
 
   function cancelThroughBallTargeting() {
@@ -12324,6 +12365,34 @@ function App() {
           {preview && <span><strong>{formatTotalModifier(preview)}</strong></span>}
           {preview && <span><strong>{passTargetLabel(actionResolution.plan)}</strong></span>}
         </DraggableActionPrompt>;
+      })()}
+
+      {actionResolution?.kind === "through-ball" && actionResolution.status === "awaiting-recoverer-choice" && (() => {
+        const candidates = actionResolution.recovery?.defenderCandidates || [];
+        const team = actionResolution.team === "blue" ? "red" : "blue";
+        return <div className="modal-backdrop interceptor-choice-backdrop">
+          <div className={`modal interceptor-choice-modal ${team}`} role="dialog" aria-modal="true">
+            <div className="modal-title"><strong>Choose recovering defender</strong></div>
+            <div className="interceptor-choice-message">Two or more defenders are equally closest and have the same Speed. Choose who recovers the ball.</div>
+            <div className="interceptor-choice-options">
+              {candidates.map(candidate => {
+                const defender = pieces.find(piece => piece.id === candidate.pieceId);
+                return <button key={candidate.pieceId} type="button" onClick={() => chooseThroughBallRecoverer(candidate.pieceId)}>{getPieceIdentity(defender)} ({team === "blue" ? "Blue" : "Red"}) — Speed {candidate.speed}</button>;
+              })}
+            </div>
+          </div>
+        </div>;
+      })()}
+
+      {actionResolution?.kind === "through-ball" && actionResolution.status === "awaiting-recovery-confirmation" && (() => {
+        const recoverer = pieces.find(piece => piece.id === actionResolution.recovery?.selectedRecovererId);
+        return <div className="modal-backdrop pass-result-backdrop">
+          <div className={`modal pass-result-modal ${pieceTeamKey(recoverer) || ""}`} role="dialog" aria-modal="true">
+            <div className="modal-title"><strong>Through Ball recovered</strong></div>
+            <div className="pass-result-lines"><p>{getPieceIdentity(recoverer)} is closer to the ball and recovers it.</p><p>Your turn ends. Possession changes.</p></div>
+            <div className="modal-actions"><button className="save-label" onClick={confirmThroughBallRecovery}>Continue</button></div>
+          </div>
+        </div>;
       })()}
 
       {actionResolution?.kind === "pass" && actionResolution.status === "targeting" && passTargetIntentPending && (

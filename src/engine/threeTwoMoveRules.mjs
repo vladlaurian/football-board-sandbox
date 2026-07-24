@@ -11,6 +11,7 @@ function threeTwoMovementState(value) {
     distance: Math.max(0, Number(value?.distance) || 0),
     threeTwoUsed: Boolean(value?.threeTwoUsed),
     movementEnded: Boolean(value?.movementEnded),
+    ...(value?.direction && Number.isInteger(Number(value.direction.dx)) && Number.isInteger(Number(value.direction.dy)) ? { direction: { dx: Math.sign(Number(value.direction.dx)), dy: Math.sign(Number(value.direction.dy)) } } : {}),
   };
 }
 
@@ -60,14 +61,16 @@ export function commitThreeTwoMove(state, context, command) {
   const { piece, team, x, y, geometry, current, speed } = evaluation;
   const hadMoved = current.spent > 0;
   const pieces = state.pieces.map(item => item.id === piece.id ? { ...item, x, y } : item);
+  const continueAfterPriorMove = context.ruleSet.actions?.threeTwo?.allowMovementAfterPriorMove === true;
   const movementStateByPieceId = {
     ...state.movementStateByPieceId,
     [piece.id]: {
-      axis: hadMoved ? geometry.axis : null,
-      spent: hadMoved ? speed : 0,
-      distance: hadMoved ? geometry.distance : 0,
+      axis: hadMoved ? current.axis : null,
+      ...(hadMoved && current.direction ? { direction: current.direction } : {}),
+      spent: hadMoved ? current.spent : 0,
+      distance: hadMoved ? current.distance : 0,
       threeTwoUsed: true,
-      movementEnded: hadMoved && context.ruleSet.actions?.threeTwo?.allowMovementAfterPriorMove !== true,
+      movementEnded: hadMoved && !continueAfterPriorMove,
     },
   };
   return {

@@ -12,7 +12,7 @@ import { endTrackerPhase } from "./trackerPhaseRules.mjs";
 import { restartMatch, startMatch } from "./matchLifecycleRules.mjs";
 import { applyPassConsequence, cancelPass, confirmPassRoute, resolvePassInterception, selectPassInterceptor, selectPassTarget, startPass, submitPassInterceptionRoll } from "./passStartRules.mjs";
 import { changePieceActivity, changeTrackerPossession, declareManualAction, declareManualBonusAction, resetTrackerActions } from "./matchAdministrationRules.mjs";
-import { cancelThroughBall, commitThroughBall, selectThroughBallTarget, startThroughBall } from "./throughBallRules.mjs";
+import { cancelThroughBall, commitThroughBall, confirmThroughBallRecovery, selectThroughBallRecoverer, selectThroughBallTarget, startThroughBall } from "./throughBallRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -205,14 +205,18 @@ export function applyGameCommand({ state, context, command } = {}) {
       commandId: normalizedCommand.id,
     })], transition.timeline);
   }
-  if ([GAME_COMMAND_TYPE.THROUGH_BALL_STARTED, GAME_COMMAND_TYPE.THROUGH_BALL_TARGET_SELECTED, GAME_COMMAND_TYPE.THROUGH_BALL_COMMITTED, GAME_COMMAND_TYPE.THROUGH_BALL_CANCELLED].includes(normalizedCommand.type)) {
+  if ([GAME_COMMAND_TYPE.THROUGH_BALL_STARTED, GAME_COMMAND_TYPE.THROUGH_BALL_TARGET_SELECTED, GAME_COMMAND_TYPE.THROUGH_BALL_COMMITTED, GAME_COMMAND_TYPE.THROUGH_BALL_CANCELLED, GAME_COMMAND_TYPE.THROUGH_BALL_RECOVERER_SELECTED, GAME_COMMAND_TYPE.THROUGH_BALL_RECOVERY_CONFIRMED].includes(normalizedCommand.type)) {
     const transition = normalizedCommand.type === GAME_COMMAND_TYPE.THROUGH_BALL_STARTED
       ? startThroughBall(currentState, normalizedCommand)
       : normalizedCommand.type === GAME_COMMAND_TYPE.THROUGH_BALL_TARGET_SELECTED
         ? selectThroughBallTarget(currentState, matchContext, normalizedCommand)
         : normalizedCommand.type === GAME_COMMAND_TYPE.THROUGH_BALL_COMMITTED
         ? commitThroughBall(currentState, matchContext, normalizedCommand)
-        : cancelThroughBall(currentState, normalizedCommand);
+        : normalizedCommand.type === GAME_COMMAND_TYPE.THROUGH_BALL_RECOVERER_SELECTED
+          ? selectThroughBallRecoverer(currentState, normalizedCommand)
+          : normalizedCommand.type === GAME_COMMAND_TYPE.THROUGH_BALL_RECOVERY_CONFIRMED
+            ? confirmThroughBallRecovery(currentState, normalizedCommand)
+            : cancelThroughBall(currentState, normalizedCommand);
     if (!transition.accepted) return rejected(transition.reason);
     return accepted(createGameState(transition.nextState), [createGameEvent({ ...transition.event, commandId: normalizedCommand.id })], transition.timeline);
   }
