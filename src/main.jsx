@@ -202,7 +202,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.52.4";
+const APP_VERSION = "v20.52.6";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5204,65 +5204,6 @@ function App() {
     window.setTimeout(() => { isApplyingCloudRef.current = false; }, 300);
   }
 
-  function saveBoard() {
-    if (singlePlayerMatchWorkspaceLocked) return;
-    localStorage.setItem("football-board-sandbox-v35", JSON.stringify({ settings, pieces: sanitizePiecesCardIds(pieces, cardState, settings), zoom, cardState: buildCardLibraryState(cardState) }));
-    alert("Salvat în browser.");
-  }
-
-  function normalizeLoadedSettings(s) {
-    if ("penaltyDistance" in s) return normalizeSettingsForApp(s);
-    const penaltyDistance = s.penaltyLeftX ?? DEFAULT_SETTINGS.penaltyDistance;
-    const penaltyY = s.penaltyLeftY ?? Math.floor((s.rows ?? DEFAULT_SETTINGS.rows) / 2);
-    return normalizeSettingsForApp({
-      ...DEFAULT_SETTINGS,
-      ...s,
-      penaltyDistance,
-      penaltyY,
-    });
-  }
-
-  function loadBoard() {
-    if (singlePlayerMatchWorkspaceLocked) return;
-    const raw =
-      localStorage.getItem("football-board-sandbox-v35") ||
-      localStorage.getItem("football-board-sandbox-v34") ||
-      localStorage.getItem("football-board-sandbox-v22") ||
-      localStorage.getItem("football-board-sandbox-v21") ||
-      localStorage.getItem("football-board-sandbox-v20") ||
-      localStorage.getItem("football-board-sandbox-v19") ||
-      localStorage.getItem("football-board-sandbox-v18") ||
-      localStorage.getItem("football-board-sandbox-v17") ||
-      localStorage.getItem("football-board-sandbox-v16") ||
-      localStorage.getItem("football-board-sandbox-v15") ||
-      localStorage.getItem("football-board-sandbox-v14") ||
-      localStorage.getItem("football-board-sandbox-v13") ||
-      localStorage.getItem("football-board-sandbox-v12") ||
-      localStorage.getItem("football-board-sandbox-v11") ||
-      localStorage.getItem("football-board-sandbox-v10") ||
-      localStorage.getItem("football-board-sandbox-v09") ||
-      localStorage.getItem("football-board-sandbox-v08") ||
-      localStorage.getItem("football-board-sandbox-v07") ||
-      localStorage.getItem("football-board-sandbox-v06") ||
-      localStorage.getItem("football-board-sandbox-v05") ||
-      localStorage.getItem("football-board-sandbox-v04") ||
-      localStorage.getItem("football-board-sandbox-v03");
-    if (!raw) return alert("Nu există salvare încă.");
-    const saved = JSON.parse(raw);
-    const loadedSettings = normalizeLoadedSettings(saved.settings);
-    const loadedCardState = saved.cardState ? normalizeCardState(saved.cardState) : cardState;
-    const legacyAssignments = getLegacyAssignments(saved.cardState);
-    const loadedPieces = ensureBenchReserveCount(
-      sanitizePiecesCardIds(saved.pieces, loadedCardState, loadedSettings, legacyAssignments),
-      loadedSettings
-    );
-    setSettings(loadedSettings);
-    piecesRef.current = loadedPieces;
-    setPieces(loadedPieces);
-    if (saved.cardState) setCardState(loadedCardState);
-    setZoom(saved.zoom ?? 1);
-  }
-
   function logSnapshot(label, nextPieces = piecesRef.current || pieces, options = {}) {
     const before = pendingTimelineBeforeRef.current || captureTimelineGameState();
     pendingTimelineBeforeRef.current = null;
@@ -8108,30 +8049,6 @@ function App() {
         });
         return { ...card, customZones: zones, updatedAt: new Date().toISOString() };
       }),
-    }));
-  }
-
-  function updateCardCustomZone(cardId, zoneId, patch) {
-    if (!cardId || !zoneId) return;
-    updateCardState(prev => ({
-      ...prev,
-      cards: prev.cards.map(card => card.id === cardId ? {
-        ...card,
-        customZones: normalizeCustomZones(card).map(zone => zone.id === zoneId ? { ...zone, ...patch } : zone),
-        updatedAt: new Date().toISOString(),
-      } : card),
-    }));
-  }
-
-  function deleteCardCustomZone(cardId, zoneId) {
-    if (!cardId || !zoneId) return;
-    updateCardState(prev => ({
-      ...prev,
-      cards: prev.cards.map(card => card.id === cardId ? {
-        ...card,
-        customZones: normalizeCustomZones(card).filter(zone => zone.id !== zoneId),
-        updatedAt: new Date().toISOString(),
-      } : card),
     }));
   }
 
@@ -11312,26 +11229,6 @@ function App() {
   function onRulerPanelPointerUp() {
     setRulerPanelDragging(null);
     setRulerPanelResizing(null);
-  }
-
-  function fitWidth() {
-    const wrap = boardWrapRef.current;
-    if (!wrap) return;
-    const pitchWidth = settings.cols * settings.cellSize + 6;
-    const available = Math.max(240, wrap.clientWidth - 28);
-    setZoom(clamp(Number((available / pitchWidth).toFixed(2)), 0.2, 3));
-  }
-
-  function fitHeight() {
-    const wrap = boardWrapRef.current;
-    if (!wrap) return;
-    const pitchHeight = settings.rows * settings.cellSize + 6;
-    const available = Math.max(240, wrap.clientHeight - 28);
-    setZoom(clamp(Number((available / pitchHeight).toFixed(2)), 0.2, 3));
-  }
-
-  function resetView() {
-    setZoom(lockUI ? 1.0 : 0.8);
   }
 
   function touchDistance(t1, t2) {

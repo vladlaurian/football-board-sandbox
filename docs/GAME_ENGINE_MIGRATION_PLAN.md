@@ -552,6 +552,14 @@ v20.52.4 applies the first new mechanic rule through the Phase 10 projection con
 
 The next Engine mechanic must enter through this projection contract from its first build. Group Move diagonal/orthogonal is now eligible as the next approved scope and must use the same boundary.
 
+## Phase 11 — Code ownership and legacy-cleanup audit
+
+**Status:** Audit complete in v20.52.5; first classified deletion-only remediation completed in v20.52.6.
+
+This audit inventories offline Single Player Match command entrances, Engine/Controller/Gateway publication, presentation selectors, direct React setters, retained session/Manual Multiplayer branches, and production-reachable versus test-only exports. Its rule is evidence before deletion: a setter or legacy helper is not dead merely because it appears in `main.jsx`; it may be a deliberate Editor Workspace or frozen Manual Multiplayer route. No candidate is removed in the audit build without a call-site and mode-boundary proof.
+
+The audit confirms that offline Match commands route through `runSinglePlayerMatchCommand()` and Engine-backed selectors, while legacy direct mutations observed in `main.jsx` are gated to Editor or `sessionCode` paths. v20.52.6 removes the first classified set only after call-site proof: the obsolete local browser Save/Load helpers and their isolated settings migration helper, unused card-zone mutation helpers, unused view-fit helpers, and three production-unused exports. Compatibility/test-only exports remain until their dependent compatibility contract is explicitly retired. The audit also corrects the Match → Editor boundary so `personalActionsByPieceId` is cleared with the closing Match interaction state; Editor may then create its own manual markers. Manual Multiplayer remains excluded.
+
 ## Required update after every implementation build
 
 - mark only completed items complete;

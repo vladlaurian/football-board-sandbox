@@ -124,7 +124,7 @@ Free Ball and Free Move use the same boundary: the UI may arm a local tool, but 
 
 When a legal 3/2 destination is the ball cell, the offline popup is a UI-local choice between Engine-projected command routes. `Rule 3/2` dispatches `THREE_TWO_MOVE_COMMITTED`. `Normal move` dispatches `NORMAL_MOVE_COMMITTED` when that player already has normal-MOVE authorization; otherwise it dispatches the existing atomic `NORMAL_MOVE_STARTED` then `NORMAL_MOVE_COMMITTED` sequence. The popup does not derive legality or speed itself. This preserves identical canonical results for the direct-board and Inspector MOVE entrances.
 
-Leaving Match for Editor records an Editor closing state that clears Match-only interaction locks (`actionResolution`, `actionContinuation`, Free Move, Group Move and pre-segment normal MOVE). The prior Timeline cursor remains the exact playable Match state; the subsequent Editor state is intentionally not a suspended Match. This boundary does not apply to Manual Multiplayer.
+Leaving Match for Editor records an Editor closing state that clears Match-only interaction locks (`actionResolution`, `actionContinuation`, Free Move, Group Move and pre-segment normal MOVE) and the closed Match's personal-action map. The prior Timeline cursor remains the exact playable Match state; the subsequent Editor state is intentionally not a suspended Match. Editor can create new manual personal-action markers from this clean state. This boundary does not apply to Manual Multiplayer.
 
 ## 5. Delayed resolution and manual dice
 

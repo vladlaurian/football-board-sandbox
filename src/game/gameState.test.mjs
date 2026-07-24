@@ -37,6 +37,7 @@ test("leaving Match creates an Editor state without Match-only interaction locks
     actionResolution: { kind: "pass", status: "targeting" },
     actionContinuation: { id: "bonus-1", kind: "bonus-card-action", team: "blue", status: "ready" },
     tracker: {
+      personalActionsByPieceId: { "blue-1": 3, "red-2": 2 },
       matchActionState: {
         freeMode: { active: true, pieceId: "blue-1", team: "blue", timelineGroupId: "free-1" },
         groupMove: { active: true, team: "blue", zoneStartX: 2, zoneLength: 6, maxPlayers: 4, maxOrthogonalDistance: 6, maxDiagonalDistance: 4, movedPieceIds: ["blue-1"] },
@@ -47,6 +48,7 @@ test("leaving Match creates an Editor state without Match-only interaction locks
   assert.equal(exited.gameMode, "editor");
   assert.equal(exited.actionResolution, null);
   assert.equal(exited.actionContinuation, null);
+  assert.deepEqual(exited.tracker.personalActionsByPieceId, {});
   assert.equal(exited.tracker.matchActionState.freeMode.active, false);
   assert.equal(exited.tracker.matchActionState.groupMove.active, false);
   assert.equal(exited.tracker.matchActionState.activeMovement.active, false);

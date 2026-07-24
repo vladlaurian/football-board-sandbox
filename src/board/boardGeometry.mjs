@@ -42,12 +42,6 @@ export function goalTopForSettings(settingsLike = DEFAULT_BOARD_GEOMETRY_SETTING
   return Math.floor((setting(settingsLike, "rows") - setting(settingsLike, "goalWidth")) / 2);
 }
 
-export function isInsideGoalMouthY(y, settingsLike = DEFAULT_BOARD_GEOMETRY_SETTINGS) {
-  const top = goalTopForSettings(settingsLike);
-  const bottom = top + setting(settingsLike, "goalWidth") - 1;
-  return y >= top && y <= bottom;
-}
-
 export function invisiblePaddingForSettings(settingsLike = DEFAULT_BOARD_GEOMETRY_SETTINGS) {
   return Number(setting(settingsLike, "invisiblePadding") ?? 2);
 }

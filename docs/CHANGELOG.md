@@ -2,6 +2,19 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.52.6 — Proven dead-code removal
+
+- Removed only the unreferenced helpers classified by the v20.52.5 audit: an obsolete local browser Save/Load route with its isolated settings migration helper, unused card-zone mutation helpers, and unused view-fit helpers.
+- Removed three production-unused exports (`isInsideGoalMouthY`, `clearPendingInput`, and `clampModifier`) after confirming no production or test call sites.
+- No active Editor, offline Match, Engine, Timeline, Rule Set, AI Export or Manual Multiplayer route was changed. This build makes no extraction or organizational refactor.
+
+## v20.52.5 — Code ownership audit and Editor marker reset
+
+- Completed a static code-ownership audit of offline Match command, projection and legacy-mode boundaries. It classifies deletion candidates for a separate evidence-based cleanup build; no behavior-bearing legacy route was removed by name search.
+- Leaving Match for Editor now clears the closed Match's personal-action map, so pucks no longer retain Match dots in Editor. Editor's unrestricted manual three-slot marker remains available from a clean state.
+- Corrected the browser title version, which had remained at `v20.52.3` despite later runtime releases. Visible app, package and browser-title versions now agree at `v20.52.5`.
+- Manual Multiplayer remains unchanged.
+
 ## v20.52.4 — Group Move geometry limits
 
 - Replaced Group Move's single Rule Set movement limit with editable orthogonal and diagonal limits, defaulting to `6` and `4` respectively.
