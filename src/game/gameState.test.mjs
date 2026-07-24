@@ -39,7 +39,7 @@ test("leaving Match creates an Editor state without Match-only interaction locks
     tracker: {
       matchActionState: {
         freeMode: { active: true, pieceId: "blue-1", team: "blue", timelineGroupId: "free-1" },
-        groupMove: { active: true, team: "blue", zoneStartX: 2, zoneLength: 6, maxPlayers: 4, maxDistance: 6, movedPieceIds: ["blue-1"] },
+        groupMove: { active: true, team: "blue", zoneStartX: 2, zoneLength: 6, maxPlayers: 4, maxOrthogonalDistance: 6, maxDiagonalDistance: 4, movedPieceIds: ["blue-1"] },
         activeMovement: { active: true, kind: "normal-move", pieceId: "blue-2", team: "blue", timelineGroupId: "move-1" },
       },
     },

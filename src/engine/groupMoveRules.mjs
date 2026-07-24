@@ -8,7 +8,8 @@ function groupRules(context) {
   return {
     maxPlayers: Math.max(1, Math.min(11, Math.floor(Number(raw.maxPlayers) || 4))),
     zoneLength: Math.max(1, Math.floor(Number(raw.zoneLength) || 10)),
-    maxDistance: Math.max(1, Math.floor(Number(raw.maxDistance) || 6)),
+    maxOrthogonalDistance: Math.max(1, Math.floor(Number(raw.maxOrthogonalDistance) || 6)),
+    maxDiagonalDistance: Math.max(1, Math.floor(Number(raw.maxDiagonalDistance) || 4)),
     sameDirectionOnly: raw.sameDirectionOnly !== false,
   };
 }
@@ -76,7 +77,8 @@ export function confirmGroupMoveZone(state, context, command) {
       zoneStartX: requestedStart,
       zoneLength,
       maxPlayers: rules.maxPlayers,
-      maxDistance: rules.maxDistance,
+      maxOrthogonalDistance: rules.maxOrthogonalDistance,
+      maxDiagonalDistance: rules.maxDiagonalDistance,
       sameDirectionOnly: rules.sameDirectionOnly,
       movedPieceIds: [],
       direction: null,
@@ -85,7 +87,7 @@ export function confirmGroupMoveZone(state, context, command) {
   return {
     accepted: true,
     nextState: { ...state, tracker: { ...state.tracker, actionLog: activation.actionLog, usedActions: activation.usedActions, personalActionsByPieceId: activation.personalActionsByPieceId, matchActionState } },
-    event: { type: "GROUP_MOVE_ACTIVATED", team, metadata: { movementReason: "GROUP_MOVE", zoneStartX: requestedStart, zoneLength, maxPlayers: rules.maxPlayers, maxDistance: rules.maxDistance, sameDirectionOnly: rules.sameDirectionOnly } },
+    event: { type: "GROUP_MOVE_ACTIVATED", team, metadata: { movementReason: "GROUP_MOVE", zoneStartX: requestedStart, zoneLength, maxPlayers: rules.maxPlayers, maxOrthogonalDistance: rules.maxOrthogonalDistance, maxDiagonalDistance: rules.maxDiagonalDistance, sameDirectionOnly: rules.sameDirectionOnly } },
     timeline: { groupId: command.id, undoMode: "step", allowNoop: true },
   };
 }
@@ -119,10 +121,13 @@ export function evaluateGroupMovePlayer(state, context, command) {
   const geometry = getMovementGeometry(piece, { x, y });
   if (geometry.kind === "same") return { accepted: false, reason: "same" };
   if (geometry.kind === "mixed") return { accepted: false, reason: "mixed" };
-  if (geometry.distance > group.maxDistance) return { accepted: false, reason: "GROUP_MOVE_DISTANCE" };
+  const distanceLimit = geometry.kind === "diagonal"
+    ? group.maxDiagonalDistance
+    : group.maxOrthogonalDistance;
+  if (geometry.distance > distanceLimit) return { accepted: false, reason: "GROUP_MOVE_DISTANCE", geometry, distanceLimit };
   const direction = directionFor(piece, x, y);
   if (group.direction && !directionMatches(group.direction, direction, group.sameDirectionOnly)) return { accepted: false, reason: "GROUP_MOVE_DIRECTION" };
-  return { accepted: true, tracker, group, piece, ball, x, y, geometry, direction };
+  return { accepted: true, tracker, group, piece, ball, x, y, geometry, distanceLimit, direction };
 }
 
 export function commitGroupMovePlayer(state, context, command) {

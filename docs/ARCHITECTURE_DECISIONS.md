@@ -358,14 +358,14 @@ If that same destination also has a legal normal-MOVE route, the UI presents `Ru
 
 **Decision:** In offline Single Player, pressing GROUP MOVE opens only a local zone preview. The action is not consumed until `GROUP_MOVE_ZONE_CONFIRMED` establishes a full-width longitudinal zone in canonical MatchState. The draft band is positioned by drag and is UI-only. The confirmed zone consumes the final normal Tracker action and cannot be moved afterward; it is retained for Engine validation but deliberately not rendered after confirmation. `GROUP_MOVE_PLAYER_COMMITTED` then moves eligible players one at a time under the same canonical Group Move state until its configured player limit or End Turn.
 
-Players must begin in the confirmed zone, have no ball, and have no gameplay movement during the turn; administrative Free Move does not disqualify them. Each player moves once, ignores card Speed, respects configured maximum distance, and cannot finish on a player or ball. The first successful move fixes orientation and optionally exact direction for the group. Unlike normal movement, Group Move may cross players: this is a deliberate tactical tool for moving a line and creating an offside attempt.
+Players must begin in the confirmed zone, have no ball, and have no gameplay movement during the turn; administrative Free Move does not disqualify them. Each player moves once, ignores card Speed, and cannot finish on a player or ball. Horizontal/vertical movement respects the frozen orthogonal limit; exact diagonal movement respects the separately frozen diagonal limit. The first successful move fixes orientation and optionally exact direction for the group. Unlike normal movement, Group Move may cross players: this is a deliberate tactical tool for moving a line and creating an offside attempt.
 
 **Consequences:**
 
-- Rule Set schema v4 owns Group Move limits and MatchContext freezes them at Match start.
+- Rule Set schema v6 owns Group Move's separate orthogonal and diagonal limits; MatchContext freezes both at Match start, and zone confirmation copies both into canonical active Group Move state. Old Rule Sets and old canonical Group Move state migrate their one historical limit into both values at their normalization boundary.
 - Preview-zone repositioning is UI-only; only confirmation and physical moves enter Timeline.
 - End Turn clears the active Group Move state before recording the next phase; the Engine lock can never cross to the opposing team.
-- UI eligibility marks are presentation only and derive from the Engine's pure eligibility evaluator. Destination preview derives from the corresponding pure Engine evaluator, never from normal-MOVE or card-Speed rules.
+- UI eligibility marks are presentation only and derive from the Engine's pure eligibility evaluator. Destination preview derives from the corresponding pure Engine evaluator, including the Engine-projected applicable distance limit; it never derives geometry limits from normal-MOVE or card-Speed rules.
 - Timeline preserves `GROUP_MOVE_ACTIVATED` and `GROUP_MOVE_PIECE`; Undo/Redo, Replay, and AI export retain their existing semantic vocabulary.
 - Manual Multiplayer and Editor Mode retain their legacy behavior.
 

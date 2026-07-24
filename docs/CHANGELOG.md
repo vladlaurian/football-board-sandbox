@@ -2,6 +2,13 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.52.4 — Group Move geometry limits
+
+- Replaced Group Move's single Rule Set movement limit with editable orthogonal and diagonal limits, defaulting to `6` and `4` respectively.
+- Both limits are frozen in MatchContext and canonical confirmed Group Move state. The Engine selects the limit from exact movement geometry and the offline UI displays its projected value.
+- Rule Sets and stored active Group Move state from earlier builds migrate their former single limit into both new limits, preserving their behavior. Timeline activation metadata records both values; existing Timeline/Undo/Redo/Replay/AI Group Move semantics remain unchanged.
+- Manual Multiplayer remains unchanged.
+
 ## v20.52.3 — Action continuity and ball-cell choice
 
 - Ready offline Bonus Action controls no longer inherit normal Tracker phase/action exhaustion locks. Their owner may select one compatible individual card action; Group Move and Free Move remain unavailable.

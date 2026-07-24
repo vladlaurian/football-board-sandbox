@@ -60,5 +60,14 @@ test("ending a turn clears only the active Group Move interaction", () => {
   assert.equal(state.groupMove.active, false);
   assert.equal(state.groupMove.team, null);
   assert.deepEqual(state.groupMove.movedPieceIds, []);
+  assert.equal(state.groupMove.maxOrthogonalDistance, 0);
+  assert.equal(state.groupMove.maxDiagonalDistance, 0);
   assert.deepEqual(state.byPieceId["blue-1"], { moveUsed: true, moveAuthorized: true, moveGroupId: "move-1" });
+});
+
+test("legacy Group Move MatchState normalizes one stored limit into both geometry limits", () => {
+  const state = normalizeMatchActionState({ groupMove: { active: true, maxDistance: 7 } });
+  assert.equal(state.groupMove.maxOrthogonalDistance, 7);
+  assert.equal(state.groupMove.maxDiagonalDistance, 7);
+  assert.equal(state.groupMove.maxDistance, undefined);
 });

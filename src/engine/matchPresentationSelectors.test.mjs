@@ -108,7 +108,7 @@ test("Single Player projection boundary keeps Group Move crossing semantics in t
       { id: "blue-1", team: "A", x: 3, y: 3 },
       { id: "blue-blocker", team: "A", x: 4, y: 3 },
     ],
-    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", usedActions: { blue: 5, red: 0 }, actionLog: { blue: [{ id: "a", type: "PASS" }, { id: "b", type: "PASS" }, { id: "c", type: "PASS" }, { id: "d", type: "PASS" }, { id: "group", type: "GROUP_MOVE" }], red: [] }, matchActionState: { groupMove: { active: true, team: "blue", zoneStartX: 0, zoneLength: 8, maxPlayers: 4, maxDistance: 6, sameDirectionOnly: true, movedPieceIds: [], direction: null } }, settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", usedActions: { blue: 5, red: 0 }, actionLog: { blue: [{ id: "a", type: "PASS" }, { id: "b", type: "PASS" }, { id: "c", type: "PASS" }, { id: "d", type: "PASS" }, { id: "group", type: "GROUP_MOVE" }], red: [] }, matchActionState: { groupMove: { active: true, team: "blue", zoneStartX: 0, zoneLength: 8, maxPlayers: 4, maxOrthogonalDistance: 6, maxDiagonalDistance: 4, sameDirectionOnly: true, movedPieceIds: [], direction: null } }, settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
   });
   const statuses = selectSinglePlayerGroupMovePieceStatuses(state);
   assert.equal(statuses["blue-1"], "eligible");

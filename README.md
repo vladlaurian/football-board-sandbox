@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.52.3` |
-| Git/package version | `20.52.3` |
-| Build name | `Final_Board_v20_52_3_action_continuity_ball_cell_choice` |
-| Base build | `v20.52.2 Normal Move projection hotfix` |
+| Sandbox version | `v20.52.4` |
+| Git/package version | `20.52.4` |
+| Build name | `Final_Board_v20_52_4_group_move_geometry_limits` |
+| Base build | `v20.52.3 Action continuity and ball-cell choice` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.52.3`. The repository version is in `package.json` as `20.52.3`. The browser title is `Sandbox v20.52.3`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.52.4`. The repository version is in `package.json` as `20.52.4`. The browser title is `Sandbox v20.52.4`.
 
 ## Current release
 
-v20.52.3 corrects four offline Single Player continuity failures: ready Bonus Actions no longer inherit normal Tracker locks; a paid normal MOVE may continue in legal segments after the team has spent its final normal action; the ball-cell choice presents Engine-projected 3/2 and Normal Move routes; and exiting Match clears Match-only interactions before Editor receives the closing Timeline state. Direct-board Normal Move uses the same atomic start-and-commit Engine sequence as Inspector MOVE when it needs initial authorization. Manual Multiplayer remains unchanged.
+v20.52.4 gives Group Move separate Rule Set limits for orthogonal and diagonal movement: defaults are `6` and `4`. Both values are frozen in MatchContext and again in the confirmed canonical Group Move state; the Engine chooses the applicable limit from the actual geometry and the UI displays that Engine-projected result. Rule Sets and recorded canonical Group Move state that used the former single limit migrate it into both limits, preserving their previous behavior. Existing zone, participant, crossing, direction, ball, occupancy and personal-action rules are unchanged. Manual Multiplayer remains unchanged.
 
 The audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

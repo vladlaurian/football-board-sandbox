@@ -202,7 +202,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.52.3";
+const APP_VERSION = "v20.52.4";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -8596,7 +8596,7 @@ function App() {
       return {
         ...result,
         legal: true,
-        label: `${axisIcon ? `${axisIcon} ` : ""}GM ${result.geometry.distance} / ${groupMove.maxDistance}`,
+        label: `${axisIcon ? `${axisIcon} ` : ""}GM ${result.geometry.distance} / ${result.distanceLimit}`,
       };
     }
     const threeTwo = getThreeTwoEligibility(selectedPiece, hoveredCell.x, hoveredCell.y);
@@ -12597,8 +12597,11 @@ function App() {
               <label>Zone length (squares)
                 <input disabled={ruleSetEditingLocked} type="number" min="1" max="100" step="1" value={ruleSetDraft.actions?.groupMove?.zoneLength ?? 10} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, zoneLength: clamp(Math.floor(Number(e.target.value) || 1), 1, 100) } } }))} />
               </label>
-              <label>Maximum distance/player
-                <input disabled={ruleSetEditingLocked} type="number" min="1" max="100" step="1" value={ruleSetDraft.actions?.groupMove?.maxDistance ?? 6} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, maxDistance: clamp(Math.floor(Number(e.target.value) || 1), 1, 100) } } }))} />
+              <label>Maximum orthogonal distance/player
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="100" step="1" value={ruleSetDraft.actions?.groupMove?.maxOrthogonalDistance ?? 6} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, maxOrthogonalDistance: clamp(Math.floor(Number(e.target.value) || 1), 1, 100) } } }))} />
+              </label>
+              <label>Maximum diagonal distance/player
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="100" step="1" value={ruleSetDraft.actions?.groupMove?.maxDiagonalDistance ?? 4} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, maxDiagonalDistance: clamp(Math.floor(Number(e.target.value) || 1), 1, 100) } } }))} />
               </label>
               <label className="rule-checkbox-label">
                 <input disabled={ruleSetEditingLocked} type="checkbox" checked={ruleSetDraft.actions?.groupMove?.sameDirectionOnly !== false} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, groupMove: { ...draft.actions?.groupMove, sameDirectionOnly: e.target.checked } } }))} />
