@@ -14,6 +14,13 @@ import { cardStat, interceptorChoiceCandidates, teamKeyForPiece } from "../rules
 import { activeRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
 import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { BONUS_ACTION_IMPLEMENTED_TYPES } from "./bonusActionCapabilities.mjs";
+import { naturalRollOutcomeLine } from "./rollOutcomeEffects.mjs";
+
+const OFFLINE_IMPLEMENTED_ACTION_TYPES = Object.freeze(["MOVE", "GROUP_MOVE", ...BONUS_ACTION_IMPLEMENTED_TYPES]);
+
+export function selectNaturalRollOutcomePresentation(outcome) {
+  return naturalRollOutcomeLine(outcome, { teamName: outcome?.team === "blue" ? "Blue" : outcome?.team === "red" ? "Red" : null });
+}
 
 function formatSigned(value) {
   const number = Number(value) || 0;
@@ -324,6 +331,7 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
   const personalBlocked = Boolean(control.personal.limit > 0 && control.personal.exhausted && type !== "GROUP_MOVE" && !moveCancellable && !(type === "MOVE" && normalHasRemaining));
   const continuationReady = continuation?.status === "ready";
   const implementedBonusAction = BONUS_ACTION_IMPLEMENTED_TYPES.includes(type);
+  const implementedOfflineAction = OFFLINE_IMPLEMENTED_ACTION_TYPES.includes(type);
   const trackerComplete = control.actionStatus.exhausted;
   const disabled = bonusMoveCancellable
     ? false
@@ -344,7 +352,8 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
                 || (["PASS", "THROUGH_BALL", "LOFTED_THROUGH_BALL"].includes(type) && !pieceHasBall(state, piece))
               )
             : Boolean(
-                pending
+                !implementedOfflineAction
+                || pending
                 || !control.teamOwnsContinuation
                 || Boolean(continuation)
                 || !control.teamActive

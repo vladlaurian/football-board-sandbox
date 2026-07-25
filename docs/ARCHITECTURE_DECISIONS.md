@@ -763,6 +763,14 @@ While Free Move is active, no other offline Match Mode action may proceed. Its s
 
 AV/AVM opportunities are canonical MatchState records. The Engine resolves a selected token into the pending-roll projection and consumes it with the submitted roll. A token earned during a Bonus Action with an advance-turn resume policy is assigned to that resumed numbered turn, not to the transient BA boundary. Each Engine turn advance prunes expired opportunities and records the loss in event metadata.
 
+## ADR-054 — Natural-roll consequences are structured Engine facts
+
+**Status:** Active
+
+**Decision:** Every resolved natural outcome records a structured effect with its recipient and time window. UI result prompts may translate that effect into text but must not infer it from an event name, natural value, or legacy continuation shape.
+
+**Consequences:** Configuring Natural 20 as `none`, AV or AVM cannot leave a stale Bonus Action sentence in an Interception or Lofted Through popup. Future roll mechanics reuse the same presentation contract. Manual Multiplayer is unchanged.
+
 **Consequences:**
 
 - BA Move, Pass, Through Ball and Lofted Through share one typed contract and atomic Timeline grouping where applicable.

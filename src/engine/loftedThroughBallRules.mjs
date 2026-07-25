@@ -5,6 +5,7 @@ import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { activateTrackerAction, createEmptyTrackerTurnState, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 import { consumeRollModifierOpportunity, effectiveCurrentTurnForRollOpportunity, grantRollModifierOpportunity, pruneRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
+import { naturalRollOutcome } from "./rollOutcomeEffects.mjs";
 import { activeBonusActionFor, beginImplementedBonusAction, completeImplementedBonusAction } from "./bonusActionCapabilities.mjs";
 
 const EPSILON = 1e-9;
@@ -164,7 +165,8 @@ export function submitLoftedThroughBallRoll(state, context, command) {
     ...(areaDisadvantage ? [{ label: "Disadvantage", value: areaDisadvantage, source: "defensive-areas", detail: `${pending.plan.disadvantageStacks} defensive area${pending.plan.disadvantageStacks === 1 ? "" : "s"} crossed` }] : []),
     ...(bonus ? [{ label: modifierType === "majorAdvantage" ? "Major Advantage" : "Advantage", value: bonus, source: "bonus-roll-token", detail: "earned roll bonus" }] : []),
   ];
-  const result = { natural: event.natural, total, totalBonus: Number(pending.plan.rollStatValue) + modifier, modifier, rawModifier, modifierCap, capped: modifier !== rawModifier, modifierSources, bonus, bonusModifierType: modifierType, succeeds, equal: total === Number(pending.plan.difficultyThreshold), naturalEffect: naturalOne ? context.ruleSet.actions.loftedThroughBall.naturalOneEffect : naturalTwenty ? context.ruleSet.actions.loftedThroughBall.naturalTwentyEffect : "none" };
+  const naturalEffect = naturalOne ? context.ruleSet.actions.loftedThroughBall.naturalOneEffect : naturalTwenty ? context.ruleSet.actions.loftedThroughBall.naturalTwentyEffect : "none";
+  const result = { natural: event.natural, total, totalBonus: Number(pending.plan.rollStatValue) + modifier, modifier, rawModifier, modifierCap, capped: modifier !== rawModifier, modifierSources, bonus, bonusModifierType: modifierType, succeeds, equal: total === Number(pending.plan.difficultyThreshold), naturalEffect, naturalOutcome: naturalRollOutcome({ mechanic: "lofted-through-ball", natural: event.natural, effect: naturalEffect, team: pending.team }) };
   const dice = { ...state.dice, dieType: 20, blueResult: pending.team === "blue" ? event.natural : state.dice.blueResult, redResult: pending.team === "red" ? event.natural : state.dice.redResult, blueLastDieType: pending.team === "blue" ? 20 : state.dice.blueLastDieType, redLastDieType: pending.team === "red" ? 20 : state.dice.redLastDieType };
   return { accepted: true, nextState: { ...state, dice, rollModifierOpportunities: token.opportunities, actionResolution: { ...pending, status: "roll-resolved", lastRollEvent: event, result } }, event: { type: "LOFTED_THROUGH_BALL_ROLLED", team: pending.team, metadata: { passerId: passer.id, target: pending.target, rollEvent: event, result } }, timeline: { allowNoop: false } };
 }

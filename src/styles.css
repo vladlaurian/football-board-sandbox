@@ -7543,9 +7543,10 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .draggable-action-prompt { cursor: grab; touch-action: none; user-select: none; }
 .draggable-action-prompt:active { cursor: grabbing; }
 .draggable-action-prompt button { cursor: pointer; }
+.roll-token-choice{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:10px}.roll-token-choice>span{width:100%;text-align:center;font-weight:700}.roll-token-choice .roll-choice-button{border:1px solid rgba(197,218,230,.62);border-radius:9px;background:rgba(25,47,58,.92);color:#f4f8fb;padding:8px 12px;font:inherit;font-size:14px;font-weight:800}.roll-token-choice .roll-choice-button.active{border-color:#ffe26e;background:rgba(128,113,41,.78);box-shadow:0 0 0 2px rgba(255,226,110,.2)}
 
-/* Canonical Interaction Layer highlight: presentation only. It must not activate generic board input. */
-.piece.interaction-active{outline:3px solid #ffe100;outline-offset:2px;z-index:10;box-shadow:0 0 0 2px rgba(255,225,0,.24),0 4px 10px rgba(0,0,0,.45)}
+/* The Interaction Layer remains present for input routing, but has no separate
+   board highlight. Selected and Group Move states own their own visuals. */
 
 .group-move-zone{position:absolute;top:0;bottom:0;border:2px dashed rgba(255,225,80,.95);background:rgba(255,225,80,.12);pointer-events:none;z-index:4}.group-move-zone.is-draft{pointer-events:auto;cursor:grab}.group-move-zone.is-draft:active{cursor:grabbing}.group-move-zone.is-locked{border-style:solid;background:rgba(255,225,80,.08)}.group-move-zone-confirm{position:absolute;top:8px;transform:translateX(-50%);z-index:14;padding:7px 10px;border-radius:9px;border:1px solid rgba(255,225,80,.8);background:#3f3515;color:#fff2aa;font-weight:900;font-size:11px;cursor:pointer}.group-move-zone-confirm:active,.rules-actions button:active{transform:translateY(1px) scale(.98);filter:brightness(1.22)}
 .piece.group-move-eligible{outline:3px solid #dfff60;outline-offset:2px;box-shadow:0 0 0 2px rgba(223,255,96,.32),0 0 15px rgba(223,255,96,.76);z-index:11}.piece.group-move-ineligible{outline:3px solid rgba(196,204,210,.95);outline-offset:2px;box-shadow:0 0 0 2px rgba(63,72,80,.7);filter:saturate(.35) brightness(.88);z-index:11}.group-move-lock{position:absolute;right:calc(var(--cell) * -.12);bottom:calc(var(--cell) * -.13);font-size:calc(var(--cell) * .38);line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.85));pointer-events:none}
@@ -7689,10 +7690,6 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 }
 .board-wrap.match-presentation .piece.selected .match-piece-figure {
   filter: drop-shadow(0 0 7px rgba(255, 229, 73, .96)) drop-shadow(0 calc(var(--cell) * .08) calc(var(--cell) * .07) rgba(0, 0, 0, .46));
-}
-.board-wrap.match-presentation .piece.interaction-active {
-  outline-color: #fff1a8;
-  box-shadow: 0 0 0 2px rgba(255, 240, 168, .48), 0 0 20px rgba(255, 224, 64, .52);
 }
 .board-wrap.match-presentation .destination-cell-highlight.legal {
   background: radial-gradient(circle, rgba(91, 255, 172, .31), rgba(51, 228, 133, .11) 65%, transparent 73%);

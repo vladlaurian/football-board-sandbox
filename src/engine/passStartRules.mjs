@@ -8,6 +8,7 @@ import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { activateTrackerAction, createEmptyTrackerTurnState, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 import { consumeRollModifierOpportunity, expiredRollModifierOpportunities, grantRollModifierOpportunity, pruneRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
+import { naturalRollOutcome } from "./rollOutcomeEffects.mjs";
 
 function pieceForCommand(state, command) {
   const pieceId = String(command.payload?.pieceId || "");
@@ -763,7 +764,7 @@ function completeNaturalTwentyInterception(state, pending, interceptor) {
     return {
       ...normal,
       nextState: { ...normal.nextState, rollModifierOpportunities: opportunities },
-      event: { type: "PASS_NATURAL_20", team: bonusTeam, metadata: passTimelineMetadata(pending, { passId: pending.id, interceptorId: interceptor.id, naturalTwentyEffect }) },
+      event: { type: "PASS_NATURAL_20", team: bonusTeam, metadata: passTimelineMetadata(pending, { passId: pending.id, interceptorId: interceptor.id, naturalTwentyEffect, naturalOutcome: naturalRollOutcome({ mechanic: "interception", natural: 20, effect: naturalTwentyEffect, team: bonusTeam }) }) },
     };
   }
   const continuation = createBonusCardActionContinuation({
@@ -798,6 +799,7 @@ function completeNaturalTwentyInterception(state, pending, interceptor) {
           origin: continuation.origin,
           supersededContinuationId: previousContinuation?.id || null,
         },
+        naturalOutcome: naturalRollOutcome({ mechanic: "interception", natural: 20, effect: naturalTwentyEffect, team: bonusTeam }),
       }),
     },
   };

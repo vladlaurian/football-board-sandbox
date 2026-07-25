@@ -404,3 +404,9 @@ This is the compact release history. Current architecture and rules are document
 - MatchContext is now created from the exact Timeline baseline at offline Match entry, removing the save-then-immediate-Match Rule Set capture race.
 - Corrected the direction restriction so it applies only to the approved continuation after 3/2, not to ordinary segmented MOVE.
 - AI Export now includes Tracker markers, Through Ball maximum range, and recovery/race facts. Manual Multiplayer remains unchanged.
+## v20.55.6 — Roll outcome and Bonus Action presentation cleanup
+
+- Persists Natural-roll effect semantics for offline Interception and Lofted Through, so result prompts state the configured `none`/BA/AV/AVM consequence instead of assuming Bonus Action.
+- Unifies the AV/AVM selection control and visibly records the deliberate “roll normally — save” choice.
+- Clears rendered AV/AVM opportunities during Match → Editor, disables unimplemented offline action buttons in normal and Bonus Action contexts, and removes the obsolete yellow interaction highlight.
+- Manual Multiplayer remains unchanged. Pass route/interception integrity remains queued separately.

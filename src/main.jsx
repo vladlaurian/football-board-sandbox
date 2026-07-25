@@ -31,6 +31,7 @@ import {
   selectSinglePlayerTeamActionPresentation,
   selectSinglePlayerRollModifierTokenPresentation,
   selectSinglePlayerRollPromptPresentation,
+  selectNaturalRollOutcomePresentation,
   selectSinglePlayerThreeTwoPresentation,
 } from "./engine/matchPresentationSelectors.mjs";
 import {
@@ -206,7 +207,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.55.5";
+const APP_VERSION = "v20.55.6";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2152,6 +2153,7 @@ function App() {
   const [matchOverNotice, setMatchOverNotice] = useState(false);
   const [pendingThreeTwoMove, setPendingThreeTwoMove] = useState(null);
   const [pendingRollModifierType, setPendingRollModifierType] = useState(null);
+  const [rollModifierChoice, setRollModifierChoice] = useState(null);
   const [rollModifierOpportunities, setRollModifierOpportunities] = useState([]);
   const [groupMoveZoneDraft, setGroupMoveZoneDraft] = useState(null);
   const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
@@ -2224,6 +2226,7 @@ function App() {
   const processedFreeModeIntentIdsRef = useRef(new Set());
   const processedFreeBallMoveIntentIdsRef = useRef(new Set());
   const actionContinuationRef = useRef(actionContinuation);
+  const rollModifierOpportunitiesRef = useRef(rollModifierOpportunities);
   const delayedResolutionTimerRef = useRef(null);
   const delayedResolutionEntryIdRef = useRef("");
   const delayedResolutionExecutionRef = useRef(createResolutionExecutionRegistry());
@@ -2266,6 +2269,7 @@ function App() {
     }
   }, [actionResolution]);
   useEffect(() => { actionContinuationRef.current = actionContinuation; }, [actionContinuation]);
+  useEffect(() => { rollModifierOpportunitiesRef.current = rollModifierOpportunities; }, [rollModifierOpportunities]);
   useEffect(() => {
     const pendingRoll = (actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interception-roll")
       || (actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "awaiting-roll");
@@ -4385,7 +4389,7 @@ function App() {
       ruleSet: normalizeRuleSet(activeRuleSetRef.current),
       actionResolution: actionResolutionRef.current,
       actionContinuation: actionContinuationRef.current,
-      rollModifierOpportunities,
+      rollModifierOpportunities: rollModifierOpportunitiesRef.current,
       tracker: {
         gameStarted: trackerGameStarted,
         startingTeam: trackerStartingTeam,
@@ -5283,7 +5287,8 @@ function App() {
     actionContinuationRef.current = nextActionContinuation;
     setActionResolution(nextActionResolution);
     setActionContinuation(nextActionContinuation);
-    setRollModifierOpportunities(state.rollModifierOpportunities || []);
+    rollModifierOpportunitiesRef.current = state.rollModifierOpportunities || [];
+    setRollModifierOpportunities(rollModifierOpportunitiesRef.current);
     setTrackerSettings(nextTracker.settings);
     setTrackerSettingsDraft(nextTracker.settings);
     setTrackerGameStarted(nextTracker.gameStarted);
@@ -5567,6 +5572,7 @@ function App() {
         });
         if (!dispatched.result.accepted) return;
         setPendingRollModifierType(null);
+        setRollModifierChoice(null);
         showDiceNotice(team, result, rollingDieType);
         if (extraRoll) setExtraRollArmed(false);
         const delayedResolution = dispatched.entry?.metadata?.delayedResolution;
@@ -6026,6 +6032,10 @@ function App() {
       setPendingAutoMove(null);
       setPendingThreeTwoMove(null);
       setGroupMoveZoneDraft(null);
+      rollModifierOpportunitiesRef.current = nextState.rollModifierOpportunities || [];
+      setRollModifierOpportunities(rollModifierOpportunitiesRef.current);
+      setPendingRollModifierType(null);
+      setRollModifierChoice(null);
     }
     setGameMode(next);
     if (next === "match") {
@@ -10151,6 +10161,18 @@ function App() {
     </>;
   }
 
+  function renderRollModifierChoice(team) {
+    const tokens = selectSinglePlayerRollModifierTokenPresentation({ rollModifierOpportunities, tracker: { currentTurn: trackerCurrentTurn } }, { team });
+    if (!tokens.length) return null;
+    const selected = rollModifierChoice?.kind === "token" ? rollModifierChoice.modifierType : null;
+    const saved = rollModifierChoice?.kind === "save";
+    return <div className="roll-token-choice" data-prompt-interactive="true">
+      <span>{selected ? `${selected === "majorAdvantage" ? "AVM" : "AV"} selected — roll D20 to use it.` : saved ? "Roll normally selected — team bonus is saved." : "Team roll bonus available:"}</span>
+      {tokens.map(token => <button type="button" key={token.id} className={`roll-choice-button ${selected === token.modifierType ? "active" : ""}`} onClick={() => { setPendingRollModifierType(token.modifierType); setRollModifierChoice({ kind: "token", modifierType: token.modifierType }); }}>{token.modifierType === "majorAdvantage" ? "Use AVM" : "Use AV"}</button>)}
+      <button type="button" className={`roll-choice-button ${saved ? "active" : ""}`} onClick={() => { setPendingRollModifierType(null); setRollModifierChoice({ kind: "save" }); }}>Roll normally — save</button>
+    </div>;
+  }
+
   function interceptionResultNotice({ defender, roll, pending, continuation }) {
     const plan = pending.plan;
     const team = teamKeyForPiece(defender);
@@ -10185,7 +10207,7 @@ function App() {
     if (!details) return null;
     const nextTeam = entry.team === "blue" ? "Blue" : "Red";
     const continuation = entry.type === "PASS_NATURAL_20"
-      ? `${nextTeam} wins the ball and now has one bonus card action before the turn changes.`
+      ? `${nextTeam} wins the ball. ${selectNaturalRollOutcomePresentation(entry.metadata?.naturalOutcome)}`
       : entry.type === "PASS_INTERCEPTED"
         ? `${nextTeam} wins the ball. Possession changes and play continues at Turn ${entry.after?.tracker?.currentTurn || 1}.`
         : entry.type === "PASS_COMPLETED"
@@ -12565,10 +12587,7 @@ function App() {
           {preview && <span>{preview.modifierSources.map(formatModifierSource).join(" + ")}</span>}
           {preview && <span><strong>{formatTotalModifier(preview)}</strong></span>}
           {preview && <span><strong>{passTargetLabel(actionResolution.plan)}</strong></span>}
-          {!sessionCode && gameMode === "match" && (() => {
-            const tokens = selectSinglePlayerRollModifierTokenPresentation({ rollModifierOpportunities, tracker: { currentTurn: trackerCurrentTurn } }, { team: defenseTeam });
-            return tokens.length ? <div className="roll-token-choice"><span>{pendingRollModifierType ? `${pendingRollModifierType === "majorAdvantage" ? "AVM" : "AV"} selected — roll D20 to use it.` : "Team roll bonus available:"}</span>{tokens.map(token => <button type="button" key={token.id} className={pendingRollModifierType === token.modifierType ? "active" : ""} onClick={() => setPendingRollModifierType(current => current === token.modifierType ? null : token.modifierType)}>{token.modifierType === "majorAdvantage" ? "Use AVM" : "Use AV"}</button>)}<button type="button" onClick={() => setPendingRollModifierType(null)}>Roll normally — save</button></div> : null;
-          })()}
+          {!sessionCode && gameMode === "match" && renderRollModifierChoice(defenseTeam)}
         </DraggableActionPrompt>;
       })()}
 
@@ -12581,14 +12600,11 @@ function App() {
           <strong>Lofted Through Ball roll required</strong>
           <span>{getPieceIdentity(passer)} rolls D20. Roll {actionResolution.team?.toUpperCase()}.</span>
           {renderRollBreakdown(preview, `Difficulty ${actionResolution.plan?.difficultyThreshold}`)}
-          {!sessionCode && gameMode === "match" && (() => {
-            const tokens = selectSinglePlayerRollModifierTokenPresentation({ rollModifierOpportunities, tracker: { currentTurn: trackerCurrentTurn } }, { team: actionResolution.team });
-            return tokens.length ? <div className="roll-token-choice"><span>{pendingRollModifierType ? `${pendingRollModifierType === "majorAdvantage" ? "AVM" : "AV"} selected — roll D20 to use it.` : "Team roll bonus available:"}</span>{tokens.map(token => <button type="button" key={token.id} className={pendingRollModifierType === token.modifierType ? "active" : ""} onClick={() => setPendingRollModifierType(current => current === token.modifierType ? null : token.modifierType)}>{token.modifierType === "majorAdvantage" ? "Use AVM" : "Use AV"}</button>)}<button type="button" onClick={() => setPendingRollModifierType(null)}>Roll normally — save</button></div> : null;
-          })()}
+          {!sessionCode && gameMode === "match" && renderRollModifierChoice(actionResolution.team)}
         </DraggableActionPrompt>;
       })()}
 
-      {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "roll-resolved" && <div className="modal-backdrop pass-result-backdrop"><div className={`modal pass-result-modal ${actionResolution.team || ""}`} role="dialog" aria-modal="true"><div className="modal-title"><strong>Lofted Through Ball result</strong>{renderBlockingGameplayHistoryControls()}</div><div className="pass-result-lines">{renderRollBreakdown(actionResolution.result, `Difficulty ${actionResolution.plan?.difficultyThreshold}`)}<p>{actionResolution.result?.succeeds ? "Lofted Through Ball succeeds." : "Lofted Through Ball fails."}</p></div><div className="modal-actions"><button className="save-label" onClick={confirmLoftedThroughBallResolution}>Continue</button></div></div></div>}
+      {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "roll-resolved" && <div className="modal-backdrop pass-result-backdrop"><div className={`modal pass-result-modal ${actionResolution.team || ""}`} role="dialog" aria-modal="true"><div className="modal-title"><strong>Lofted Through Ball result</strong>{renderBlockingGameplayHistoryControls()}</div><div className="pass-result-lines">{renderRollBreakdown(actionResolution.result, `Difficulty ${actionResolution.plan?.difficultyThreshold}`)}{Number(actionResolution.result?.natural) === 20 && <p>{selectNaturalRollOutcomePresentation(actionResolution.result?.naturalOutcome)}</p>}<p>{actionResolution.result?.succeeds ? "Lofted Through Ball succeeds." : "Lofted Through Ball fails."}</p></div><div className="modal-actions"><button className="save-label" onClick={confirmLoftedThroughBallResolution}>Continue</button></div></div></div>}
 
       {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "awaiting-recoverer-choice" && (() => {
         const candidates = actionResolution.recovery?.defenderCandidates || [];

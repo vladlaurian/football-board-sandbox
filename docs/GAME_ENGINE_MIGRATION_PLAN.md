@@ -588,6 +588,12 @@ The accepted v20.55.1 source is retained as the base; v20.55.2/20.55.3 are not u
 
 This recovery continues from v20.55.4 source, not from a prior trust base. It repairs the three broken boundaries found in acceptance: prompt dragging no longer consumes button clicks, all canonical pending D20 rolls open Dice automatically, and Match lifecycle/Editor exit clear temporary AV/AVM and 3/2 state. It also removes the contradictory 3/2 condition where the command guard permitted BA but its evaluator rejected it: a granted 3/2 is now legal for the owning ready/active Bonus Action team under its unchanged target, path, range, one-use and passer exclusions. A Natural-20 Lofted Through that replaces an active BA inherits the parent resume policy so the generated AV/AVM is assigned to, and survives into, the real resumed numbered turn. Tests cover the BA 3/2 case and Start/Restart/Editor token cleanup. Manual Multiplayer remains unchanged.
 
+### v20.55.6 — Roll outcome and Bonus Action presentation cleanup
+
+**Status:** Complete.
+
+Natural-roll effects now leave the Engine as structured facts, including recipient and timing. Current Interception and Lofted Through prompts use that fact, preventing a configured `none`, AV or AVM outcome from being rewritten visually as a Bonus Action. Roll-token selection is one shared UI projection, Match → Editor clears its rendered state and ref-backed Timeline capture, unimplemented Offline Match action buttons are disabled in normal and BA contexts, and the obsolete interaction-active yellow halo is removed. No Pass route/interception geometry changed; Manual Multiplayer remains unchanged.
+
 ### Next approved build — Pass / Interception route integrity
 
 **Status:** Queued; not implemented by v20.55.5.
