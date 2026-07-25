@@ -262,7 +262,7 @@ test("MATCH_STARTED creates the canonical playable first turn and clears stale i
   assert.equal(result.nextState.actionResolution, null);
   assert.equal(result.nextState.actionContinuation, null);
   assert.equal(result.events[0].type, "MATCH_STARTED");
-  assert.deepEqual(result.events[0].metadata, { startingTeam: "blue", startedTurn: 1, restarted: false });
+  assert.deepEqual(result.events[0].metadata, { startingTeam: "blue", startedTurn: 1, restarted: false, clearedRollModifierCount: 0 });
 });
 
 test("MATCH_RESTARTED restarts an existing Match without moving any board piece", () => {
@@ -1532,6 +1532,31 @@ test("PASS_CONSEQUENCE_DUE completes the atomic Bonus Pass and creates Natural 2
   assert.equal(naturalTwenty.nextState.actionContinuation.origin.reason, "NATURAL_20");
   assert.deepEqual(naturalTwenty.nextState.tracker, resolved.nextState.tracker);
   assert.equal(naturalTwenty.events[0].metadata.undoTransaction.id, resolved.nextState.actionResolution.resolutionTransaction.id);
+});
+
+test("Natural 20 Interception with no extra effect changes turn without creating a Bonus Action", () => {
+  const state = createGameState({
+    ...normalMoveState(),
+    pieces: [...normalMoveState().pieces, { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 }],
+  });
+  const context = createMatchContext({
+    id: "natural-twenty-none",
+    boardSettings: { cols: 20, rows: 12 },
+    ruleSet: { actions: { pass: { requireFieldPlayerTarget: false }, interception: { naturalTwentyEffect: "none" } } },
+    gameplayCards: [
+      { id: "card-blue-1", passiveAttributes: [{ id: "stat:speed", value: 4 }, { id: "stat:passing", value: 13 }] },
+      { id: "card-red-1", defensiveArea: [{ dx: 2, dy: 0 }] },
+    ],
+  });
+  const { resolved } = resolvedPassInterception(state, "natural-twenty-none", 20, context);
+  const result = applyGameCommand({
+    state: resolved.nextState, context,
+    command: { id: "natural-twenty-none-consequence", type: "PASS_CONSEQUENCE_DUE", payload: { passId: "natural-twenty-none", rollEventId: "natural-twenty-none-roll-event" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.events[0].metadata.naturalTwentyEffect, "none");
+  assert.equal(result.nextState.actionContinuation, null);
+  assert.equal(result.nextState.tracker.currentTurn, 2);
 });
 
 test("Natural 20 replaces an interrupted Bonus Action and records the continuation chain", () => {

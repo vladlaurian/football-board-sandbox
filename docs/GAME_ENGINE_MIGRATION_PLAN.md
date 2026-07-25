@@ -583,3 +583,9 @@ v20.54.3 completes the Through targeting interaction boundary without changing i
 - record discovered blockers without silent scope expansion;
 - update permanent architecture when its durable contract changed;
 - provide complete new-chat handoff with phase, baseline, scope, prohibitions, acceptance criteria, and tests.
+### v20.55.2 — Roll interaction and projection integrity
+
+- Complete: Short Pass direct contact now carries the same official route segmentation data as Long Pass.
+- Complete: canonical roll outcomes expose the actual Natural 20 effect and total bonus; UI does not infer a Bonus Action from `PASS_NATURAL_20`.
+- Complete: AV/AVM reset, consumption and expiry are MatchState/Engine lifecycle transitions, including semantic expiry metadata on numbered-turn changes.
+- Complete: Dice visibility is driven by canonical roll-sequence state; Manual Multiplayer is unchanged.

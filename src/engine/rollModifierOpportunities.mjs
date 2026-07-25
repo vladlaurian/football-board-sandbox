@@ -37,3 +37,13 @@ export function pruneRollModifierOpportunities(raw, turn) {
   const currentTurn = Math.max(1, Math.floor(Number(turn) || 1));
   return normalizeRollModifierOpportunities(raw).filter(item => item.expiresAfterTurn >= currentTurn);
 }
+
+// A turn transition is the single lifecycle boundary for one-roll bonuses.
+// Keep the expired records here so the Engine can publish an official notice
+// instead of letting the Tracker silently hide stale state.
+export function advanceRollModifierOpportunities(raw, nextTurn) {
+  const opportunities = normalizeRollModifierOpportunities(raw);
+  const turn = Math.max(1, Math.floor(Number(nextTurn) || 1));
+  const expired = opportunities.filter(item => item.expiresAfterTurn < turn);
+  return { opportunities: opportunities.filter(item => item.expiresAfterTurn >= turn), expired };
+}

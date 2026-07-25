@@ -4,7 +4,7 @@ import { PASS_CORNERS, bodyBlockingPassOrigin, cardStat, defensiveCellsForPiece,
 import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { activateTrackerAction, createEmptyTrackerTurnState, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
-import { consumeRollModifierOpportunity, grantRollModifierOpportunity, pruneRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
+import { advanceRollModifierOpportunities, consumeRollModifierOpportunity, grantRollModifierOpportunity } from "./rollModifierOpportunities.mjs";
 
 const EPSILON = 1e-9;
 const otherTeam = team => team === "blue" ? "red" : "blue";
@@ -210,5 +210,6 @@ export function confirmLoftedThroughBallRecovery(state) {
     return { accepted: true, nextState: { ...base, actionContinuation: continuation }, event: { type: "LOFTED_THROUGH_BALL_NATURAL_20", team: pending.team, metadata: { recovererId: recoverer.id, bonusAction: continuation.origin } }, timeline: { allowNoop: false } };
   }
   const empty = createEmptyTrackerTurnState();
-  return { accepted: true, nextState: { ...base, actionContinuation: null, rollModifierOpportunities: pruneRollModifierOpportunities(state.rollModifierOpportunities, nextTurn), tracker: { ...state.tracker, startingTeam: team, currentTurn: nextTurn, usedActions: empty.usedActions, actionLog: empty.actionLog, personalActionsByPieceId: empty.personalActionsByPieceId, matchActionState: empty.matchActionState, turnPhase: "attack" } }, event: { type: "LOFTED_THROUGH_BALL_RECOVERED", team, metadata: { recovererId: recoverer.id, startedTurn: nextTurn, result: pending.result } }, timeline: { allowNoop: false } };
+  const rollTokens = advanceRollModifierOpportunities(state.rollModifierOpportunities, nextTurn);
+  return { accepted: true, nextState: { ...base, actionContinuation: null, rollModifierOpportunities: rollTokens.opportunities, tracker: { ...state.tracker, startingTeam: team, currentTurn: nextTurn, usedActions: empty.usedActions, actionLog: empty.actionLog, personalActionsByPieceId: empty.personalActionsByPieceId, matchActionState: empty.matchActionState, turnPhase: "attack" } }, event: { type: "LOFTED_THROUGH_BALL_RECOVERED", team, metadata: { recovererId: recoverer.id, startedTurn: nextTurn, result: pending.result, expiredRollModifiers: rollTokens.expired } }, timeline: { allowNoop: false } };
 }

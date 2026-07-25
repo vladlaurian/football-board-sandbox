@@ -1,6 +1,7 @@
 import { PASS_CORNERS, bodyBlockingPassOrigin, defensiveCellsForPiece, pointForPassOrigin, pointForPassTarget, segmentIntersectsOpenRect, teamKeyForPiece } from "../rules/passEngine.mjs";
 import { activateTrackerAction, createEmptyTrackerTurnState, isTeamActiveForTrackerPhase } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
+import { advanceRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
 
 const EPSILON = 1e-9;
 const otherTeam = team => team === "blue" ? "red" : "blue";
@@ -129,5 +130,6 @@ export function confirmThroughBallRecovery(state) {
   const tracker = normalizeTrackerSnapshot(state.tracker);
   const emptyTurn = createEmptyTrackerTurnState();
   const nextTurn = Math.min(tracker.settings.turns, Math.max(1, tracker.currentTurn + 1));
-  return { accepted: true, nextState: { ...state, pieces: moveBall(state, recoverer), movementStateByPieceId: {}, actionResolution: null, threeTwoOpportunity: null, actionContinuation: null, tracker: { ...state.tracker, startingTeam: nextTeam, currentTurn: nextTurn, usedActions: emptyTurn.usedActions, actionLog: emptyTurn.actionLog, personalActionsByPieceId: emptyTurn.personalActionsByPieceId, matchActionState: emptyTurn.matchActionState, turnPhase: "attack" } }, event: { type: "THROUGH_BALL_AUTO_RECOVERED", team: nextTeam, metadata: { passerId: pending.passerId, target: pending.target, recovererId: recoverer.id, startedTurn: nextTurn } }, timeline: { allowNoop: false } };
+  const rollTokens = advanceRollModifierOpportunities(state.rollModifierOpportunities, nextTurn);
+  return { accepted: true, nextState: { ...state, pieces: moveBall(state, recoverer), movementStateByPieceId: {}, actionResolution: null, threeTwoOpportunity: null, actionContinuation: null, rollModifierOpportunities: rollTokens.opportunities, tracker: { ...state.tracker, startingTeam: nextTeam, currentTurn: nextTurn, usedActions: emptyTurn.usedActions, actionLog: emptyTurn.actionLog, personalActionsByPieceId: emptyTurn.personalActionsByPieceId, matchActionState: emptyTurn.matchActionState, turnPhase: "attack" } }, event: { type: "THROUGH_BALL_AUTO_RECOVERED", team: nextTeam, metadata: { passerId: pending.passerId, target: pending.target, recovererId: recoverer.id, startedTurn: nextTurn, expiredRollModifiers: rollTokens.expired } }, timeline: { allowNoop: false } };
 }

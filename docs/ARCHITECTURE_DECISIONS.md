@@ -754,3 +754,10 @@ While Free Move is active, no other offline Match Mode action may proceed. Its s
 - UI-level lock prevents remaining legacy offline action entrances and Free Ball from interleaving.
 - Undoing an end restores active Free Move; undoing a segment restores its prior board position; Redo reapplies the same sequence.
 - Manual Multiplayer and Editor Mode remain unchanged.
+## ADR-052 — Roll outcome and token lifecycle are Engine facts
+
+**Decision:** Every roll consequence is recorded by the Engine as explicit outcome data. Presentation must read the recorded natural effect, granted continuation/token and canonical total bonus; it must never infer a Bonus Action from a broad event name or reconstruct a total from a partial modifier.
+
+**Decision:** AV/AVM opportunities are canonical MatchState data. Match start/restart clears them; every numbered-turn transition prunes expired opportunities and records the expired tokens in event metadata. UI may show that recorded expiry but cannot silently retain, revive or expire a token itself.
+
+**Decision:** Prompt visibility is a projection of the canonical pending roll sequence. UI automatically opens D20 for a pending mechanic roll and closes only after the sequence is no longer active.

@@ -188,6 +188,19 @@ export function selectSinglePlayerDicePresentation(state, { team, extraRollArmed
   return { canRoll: Boolean(extraRollArmed), reason: extraRollArmed ? "EXTRA_ROLL" : "EXTRA_ROLL_NOT_ARMED" };
 }
 
+export function selectSinglePlayerRollSequencePresentation(state) {
+  const pending = state?.actionResolution;
+  const requiresRoll = Boolean(
+    (pending?.kind === "pass" && pending.status === "awaiting-interception-roll")
+    || (pending?.kind === "lofted-through-ball" && pending.status === "awaiting-roll")
+  );
+  const sequenceActive = Boolean(
+    (pending?.kind === "pass" && ["awaiting-interception-roll", "awaiting-interception-resolution", "interception-resolved"].includes(pending.status))
+    || (pending?.kind === "lofted-through-ball" && ["awaiting-roll", "roll-resolved"].includes(pending.status))
+  );
+  return { requiresRoll, sequenceActive, dieType: requiresRoll ? 20 : null };
+}
+
 export function selectSinglePlayerFreeMovePresentation(state, { piece, x, y } = {}) {
   const result = evaluateFreeMove(state, previewCommand("FREE_MOVE_COMMITTED", piece, x, y));
   return { ...result, legal: Boolean(result.accepted) };
@@ -242,7 +255,6 @@ export function selectSinglePlayerInspectorControlPresentation(state, context, {
     freeBall: selectSinglePlayerFreeBallControlPresentation(state, { replay }),
     freeMoveAllowed: Boolean(
       action.freeAllowed
-      && !continuation
       && !current.activeMovement?.active
       && !current.groupMove?.active
       && (!current.freeMode?.active || freeMoveSamePiece)
