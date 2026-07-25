@@ -1479,6 +1479,69 @@ test("GAMEPLAY_ROLL_SUBMITTED routes a canonical pending Pass roll without UI me
   assert.equal(result.nextState.actionResolution.status, "awaiting-interception-resolution");
 });
 
+test("GAMEPLAY_ROLL_SUBMITTED is accepted for the canonical pending roll of an active Bonus Action", () => {
+  const state = normalMoveState({
+    actionContinuation: {
+      id: "bonus-lt-roll",
+      kind: "bonus-card-action",
+      team: "blue",
+      status: "action-active",
+      actionType: "LOFTED_THROUGH_BALL",
+      pieceId: "blue-1",
+      resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" },
+    },
+    actionResolution: {
+      id: "lt-in-bonus-action",
+      kind: "lofted-through-ball",
+      status: "awaiting-roll",
+      passerId: "blue-1",
+      team: "blue",
+      bonusContinuationId: "bonus-lt-roll",
+      pendingRoll: {
+        requestId: "lt-in-bonus-action-roll",
+        actionId: "lt-in-bonus-action",
+        team: "blue",
+        dieType: 20,
+        subjectId: "blue-1",
+        reactionIndex: 0,
+        context: { actionType: "LOFTED_THROUGH_BALL" },
+      },
+      plan: {
+        rollStatValue: 10,
+        difficultyThreshold: 16,
+        disadvantageStacks: 0,
+        foot: { dominant: true },
+      },
+    },
+  });
+  const result = applyGameCommand({
+    state,
+    context: normalMoveContext(),
+    command: {
+      id: "bonus-lt-generic-roll",
+      type: "GAMEPLAY_ROLL_SUBMITTED",
+      payload: {
+        rollEvent: {
+          id: "bonus-lt-generic-roll-event",
+          requestId: "lt-in-bonus-action-roll",
+          actionId: "lt-in-bonus-action",
+          team: "blue",
+          dieType: 20,
+          natural: 7,
+          source: "CHOSEN",
+          createdAt: 1000,
+          subjectId: "blue-1",
+          reactionIndex: 0,
+        },
+      },
+    },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.events[0].type, "LOFTED_THROUGH_BALL_ROLLED");
+  assert.equal(result.nextState.actionResolution.status, "roll-resolved");
+  assert.equal(result.nextState.actionResolution.result.natural, 7);
+});
+
 test("PASS_INTERCEPTION_ROLL_SUBMITTED rejects an invalid or replayed roll without mutation", () => {
   const rollState = createGameState({
     ...normalMoveState(),

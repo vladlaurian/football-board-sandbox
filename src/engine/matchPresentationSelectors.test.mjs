@@ -270,6 +270,13 @@ test("offline Dice has no post-roll cooldown while Timeline navigation is guarde
   const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
   const reserve = localFunctionSource(source, "reserveDiceRoll");
   assert.match(reserve, /if \(!sessionCode\) \{\s*return true;/);
+  const roll = localFunctionSource(source, "rollTeamDie");
+  const offlineBranchStart = roll.indexOf("if (offlineMatch)");
+  const offlineBranchEnd = roll.indexOf("      setResult(result);", offlineBranchStart);
+  const offlineBranch = roll.slice(offlineBranchStart, offlineBranchEnd);
+  assert.match(offlineBranch, /PASS_INTERCEPTION_RESOLUTION_DUE/);
+  assert.match(offlineBranch, /resolveRecordedPassInterception/);
+  assert.doesNotMatch(offlineBranch, /scheduleDelayedResolution/);
   const undo = localFunctionSource(source, "undo");
   const redo = localFunctionSource(source, "redo");
   assert.match(undo, /if \(diceAnimationActive\(\)\) return;/);

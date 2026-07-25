@@ -38,6 +38,22 @@ export function isBonusActionCommand(commandType) {
   return Boolean(COMMAND_ACTION_TYPES[String(commandType || "")]);
 }
 
+// A gameplay-roll submission has no mechanic name by design.  Its authority
+// during a Bonus Action therefore comes from the canonical active resolution,
+// not from a second static list that must be amended for every future roll.
+export function isPendingBonusActionRollSubmission(state, commandType) {
+  if (String(commandType || "") !== "GAMEPLAY_ROLL_SUBMITTED") return false;
+  const continuation = normalizeActionContinuation(state?.actionContinuation);
+  const resolution = state?.actionResolution;
+  return Boolean(
+    continuation
+      && continuation.kind === "bonus-card-action"
+      && continuation.status === CONTINUATION_STATUS.ACTION_ACTIVE
+      && resolution?.pendingRoll
+      && String(resolution.bonusContinuationId || "") === continuation.id
+  );
+}
+
 export function bonusActionTypeForCommand(commandType) {
   return COMMAND_ACTION_TYPES[String(commandType || "")] || null;
 }

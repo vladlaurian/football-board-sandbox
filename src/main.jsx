@@ -207,7 +207,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.55.8";
+const APP_VERSION = "v20.55.9";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5572,13 +5572,48 @@ function App() {
             ? `${team === "blue" ? "Blue" : "Red"} D${rollingDieType}: ${result} (${pendingRollRequest?.context?.actionType || "gameplay"})${hasChosenResult ? " (chosen)" : ""}`
             : `${team === "blue" ? "Blue" : "Red"} EXTRA D${rollingDieType}: ${result}${hasChosenResult ? " (chosen)" : ""}`,
         });
-        if (!dispatched.result.accepted) return;
+        if (!dispatched.result.accepted) {
+          // Dice presentation must never make an old die face look like the
+          // result of a rejected canonical roll.  The Engine remains the
+          // authority; this is only explicit diagnostic feedback.
+          setPassResultNotice({
+            id: `gameplay_roll_rejected_${Date.now()}`,
+            title: "Roll not accepted",
+            lines: [String(dispatched.result.reason || "The pending gameplay roll was rejected by the Engine.")],
+          });
+          return;
+        }
         setPendingRollModifierType(null);
         setRollModifierChoice(null);
         showDiceNotice(team, result, rollingDieType);
         if (extraRoll) setExtraRollArmed(false);
         const delayedResolution = dispatched.entry?.metadata?.delayedResolution;
-        if (delayedResolution) scheduleDelayedResolution({ ...delayedResolution, entryId: String(dispatched.entry?.id || "") });
+        // Offline play keeps the short die animation, then resolves an
+        // interception immediately.  The descriptor remains in the Engine
+        // event for the frozen Manual Multiplayer path; Single Player does
+        // not schedule a second suspense/cooldown delay after the animation.
+        if (delayedResolution && pending?.kind === "pass") {
+          const resolved = dispatchSinglePlayerGameCommand({
+            timeline: dispatched.timeline,
+            state: dispatched.state,
+            context: singlePlayerMatchContext(),
+            command: {
+              id: createActionEventId(`pass_resolution_due_${pending.id}`),
+              type: GAME_COMMAND_TYPE.PASS_INTERCEPTION_RESOLUTION_DUE,
+              payload: { passId: pending.id, rollEventId: rollEvent.id },
+            },
+            label: `${getPieceDisplayLabel((piecesRef.current || pieces).find(piece => piece.id === pending?.plan?.interceptors?.[pending.interceptorIndex]?.defender?.id))} interception result`,
+          });
+          if (!resolved.result.accepted) {
+            setPassResultNotice({
+              id: `interception_resolution_rejected_${Date.now()}`,
+              title: "Interception result not accepted",
+              lines: [String(resolved.result.reason || "The Engine rejected the immediate interception resolution.")],
+            });
+            return;
+          }
+          resolveRecordedPassInterception(resolved.state.actionResolution);
+        }
         return;
       }
       setResult(result);

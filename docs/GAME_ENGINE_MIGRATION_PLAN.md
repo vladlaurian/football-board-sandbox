@@ -426,6 +426,10 @@ Acceptance:
 
 Offline Dice now projects the canonical `actionResolution.pendingRoll` request for all implemented mechanics rather than branching by mechanic name. The Controller submits `GAMEPLAY_ROLL_SUBMITTED`; the Engine routes the command to the active pending mechanic, while legacy typed commands remain compatibility inputs. The obsolete offline post-roll cooldown was removed: a consumed pending request is the authoritative double-roll guard. Undo/Redo remains blocked only during the short local dice animation. Manual Multiplayer retains its existing cooldown path unchanged.
 
+### v20.55.9 — Bonus Action generic-roll completion
+
+The generic gameplay-roll command is now admitted during Bonus Action only when its canonical pending request belongs to the exact active continuation. This fixes the otherwise silent BA → Lofted Through rejection without adding an LT-specific exception, and is the contract future rolling BA mechanics inherit. Offline Pass/Interception resolves immediately after the same short Dice animation used by every roll; its former extra suspense timer is retained only by the frozen Manual Multiplayer path.
+
 Migrate RollEvent submission, delayed resolution, Natural 1/20, interception outcome, possession consequence, Bonus continuation, completion/decline, and atomic Undo.
 
 Acceptance:

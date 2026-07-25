@@ -14,7 +14,7 @@ import { applyPassConsequence, cancelPass, confirmPassRoute, resolvePassIntercep
 import { changePieceActivity, changeTrackerPossession, declareManualAction, declareManualBonusAction, resetTrackerActions } from "./matchAdministrationRules.mjs";
 import { cancelThroughBall, cancelThroughBallRoute, commitThroughBall, confirmThroughBallRecovery, selectThroughBallRecoverer, selectThroughBallTarget, startThroughBall } from "./throughBallRules.mjs";
 import { cancelLoftedThroughBall, cancelLoftedThroughBallRoute, commitLoftedThroughBall, confirmLoftedThroughBallRecovery, resolveLoftedThroughBall, selectLoftedThroughBallRecoverer, selectLoftedThroughBallTarget, startLoftedThroughBall, submitLoftedThroughBallRoll } from "./loftedThroughBallRules.mjs";
-import { isBonusActionCommand } from "./bonusActionCapabilities.mjs";
+import { isBonusActionCommand, isPendingBonusActionRollSubmission } from "./bonusActionCapabilities.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -141,6 +141,7 @@ export function applyGameCommand({ state, context, command } = {}) {
   ].includes(normalizedCommand.type)) return rejected("MOVE_INTERACTION_ACTIVE");
   if (bonusActionActive && !(
     isBonusActionCommand(normalizedCommand.type)
+    || isPendingBonusActionRollSubmission(currentState, normalizedCommand.type)
     || [
     GAME_COMMAND_TYPE.MATCH_STARTED,
     GAME_COMMAND_TYPE.MATCH_RESTARTED,

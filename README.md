@@ -6,8 +6,8 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.55.8` |
-| Git/package version | `20.55.8` |
+| Sandbox version | `v20.55.9` |
+| Git/package version | `20.55.9` |
 | Build name | `Final_Board_v20_55_8_pending_roll_dice_integrity` |
 | Base build | `v20.55.7 LT recovery and 3/2 BA continuity` |
 | Modes | Editor Mode and Match Mode |
@@ -16,7 +16,7 @@ The visible Sandbox label is defined in `src/main.jsx` as `v20.55.7`. The reposi
 
 ## Current release
 
-v20.55.8 removes the offline post-roll Dice cooldown that could survive a Timeline Undo/Redo and falsely keep D20 disabled. Offline Dice availability, auto-opening and die type now project the canonical `actionResolution.pendingRoll` request instead of maintaining Pass/LT-specific UI gates; the Controller sends one generic gameplay-roll command, which the Engine routes to the active mechanic. Undo/Redo is unavailable only during the real ~800 ms dice animation, preventing a stale callback from resolving against a restored Timeline state. Manual Multiplayer retains its existing cooldown path unchanged.
+v20.55.9 completes the offline pending-roll Dice contract: every generic roll submitted inside a Bonus Action is authorized only by the active canonical pending request linked to that continuation, so it works for LT now and for future roll mechanics without a new mechanic-name exception. Offline Interception now resolves immediately after the shared ~800 ms Dice animation; there is no extra suspense/cooldown timer. Manual Multiplayer retains its existing cooldown and delayed-resolution path unchanged.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

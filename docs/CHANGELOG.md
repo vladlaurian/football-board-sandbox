@@ -2,6 +2,13 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.55.9 — Bonus Action generic-roll completion
+
+- Repairs the missing Bonus Action authorization for canonical `GAMEPLAY_ROLL_SUBMITTED`. The Engine now admits a generic roll only when its pending request belongs to the exact active Bonus Action continuation; LT works in BA without a mechanic-specific UI bypass, and future pending-roll mechanics inherit the same rule.
+- Makes rejected offline gameplay rolls explicit instead of leaving the prior die face visible as if it were a new result.
+- Removes the extra offline Interception suspense timer. Every offline gameplay roll retains the same short Dice animation, then resolves immediately. Manual Multiplayer retains its frozen cooldown and delayed-resolution path.
+- Adds the Engine sentinel for BA → canonical LT pending roll → selected non-20 result.
+
 ## v20.55.8 — Pending-roll Dice integrity
 
 - Removes the offline post-roll Dice cooldown. A resolved roll no longer leaves an unrelated local delay that can survive an immediate Undo/Redo; Manual Multiplayer retains its frozen session cooldown.
