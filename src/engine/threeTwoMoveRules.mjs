@@ -39,7 +39,7 @@ export function evaluateThreeTwoMove(state, context, command) {
   if (!tracker.gameStarted || tracker.currentTurn < 1) return { eligible: false, reason: "match-not-started", geometry, current };
   if (!team || !isTeamActiveForTrackerPhase(tracker, team)) return { eligible: false, reason: "wait-active-team", geometry, current };
   if (!ball || Number(ball.x) !== x || Number(ball.y) !== y) return { eligible: false, reason: "not-ball", geometry, current };
-  const opportunity = state.throughBallOpportunity;
+  const opportunity = state.threeTwoOpportunity;
   if (!opportunity || opportunity.team !== team || opportunity.passerId === piece.id || Number(opportunity.target?.x) !== x || Number(opportunity.target?.y) !== y || Number(opportunity.turn) !== Number(tracker.currentTurn)) return { eligible: false, reason: "three-two-not-granted", geometry, current };
   if (state.pieces.some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === x && Number(item.y) === y)) {
     return { eligible: false, reason: "occupied", geometry, current };
@@ -77,7 +77,7 @@ export function commitThreeTwoMove(state, context, command) {
   };
   return {
     accepted: true,
-    nextState: { ...state, pieces, movementStateByPieceId, throughBallOpportunity: null },
+    nextState: { ...state, pieces, movementStateByPieceId, threeTwoOpportunity: null },
     event: {
       type: "THREE_TWO_MOVE",
       team,

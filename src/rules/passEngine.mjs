@@ -443,6 +443,8 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
       useProgressiveBonus: interceptionRules.useProgressiveBonus !== false,
       diceModifiers,
       equalRollOutcome: interceptionRules.equalRollOutcome === "interception" ? "interception" : "pass-succeeds",
+      naturalOneEffect: interceptionRules.naturalOneEffect === "none" ? "none" : "carry-disadvantage",
+      naturalTwentyEffect: ["bonus-action", "none", "next-turn-roll-advantage", "next-turn-roll-major-advantage"].includes(interceptionRules.naturalTwentyEffect) ? interceptionRules.naturalTwentyEffect : "bonus-action",
     },
     directHit: hit ? { pieceId: hit.piece.id, team: teamKeyForPiece(hit.piece), entryT: hit.entryT }
       : aerialLongPass && targetPlayer ? { pieceId: targetPlayer.id, team: teamKeyForPiece(targetPlayer), entryT: 1 } : null,

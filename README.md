@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.54.3` |
-| Git/package version | `20.54.3` |
-| Build name | `Final_Board_v20_54_3_through_ball_targeting_lock_and_preview_cleanup` |
+| Sandbox version | `v20.55.0` |
+| Git/package version | `20.55.0` |
+| Build name | `Final_Board_v20_55_0_lofted_through_and_roll_outcomes` |
 | Base build | `v20.54.2 Through Ball resolution and match-entry integrity` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.54.3`. The repository version is in `package.json` as `20.54.3`. The browser title is `Sandbox v20.54.3`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.55.0`. The repository version is in `package.json` as `20.55.0`. The browser title is `Sandbox v20.55.0`.
 
 ## Current release
 
-v20.54.3 makes the Through Ball targeting interaction match Pass UX: while Through Ball is pending, the normal Inspector action row is disabled and the inline Through control remains the sole cancellation route. After route cancellation, the Engine keeps the selected target canonically for targeting, but the UI no longer renders a placed-ball preview there. Manual Multiplayer remains unchanged.
+v20.55.0 adds canonical Lofted Through Ball resolution, editable natural roll outcomes, and Engine-owned AV/AVM one-roll opportunities. Manual Multiplayer remains unchanged.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

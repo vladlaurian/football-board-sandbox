@@ -13,6 +13,7 @@ import { restartMatch, startMatch } from "./matchLifecycleRules.mjs";
 import { applyPassConsequence, cancelPass, confirmPassRoute, resolvePassInterception, selectPassInterceptor, selectPassTarget, startPass, submitPassInterceptionRoll } from "./passStartRules.mjs";
 import { changePieceActivity, changeTrackerPossession, declareManualAction, declareManualBonusAction, resetTrackerActions } from "./matchAdministrationRules.mjs";
 import { cancelThroughBall, cancelThroughBallRoute, commitThroughBall, confirmThroughBallRecovery, selectThroughBallRecoverer, selectThroughBallTarget, startThroughBall } from "./throughBallRules.mjs";
+import { cancelLoftedThroughBall, cancelLoftedThroughBallRoute, commitLoftedThroughBall, confirmLoftedThroughBallRecovery, resolveLoftedThroughBall, selectLoftedThroughBallRecoverer, selectLoftedThroughBallTarget, startLoftedThroughBall, submitLoftedThroughBallRoll } from "./loftedThroughBallRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -219,6 +220,19 @@ export function applyGameCommand({ state, context, command } = {}) {
           : normalizedCommand.type === GAME_COMMAND_TYPE.THROUGH_BALL_RECOVERY_CONFIRMED
             ? confirmThroughBallRecovery(currentState, normalizedCommand)
             : cancelThroughBall(currentState, normalizedCommand);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({ ...transition.event, commandId: normalizedCommand.id })], transition.timeline);
+  }
+  if ([GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_STARTED, GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_TARGET_SELECTED, GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_COMMITTED, GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_CANCELLED, GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_ROUTE_CANCELLED, GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_ROLL_SUBMITTED, GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_RESOLUTION_CONFIRMED, GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_RECOVERER_SELECTED, GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_RECOVERY_CONFIRMED].includes(normalizedCommand.type)) {
+    const transition = normalizedCommand.type === GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_STARTED ? startLoftedThroughBall(currentState, normalizedCommand)
+      : normalizedCommand.type === GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_TARGET_SELECTED ? selectLoftedThroughBallTarget(currentState, matchContext, normalizedCommand)
+        : normalizedCommand.type === GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_COMMITTED ? commitLoftedThroughBall(currentState, matchContext, normalizedCommand)
+          : normalizedCommand.type === GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_ROUTE_CANCELLED ? cancelLoftedThroughBallRoute(currentState)
+            : normalizedCommand.type === GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_ROLL_SUBMITTED ? submitLoftedThroughBallRoll(currentState, matchContext, normalizedCommand)
+              : normalizedCommand.type === GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_RESOLUTION_CONFIRMED ? resolveLoftedThroughBall(currentState, matchContext)
+                : normalizedCommand.type === GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_RECOVERER_SELECTED ? selectLoftedThroughBallRecoverer(currentState, normalizedCommand)
+                  : normalizedCommand.type === GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_RECOVERY_CONFIRMED ? confirmLoftedThroughBallRecovery(currentState)
+                    : cancelLoftedThroughBall(currentState);
     if (!transition.accepted) return rejected(transition.reason);
     return accepted(createGameState(transition.nextState), [createGameEvent({ ...transition.event, commandId: normalizedCommand.id })], transition.timeline);
   }

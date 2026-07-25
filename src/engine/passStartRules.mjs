@@ -7,6 +7,7 @@ import { resolveInterception } from "../rules/interceptionEngine.mjs";
 import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { activateTrackerAction, createEmptyTrackerTurnState, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
+import { consumeRollModifierOpportunity, grantRollModifierOpportunity } from "./rollModifierOpportunities.mjs";
 
 function pieceForCommand(state, command) {
   const pieceId = String(command.payload?.pieceId || "");
@@ -484,6 +485,10 @@ export function submitPassInterceptionRoll(state, context, command) {
   }
   const createdAt = Number(command.payload?.createdAt);
   if (!Number.isFinite(createdAt) || createdAt < 0) return { accepted: false, reason: "PASS_INTERCEPTION_ROLL_TIME_INVALID" };
+  const modifierType = command.payload?.bonusModifierType === "advantage" || command.payload?.bonusModifierType === "majorAdvantage"
+    ? command.payload.bonusModifierType : null;
+  const token = consumeRollModifierOpportunity(state.rollModifierOpportunities, { team, turn: normalizeTrackerSnapshot(state.tracker).currentTurn, modifierType });
+  if (!token.accepted) return { accepted: false, reason: "ROLL_MODIFIER_NOT_AVAILABLE" };
   const resolutionTransaction = {
     id: `resolution_${pending.id}_${command.id}`,
     source: "roll-resolution",
@@ -509,6 +514,7 @@ export function submitPassInterceptionRoll(state, context, command) {
     lastRoll: { team, value: rollEvent.natural, eventId: rollEvent.id, requestId: rollEvent.requestId },
     lastResolution: null,
     resolutionTransaction,
+    bonusModifierType: token.consumed?.modifierType || null,
   };
   const dice = {
     ...state.dice,
@@ -520,7 +526,7 @@ export function submitPassInterceptionRoll(state, context, command) {
   };
   return {
     accepted: true,
-    nextState: { ...state, actionResolution: nextResolution, dice },
+    nextState: { ...state, actionResolution: nextResolution, dice, rollModifierOpportunities: token.opportunities },
     event: {
       type: "DICE_ROLLED",
       team,
@@ -530,6 +536,7 @@ export function submitPassInterceptionRoll(state, context, command) {
         chosenResult: rollEvent.source === "CHOSEN" ? rollEvent.natural : null,
         delayedResolution,
         undoTransaction: resolutionTransaction,
+        bonusModifier: token.consumed ? { type: token.consumed.modifierType, source: token.consumed.source, tokenId: token.consumed.id } : null,
       },
     },
     timeline: {
@@ -558,22 +565,25 @@ function buildInterceptionResolution({ pending, defender, context }) {
   const orderModifier = rules.useProgressiveBonus === false ? 0 : (Number(interceptor?.orderModifier) || 0);
   const nonDominantPenalty = rules.useStandardModifiers === false || plan.foot?.dominant ? 0 : resolveDiceModifierStacks(rules.diceModifiers, "advantage");
   const previousNaturalOnePenalty = rules.useStandardModifiers === false ? 0 : resolveDiceModifierStacks(rules.diceModifiers, "disadvantage", pending.naturalOneDisadvantageStacks);
+  const bonusModifier = pending.bonusModifierType ? resolveDiceModifierStacks(rules.diceModifiers, pending.bonusModifierType) : 0;
   const attackerTargetValue = Number(plan.attackerTargetValue ?? plan.passerPass) || 0;
   const roll = resolveInterception({
     natural: Number(pending.lastRollEvent?.natural),
     defenderStatValue: interception,
     attackerTargetValue,
     progressiveBonus: orderModifier,
-    standardModifier: nonDominantPenalty,
+    standardModifier: nonDominantPenalty + bonusModifier,
     previousNaturalOnePenalty,
     modifierCap: rules.diceModifiers.stackCap,
     equalRollOutcome: rules.equalRollOutcome || "pass-succeeds",
+    naturalOneEffect: rules.naturalOneEffect || "carry-disadvantage",
   });
   const modifierSources = [
     { label: "Interception", value: interception, source: "card" },
     { label: "Advantage", type: "advantage", stacks: Math.max(0, Number(interceptor?.orderModifier) / Math.max(1, Math.abs(resolveDiceModifierStacks(rules.diceModifiers, "advantage")))), value: orderModifier, source: "interceptor-order", detail: interceptionOrderLabel(orderModifier) },
     ...(nonDominantPenalty ? [{ label: "Advantage", type: "advantage", stacks: 1, value: nonDominantPenalty, source: "non-preferred-foot", detail: "non-preferred foot" }] : []),
     ...(previousNaturalOnePenalty ? [{ label: "Disadvantage", type: "disadvantage", stacks: pending.naturalOneDisadvantageStacks, value: previousNaturalOnePenalty, source: "previous-natural-1", detail: "previous Natural 1" }] : []),
+    ...(bonusModifier ? [{ label: pending.bonusModifierType === "majorAdvantage" ? "Major Advantage" : "Advantage", type: pending.bonusModifierType, stacks: 1, value: bonusModifier, source: "bonus-roll-token", detail: "earned roll bonus" }] : []),
   ];
   const appliedModifierSources = !roll.capped
     ? modifierSources
@@ -730,6 +740,22 @@ function completeNaturalTwentyInterception(state, pending, interceptor) {
   if (!bonusTeam || !pieces) return { accepted: false, reason: "PASS_INTERCEPTION_CONSEQUENCE_INVALID" };
   const tracker = normalizeTrackerSnapshot(state.tracker);
   const previousContinuation = normalizeActionContinuation(state.actionContinuation);
+  const naturalTwentyEffect = pending.plan?.interceptionRules?.naturalTwentyEffect || "bonus-action";
+  if (naturalTwentyEffect !== "bonus-action") {
+    const normal = completeNormalInterception(state, pending, interceptor);
+    if (!normal.accepted) return normal;
+    const tracker = normalizeTrackerSnapshot(state.tracker);
+    const modifierType = naturalTwentyEffect === "next-turn-roll-major-advantage" ? "majorAdvantage" : naturalTwentyEffect === "next-turn-roll-advantage" ? "advantage" : null;
+    const opportunities = modifierType ? grantRollModifierOpportunity(normal.nextState.rollModifierOpportunities, {
+      id: `roll_bonus_pass_${pending.id}_${pending.lastRollEvent.id}`,
+      team: bonusTeam, modifierType, availableFromTurn: Math.max(1, tracker.currentTurn + 1), expiresAfterTurn: Math.max(1, tracker.currentTurn + 1), source: "natural-20-interception", sourceActionId: pending.id,
+    }) : normal.nextState.rollModifierOpportunities;
+    return {
+      ...normal,
+      nextState: { ...normal.nextState, rollModifierOpportunities: opportunities },
+      event: { type: "PASS_NATURAL_20", team: bonusTeam, metadata: passTimelineMetadata(pending, { passId: pending.id, interceptorId: interceptor.id, naturalTwentyEffect }) },
+    };
+  }
   const continuation = createBonusCardActionContinuation({
     id: `continuation_pass_${pending.id}_${pending.lastRollEvent.id}`,
     team: bonusTeam,
@@ -776,7 +802,7 @@ function advanceFailedInterception(state, pending, context) {
     interceptorIndex: nextIndex,
     // Long Pass resolves launch defenders before landing defenders, but it is
     // one contested execution: Natural-1 disadvantage carries across both.
-    naturalOneDisadvantageStacks: (Number(pending.naturalOneDisadvantageStacks) || 0) + (Number(pending.lastResolution?.natural) === 1 ? 1 : 0),
+    naturalOneDisadvantageStacks: (Number(pending.naturalOneDisadvantageStacks) || 0) + (Number(pending.lastResolution?.natural) === 1 && pending.lastResolution?.naturalEffect === "carry-disadvantage" ? 1 : 0),
     lastRoll: null,
     lastResolution: null,
     lastRollEvent: null,

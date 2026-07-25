@@ -2,6 +2,12 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.55.0 — Lofted Through Ball and configurable natural outcomes
+
+- Adds canonical offline Single Player Lofted Through Ball, frozen rules, D20 resolution, recovery race, and generic 3/2 opportunity.
+- Adds configurable Natural 1/Natural 20/equality outcomes and canonical one-roll AV/AVM opportunities.
+- Manual Multiplayer remains unchanged.
+
 ## v20.54.3 — Through Ball targeting lock and preview cleanup
 
 - While offline Through Ball targeting or route selection is pending, the normal Inspector action row is locked; the dedicated Through Ball control remains the only cancellation route, matching the existing Pass interaction contract.

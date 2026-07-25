@@ -47,6 +47,15 @@ function resolveLongPassStat(ruleSet, gameplayCardsById) {
   };
 }
 
+function resolveLoftedThroughBallStat(ruleSet, gameplayCardsById) {
+  const candidates = Object.values(gameplayCardsById || {}).flatMap(card => [
+    ...(card?.passiveAttributes || []), ...(card?.bonuses || []),
+  ]).filter(stat => String(stat?.name || "").trim().toLowerCase() === "lofted through ball" && stat?.id);
+  const ids = [...new Set(candidates.map(stat => String(stat.id)))];
+  if (ids.length !== 1) return ruleSet;
+  return { ...ruleSet, actions: { ...ruleSet.actions, loftedThroughBall: { ...ruleSet.actions.loftedThroughBall, rollStatId: ids[0] } } };
+}
+
 export function createMatchContext(raw = {}) {
   const source = raw && typeof raw === "object" ? raw : {};
   const gameplayCardsById = normalizeGameplayCards(source.gameplayCardsById || source.gameplayCards);
@@ -58,7 +67,7 @@ export function createMatchContext(raw = {}) {
     ...normalizedRuleSet,
     actions: { ...normalizedRuleSet.actions, pass: { ...normalizedRuleSet.actions.pass, requireFieldPlayerTarget: false } },
   };
-  const ruleSet = resolveLongPassStat(configuredRuleSet, gameplayCardsById);
+  const ruleSet = resolveLoftedThroughBallStat(resolveLongPassStat(configuredRuleSet, gameplayCardsById), gameplayCardsById);
   return deepFreeze({
     schemaVersion: MATCH_CONTEXT_SCHEMA_VERSION,
     id: String(source.id || "").trim(),

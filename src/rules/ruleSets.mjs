@@ -1,4 +1,4 @@
-export const RULE_SET_SCHEMA_VERSION = 11;
+export const RULE_SET_SCHEMA_VERSION = 12;
 export const DEFAULT_RULE_SET_ID = "default-rules";
 
 function cleanText(value, fallback = "") {
@@ -34,6 +34,11 @@ export function createDefaultRuleSet() {
         resolutionDelayMs: 2000,
       },
       throughBall: { status: "configured", maxDistance: 16 },
+      loftedThroughBall: {
+        status: "configured", maxDistance: 32, difficultyThreshold: 16,
+        naturalOneEffect: "recoverer-bonus-action", naturalTwentyEffect: "passer-bonus-action",
+        equalRollOutcome: "lofted-fails",
+      },
       threeTwo: { allowMovementAfterPriorMove: false },
       interception: {
         status: "configured",
@@ -44,6 +49,8 @@ export function createDefaultRuleSet() {
         useStandardModifiers: true,
         useProgressiveBonus: true,
         equalRollOutcome: "pass-succeeds",
+        naturalOneEffect: "carry-disadvantage",
+        naturalTwentyEffect: "bonus-action",
       },
       groupMove: {
         status: "configured",
@@ -84,6 +91,7 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
   const interception = source.actions?.interception && typeof source.actions.interception === "object" ? source.actions.interception : {};
   const groupMove = source.actions?.groupMove && typeof source.actions.groupMove === "object" ? source.actions.groupMove : {};
   const throughBall = source.actions?.throughBall && typeof source.actions.throughBall === "object" ? source.actions.throughBall : {};
+  const loftedThroughBall = source.actions?.loftedThroughBall && typeof source.actions.loftedThroughBall === "object" ? source.actions.loftedThroughBall : {};
   const threeTwo = source.actions?.threeTwo && typeof source.actions.threeTwo === "object" ? source.actions.threeTwo : {};
   const fallbackInterception = fallbackSet.actions?.interception || createDefaultRuleSet().actions.interception;
   // Schema v6 changes only Group Move's stored distance shape.  A v4/v5
@@ -125,6 +133,14 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
         status: usesPreActionConfigurationDefaults || throughBall.status === "configured" ? "configured" : "not-configured",
         maxDistance: Math.max(1, Math.floor(Number(throughBall.maxDistance) || 16)),
       },
+      loftedThroughBall: {
+        status: usesPreActionConfigurationDefaults || loftedThroughBall.status === "configured" ? "configured" : "not-configured",
+        maxDistance: Math.max(1, Math.floor(Number(loftedThroughBall.maxDistance) || 32)),
+        difficultyThreshold: Math.max(1, Math.floor(Number(loftedThroughBall.difficultyThreshold) || 16)),
+        naturalOneEffect: ["recoverer-bonus-action", "none"].includes(loftedThroughBall.naturalOneEffect) ? loftedThroughBall.naturalOneEffect : "recoverer-bonus-action",
+        naturalTwentyEffect: ["passer-bonus-action", "none", "current-turn-roll-advantage", "current-turn-roll-major-advantage"].includes(loftedThroughBall.naturalTwentyEffect) ? loftedThroughBall.naturalTwentyEffect : "passer-bonus-action",
+        equalRollOutcome: loftedThroughBall.equalRollOutcome === "lofted-succeeds" ? "lofted-succeeds" : "lofted-fails",
+      },
       threeTwo: { allowMovementAfterPriorMove: threeTwo.allowMovementAfterPriorMove === true },
       interception: {
         status: usesPreActionConfigurationDefaults || interception.status === "configured" ? "configured" : "not-configured",
@@ -133,6 +149,8 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
         useStandardModifiers: interception.useStandardModifiers !== false,
         useProgressiveBonus: interception.useProgressiveBonus !== false,
         equalRollOutcome: migratedEqualOutcome === "interception" ? "interception" : "pass-succeeds",
+        naturalOneEffect: interception.naturalOneEffect === "none" ? "none" : "carry-disadvantage",
+        naturalTwentyEffect: ["bonus-action", "none", "next-turn-roll-advantage", "next-turn-roll-major-advantage"].includes(interception.naturalTwentyEffect) ? interception.naturalTwentyEffect : "bonus-action",
       },
       groupMove: {
         status: usesPreActionConfigurationDefaults || groupMove.status === "configured" ? "configured" : "not-configured",

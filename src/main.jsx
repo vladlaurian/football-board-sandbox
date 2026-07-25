@@ -28,6 +28,7 @@ import {
   selectSinglePlayerPassPresentation,
   selectSinglePlayerPieceActionPresentation,
   selectSinglePlayerTeamActionPresentation,
+  selectSinglePlayerRollModifierTokenPresentation,
   selectSinglePlayerThreeTwoPresentation,
 } from "./engine/matchPresentationSelectors.mjs";
 import {
@@ -203,7 +204,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.54.3";
+const APP_VERSION = "v20.55.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2146,6 +2147,8 @@ function App() {
   const [startedTurnNotice, setStartedTurnNotice] = useState(null);
   const [matchOverNotice, setMatchOverNotice] = useState(false);
   const [pendingThreeTwoMove, setPendingThreeTwoMove] = useState(null);
+  const [pendingRollModifierType, setPendingRollModifierType] = useState(null);
+  const [rollModifierOpportunities, setRollModifierOpportunities] = useState([]);
   const [groupMoveZoneDraft, setGroupMoveZoneDraft] = useState(null);
   const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
   const [lockUI, setLockUI] = useState(false);
@@ -2274,6 +2277,7 @@ function App() {
       const pending = actionResolutionRef.current;
       if (pending?.kind === "pass" && ["targeting", "route-selection"].includes(pending.status)) cancelPassTargeting();
       if (pending?.kind === "through-ball" && ["targeting", "route-selection"].includes(pending.status)) cancelThroughBallTargeting();
+      if (pending?.kind === "lofted-through-ball" && ["targeting", "route-selection"].includes(pending.status)) cancelLoftedThroughBallTargeting({ routeOnly: pending.status === "route-selection" });
     };
     window.addEventListener("keydown", cancelPendingPassWithEscape);
     return () => window.removeEventListener("keydown", cancelPendingPassWithEscape);
@@ -4375,6 +4379,7 @@ function App() {
       ruleSet: normalizeRuleSet(activeRuleSetRef.current),
       actionResolution: actionResolutionRef.current,
       actionContinuation: actionContinuationRef.current,
+      rollModifierOpportunities,
       tracker: {
         gameStarted: trackerGameStarted,
         startingTeam: trackerStartingTeam,
@@ -5262,6 +5267,7 @@ function App() {
     actionContinuationRef.current = nextActionContinuation;
     setActionResolution(nextActionResolution);
     setActionContinuation(nextActionContinuation);
+    setRollModifierOpportunities(state.rollModifierOpportunities || []);
     setTrackerSettings(nextTracker.settings);
     setTrackerSettingsDraft(nextTracker.settings);
     setTrackerGameStarted(nextTracker.gameStarted);
@@ -5458,11 +5464,14 @@ function App() {
     if (sessionCode && gameMode === "match" && !sessionAuthorityRef.current.isHost && !fromHostIntent) {
       return requestDiceRollIntent(team, chosenResult);
     }
-    const forcedPassDie = actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "awaiting-interception-roll";
+    const pendingRollAction = actionResolutionRef.current;
+    const forcedPassDie = pendingRollAction?.kind === "pass" && pendingRollAction.status === "awaiting-interception-roll";
+    const forcedLoftedDie = pendingRollAction?.kind === "lofted-through-ball" && pendingRollAction.status === "awaiting-roll";
+    const forcedGameplayDie = forcedPassDie || forcedLoftedDie;
     const offlineMatch = !sessionCode && gameMode === "match";
-    const extraRoll = offlineMatch && !forcedPassDie && extraRollArmed;
-    if (offlineMatch && !forcedPassDie && !extraRoll) return false;
-    const rollingDieType = forcedPassDie ? 20 : dieType;
+    const extraRoll = offlineMatch && !forcedGameplayDie && extraRollArmed;
+    if (offlineMatch && !forcedGameplayDie && !extraRoll) return false;
+    const rollingDieType = forcedGameplayDie ? 20 : dieType;
     const hasChosenResult = chosenResult !== null && chosenResult !== undefined;
     const requestedResult = hasChosenResult ? Number(chosenResult) : null;
     if (hasChosenResult && (!Number.isInteger(requestedResult) || requestedResult < 1 || requestedResult > rollingDieType)) return;
@@ -5501,7 +5510,7 @@ function App() {
         const now = Date.now();
         const rollSource = hasChosenResult ? "CHOSEN" : "RANDOM";
         const pending = actionResolutionRef.current;
-        const rollEvent = forcedPassDie ? createRollEvent({
+        const rollEvent = forcedGameplayDie ? createRollEvent({
           id: createActionEventId(`roll_${pending?.id || "pass"}`),
           requestId: pending?.pendingRoll?.requestId,
           actionId: pending?.id,
@@ -5521,8 +5530,14 @@ function App() {
             ? {
                 id: createActionEventId(`pass_roll_submit_${pending?.id || ""}`),
                 type: GAME_COMMAND_TYPE.PASS_INTERCEPTION_ROLL_SUBMITTED,
-                payload: { passId: pending?.id, rollEvent, createdAt: now },
+                payload: { passId: pending?.id, rollEvent, createdAt: now, bonusModifierType: pendingRollModifierType },
               }
+            : forcedLoftedDie
+              ? {
+                  id: createActionEventId(`lofted_through_roll_submit_${pending?.id || ""}`),
+                  type: GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_ROLL_SUBMITTED,
+                  payload: { rollEvent, bonusModifierType: pendingRollModifierType },
+                }
             : {
                 id: createActionEventId(`extra_roll_${team}`),
                 type: GAME_COMMAND_TYPE.EXTRA_ROLL_SUBMITTED,
@@ -5530,9 +5545,12 @@ function App() {
               },
           label: forcedPassDie
             ? `${team === "blue" ? "Blue" : "Red"} D20: ${result} (interception)${hasChosenResult ? " (chosen)" : ""}`
+            : forcedLoftedDie
+              ? `${team === "blue" ? "Blue" : "Red"} D20: ${result} (lofted through)${hasChosenResult ? " (chosen)" : ""}`
             : `${team === "blue" ? "Blue" : "Red"} EXTRA D${rollingDieType}: ${result}${hasChosenResult ? " (chosen)" : ""}`,
         });
         if (!dispatched.result.accepted) return;
+        setPendingRollModifierType(null);
         showDiceNotice(team, result, rollingDieType);
         if (extraRoll) setExtraRollArmed(false);
         const delayedResolution = dispatched.entry?.metadata?.delayedResolution;
@@ -5866,9 +5884,9 @@ function App() {
       { piece, x, y },
     );
     if (presentation.threeTwo?.reason === "three-two-not-granted"
-      && state.throughBallOpportunity?.passerId === piece.id
-      && Number(state.throughBallOpportunity?.target?.x) === Number(x)
-      && Number(state.throughBallOpportunity?.target?.y) === Number(y)) {
+      && state.threeTwoOpportunity?.passerId === piece.id
+      && Number(state.threeTwoOpportunity?.target?.x) === Number(x)
+      && Number(state.threeTwoOpportunity?.target?.y) === Number(y)) {
       setIllegalMoveNotice({ reason: "three-two-not-granted" });
       return true;
     }
@@ -6507,21 +6525,24 @@ function App() {
       return;
     }
 
-    if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "route-selection" && canControlActiveResolution(actionResolutionRef.current)
+    if (["pass", "through-ball", "lofted-through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "route-selection" && canControlActiveResolution(actionResolutionRef.current)
       && Number(actionResolutionRef.current.target?.x) === Number(piece.x) && Number(actionResolutionRef.current.target?.y) === Number(piece.y)) {
-      if (actionResolutionRef.current.kind === "through-ball") {
+      if (actionResolutionRef.current.kind === "lofted-through-ball") {
+        if (sessionCode) cancelLoftedThroughBallTargeting(); else cancelLoftedThroughBallTargeting({ routeOnly: true });
+      } else if (actionResolutionRef.current.kind === "through-ball") {
         if (sessionCode) cancelThroughBallTargeting(); else returnThroughBallToTargeting();
       } else cancelPassTargeting();
       return;
     }
-    if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "targeting" && canControlActiveResolution(actionResolutionRef.current)) {
+    if (["pass", "through-ball", "lofted-through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "targeting" && canControlActiveResolution(actionResolutionRef.current)) {
+      if (actionResolutionRef.current.kind === "lofted-through-ball") { chooseLoftedThroughBallTarget(piece.x, piece.y); return; }
       if (actionResolutionRef.current.kind === "through-ball") { chooseThroughBallTarget(piece.x, piece.y); return; }
       choosePassTarget(piece.x, piece.y);
       return;
     }
     // Pass state blocks gameplay actions, not inspection. The non-controlling
     // client may always select any puck while the active player resolves Pass.
-    if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind)) {
+    if (["pass", "through-ball", "lofted-through-ball"].includes(actionResolutionRef.current?.kind)) {
       setSelectedId(pieceId);
       setHoveredCell(null);
       return;
@@ -6994,6 +7015,17 @@ function App() {
 
   const passPreview = useMemo(() => {
     const pending = actionResolution;
+    if (pending?.kind === "lofted-through-ball" && pending.passerId && pending.target) {
+      const routes = pending.routes || [];
+      return {
+        plans: routes,
+        selectedPlan: routes.find(route => route.cornerId === pending.cornerId) || routes[0] || null,
+        target: pending.status === "route-selection" ? pending.target : null,
+        visibleCells: [], blockedCells: [],
+        lines: routes.map(route => ({ id: route.cornerId || "center", origin: route.origin, endpoint: route.endpoint, status: route.legal ? "clear" : "blocked", selected: route.cornerId === pending.cornerId })),
+        routes: pending.status === "route-selection" ? routes.map(route => ({ id: route.cornerId || "center", cornerId: route.cornerId, origin: route.origin, foot: "LT", modifier: route.disadvantageStacks ? `${route.disadvantageStacks} D` : "", status: route.legal ? "clear" : "blocked", disabled: !route.legal })) : [],
+      };
+    }
     if (pending?.kind === "through-ball" && pending.passerId && pending.target) {
       const routes = pending.routes || [];
       return {
@@ -7109,7 +7141,7 @@ function App() {
   const passInterceptionRollRequired = actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interception-roll";
   const passTargetDistance = useMemo(() => {
     const pending = actionResolution;
-    if (!["pass", "through-ball"].includes(pending?.kind) || pending.status !== "targeting" || !hoveredCell) return null;
+    if (!["pass", "through-ball", "lofted-through-ball"].includes(pending?.kind) || pending.status !== "targeting" || !hoveredCell) return null;
     if (hoveredCell.x < 0 || hoveredCell.y < 0 || hoveredCell.x >= settings.cols || hoveredCell.y >= settings.rows) return null;
     const passer = pieces.find(piece => piece.id === pending.passerId);
     if (!passer) return null;
@@ -7117,6 +7149,10 @@ function App() {
     if (pending.kind === "through-ball") {
       const maximum = Number(matchContextRef.current?.ruleSet?.actions?.throughBall?.maxDistance) || 16;
       return { x: hoveredCell.x, y: hoveredCell.y, label: `${distance.toFixed(2)} ${distance > maximum ? "MAX" : "TB"}` };
+    }
+    if (pending.kind === "lofted-through-ball") {
+      const maximum = Number(matchContextRef.current?.ruleSet?.actions?.loftedThroughBall?.maxDistance) || 32;
+      return { x: hoveredCell.x, y: hoveredCell.y, label: `${distance.toFixed(2)} ${distance > maximum ? "MAX" : "LT"}` };
     }
     const frozenPassRules = matchContextRef.current?.ruleSet?.actions?.pass || {};
     const longPassThreshold = Number(frozenPassRules.longPassThreshold) || 16;
@@ -8914,18 +8950,21 @@ function App() {
     // This prevents the underlying square from being treated as a player move.
     const point = gridPointFromClient(e.clientX, e.clientY);
     if (!point) return;
-    if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "route-selection") {
+    if (["pass", "through-ball", "lofted-through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "route-selection") {
       const pending = actionResolutionRef.current;
       if (canControlActiveResolution(pending) && Number(pending.target?.x) === Number(point.x) && Number(pending.target?.y) === Number(point.y)) {
-        if (pending.kind === "through-ball") {
+        if (pending.kind === "lofted-through-ball") {
+          if (sessionCode) cancelLoftedThroughBallTargeting(); else cancelLoftedThroughBallTargeting({ routeOnly: true });
+        } else if (pending.kind === "through-ball") {
           if (sessionCode) cancelThroughBallTargeting(); else returnThroughBallToTargeting();
         } else cancelPassTargeting();
       }
       return;
     }
     if (groupMoveZoneDraft) return;
-    if (["pass", "through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "targeting") {
+    if (["pass", "through-ball", "lofted-through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "targeting") {
       if (!canControlActiveResolution(actionResolutionRef.current)) return;
+      if (actionResolutionRef.current.kind === "lofted-through-ball") { chooseLoftedThroughBallTarget(point.x, point.y); return; }
       if (actionResolutionRef.current.kind === "through-ball") { chooseThroughBallTarget(point.x, point.y); return; }
       choosePassTarget(point.x, point.y);
       return;
@@ -9550,6 +9589,62 @@ function App() {
       label: `Through Ball route cancelled: ${toCoord(pending.target.x, pending.target.y)} remains selected`,
     });
     return Boolean(dispatched.result.accepted);
+  }
+
+  function loftedThroughCommand(type, payload = {}, label = "Lofted Through Ball") {
+    const pending = actionResolutionRef.current;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`lofted_through_${type.toLowerCase()}_${pending?.id || payload.pieceId || ""}`), type, payload }, label,
+    });
+    if (!dispatched.result.accepted) setIllegalMoveNotice({ reason: dispatched.result.reason });
+    return dispatched;
+  }
+
+  function beginLoftedThroughBallTargeting(piece) {
+    if (sessionCode || gameMode !== "match" || !playerHasBall(piece)) return null;
+    const dispatched = loftedThroughCommand(GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_STARTED, { pieceId: piece.id }, "LOFTED THROUGH BALL: choose free target");
+    if (!dispatched.result.accepted) return null;
+    setSelectedId(piece.id); setHoveredCell(null); return dispatched.state.actionResolution;
+  }
+
+  function chooseLoftedThroughBallTarget(x, y) {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "lofted-through-ball" || pending.status !== "targeting" || sessionCode) return false;
+    const dispatched = loftedThroughCommand(GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_TARGET_SELECTED, { x: Number(x), y: Number(y) }, `Lofted Through target selected: ${toCoord(x, y)}`);
+    if (dispatched.result.accepted) { setIllegalMoveNotice(null); setHoveredCell(null); }
+    return dispatched.result.accepted;
+  }
+
+  function commitLoftedThroughBallRoute(cornerId) {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "lofted-through-ball" || pending.status !== "route-selection" || sessionCode) return false;
+    return loftedThroughCommand(GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_COMMITTED, { cornerId }, `Lofted Through Ball executed: ${toCoord(pending.target.x, pending.target.y)}`).result.accepted;
+  }
+
+  function cancelLoftedThroughBallTargeting({ routeOnly = false } = {}) {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "lofted-through-ball" || sessionCode) return false;
+    const type = routeOnly ? GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_ROUTE_CANCELLED : GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_CANCELLED;
+    return loftedThroughCommand(type, {}, routeOnly ? "Lofted Through route cancelled" : "Lofted Through Ball cancelled").result.accepted;
+  }
+
+  function confirmLoftedThroughBallResolution() {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "lofted-through-ball" || pending.status !== "roll-resolved" || sessionCode) return false;
+    return loftedThroughCommand(GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_RESOLUTION_CONFIRMED, {}, "Lofted Through Ball resolved").result.accepted;
+  }
+
+  function chooseLoftedThroughBallRecoverer(pieceId) {
+    return loftedThroughCommand(GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_RECOVERER_SELECTED, { pieceId }, "Lofted Through: defender chosen").result.accepted;
+  }
+
+  function confirmLoftedThroughBallRecovery() {
+    const dispatched = loftedThroughCommand(GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_RECOVERY_CONFIRMED, {}, "Lofted Through recovery resolved");
+    const startedTurn = dispatched.result.events?.[0]?.metadata?.startedTurn;
+    if (Number.isInteger(startedTurn)) setStartedTurnNotice(startedTurn);
+    return dispatched.result.accepted;
   }
 
   function commitPassCancellation(pending = actionResolutionRef.current) {
@@ -10562,6 +10657,10 @@ function App() {
       if (type === "THROUGH_BALL" && pendingPass.passerId === piece.id) cancelThroughBallTargeting();
       return;
     }
+    if (pendingPass?.kind === "lofted-through-ball") {
+      if (type === "LOFTED_THROUGH_BALL" && pendingPass.passerId === piece.id) cancelLoftedThroughBallTargeting({ routeOnly: pendingPass.status === "route-selection" });
+      return;
+    }
     if (pendingPass?.kind === "pass") {
       if (type === "PASS" && pendingPass.passerId === piece.id && isPassPreviewCancellable(pendingPass)) cancelPassTargeting();
       return;
@@ -10670,6 +10769,14 @@ function App() {
       beginThroughBallTargeting(piece);
       return;
     }
+    if (type === "LOFTED_THROUGH_BALL") {
+      if (gameMode === "match") {
+        if (!isTeamPhaseActive(team)) { setIllegalMoveNotice({ reason: phaseBlockReason() }); return; }
+        if (getTeamActionStatus(team).exhausted) { setIllegalMoveNotice({ reason: "actions-complete-end-turn" }); return; }
+      }
+      beginLoftedThroughBallTargeting(piece);
+      return;
+    }
     if (type === "MOVE" && sessionCode && isSessionGuest) {
       void requestHostActionStart({ mode: "normal-move", actionType: "MOVE", piece });
       return;
@@ -10678,7 +10785,7 @@ function App() {
       commitNormalMoveStart(piece);
       return;
     }
-    if (!sessionCode && ["SHOT", "CROSS", "DRIBBLE", "TACKLING", "LOFTED_THROUGH_BALL"].includes(type)) {
+    if (!sessionCode && ["SHOT", "CROSS", "DRIBBLE", "TACKLING"].includes(type)) {
       const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
       const dispatched = dispatchSinglePlayerGameCommand({
         timeline: gameTimelineRef.current,
@@ -11472,7 +11579,7 @@ function App() {
     const isRolling = team === "blue" ? blueDieRolling : redDieRolling;
     const otherTeamRolling = team === "blue" ? redDieRolling : blueDieRolling;
     const disabled = !canRollTeamDie(team) || isRolling || otherTeamRolling || diceCooldownUntil > Date.now();
-    const currentDieType = actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "awaiting-interception-roll"
+    const currentDieType = ((actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "awaiting-interception-roll") || (actionResolutionRef.current?.kind === "lofted-through-ball" && actionResolutionRef.current.status === "awaiting-roll"))
       ? 20
       : dieType;
     if (chooseRollEnabled && chooseRollForTeam === team) {
@@ -11794,11 +11901,11 @@ function App() {
         rulerMarkers={rulerMarkers}
         defensiveAreaOverlays={defensiveAreaOverlays}
         passPreview={passPreview}
-        passTargeting={["pass", "through-ball"].includes(actionResolution?.kind) && actionResolution.status === "targeting" && canControlActiveResolution(actionResolution)}
-        passActive={(passActive || actionResolution?.kind === "through-ball") && canControlActiveResolution(actionResolution)}
+        passTargeting={["pass", "through-ball", "lofted-through-ball"].includes(actionResolution?.kind) && actionResolution.status === "targeting" && canControlActiveResolution(actionResolution)}
+        passActive={(passActive || ["through-ball", "lofted-through-ball"].includes(actionResolution?.kind)) && canControlActiveResolution(actionResolution)}
         passTargetDistance={passTargetDistance}
-        passRouteInteractive={["pass", "through-ball"].includes(actionResolution?.kind) && actionResolution.status === "route-selection" && canControlActiveResolution(actionResolution)}
-        onSelectPassRoute={cornerId => actionResolution?.kind === "through-ball" ? commitThroughBallRoute(cornerId) : confirmPassRoute(cornerId)}
+        passRouteInteractive={["pass", "through-ball", "lofted-through-ball"].includes(actionResolution?.kind) && actionResolution.status === "route-selection" && canControlActiveResolution(actionResolution)}
+        onSelectPassRoute={cornerId => actionResolution?.kind === "lofted-through-ball" ? commitLoftedThroughBallRoute(cornerId) : actionResolution?.kind === "through-ball" ? commitThroughBallRoute(cornerId) : confirmPassRoute(cornerId)}
         groupMoveZone={groupMoveZoneDraft
           ? { ...groupMoveZoneDraft, confirmable: true }
           : null}
@@ -12058,6 +12165,7 @@ function App() {
                         const team = pieceTeamKey(inspectedPiece);
                         const pending = actionResolution;
                         const active = pending?.kind === "through-ball" && pending.passerId === inspectedPiece.id;
+                        const loftedActive = pending?.kind === "lofted-through-ball" && pending.passerId === inspectedPiece.id;
                         const throughDisabled = active ? false : !playerHasBall(inspectedPiece)
                           || !isTeamPhaseActive(team)
                           || getTeamActionStatus(team).exhausted
@@ -12070,10 +12178,10 @@ function App() {
                           singlePlayerMatchContext(),
                           { piece: inspectedPiece, type: "LOFTED_THROUGH_BALL", replay: replayModeRef.current },
                         );
-                        const loftedDisabled = lofted.disabled || Boolean(pending);
+                        const loftedDisabled = loftedActive ? false : lofted.disabled || Boolean(pending);
                         return <>
                           <button className={`team-action-btn ${team} inspector-inline-action`} type="button" disabled={throughDisabled} onClick={() => consumeInspectorAction("THROUGH_BALL", inspectedPiece)}>{active ? "CANCEL THROUGH" : "THROUGH BALL"}</button>
-                          <button className={`team-action-btn ${team} inspector-inline-action`} type="button" disabled={loftedDisabled} onClick={() => consumeInspectorAction("LOFTED_THROUGH_BALL", inspectedPiece)}>LOFTED THROUGH</button>
+                          <button className={`team-action-btn ${team} inspector-inline-action`} type="button" disabled={loftedDisabled} onClick={() => consumeInspectorAction("LOFTED_THROUGH_BALL", inspectedPiece)}>{loftedActive ? "CANCEL LOFTED" : "LOFTED THROUGH"}</button>
                         </>;
                       })()}
                       <button type="button" onClick={resetInspectorCardView} disabled={inspectorCardZoom <= 1 && inspectorCardPan.x === 0 && inspectorCardPan.y === 0}>Reset</button>
@@ -12289,6 +12397,10 @@ function App() {
         turnsReadOnly={!sessionCode && gameMode === "match"}
         onSelectTurn={selectTrackerTurn}
         onResizeDown={onTrackerResizeDown}
+        rollModifierOpportunities={{
+          blue: selectSinglePlayerRollModifierTokenPresentation({ rollModifierOpportunities, tracker: { currentTurn: trackerCurrentTurn } }, { team: "blue" }),
+          red: selectSinglePlayerRollModifierTokenPresentation({ rollModifierOpportunities, tracker: { currentTurn: trackerCurrentTurn } }, { team: "red" }),
+        }}
       />
 
       {diceNotice && (
@@ -12405,7 +12517,37 @@ function App() {
           {preview && <span>{preview.modifierSources.map(formatModifierSource).join(" + ")}</span>}
           {preview && <span><strong>{formatTotalModifier(preview)}</strong></span>}
           {preview && <span><strong>{passTargetLabel(actionResolution.plan)}</strong></span>}
+          {!sessionCode && gameMode === "match" && (() => {
+            const tokens = selectSinglePlayerRollModifierTokenPresentation({ rollModifierOpportunities, tracker: { currentTurn: trackerCurrentTurn } }, { team: defenseTeam });
+            return tokens.length ? <div className="roll-token-choice"><span>Team roll bonus available:</span>{tokens.map(token => <button key={token.id} className={pendingRollModifierType === token.modifierType ? "active" : ""} onClick={() => setPendingRollModifierType(current => current === token.modifierType ? null : token.modifierType)}>{token.modifierType === "majorAdvantage" ? "Use AVM" : "Use AV"}</button>)}<button onClick={() => setPendingRollModifierType(null)}>Roll normally — save</button></div> : null;
+          })()}
         </DraggableActionPrompt>;
+      })()}
+
+      {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "awaiting-roll" && (() => {
+        const passer = pieces.find(piece => piece.id === actionResolution.passerId);
+        return <DraggableActionPrompt promptKey="lofted-through-roll" className="warning">
+          <strong>Lofted Through Ball roll required</strong>
+          <span>{getPieceIdentity(passer)} rolls D20. Roll {actionResolution.team?.toUpperCase()}.</span>
+          <span>Difficulty {actionResolution.plan?.difficultyThreshold} · Lofted Through {actionResolution.plan?.rollStatValue || 0} · {actionResolution.plan?.disadvantageStacks || 0} defensive-area disadvantage stack(s).</span>
+          {!sessionCode && gameMode === "match" && (() => {
+            const tokens = selectSinglePlayerRollModifierTokenPresentation({ rollModifierOpportunities, tracker: { currentTurn: trackerCurrentTurn } }, { team: actionResolution.team });
+            return tokens.length ? <div className="roll-token-choice"><span>Team roll bonus available:</span>{tokens.map(token => <button key={token.id} className={pendingRollModifierType === token.modifierType ? "active" : ""} onClick={() => setPendingRollModifierType(current => current === token.modifierType ? null : token.modifierType)}>{token.modifierType === "majorAdvantage" ? "Use AVM" : "Use AV"}</button>)}<button onClick={() => setPendingRollModifierType(null)}>Roll normally — save</button></div> : null;
+          })()}
+        </DraggableActionPrompt>;
+      })()}
+
+      {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "roll-resolved" && <div className="modal-backdrop pass-result-backdrop"><div className={`modal pass-result-modal ${actionResolution.team || ""}`} role="dialog" aria-modal="true"><div className="modal-title"><strong>Lofted Through Ball result</strong>{renderBlockingGameplayHistoryControls()}</div><div className="pass-result-lines"><p>D20 {actionResolution.result?.natural} · total {actionResolution.result?.total} vs difficulty {actionResolution.plan?.difficultyThreshold}.</p><p>{actionResolution.result?.succeeds ? "Lofted Through Ball succeeds." : "Lofted Through Ball fails."}</p></div><div className="modal-actions"><button className="save-label" onClick={confirmLoftedThroughBallResolution}>Continue</button></div></div></div>}
+
+      {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "awaiting-recoverer-choice" && (() => {
+        const candidates = actionResolution.recovery?.defenderCandidates || [];
+        const team = actionResolution.team === "blue" ? "red" : "blue";
+        return <div className="modal-backdrop interceptor-choice-backdrop"><div className={`modal interceptor-choice-modal ${team}`} role="dialog" aria-modal="true"><div className="modal-title"><strong>Choose recovering defender</strong>{renderBlockingGameplayHistoryControls()}</div><div className="interceptor-choice-message">Eligible defenders are equally ranked for this Lofted Through Ball recovery.</div><div className="interceptor-choice-options">{candidates.map(candidate => { const defender = pieces.find(piece => piece.id === candidate.pieceId); return <button key={candidate.pieceId} type="button" onClick={() => chooseLoftedThroughBallRecoverer(candidate.pieceId)}>{getPieceIdentity(defender)} ({team.toUpperCase()})</button>; })}</div></div></div>;
+      })()}
+
+      {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "awaiting-recovery-confirmation" && (() => {
+        const recoverer = pieces.find(piece => piece.id === actionResolution.recovery?.selectedRecovererId);
+        return <div className="modal-backdrop pass-result-backdrop"><div className={`modal pass-result-modal ${pieceTeamKey(recoverer) || ""}`} role="dialog" aria-modal="true"><div className="modal-title"><strong>Lofted Through Ball recovered</strong>{renderBlockingGameplayHistoryControls()}</div><div className="pass-result-lines"><p>{getPieceIdentity(recoverer)} recovers the ball.</p></div><div className="modal-actions"><button className="save-label" onClick={confirmLoftedThroughBallRecovery}>Continue</button></div></div></div>;
       })()}
 
       {actionResolution?.kind === "through-ball" && actionResolution.status === "awaiting-recoverer-choice" && (() => {
@@ -12639,7 +12781,20 @@ function App() {
               </label>
             </section>
             <section className="rule-action-card">
-              <div><strong>3/2 reception</strong><span>Through Ball only</span></div>
+              <div><strong>Lofted Through Ball</strong><span>Manual D20 roll</span></div>
+              <p>Target and passer must be outside opposing defensive areas. Every distinct opposing defensive area crossed adds one Disadvantage stack.</p>
+              <label>Maximum distance (whole squares)
+                <input disabled={ruleSetEditingLocked} type="number" min="1" step="1" value={ruleSetDraft.actions?.loftedThroughBall?.maxDistance ?? 32} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, loftedThroughBall: { ...draft.actions?.loftedThroughBall, maxDistance: e.target.value === "" ? "" : Math.max(1, Math.floor(Number(e.target.value) || 1)) } } }))} onBlur={() => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, loftedThroughBall: { ...draft.actions?.loftedThroughBall, maxDistance: Math.max(1, Math.floor(Number(draft.actions?.loftedThroughBall?.maxDistance)) || 32) } } }))} />
+              </label>
+              <label>Difficulty threshold
+                <input disabled={ruleSetEditingLocked} type="number" min="1" step="1" value={ruleSetDraft.actions?.loftedThroughBall?.difficultyThreshold ?? 16} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, loftedThroughBall: { ...draft.actions?.loftedThroughBall, difficultyThreshold: e.target.value === "" ? "" : Math.max(1, Math.floor(Number(e.target.value) || 1)) } } }))} onBlur={() => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, loftedThroughBall: { ...draft.actions?.loftedThroughBall, difficultyThreshold: Math.max(1, Math.floor(Number(draft.actions?.loftedThroughBall?.difficultyThreshold)) || 16) } } }))} />
+              </label>
+              <label>Natural 1 effect<select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.loftedThroughBall?.naturalOneEffect || "recoverer-bonus-action"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, loftedThroughBall: { ...draft.actions?.loftedThroughBall, naturalOneEffect: e.target.value } } }))}><option value="recoverer-bonus-action">Failure + recoverer Bonus Action</option><option value="none">Failure only</option></select></label>
+              <label>Natural 20 effect<select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.loftedThroughBall?.naturalTwentyEffect || "passer-bonus-action"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, loftedThroughBall: { ...draft.actions?.loftedThroughBall, naturalTwentyEffect: e.target.value } } }))}><option value="passer-bonus-action">Success + passer Bonus Action</option><option value="none">Success only</option><option value="current-turn-roll-advantage">Advantage this turn, one roll</option><option value="current-turn-roll-major-advantage">Major Advantage this turn, one roll</option></select></label>
+              <label>Equal total outcome<select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.loftedThroughBall?.equalRollOutcome || "lofted-fails"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, loftedThroughBall: { ...draft.actions?.loftedThroughBall, equalRollOutcome: e.target.value } } }))}><option value="lofted-fails">Lofted Through fails</option><option value="lofted-succeeds">Lofted Through succeeds</option></select></label>
+            </section>
+            <section className="rule-action-card">
+              <div><strong>3/2 reception</strong><span>Through Ball and Lofted Through Ball</span></div>
               <label className="rule-checkbox-label">
                 <input disabled={ruleSetEditingLocked} type="checkbox" checked={ruleSetDraft.actions?.threeTwo?.allowMovementAfterPriorMove === true} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, threeTwo: { ...draft.actions?.threeTwo, allowMovementAfterPriorMove: e.target.checked } } }))} />
                 Allow remaining normal movement after a player moved before using 3/2
@@ -12666,6 +12821,8 @@ function App() {
                   <option value="interception">Interception succeeds</option>
                 </select>
               </label>
+              <label>Natural 1 effect<select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.interception?.naturalOneEffect || "carry-disadvantage"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, interception: { ...draft.actions?.interception, naturalOneEffect: e.target.value } } }))}><option value="carry-disadvantage">Pass continues + next interceptor Disadvantage</option><option value="none">Pass continues</option></select></label>
+              <label>Natural 20 effect<select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.interception?.naturalTwentyEffect || "bonus-action"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, interception: { ...draft.actions?.interception, naturalTwentyEffect: e.target.value } } }))}><option value="bonus-action">Interception + Bonus Action</option><option value="none">Interception only</option><option value="next-turn-roll-advantage">Advantage next turn, one roll</option><option value="next-turn-roll-major-advantage">Major Advantage next turn, one roll</option></select></label>
               <span className="rule-manual-pill">Dice: manual roll only</span>
             </section>
             <section className="rule-action-card">

@@ -10,6 +10,7 @@ import { evaluateThreeTwoMove } from "./threeTwoMoveRules.mjs";
 import { evaluateGroupMovePieceEligibility, evaluateGroupMovePlayer } from "./groupMoveRules.mjs";
 import { canUseTrackerActionForPiece, canUseTrackerFreeModeForPiece, hasGroupMoveAuthorization, isTeamActiveForTrackerPhase, movementAuthorizationForPiece, personalActionStatusForPiece, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { cardStat, interceptorChoiceCandidates, teamKeyForPiece } from "../rules/passEngine.mjs";
+import { activeRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
 
 function formatSigned(value) {
   const number = Number(value) || 0;
@@ -168,11 +169,20 @@ export function selectSinglePlayerTeamActionPresentation(state, { team } = {}) {
   return { actionStatus: trackerActionStatusForTeam(state?.tracker || {}, team), teamActive: isTeamActiveForTrackerPhase(state?.tracker || {}, team) };
 }
 
+// Presentation only: the Engine owns granting, consuming and expiring these tokens.
+export function selectSinglePlayerRollModifierTokenPresentation(state, { team } = {}) {
+  const turn = Number(state?.tracker?.currentTurn) || 1;
+  return activeRollModifierOpportunities(state?.rollModifierOpportunities, team, turn);
+}
+
 export function selectSinglePlayerDicePresentation(state, { team, extraRollArmed = false } = {}) {
   const pending = state?.actionResolution;
   if (pending?.kind === "pass" && pending.status === "awaiting-interception-roll") {
     const interceptor = pending.plan?.interceptors?.[pending.interceptorIndex];
     return { canRoll: teamKeyForPiece(interceptor?.defender) === team, reason: "PASS_INTERCEPTION_ROLL" };
+  }
+  if (pending?.kind === "lofted-through-ball" && pending.status === "awaiting-roll") {
+    return { canRoll: pending.team === team, reason: "LOFTED_THROUGH_BALL_ROLL" };
   }
   if (pending) return { canRoll: false, reason: "ACTION_RESOLUTION_ACTIVE" };
   return { canRoll: Boolean(extraRollArmed), reason: extraRollArmed ? "EXTRA_ROLL" : "EXTRA_ROLL_NOT_ARMED" };

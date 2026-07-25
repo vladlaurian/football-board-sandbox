@@ -103,12 +103,12 @@ export function commitThroughBall(state, context, command) {
   const recovery = recoveryCandidates(state, context, pending.team, passer, target);
   const tracker = { ...state.tracker, actionLog: activation.actionLog, usedActions: activation.usedActions, personalActionsByPieceId: activation.personalActionsByPieceId, matchActionState: activation.matchActionState };
   if (!recovery.defenderWins) {
-    return { accepted: true, nextState: { ...state, pieces: moveBall(state, target), actionResolution: null, throughBallOpportunity: { team: pending.team, passerId: passer.id, target, turn: normalizeTrackerSnapshot(state.tracker).currentTurn }, tracker }, event: { type: "THROUGH_BALL_COMPLETED", team: pending.team, metadata: { passerId: passer.id, target, cornerId, ...recovery } }, timeline: { allowNoop: false } };
+    return { accepted: true, nextState: { ...state, pieces: moveBall(state, target), actionResolution: null, threeTwoOpportunity: { sourceAction: "THROUGH_BALL", team: pending.team, passerId: passer.id, target, turn: normalizeTrackerSnapshot(state.tracker).currentTurn }, tracker }, event: { type: "THROUGH_BALL_COMPLETED", team: pending.team, metadata: { passerId: passer.id, target, cornerId, ...recovery } }, timeline: { allowNoop: false } };
   }
   const choiceRequired = recovery.defenderCandidates.length > 1;
   const selected = choiceRequired ? null : recovery.defenderCandidates[0]?.piece || null;
   const resolution = { ...pending, status: choiceRequired ? "awaiting-recoverer-choice" : "awaiting-recovery-confirmation", target, cornerId, recovery: { ...recovery, defenderCandidates: recovery.defenderCandidates.map(item => ({ pieceId: item.piece.id, distance: item.distance, speed: item.speed })), selectedRecovererId: selected?.id || null } };
-  return { accepted: true, nextState: { ...state, pieces: moveBall(state, target), actionResolution: resolution, throughBallOpportunity: null, tracker }, event: { type: choiceRequired ? "THROUGH_BALL_RECOVERER_CHOICE_REQUIRED" : "THROUGH_BALL_AUTO_RECOVERY_PENDING", team: otherTeam(pending.team), metadata: { passerId: passer.id, target, cornerId, ...resolution.recovery } }, timeline: { allowNoop: false } };
+  return { accepted: true, nextState: { ...state, pieces: moveBall(state, target), actionResolution: resolution, threeTwoOpportunity: null, tracker }, event: { type: choiceRequired ? "THROUGH_BALL_RECOVERER_CHOICE_REQUIRED" : "THROUGH_BALL_AUTO_RECOVERY_PENDING", team: otherTeam(pending.team), metadata: { passerId: passer.id, target, cornerId, ...resolution.recovery } }, timeline: { allowNoop: false } };
 }
 
 export function selectThroughBallRecoverer(state, command) {
@@ -129,5 +129,5 @@ export function confirmThroughBallRecovery(state) {
   const tracker = normalizeTrackerSnapshot(state.tracker);
   const emptyTurn = createEmptyTrackerTurnState();
   const nextTurn = Math.min(tracker.settings.turns, Math.max(1, tracker.currentTurn + 1));
-  return { accepted: true, nextState: { ...state, pieces: moveBall(state, recoverer), movementStateByPieceId: {}, actionResolution: null, throughBallOpportunity: null, actionContinuation: null, tracker: { ...state.tracker, startingTeam: nextTeam, currentTurn: nextTurn, usedActions: emptyTurn.usedActions, actionLog: emptyTurn.actionLog, personalActionsByPieceId: emptyTurn.personalActionsByPieceId, matchActionState: emptyTurn.matchActionState, turnPhase: "attack" } }, event: { type: "THROUGH_BALL_AUTO_RECOVERED", team: nextTeam, metadata: { passerId: pending.passerId, target: pending.target, recovererId: recoverer.id, startedTurn: nextTurn } }, timeline: { allowNoop: false } };
+  return { accepted: true, nextState: { ...state, pieces: moveBall(state, recoverer), movementStateByPieceId: {}, actionResolution: null, threeTwoOpportunity: null, actionContinuation: null, tracker: { ...state.tracker, startingTeam: nextTeam, currentTurn: nextTurn, usedActions: emptyTurn.usedActions, actionLog: emptyTurn.actionLog, personalActionsByPieceId: emptyTurn.personalActionsByPieceId, matchActionState: emptyTurn.matchActionState, turnPhase: "attack" } }, event: { type: "THROUGH_BALL_AUTO_RECOVERED", team: nextTeam, metadata: { passerId: pending.passerId, target: pending.target, recovererId: recoverer.id, startedTurn: nextTurn } }, timeline: { allowNoop: false } };
 }

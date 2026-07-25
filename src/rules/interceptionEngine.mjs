@@ -21,6 +21,7 @@ export function resolveInterception({
   previousNaturalOnePenalty = 0,
   modifierCap,
   equalRollOutcome = "pass-succeeds",
+  naturalOneEffect = "carry-disadvantage",
 } = {}) {
   const die = Number(natural);
   const rawModifier = Number(defenderStatValue)
@@ -38,6 +39,7 @@ export function resolveInterception({
       rawModifier,
       modifierCap: cap,
       capped: false,
+      naturalEffect: naturalOneEffect === "none" ? "none" : "carry-disadvantage",
     };
   }
   if (die === 20) {
@@ -49,6 +51,7 @@ export function resolveInterception({
       rawModifier,
       modifierCap: cap,
       capped: false,
+      naturalEffect: "natural-20",
     };
   }
 

@@ -30,6 +30,7 @@ export function TrackerPanel({
   turnsReadOnly = false,
   onSelectTurn,
   onResizeDown,
+  rollModifierOpportunities = {},
 }) {
   if (!visible || lockUI) return null;
 
@@ -62,6 +63,7 @@ export function TrackerPanel({
                 ? (team === "red" ? trackerSettings.attackActions : trackerSettings.defenseActions)
                 : trackerActionCountFor(team);
               const used = usedActions[team];
+              const tokens = rollModifierOpportunities[team] || [];
               return (
                 <section key={team} className={`tracker-team ${team}`}>
                   <div className="tracker-team-title"><strong>{team.toUpperCase()}</strong><span>{role === "attack" ? "ATTACK" : role === "defense" ? "DEFENSE" : "WAITING"}</span></div>
@@ -82,6 +84,7 @@ export function TrackerPanel({
                       );
                     })}
                   </div>
+                  <div className="tracker-roll-bonus-badges">{tokens.map(token => <span key={token.id}>{token.modifierType === "majorAdvantage" ? "AVM" : "AV"}</span>)}</div>
                 </section>
               );
             })}

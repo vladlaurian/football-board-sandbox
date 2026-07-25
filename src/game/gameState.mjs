@@ -1,5 +1,6 @@
 import { normalizeRuleSet } from "../rules/ruleSets.mjs";
 import { normalizeTrackerActionLog } from "../tracker/trackerState.mjs";
+import { normalizeRollModifierOpportunities } from "../engine/rollModifierOpportunities.mjs";
 
 export const GAME_STATE_SCHEMA_VERSION = 2;
 
@@ -32,7 +33,10 @@ export function createGameState(raw = {}) {
     actionContinuation: raw.actionContinuation && typeof raw.actionContinuation === "object"
       ? raw.actionContinuation
       : null,
-    throughBallOpportunity: raw.throughBallOpportunity && typeof raw.throughBallOpportunity === "object" ? raw.throughBallOpportunity : null,
+    threeTwoOpportunity: raw.threeTwoOpportunity && typeof raw.threeTwoOpportunity === "object"
+      ? raw.threeTwoOpportunity
+      : raw.throughBallOpportunity && typeof raw.throughBallOpportunity === "object" ? raw.throughBallOpportunity : null,
+    rollModifierOpportunities: normalizeRollModifierOpportunities(raw.rollModifierOpportunities),
     tracker: {
       gameStarted: Boolean(tracker.gameStarted),
       startingTeam: tracker.startingTeam === "blue" ? "blue" : "red",
@@ -77,7 +81,8 @@ export function mergeGameState(baseState, overrides = {}) {
     ruleSet: stateOverride(overrides, "ruleSet", base.ruleSet),
     actionResolution: stateOverride(overrides, "actionResolution", base.actionResolution),
     actionContinuation: stateOverride(overrides, "actionContinuation", base.actionContinuation),
-    throughBallOpportunity: stateOverride(overrides, "throughBallOpportunity", base.throughBallOpportunity),
+    threeTwoOpportunity: stateOverride(overrides, "threeTwoOpportunity", stateOverride(overrides, "throughBallOpportunity", base.threeTwoOpportunity)),
+    rollModifierOpportunities: stateOverride(overrides, "rollModifierOpportunities", base.rollModifierOpportunities),
     tracker: {
       gameStarted: stateOverride(overrides, "trackerGameStarted", base.tracker.gameStarted),
       startingTeam: stateOverride(overrides, "trackerStartingTeam", base.tracker.startingTeam),
