@@ -2,6 +2,14 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.55.8 — Pending-roll Dice integrity
+
+- Removes the offline post-roll Dice cooldown. A resolved roll no longer leaves an unrelated local delay that can survive an immediate Undo/Redo; Manual Multiplayer retains its frozen session cooldown.
+- Makes offline Dice availability, forced die type and automatic panel opening project the Engine-owned `actionResolution.pendingRoll` request rather than Pass/LT-specific status branches.
+- Adds Engine command `GAMEPLAY_ROLL_SUBMITTED`: the Controller sends one semantic gameplay-roll command while the Engine routes and validates it against the active pending request.
+- Disables Undo/Redo only while the actual Dice animation is running, preventing an in-flight callback from applying to a restored Timeline cursor.
+- Adds selector and Engine sentinels for Pass/LT pending requests, route-selection/TB no-roll states, generic submission, and the offline no-cooldown / animation-guard boundary.
+
 ## v20.55.5 — Bonus Action recovery
 
 - Repairs draggable offline action prompts so interactive child controls, including AV/AVM selection, receive normal clicks; only non-interactive prompt surface begins a drag.

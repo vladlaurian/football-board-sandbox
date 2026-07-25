@@ -1455,6 +1455,30 @@ test("PASS_INTERCEPTION_ROLL_SUBMITTED consumes the exact pending roll and start
   assert.deepEqual(result.nextState, submittedBefore);
 });
 
+test("GAMEPLAY_ROLL_SUBMITTED routes a canonical pending Pass roll without UI mechanic branching", () => {
+  const rollState = createGameState({
+    ...normalMoveState(),
+    pieces: [...normalMoveState().pieces, { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 }],
+  });
+  const { context, confirmed } = confirmedPass(rollState, "generic-roll-pass");
+  const pendingRoll = confirmed.nextState.actionResolution.pendingRoll;
+  const result = applyGameCommand({
+    state: confirmed.nextState,
+    context,
+    command: {
+      id: "generic-roll-submit",
+      type: "GAMEPLAY_ROLL_SUBMITTED",
+      payload: {
+        createdAt: 1000,
+        rollEvent: { id: "generic-roll-event", requestId: pendingRoll.requestId, actionId: "generic-roll-pass", team: "red", dieType: 20, natural: 13, source: "RANDOM", createdAt: 1000, subjectId: "red-1", reactionIndex: 0 },
+      },
+    },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.events[0].type, "DICE_ROLLED");
+  assert.equal(result.nextState.actionResolution.status, "awaiting-interception-resolution");
+});
+
 test("PASS_INTERCEPTION_ROLL_SUBMITTED rejects an invalid or replayed roll without mutation", () => {
   const rollState = createGameState({
     ...normalMoveState(),

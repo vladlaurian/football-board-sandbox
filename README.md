@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.55.7` |
-| Git/package version | `20.55.7` |
-| Build name | `Final_Board_v20_55_7_lt_recovery_three_two_ba` |
-| Base build | `v20.55.6 Roll outcome and BA presentation cleanup` |
+| Sandbox version | `v20.55.8` |
+| Git/package version | `20.55.8` |
+| Build name | `Final_Board_v20_55_8_pending_roll_dice_integrity` |
+| Base build | `v20.55.7 LT recovery and 3/2 BA continuity` |
 | Modes | Editor Mode and Match Mode |
 
 The visible Sandbox label is defined in `src/main.jsx` as `v20.55.7`. The repository version is in `package.json` as `20.55.7`. The browser title is `Sandbox v20.55.7`.
 
 ## Current release
 
-v20.55.7 repairs the two accepted LT continuity faults: a successful LT/TB opportunity may use 3/2 while its owning BA awaits END B.A., and the LT recovery confirmation no longer fails on a missing Engine import. AV/AVM selection now identifies one token by its canonical token ID, including duplicate AV tokens, and the active choice uses a neutral pressed-control style. Manual Multiplayer remains unchanged. Pass/Interception route integrity remains separately queued.
+v20.55.8 removes the offline post-roll Dice cooldown that could survive a Timeline Undo/Redo and falsely keep D20 disabled. Offline Dice availability, auto-opening and die type now project the canonical `actionResolution.pendingRoll` request instead of maintaining Pass/LT-specific UI gates; the Controller sends one generic gameplay-roll command, which the Engine routes to the active mechanic. Undo/Redo is unavailable only during the real ~800 ms dice animation, preventing a stale callback from resolving against a restored Timeline state. Manual Multiplayer retains its existing cooldown path unchanged.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

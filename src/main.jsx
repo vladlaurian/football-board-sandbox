@@ -207,7 +207,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.55.7";
+const APP_VERSION = "v20.55.8";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2271,13 +2271,12 @@ function App() {
   useEffect(() => { actionContinuationRef.current = actionContinuation; }, [actionContinuation]);
   useEffect(() => { rollModifierOpportunitiesRef.current = rollModifierOpportunities; }, [rollModifierOpportunities]);
   useEffect(() => {
-    const pendingRoll = (actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interception-roll")
-      || (actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "awaiting-roll");
+    const pendingRoll = actionResolution?.pendingRoll || null;
     if (!pendingRoll) return;
-    // Any canonical pending D20 roll opens Dice; mechanics do not get their
-    // own UI-only exceptions.
+    // Any canonical pending roll opens Dice; mechanics do not get their own
+    // UI-only exceptions or mechanic-name checks.
     setDicePanelVisible(true);
-    setDieType(20);
+    setDieType(Number(pendingRoll.dieType) || 20);
   }, [actionResolution]);
   useEffect(() => { movementStateRef.current = movementStateByPieceId; }, [movementStateByPieceId]);
   useEffect(() => { gameTimelineRef.current = gameTimeline; }, [gameTimeline]);
@@ -5366,10 +5365,23 @@ function App() {
     }
   }
 
+  function diceAnimationActive() {
+    return Boolean(diceRollingRef.current.blue || diceRollingRef.current.red);
+  }
+
+  function offlinePendingRoll() {
+    if (sessionCode || gameMode !== "match") return null;
+    const state = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    return state?.actionResolution?.pendingRoll || null;
+  }
+
   function canRollTeamDie(team, { hostIntent = false } = {}) {
     if (replayModeRef.current) return false;
-    if (Date.now() < diceCooldownUntilRef.current) return false;
-    if (diceRollingRef.current.blue || diceRollingRef.current.red) return false;
+    // The retained session cooldown belongs only to frozen legacy Manual
+    // Multiplayer. Offline Match relies on the canonical pending-roll request
+    // and the actual animation lock; it has no post-roll waiting period.
+    if (sessionCode && Date.now() < diceCooldownUntilRef.current) return false;
+    if (diceAnimationActive()) return false;
     if (pendingDelayedResolution) return false;
     const pending = actionResolutionRef.current;
     if (pending?.kind === "pass" && pending.status === "awaiting-interceptor-choice") return false;
@@ -5388,11 +5400,10 @@ function App() {
 
   async function reserveDiceRoll() {
     const now = Date.now();
-    const until = now + 3000;
     if (!sessionCode) {
-      applyDiceCooldown(until);
       return true;
     }
+    const until = now + 3000;
     try {
       // Dice locking lives in its own tiny runtime document. It must never
       // invalidate the session Timeline transaction or heartbeat writes.
@@ -5486,13 +5497,12 @@ function App() {
       return requestDiceRollIntent(team, chosenResult);
     }
     const pendingRollAction = actionResolutionRef.current;
-    const forcedPassDie = pendingRollAction?.kind === "pass" && pendingRollAction.status === "awaiting-interception-roll";
-    const forcedLoftedDie = pendingRollAction?.kind === "lofted-through-ball" && pendingRollAction.status === "awaiting-roll";
-    const forcedGameplayDie = forcedPassDie || forcedLoftedDie;
+    const pendingRollRequest = pendingRollAction?.pendingRoll || null;
+    const forcedGameplayDie = Boolean(pendingRollRequest);
     const offlineMatch = !sessionCode && gameMode === "match";
     const extraRoll = offlineMatch && !forcedGameplayDie && extraRollArmed;
     if (offlineMatch && !forcedGameplayDie && !extraRoll) return false;
-    const rollingDieType = forcedGameplayDie ? 20 : dieType;
+    const rollingDieType = forcedGameplayDie ? Number(pendingRollRequest.dieType) : dieType;
     const hasChosenResult = chosenResult !== null && chosenResult !== undefined;
     const requestedResult = hasChosenResult ? Number(chosenResult) : null;
     if (hasChosenResult && (!Number.isInteger(requestedResult) || requestedResult < 1 || requestedResult > rollingDieType)) return;
@@ -5547,27 +5557,19 @@ function App() {
           timeline: gameTimelineRef.current,
           state: before,
           context: singlePlayerMatchContext(),
-          command: forcedPassDie
+          command: forcedGameplayDie
             ? {
-                id: createActionEventId(`pass_roll_submit_${pending?.id || ""}`),
-                type: GAME_COMMAND_TYPE.PASS_INTERCEPTION_ROLL_SUBMITTED,
-                payload: { passId: pending?.id, rollEvent, createdAt: now, bonusModifierType: pendingRollModifierType },
+                id: createActionEventId(`gameplay_roll_submit_${pending?.id || ""}`),
+                type: GAME_COMMAND_TYPE.GAMEPLAY_ROLL_SUBMITTED,
+                payload: { rollEvent, createdAt: now, bonusModifierType: pendingRollModifierType },
               }
-            : forcedLoftedDie
-              ? {
-                  id: createActionEventId(`lofted_through_roll_submit_${pending?.id || ""}`),
-                  type: GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_ROLL_SUBMITTED,
-                  payload: { rollEvent, bonusModifierType: pendingRollModifierType },
-                }
             : {
                 id: createActionEventId(`extra_roll_${team}`),
                 type: GAME_COMMAND_TYPE.EXTRA_ROLL_SUBMITTED,
                 payload: { team, dieType: rollingDieType, result, rollSource },
               },
-          label: forcedPassDie
-            ? `${team === "blue" ? "Blue" : "Red"} D20: ${result} (interception)${hasChosenResult ? " (chosen)" : ""}`
-            : forcedLoftedDie
-              ? `${team === "blue" ? "Blue" : "Red"} D20: ${result} (lofted through)${hasChosenResult ? " (chosen)" : ""}`
+          label: forcedGameplayDie
+            ? `${team === "blue" ? "Blue" : "Red"} D${rollingDieType}: ${result} (${pendingRollRequest?.context?.actionType || "gameplay"})${hasChosenResult ? " (chosen)" : ""}`
             : `${team === "blue" ? "Blue" : "Red"} EXTRA D${rollingDieType}: ${result}${hasChosenResult ? " (chosen)" : ""}`,
         });
         if (!dispatched.result.accepted) return;
@@ -5695,6 +5697,7 @@ function App() {
   function undo() {
     if (!replayModeRef.current && gameMode !== "match") return;
     if (!replayModeRef.current && sessionCode && !isSessionHost) return;
+    if (diceAnimationActive()) return;
     const current = gameTimelineRef.current;
     if (!current) return;
     resetTransientGameplayUI();
@@ -5712,6 +5715,7 @@ function App() {
   function redo() {
     if (!replayModeRef.current && gameMode !== "match") return;
     if (!replayModeRef.current && sessionCode && !isSessionHost) return;
+    if (diceAnimationActive()) return;
     const current = gameTimelineRef.current;
     if (!current) return;
     cancelDelayedResolutionTimer();
@@ -5729,8 +5733,8 @@ function App() {
   function renderBlockingGameplayHistoryControls() {
     if (sessionCode && !isSessionHost) return null;
     return <div className="pending-decision-history-controls">
-      <button type="button" onClick={undo} disabled={!gameTimeline?.cursor} title="Undo"><Undo2 size={15} /></button>
-      <button type="button" onClick={redo} disabled={(gameTimeline?.cursor || 0) >= (gameTimeline?.entries?.length || 0)} title="Redo"><Redo2 size={15} /></button>
+      <button type="button" onClick={undo} disabled={!gameTimeline?.cursor || diceAnimationActive()} title="Undo"><Undo2 size={15} /></button>
+      <button type="button" onClick={redo} disabled={(gameTimeline?.cursor || 0) >= (gameTimeline?.entries?.length || 0) || diceAnimationActive()} title="Redo"><Redo2 size={15} /></button>
     </div>;
   }
 
@@ -7164,7 +7168,7 @@ function App() {
   );
 
   const passActive = actionResolution?.kind === "pass" && ["targeting", "route-selection", "awaiting-interceptor-choice", "awaiting-interception-roll", "awaiting-interception-resolution", "interception-resolved"].includes(actionResolution.status);
-  const passInterceptionRollRequired = actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interception-roll";
+  const pendingGameplayRoll = actionResolution?.pendingRoll || null;
   const passTargetDistance = useMemo(() => {
     const pending = actionResolution;
     if (!["pass", "through-ball", "lofted-through-ball"].includes(pending?.kind) || pending.status !== "targeting" || !hoveredCell) return null;
@@ -11650,10 +11654,9 @@ function App() {
   function renderTeamRollControl(team, { label = "ROLL", className = "" } = {}) {
     const isRolling = team === "blue" ? blueDieRolling : redDieRolling;
     const otherTeamRolling = team === "blue" ? redDieRolling : blueDieRolling;
-    const disabled = !canRollTeamDie(team) || isRolling || otherTeamRolling || diceCooldownUntil > Date.now();
-    const currentDieType = ((actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "awaiting-interception-roll") || (actionResolutionRef.current?.kind === "lofted-through-ball" && actionResolutionRef.current.status === "awaiting-roll"))
-      ? 20
-      : dieType;
+    const pendingRoll = offlinePendingRoll();
+    const disabled = !canRollTeamDie(team) || isRolling || otherTeamRolling || (sessionCode && diceCooldownUntil > Date.now());
+    const currentDieType = pendingRoll?.dieType || dieType;
     if (chooseRollEnabled && chooseRollForTeam === team) {
       return (
         <select
@@ -11688,8 +11691,8 @@ function App() {
             <span className="replay-name" title={replayRecording?.name || ""}>{replayRecording?.name || "Imported match"}</span>
             <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.2, 3))}><Minus size={16} /></button>
             <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
-            <button onClick={undo} disabled={!gameTimeline || gameTimeline.cursor <= 0}><Undo2 size={16} /> Undo</button>
-            <button onClick={redo} disabled={!gameTimeline || gameTimeline.cursor >= gameTimeline.entries.length}><Redo2 size={16} /> Redo</button>
+            <button onClick={undo} disabled={!gameTimeline || gameTimeline.cursor <= 0 || diceAnimationActive()}><Undo2 size={16} /> Undo</button>
+            <button onClick={redo} disabled={!gameTimeline || gameTimeline.cursor >= gameTimeline.entries.length || diceAnimationActive()}><Redo2 size={16} /> Redo</button>
             <button className={historyVisible ? "toggle-on" : ""} onClick={() => setHistoryVisible(v => !v)}>History</button>
             <button className={trackerVisible ? "toggle-on" : ""} onClick={() => setTrackerEnabledForSession(!trackerVisible)}>Tracker</button>
             <button className={dicePanelVisible ? "toggle-on" : ""} onClick={() => setDicePanelVisible(v => !v)}>Dice</button>
@@ -11789,8 +11792,8 @@ function App() {
 
         <button onClick={() => setZoom(z => clamp(Number((z - 0.1).toFixed(2)), 0.2, 3))}><Minus size={16} /></button>
         <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
-        <button onClick={undo} disabled={gameMode !== "match" || !gameTimeline || gameTimeline.cursor <= 0 || (!!sessionCode && !isSessionHost)}><Undo2 size={16} /> Undo</button>
-        <button onClick={redo} disabled={gameMode !== "match" || !gameTimeline || gameTimeline.cursor >= gameTimeline.entries.length || (!!sessionCode && !isSessionHost)}><Redo2 size={16} /> Redo</button>
+        <button onClick={undo} disabled={gameMode !== "match" || !gameTimeline || gameTimeline.cursor <= 0 || (!!sessionCode && !isSessionHost) || diceAnimationActive()}><Undo2 size={16} /> Undo</button>
+        <button onClick={redo} disabled={gameMode !== "match" || !gameTimeline || gameTimeline.cursor >= gameTimeline.entries.length || (!!sessionCode && !isSessionHost) || diceAnimationActive()}><Redo2 size={16} /> Redo</button>
         <button disabled={singlePlayerMatchWorkspaceLocked} onClick={resetPiecePositions}><RotateCcw size={16} /> Reset Position</button>
         <button disabled={singlePlayerMatchWorkspaceLocked} onClick={resetPieceCards}><RotateCcw size={16} /> Reset Cards</button>
         <button className={touchMode ? "toggle-on" : ""} onClick={() => setTouchMode(v => !v)}>
@@ -12313,12 +12316,12 @@ function App() {
           <button onClick={() => setZoom(z => clamp(Number((z + 0.1).toFixed(2)), 0.2, 3))}><Plus size={16} /></button>
           <div className="dice-box compact-team-dice">
             <Dices size={16} />
-            <select value={passInterceptionRollRequired ? 20 : dieType} disabled={passInterceptionRollRequired} onChange={e => setDieType(Number(e.target.value))}>
+            <select value={pendingGameplayRoll?.dieType || dieType} disabled={Boolean(pendingGameplayRoll)} onChange={e => setDieType(Number(e.target.value))}>
               <option value={20}>D20</option><option value={12}>D12</option><option value={10}>D10</option><option value={8}>D8</option><option value={6}>D6</option><option value={4}>D4</option>
             </select>
             {!sessionCode && gameMode === "match" && <button
               className={`extra-roll-button${extraRollArmed ? " toggle-on" : ""}`}
-              disabled={isReplayView || Boolean(actionResolution) || blueDieRolling || redDieRolling || diceCooldownUntil > Date.now()}
+              disabled={isReplayView || Boolean(actionResolution) || blueDieRolling || redDieRolling}
               onClick={() => setExtraRollArmed(value => !value)}
             >{extraRollArmed ? "CANCEL EXTRA" : "EXTRA ROLL"}</button>}
             {renderTeamRollControl("blue", { label: "Blue", className: "blue-die-button" })}
@@ -12413,12 +12416,12 @@ function App() {
           <div className="dice-panel-body">
             <div className="dice-toolbar">
               <Dices size={18} />
-              <select value={passInterceptionRollRequired ? 20 : dieType} disabled={isReplayView || passInterceptionRollRequired} onChange={e => setDieType(Number(e.target.value))}>
+              <select value={pendingGameplayRoll?.dieType || dieType} disabled={isReplayView || Boolean(pendingGameplayRoll)} onChange={e => setDieType(Number(e.target.value))}>
                 <option value={20}>D20</option><option value={12}>D12</option><option value={10}>D10</option><option value={8}>D8</option><option value={6}>D6</option><option value={4}>D4</option>
               </select>
               {!sessionCode && gameMode === "match" && <button
                 className={`extra-roll-button${extraRollArmed ? " toggle-on" : ""}`}
-                disabled={isReplayView || Boolean(actionResolution) || blueDieRolling || redDieRolling || diceCooldownUntil > Date.now()}
+                disabled={isReplayView || Boolean(actionResolution) || blueDieRolling || redDieRolling}
                 onPointerDown={event => event.stopPropagation()}
                 onClick={() => setExtraRollArmed(value => !value)}
               >{extraRollArmed ? "CANCEL EXTRA" : "EXTRA ROLL"}</button>}

@@ -267,6 +267,22 @@ export function applyGameCommand({ state, context, command } = {}) {
       commandId: normalizedCommand.id,
     })], transition.timeline);
   }
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.GAMEPLAY_ROLL_SUBMITTED) {
+    const resolution = currentState.actionResolution;
+    const transition = resolution?.kind === "pass"
+      ? submitPassInterceptionRoll(currentState, matchContext, {
+          ...normalizedCommand,
+          payload: { ...(normalizedCommand.payload || {}), passId: resolution.id },
+        })
+      : resolution?.kind === "lofted-through-ball"
+        ? submitLoftedThroughBallRoll(currentState, matchContext, normalizedCommand)
+        : { accepted: false, reason: "GAMEPLAY_ROLL_NOT_REQUESTED" };
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({
+      ...transition.event,
+      commandId: normalizedCommand.id,
+    })], transition.timeline);
+  }
   if (normalizedCommand.type === GAME_COMMAND_TYPE.PASS_INTERCEPTION_ROLL_SUBMITTED) {
     const transition = submitPassInterceptionRoll(currentState, matchContext, normalizedCommand);
     if (!transition.accepted) return rejected(transition.reason);

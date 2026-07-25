@@ -106,7 +106,7 @@ export function commitLoftedThroughBall(state, context, command) {
   const activation = bonus ? { allowed: true, actionLog: state.tracker.actionLog, usedActions: state.tracker.usedActions, personalActionsByPieceId: state.tracker.personalActionsByPieceId, matchActionState: state.tracker.matchActionState } : activateTrackerAction(state.tracker, { type: "LOFTED_THROUGH_BALL", trackerMarker: "LT", pieceId: passer.id, team: pending.team, entryId: command.id, enforcePersonalActions: true });
   if (!activation.allowed) return { accepted: false, reason: activation.reason };
   const tracker = { ...state.tracker, actionLog: activation.actionLog, usedActions: activation.usedActions, personalActionsByPieceId: activation.personalActionsByPieceId, matchActionState: activation.matchActionState };
-  const next = { ...pending, status: "awaiting-roll", cornerId, plan, pendingRoll: { requestId: `lofted_roll_${pending.id}`, actionId: pending.id, team: pending.team, dieType: 20, subjectId: passer.id, reactionIndex: 0 } };
+  const next = { ...pending, status: "awaiting-roll", cornerId, plan, pendingRoll: { requestId: `lofted_roll_${pending.id}`, actionId: pending.id, team: pending.team, dieType: 20, subjectId: passer.id, reactionIndex: 0, context: { actionType: "LOFTED_THROUGH_BALL" } } };
   return { accepted: true, nextState: { ...state, tracker, actionResolution: next }, event: { type: "LOFTED_THROUGH_BALL_COMMITTED", team: pending.team, metadata: { passerId: passer.id, target: pending.target, cornerId, plan, continuationId: bonus?.id || null } }, timeline: { groupId: bonus?.id || command.id, undoMode: bonus ? "atomic" : "step", allowNoop: false } };
 }
 

@@ -240,12 +240,40 @@ test("offline Group Move draft uses its official projection instead of local Rul
   assert.doesNotMatch(body, /getTeamActionStatus\(team\)\.remaining !== 1/);
 });
 
-test("Single Player dice availability projects the canonical pending request", () => {
-  const pass = { actionResolution: { kind: "pass", status: "awaiting-interception-roll", interceptorIndex: 0, plan: { interceptors: [{ defender: { id: "red-1", team: "B" } }] } } };
+test("Single Player dice availability projects the canonical pending request rather than mechanic names", () => {
+  const pass = { actionResolution: { kind: "pass", status: "awaiting-interception-roll", pendingRoll: { requestId: "pass-roll", team: "red", dieType: 20 } } };
   assert.equal(selectSinglePlayerDicePresentation(pass, { team: "red" }).canRoll, true);
   assert.equal(selectSinglePlayerDicePresentation(pass, { team: "blue" }).canRoll, false);
+  const lofted = { actionResolution: { kind: "lofted-through-ball", status: "awaiting-roll", pendingRoll: { requestId: "lt-roll", team: "blue", dieType: 20 } } };
+  assert.equal(selectSinglePlayerDicePresentation(lofted, { team: "blue" }).canRoll, true);
+  assert.equal(selectSinglePlayerDicePresentation(lofted, { team: "red" }).canRoll, false);
+  const routeSelection = { actionResolution: { kind: "lofted-through-ball", status: "route-selection", team: "blue" } };
+  assert.equal(selectSinglePlayerDicePresentation(routeSelection, { team: "blue" }).canRoll, false);
+  const throughBall = { actionResolution: { kind: "through-ball", status: "route-selection", team: "blue" } };
+  assert.equal(selectSinglePlayerDicePresentation(throughBall, { team: "blue" }).canRoll, false);
   assert.equal(selectSinglePlayerDicePresentation({ actionResolution: null }, { team: "blue", extraRollArmed: true }).canRoll, true);
   assert.equal(selectSinglePlayerDicePresentation({ actionResolution: null }, { team: "blue", extraRollArmed: false }).canRoll, false);
+});
+
+test("offline Dice UI derives pending-roll availability and die type without Pass or LT status checks", () => {
+  const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
+  const gate = localFunctionSource(source, "canRollTeamDie");
+  assert.match(gate, /if \(!sessionCode && gameMode === "match"\) \{[\s\S]*?selectSinglePlayerDicePresentation/);
+  const request = localFunctionSource(source, "offlinePendingRoll");
+  assert.match(request, /state\?\.actionResolution\?\.pendingRoll/);
+  const autoOpen = source.slice(source.indexOf("useEffect(() => {\n    const pendingRoll = actionResolution?.pendingRoll"), source.indexOf("useEffect(() => { movementStateRef.current", source.indexOf("useEffect(() => {\n    const pendingRoll = actionResolution?.pendingRoll")));
+  assert.match(autoOpen, /pendingRoll\.dieType/);
+  assert.doesNotMatch(autoOpen, /lofted-through-ball|awaiting-interception-roll/);
+});
+
+test("offline Dice has no post-roll cooldown while Timeline navigation is guarded during animation", () => {
+  const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
+  const reserve = localFunctionSource(source, "reserveDiceRoll");
+  assert.match(reserve, /if \(!sessionCode\) \{\s*return true;/);
+  const undo = localFunctionSource(source, "undo");
+  const redo = localFunctionSource(source, "redo");
+  assert.match(undo, /if \(diceAnimationActive\(\)\) return;/);
+  assert.match(redo, /if \(diceAnimationActive\(\)\) return;/);
 });
 
 test("Normal Move preview capability cannot be smuggled through a submitted command payload", () => {

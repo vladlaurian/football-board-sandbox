@@ -90,7 +90,7 @@ A command is an attempted action. An event is a confirmed gameplay fact emitted 
 | Tracker | `TRACKER_PHASE_ENDED`, temporary administrative `TRACKER_ACTIONS_RESET`, `TRACKER_POSSESSION_CHANGED` |
 | Match administration | `PIECE_ACTIVITY_CHANGED`; temporary manual declarations `MANUAL_ACTION_DECLARED`, `BONUS_MANUAL_ACTION_DECLARED` |
 | Pass | `PASS_STARTED`, `PASS_CANCELLED`, `PASS_TARGET_SELECTED`, `PASS_ROUTE_CONFIRMED`, `PASS_INTERCEPTOR_SELECTED` |
-| Dice and resolution | `PASS_INTERCEPTION_ROLL_SUBMITTED`, `PASS_INTERCEPTION_RESOLUTION_DUE`, `RESOLUTION_DUE`, `EXTRA_ROLL_SUBMITTED` |
+| Dice and resolution | canonical `GAMEPLAY_ROLL_SUBMITTED`; compatibility `PASS_INTERCEPTION_ROLL_SUBMITTED`; `PASS_INTERCEPTION_RESOLUTION_DUE`, `RESOLUTION_DUE`, `EXTRA_ROLL_SUBMITTED` |
 | Bonus Action | `BONUS_ACTION_STARTED`, `BONUS_ACTION_ENDED`; typed movement: `BONUS_MOVE_STARTED`, `BONUS_MOVE_CANCELLED`, `BONUS_MOVE_COMMITTED` |
 
 Future Dribble, Shot, Tackle, and Cross commands use this same contract; they must not introduce separate UI, Timeline, Dice, or Firebase gameplay paths.
@@ -156,7 +156,9 @@ The Engine remains the sole authority even when UI offers several projected comm
 
 ## 5. Delayed resolution and manual dice
 
-Manual roll remains a permanent rule. `PASS_INTERCEPTION_ROLL_SUBMITTED` carries a unique RollEvent and is validated against the exact pending request. Chosen and random mechanic-requested rolls use the same contract. `EXTRA_ROLL_SUBMITTED` is the explicit administrative fallback: it records a die result without satisfying a gameplay request or consuming a Tracker action.
+Manual roll remains a permanent rule. Every gameplay roll is first represented by one canonical `actionResolution.pendingRoll` request containing request identity, action identity, owning team, die type and subject. Offline Dice availability, auto-opening and die type project that request directly; they never branch on mechanic names. The Controller submits `GAMEPLAY_ROLL_SUBMITTED`; the Engine routes it to the active mechanic and validates the unique RollEvent against that exact pending request. Legacy typed roll commands remain only as recording/session compatibility inputs. Chosen and random mechanic-requested rolls use the same contract. `EXTRA_ROLL_SUBMITTED` is the explicit administrative fallback: it records a die result without satisfying a gameplay request or consuming a Tracker action.
+
+Offline Single Player has no post-roll Dice cooldown. Engine state prevents a second gameplay roll because the pending request is consumed by the accepted command. The only local Dice lock is the short active animation; Undo/Redo is unavailable during that animation so its callback cannot resolve against a Timeline state restored in the meantime. The retained Manual Multiplayer cooldown is outside this offline presentation contract.
 
 Visible delay is presentation scheduling, not game logic:
 

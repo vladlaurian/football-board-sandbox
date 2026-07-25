@@ -234,12 +234,17 @@ export function selectSinglePlayerRollPromptPresentation(state, context, { team,
 
 export function selectSinglePlayerDicePresentation(state, { team, extraRollArmed = false } = {}) {
   const pending = state?.actionResolution;
-  if (pending?.kind === "pass" && pending.status === "awaiting-interception-roll") {
-    const interceptor = pending.plan?.interceptors?.[pending.interceptorIndex];
-    return { canRoll: teamKeyForPiece(interceptor?.defender) === team, reason: "PASS_INTERCEPTION_ROLL" };
-  }
-  if (pending?.kind === "lofted-through-ball" && pending.status === "awaiting-roll") {
-    return { canRoll: pending.team === team, reason: "LOFTED_THROUGH_BALL_ROLL" };
+  const request = pending?.pendingRoll || null;
+  // Dice ownership is a persisted Engine request, not a list of mechanic
+  // names maintained by the UI. Pass, Lofted Through and future D20 actions
+  // all expose the same request shape when a team may roll.
+  if (request?.team && Number.isFinite(Number(request.dieType))) {
+    return {
+      canRoll: request.team === team,
+      reason: "GAMEPLAY_PENDING_ROLL",
+      dieType: Number(request.dieType),
+      requestId: request.requestId || null,
+    };
   }
   if (pending) return { canRoll: false, reason: "ACTION_RESOLUTION_ACTIVE" };
   return { canRoll: Boolean(extraRollArmed), reason: extraRollArmed ? "EXTRA_ROLL" : "EXTRA_ROLL_NOT_ARMED" };

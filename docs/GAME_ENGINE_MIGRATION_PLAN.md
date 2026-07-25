@@ -422,6 +422,10 @@ Acceptance:
 
 **Status:** Complete for the current offline Single Player Pass/Interception/Bonus Action flow. Future mechanics require their own Engine-first vertical slices.
 
+### v20.55.8 — Offline pending-roll Dice integrity
+
+Offline Dice now projects the canonical `actionResolution.pendingRoll` request for all implemented mechanics rather than branching by mechanic name. The Controller submits `GAMEPLAY_ROLL_SUBMITTED`; the Engine routes the command to the active pending mechanic, while legacy typed commands remain compatibility inputs. The obsolete offline post-roll cooldown was removed: a consumed pending request is the authoritative double-roll guard. Undo/Redo remains blocked only during the short local dice animation. Manual Multiplayer retains its existing cooldown path unchanged.
+
 Migrate RollEvent submission, delayed resolution, Natural 1/20, interception outcome, possession consequence, Bonus continuation, completion/decline, and atomic Undo.
 
 Acceptance:
