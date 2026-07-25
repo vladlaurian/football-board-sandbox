@@ -308,19 +308,6 @@ test("ready Bonus Action controls do not inherit normal Tracker phase or action 
   assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "GROUP_MOVE" }).disabled, true);
 });
 
-test("Through Ball targeting locks the ordinary Inspector action row", () => {
-  const state = createGameState({
-    gameMode: "match",
-    pieces: [{ id: "ball", team: "BALL", x: 3, y: 3 }, { id: "blue-1", team: "A", cardId: "blue-card", x: 3, y: 3 }],
-    actionResolution: { kind: "through-ball", status: "targeting", passerId: "blue-1", target: { x: 6, y: 3 } },
-    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
-  });
-  const context = createMatchContext({ gameplayCards: [{ id: "blue-card", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 5 }] }] });
-  assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "MOVE" }).disabled, true);
-  assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "PASS" }).disabled, true);
-  assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "GROUP_MOVE" }).disabled, true);
-});
-
 test("Free Move and Free Ball projections use the same Engine validation as their commits", () => {
   const state = createGameState({
     gameMode: "match",

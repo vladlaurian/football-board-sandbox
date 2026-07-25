@@ -203,7 +203,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.54.3";
+const APP_VERSION = "v20.54.2";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -6999,10 +6999,7 @@ function App() {
       return {
         plans: routes,
         selectedPlan: routes.find(route => route.cornerId === pending.cornerId) || routes[0] || null,
-        // The Engine keeps the selected cell while returning from route
-        // selection to targeting so the next click has canonical context.
-        // It is not an active placed-ball preview after that cancellation.
-        target: pending.status === "route-selection" ? pending.target : null,
+        target: pending.target,
         visibleCells: [], blockedCells: [],
         lines: routes.map(route => ({ id: route.cornerId, origin: route.origin, endpoint: route.endpoint, status: route.legal ? "clear" : "blocked", selected: route.cornerId === pending.cornerId })),
         routes: pending.status === "route-selection" ? routes.map(route => ({ id: route.cornerId, cornerId: route.cornerId, origin: route.origin, foot: "TB", modifier: "", status: route.legal ? "clear" : "blocked", disabled: !route.legal })) : [],

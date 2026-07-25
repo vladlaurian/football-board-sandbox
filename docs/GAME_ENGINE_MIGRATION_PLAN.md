@@ -574,8 +574,6 @@ v20.54.1 corrects three incomplete v20.54.0 consequences. Through Ball recovery 
 
 v20.54.2 closes the action-identity audit found during Through Ball testing. Tracker action records now carry an Engine-owned semantic type plus a stored short marker; presentation displays the marker and never infers a pass class. Unknown legacy/corrupt action types remain explicit rather than being normalized to `PASS`. The same record passes intact through MatchState, Timeline, Undo/Redo, Replay and AI Export. The build also freezes MatchContext directly from the Timeline baseline at offline Match entry, returns a reselected Through target to canonical targeting without discarding it, and limits signed-direction enforcement to post-3/2 continuation only. Manual Multiplayer remains excluded.
 
-v20.54.3 completes the Through targeting interaction boundary without changing its Engine state. Any pending resolution, including `through-ball`, now locks the ordinary Inspector action row; Through Ball retains its dedicated inline cancellation control. Returning from route selection keeps the target in canonical targeting state, but the presentation suppresses the placed-ball preview until route selection resumes. This is projection-only and leaves Timeline/Undo/Redo semantics and Manual Multiplayer unchanged.
-
 ## Required update after every implementation build
 
 - mark only completed items complete;

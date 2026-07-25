@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.54.3` |
-| Git/package version | `20.54.3` |
-| Build name | `Final_Board_v20_54_3_through_ball_targeting_lock_and_preview_cleanup` |
-| Base build | `v20.54.2 Through Ball resolution and match-entry integrity` |
+| Sandbox version | `v20.54.2` |
+| Git/package version | `20.54.2` |
+| Build name | `Final_Board_v20_54_2_through_ball_resolution_and_match_entry_integrity` |
+| Base build | `v20.54.1 Through Ball recovery and 3/2 continuity` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.54.3`. The repository version is in `package.json` as `20.54.3`. The browser title is `Sandbox v20.54.3`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.54.2`. The repository version is in `package.json` as `20.54.2`. The browser title is `Sandbox v20.54.2`.
 
 ## Current release
 
-v20.54.3 makes the Through Ball targeting interaction match Pass UX: while Through Ball is pending, the normal Inspector action row is disabled and the inline Through control remains the sole cancellation route. After route cancellation, the Engine keeps the selected target canonically for targeting, but the UI no longer renders a placed-ball preview there. Manual Multiplayer remains unchanged.
+v20.54.2 makes action identity lossless across Engine, MatchState, Timeline, Tracker and AI Export. Passes store `SP`/`LP`, Through Ball stores `TB`, and the new manual Lofted Through control stores `LT` while deliberately leaving its future board mechanic unresolved. Through target re-selection returns to canonical targeting with the target retained; blocking gameplay popups expose Undo/Redo; MatchContext is frozen from the exact Timeline baseline at Match entry. The 3/2 direction lock applies only after the approved post-3/2 continuation case. Manual Multiplayer remains unchanged.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 
