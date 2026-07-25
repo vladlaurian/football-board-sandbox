@@ -23,13 +23,13 @@ import {
   selectSinglePlayerInspectorControlPresentation,
   selectSinglePlayerInterceptorChoicePresentation,
   selectSinglePlayerBallCellMoveChoicePresentation,
+  selectSinglePlayerBonusMovePresentation,
   selectSinglePlayerNormalMoveContinuationPresentation,
   selectSinglePlayerNormalMovePresentation,
   selectSinglePlayerPassPresentation,
   selectSinglePlayerPieceActionPresentation,
   selectSinglePlayerTeamActionPresentation,
   selectSinglePlayerRollModifierTokenPresentation,
-  selectSinglePlayerRollSequencePresentation,
   selectSinglePlayerThreeTwoPresentation,
 } from "./engine/matchPresentationSelectors.mjs";
 import {
@@ -205,7 +205,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.55.2";
+const APP_VERSION = "v20.55.3";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -1923,7 +1923,9 @@ function DraggableActionPrompt({ promptKey, className = "", children }) {
 
   function onPointerDown(event) {
     if (event.button !== 0) return;
-    if (event.target.closest?.("button, input, select, textarea, label, a")) return;
+    // The popup is draggable by its empty surface, but its interactive
+    // children must retain ordinary click/tap semantics.
+    if (event.target.closest?.("button, input, select, textarea, a, [data-prompt-control]")) return;
     event.preventDefault();
     event.stopPropagation();
     dragRef.current = { pointerId: event.pointerId, dx: event.clientX - position.x, dy: event.clientY - position.y };
@@ -2061,6 +2063,7 @@ function App() {
   const [historySize, setHistorySize] = useState({ w: 280, h: 360 });
   const [historyVisible, setHistoryVisible] = useState(false);
   const [dicePanelVisible, setDicePanelVisible] = useState(false);
+  const dicePanelOpenedForResolutionRef = useRef(false);
   const [dicePanelPosition, setDicePanelPosition] = useState({ x: 420, y: 180 });
   // Dice window layout is intentionally local to each browser.  The compact
   // default keeps both results and Roll buttons visible on first open; any
@@ -2151,6 +2154,7 @@ function App() {
   const [pendingThreeTwoMove, setPendingThreeTwoMove] = useState(null);
   const [pendingRollModifierType, setPendingRollModifierType] = useState(null);
   const [rollModifierOpportunities, setRollModifierOpportunities] = useState([]);
+  const [rollModifierExpiryNotice, setRollModifierExpiryNotice] = useState(null);
   const [groupMoveZoneDraft, setGroupMoveZoneDraft] = useState(null);
   const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
   const [lockUI, setLockUI] = useState(false);
@@ -2265,13 +2269,22 @@ function App() {
   }, [actionResolution]);
   useEffect(() => { actionContinuationRef.current = actionContinuation; }, [actionContinuation]);
   useEffect(() => {
-    const rollSequence = selectSinglePlayerRollSequencePresentation({ actionResolution });
-    if (rollSequence.requiresRoll) {
-      setDicePanelVisible(true);
-      setDieType(20);
-    } else if (!rollSequence.sequenceActive) {
-      setDicePanelVisible(false);
+    const manualRollRequired = (actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interception-roll")
+      || (actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "awaiting-roll");
+    if (!manualRollRequired) {
+      // Do not close a panel the user opened manually. Close only the panel
+      // automatically opened for the now-complete Engine resolution.
+      if (!actionResolution && dicePanelOpenedForResolutionRef.current) {
+        setDicePanelVisible(false);
+        dicePanelOpenedForResolutionRef.current = false;
+      }
+      return;
     }
+    // A reaction roll is never optional UI. Opening Dice and pinning D20
+    // removes an avoidable extra click while keeping the roll itself manual.
+    setDicePanelVisible(true);
+    dicePanelOpenedForResolutionRef.current = true;
+    setDieType(20);
   }, [actionResolution]);
   useEffect(() => { movementStateRef.current = movementStateByPieceId; }, [movementStateByPieceId]);
   useEffect(() => { gameTimelineRef.current = gameTimeline; }, [gameTimeline]);
@@ -4468,6 +4481,16 @@ function App() {
     return context;
   }
 
+  // Roll-bonus expiry is a presentation notice for an Engine-owned lifecycle
+  // event. The UI never decides which token expired or when it expires.
+  function reportExpiredRollModifierOpportunities(events) {
+    const expired = (Array.isArray(events) ? events : [])
+      .flatMap(event => Array.isArray(event?.metadata?.expiredRollModifierOpportunities)
+        ? event.metadata.expiredRollModifierOpportunities
+        : []);
+    if (expired.length) setRollModifierExpiryNotice(expired);
+  }
+
   function publishSinglePlayerMatchProjection({ timeline, state }, { preserveLocalSelection = false } = {}) {
     replaceGameTimeline(timeline);
     applyTimelineGameState(state, { preserveLocalSelection });
@@ -4479,27 +4502,28 @@ function App() {
       request,
       publish: projection => publishSinglePlayerMatchProjection(projection, { preserveLocalSelection }),
     });
-    const expired = dispatched?.entry?.metadata?.expiredRollModifiers || [];
-    if (expired.length && !["PASS_INTERCEPTED", "PASS_NATURAL_20"].includes(dispatched.entry?.type)) {
-      showPassResultNotice({ title: "Unused roll bonus expired", team: dispatched.entry?.team || null, lines: [`${expired.map(token => token.modifierType === "majorAdvantage" ? "Major Advantage" : "Advantage").join(" and ")} was not used and is lost.`] });
-    }
+    reportExpiredRollModifierOpportunities(dispatched?.result?.events);
     return dispatched;
   }
 
   function dispatchSinglePlayerGameCommandSequence({ preserveLocalSelection = false, ...request } = {}) {
-    return runSinglePlayerMatchCommand({
+    const dispatched = runSinglePlayerMatchCommand({
       kind: "sequence",
       request,
       publish: projection => publishSinglePlayerMatchProjection(projection, { preserveLocalSelection }),
     });
+    reportExpiredRollModifierOpportunities(dispatched?.events);
+    return dispatched;
   }
 
   function dispatchSinglePlayerMatchStart({ preserveLocalSelection = false, ...request } = {}) {
-    return runSinglePlayerMatchCommand({
+    const dispatched = runSinglePlayerMatchCommand({
       kind: "match-start",
       request,
       publish: projection => publishSinglePlayerMatchProjection(projection, { preserveLocalSelection }),
     });
+    reportExpiredRollModifierOpportunities(dispatched?.result?.events);
+    return dispatched;
   }
 
   function recordTimelineTransition({
@@ -8537,6 +8561,8 @@ function App() {
   const selectedPiece = pieces.find(p => p.id === (activeInteractionPieceId || selectedId));
   const movementPreview = useMemo(() => {
     if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL" || !canPreviewMovementForPiece(selectedPiece)) return null;
+    // Targeting is a canonical action-resolution mode, never a movement mode.
+    if (["pass", "through-ball", "lofted-through-ball"].includes(actionResolution?.kind)) return null;
     const groupMove = !sessionCode && gameMode === "match" ? matchActionState.groupMove : null;
     if (groupMove?.active) {
       const state = currentTimelineGameStateSnapshot() || captureTimelineGameState();
@@ -8551,7 +8577,13 @@ function App() {
     }
     const threeTwo = getThreeTwoEligibility(selectedPiece, hoveredCell.x, hoveredCell.y);
     if (threeTwo.eligible) return { ...threeTwo, legal: true, label: "3/2" };
-    const result = evaluateMove(selectedPiece, hoveredCell.x, hoveredCell.y);
+    const bonusMove = !sessionCode && gameMode === "match" && actionContinuation?.kind === "bonus-card-action"
+      && actionContinuation.team === pieceTeamKey(selectedPiece)
+      && [CONTINUATION_STATUS.READY, CONTINUATION_STATUS.ACTION_ACTIVE].includes(actionContinuation.status)
+      && (actionContinuation.status !== CONTINUATION_STATUS.ACTION_ACTIVE || (actionContinuation.actionType === "MOVE" && String(actionContinuation.pieceId || "") === String(selectedPiece.id)));
+    const result = bonusMove
+      ? selectSinglePlayerBonusMovePresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState(), singlePlayerMatchContext(), { piece: selectedPiece, x: hoveredCell.x, y: hoveredCell.y })
+      : evaluateMove(selectedPiece, hoveredCell.x, hoveredCell.y);
     // Geometry is projected by the Engine. It can be null only for an invalid
     // presentation request, which must render as an illegal hover rather than
     // crashing the React root.
@@ -8572,7 +8604,7 @@ function App() {
       };
     }
     return { ...result, label: `${axisIcon ? `${axisIcon} ` : ""}${result.moveCost ?? geometry?.cost ?? "—"} / ${result.remaining}` };
-  }, [selectedPiece, hoveredCell, gameMode, movementStateByPieceId, matchActionState, trackerUsedActions, cardState, sessionCardsById, sessionLibraryById, pieces, sessionCode, myTeam, cardVisibilityMode, cardRevealPermissions, user?.uid]);
+  }, [selectedPiece, hoveredCell, gameMode, movementStateByPieceId, matchActionState, trackerUsedActions, cardState, sessionCardsById, sessionLibraryById, pieces, sessionCode, myTeam, cardVisibilityMode, cardRevealPermissions, user?.uid, actionResolution, actionContinuation]);
 
   const groupMovePieceStatusById = useMemo(() => {
     const groupMove = !sessionCode && gameMode === "match" ? matchActionState.groupMove : null;
@@ -10129,6 +10161,16 @@ function App() {
     </>;
   }
 
+  function naturalEffectLabel(effect, { teamLabel = "This team", timing = "this turn" } = {}) {
+    if (effect === "bonus-action" || effect === "passer-bonus-action" || effect === "recoverer-bonus-action") return `${teamLabel} receives one Bonus Action.`;
+    if (effect === "next-turn-roll-advantage") return `${teamLabel} receives Advantage for one chosen roll next turn.`;
+    if (effect === "next-turn-roll-major-advantage") return `${teamLabel} receives Major Advantage for one chosen roll next turn.`;
+    if (effect === "current-turn-roll-advantage") return `${teamLabel} receives Advantage for one chosen roll ${timing}.`;
+    if (effect === "current-turn-roll-major-advantage") return `${teamLabel} receives Major Advantage for one chosen roll ${timing}.`;
+    if (effect === "carry-disadvantage") return "The pass continues with the configured Natural 1 disadvantage.";
+    return "No additional natural-roll effect applies.";
+  }
+
   function interceptionResultNotice({ defender, roll, pending, continuation }) {
     const plan = pending.plan;
     const team = teamKeyForPiece(defender);
@@ -10162,15 +10204,8 @@ function App() {
       : (recordedResolution || pending.lastResolution || buildInterceptionRollDetails({ pending, defender, interceptor, natural }));
     if (!details) return null;
     const nextTeam = entry.team === "blue" ? "Blue" : "Red";
-    const naturalTwentyEffect = entry.metadata?.outcomePresentation?.naturalTwentyEffect || entry.metadata?.naturalTwentyEffect || null;
     const continuation = entry.type === "PASS_NATURAL_20"
-      ? naturalTwentyEffect === "none"
-        ? `${nextTeam} wins the ball. Possession changes and play continues at Turn ${entry.after?.tracker?.currentTurn || 1}. No additional Natural 20 reward applies.`
-        : naturalTwentyEffect === "next-turn-roll-advantage"
-          ? `${nextTeam} wins the ball. Possession changes and play continues at Turn ${entry.after?.tracker?.currentTurn || 1}. ${nextTeam} receives Advantage for one roll next turn.`
-          : naturalTwentyEffect === "next-turn-roll-major-advantage"
-            ? `${nextTeam} wins the ball. Possession changes and play continues at Turn ${entry.after?.tracker?.currentTurn || 1}. ${nextTeam} receives Major Advantage for one roll next turn.`
-            : `${nextTeam} wins the ball and now has one bonus card action before the turn changes.`
+      ? `${nextTeam} wins the ball. ${naturalEffectLabel(entry.metadata?.naturalTwentyEffect || (entry.metadata?.bonusAction ? "bonus-action" : "none"), { teamLabel: nextTeam, timing: "next turn" })}`
       : entry.type === "PASS_INTERCEPTED"
         ? `${nextTeam} wins the ball. Possession changes and play continues at Turn ${entry.after?.tracker?.currentTurn || 1}.`
         : entry.type === "PASS_COMPLETED"
@@ -10178,10 +10213,7 @@ function App() {
         : entry.after?.actionResolution?.status === "awaiting-interceptor-choice"
           ? `The pass continues. ${nextTeam} must choose which equally ranked defender attempts the next interception.`
           : `The pass continues. The next eligible defender must roll D20${natural === 1 ? " with an additional -1 modifier" : ""}.`;
-    const expired = entry.metadata?.expiredRollModifiers || [];
-    const expiryLine = expired.length ? `${expired.map(token => token.modifierType === "majorAdvantage" ? "Major Advantage" : "Advantage").join(" and ")} was not used and is lost.` : null;
-    const notice = interceptionResultNotice({ defender, roll: details, pending, continuation });
-    return expiryLine ? { ...notice, lines: [...notice.lines, expiryLine] } : notice;
+    return interceptionResultNotice({ defender, roll: details, pending, continuation });
   }
 
   function presentPassResultEntry(entry) {
@@ -10712,6 +10744,12 @@ function App() {
     const offlineBonusContinuation = !sessionCode && actionContinuationRef.current?.kind === "bonus-card-action"
       ? actionContinuationRef.current
       : null;
+    // Free Move is explicitly administrative and may be started by either
+    // team while a Bonus Action waits. It is not a Bonus Action consumer.
+    if (!sessionCode && type === "FREE" && offlineBonusContinuation?.status === CONTINUATION_STATUS.READY) {
+      commitFreeModeToggle(piece, { requestedOperation: "start" });
+      return;
+    }
     if (offlineBonusContinuation && offlineBonusContinuation.team !== pieceTeamKey(piece)) return;
     const continuation = currentBonusContinuationForTeam(pieceTeamKey(piece));
     if (continuation) {
@@ -10726,24 +10764,18 @@ function App() {
         beginPassTargeting(piece, { continuationId: continuation.id });
         return;
       }
-      if (!sessionCode && ["SHOT", "CROSS", "DRIBBLE", "TACKLING"].includes(type)) {
-        const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
-        const dispatched = dispatchSinglePlayerGameCommand({
-          timeline: gameTimelineRef.current,
-          state: before,
-          context: singlePlayerMatchContext(),
-          command: {
-            id: createActionEventId(`bonus_manual_${type.toLowerCase()}_${piece.id}`),
-            type: GAME_COMMAND_TYPE.BONUS_MANUAL_ACTION_DECLARED,
-            payload: { pieceId: piece.id, actionType: type },
-          },
-          label: `${pieceTeamKey(piece) === "blue" ? "Blue" : "Red"} bonus ${type}: ${getPieceDisplayLabel(piece)} (manual)`,
-        });
-        if (!dispatched.result.accepted) return;
-        setSelectedId(null);
-        setHoveredCell(null);
+      if (!sessionCode && type === "THROUGH_BALL") {
+        cancelFreeBall();
+        beginThroughBallTargeting(piece);
         return;
       }
+      if (!sessionCode && type === "LOFTED_THROUGH_BALL") {
+        cancelFreeBall();
+        beginLoftedThroughBallTargeting(piece);
+        return;
+      }
+      // Unimplemented mechanics intentionally remain disabled by the shared
+      // projection. They never consume a Bonus Action as a fake placeholder.
       const started = type === "MOVE" && !sessionCode
         ? startBonusMove(piece)
         : beginBonusCardAction(type, piece, { startPassAtomically: type === "PASS" });
@@ -10753,10 +10785,6 @@ function App() {
       } else if (type === "MOVE") {
         setSelectedId(piece.id);
         setHoveredCell(null);
-      } else {
-        // These actions do not yet have their own automation flow. They still
-        // count as the one allowed bonus card action, but never touch Tracker.
-        completeBonusCardAction({ actionType: type, pieceId: piece.id });
       }
       return;
     }
@@ -10811,25 +10839,7 @@ function App() {
       commitNormalMoveStart(piece);
       return;
     }
-    if (!sessionCode && ["SHOT", "CROSS", "DRIBBLE", "TACKLING"].includes(type)) {
-      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
-      const dispatched = dispatchSinglePlayerGameCommand({
-        timeline: gameTimelineRef.current,
-        state: before,
-        context: singlePlayerMatchContext(),
-        command: {
-          id: createActionEventId(`manual_${type.toLowerCase()}_${piece.id}`),
-          type: GAME_COMMAND_TYPE.MANUAL_ACTION_DECLARED,
-          payload: { pieceId: piece.id, actionType: type },
-        },
-        label: `${team === "blue" ? "Blue" : "Red"} ${type}: ${getPieceDisplayLabel(piece)} (manual)`,
-      });
-      if (!dispatched.result.accepted) {
-        if (dispatched.result.reason) setIllegalMoveNotice({ reason: dispatched.result.reason });
-        return;
-      }
-      return;
-    }
+    if (!sessionCode && ["SHOT", "CROSS", "DRIBBLE", "TACKLING"].includes(type)) return;
     if (type === "GROUP_MOVE" && !sessionCode) {
       if (groupMoveZoneDraft) {
         setGroupMoveZoneDraft(null);
@@ -12192,18 +12202,17 @@ function App() {
                         const pending = actionResolution;
                         const active = pending?.kind === "through-ball" && pending.passerId === inspectedPiece.id;
                         const loftedActive = pending?.kind === "lofted-through-ball" && pending.passerId === inspectedPiece.id;
-                        const throughDisabled = active ? false : !playerHasBall(inspectedPiece)
-                          || !isTeamPhaseActive(team)
-                          || getTeamActionStatus(team).exhausted
-                          || !canUseActionForPiece(inspectedPiece)
-                          || Boolean(pending)
-                          || Boolean(matchActionState.freeMode?.active)
-                          || Boolean(matchActionState.activeMovement?.active);
+                        const through = selectSinglePlayerInspectorActionPresentation(
+                          currentTimelineGameStateSnapshot() || captureTimelineGameState(),
+                          singlePlayerMatchContext(),
+                          { piece: inspectedPiece, type: "THROUGH_BALL", replay: replayModeRef.current },
+                        );
                         const lofted = selectSinglePlayerInspectorActionPresentation(
                           currentTimelineGameStateSnapshot() || captureTimelineGameState(),
                           singlePlayerMatchContext(),
                           { piece: inspectedPiece, type: "LOFTED_THROUGH_BALL", replay: replayModeRef.current },
                         );
+                        const throughDisabled = active ? false : through.disabled || Boolean(pending);
                         const loftedDisabled = loftedActive ? false : lofted.disabled || Boolean(pending);
                         return <>
                           <button className={`team-action-btn ${team} inspector-inline-action`} type="button" disabled={throughDisabled} onClick={() => consumeInspectorAction("THROUGH_BALL", inspectedPiece)}>{active ? "CANCEL THROUGH" : "THROUGH BALL"}</button>
@@ -12435,6 +12444,18 @@ function App() {
         </div>
       )}
 
+      {rollModifierExpiryNotice && (
+        <div className="modal-backdrop turn-confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setRollModifierExpiryNotice(null); }}>
+          <div className="modal turn-confirm-modal" role="dialog" aria-modal="true" onPointerDown={event => event.stopPropagation()}>
+            <div className="modal-title"><strong>Unused roll bonus expired</strong></div>
+            <div className="turn-confirm-message">
+              {rollModifierExpiryNotice.map(item => `${item.team === "blue" ? "Blue" : "Red"} ${item.modifierType === "majorAdvantage" ? "Major Advantage" : "Advantage"}`).join(" and ")} expired at the end of the previous turn.
+            </div>
+            <div className="modal-actions"><button onClick={() => setRollModifierExpiryNotice(null)}>OK</button></div>
+          </div>
+        </div>
+      )}
+
       <AssignCardModal controller={buildAssignCardModalController()} />
 
       {pendingEditorModeExit && (
@@ -12563,7 +12584,7 @@ function App() {
         </DraggableActionPrompt>;
       })()}
 
-      {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "roll-resolved" && <div className="modal-backdrop pass-result-backdrop"><div className={`modal pass-result-modal ${actionResolution.team || ""}`} role="dialog" aria-modal="true"><div className="modal-title"><strong>Lofted Through Ball result</strong>{renderBlockingGameplayHistoryControls()}</div><div className="pass-result-lines">{renderRollBreakdown(actionResolution.result, `Difficulty ${actionResolution.plan?.difficultyThreshold}`)}<p>{actionResolution.result?.succeeds ? "Lofted Through Ball succeeds." : "Lofted Through Ball fails."}</p>{actionResolution.result?.naturalEffect === "passer-bonus-action" && <p>Natural 20: the passer receives one Bonus Action.</p>}{actionResolution.result?.naturalEffect === "current-turn-roll-advantage" && <p>Natural 20: the team receives Advantage for one roll this turn.</p>}{actionResolution.result?.naturalEffect === "current-turn-roll-major-advantage" && <p>Natural 20: the team receives Major Advantage for one roll this turn.</p>}{actionResolution.result?.naturalEffect === "none" && Number(actionResolution.result?.natural) === 20 && <p>Natural 20: no additional reward applies.</p>}</div><div className="modal-actions"><button className="save-label" onClick={confirmLoftedThroughBallResolution}>Continue</button></div></div></div>}
+      {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "roll-resolved" && <div className="modal-backdrop pass-result-backdrop"><div className={`modal pass-result-modal ${actionResolution.team || ""}`} role="dialog" aria-modal="true"><div className="modal-title"><strong>Lofted Through Ball result</strong>{renderBlockingGameplayHistoryControls()}</div><div className="pass-result-lines">{renderRollBreakdown(actionResolution.result, `Difficulty ${actionResolution.plan?.difficultyThreshold}`)}<p>{actionResolution.result?.succeeds ? "Lofted Through Ball succeeds." : "Lofted Through Ball fails."}</p>{[1, 20].includes(Number(actionResolution.result?.natural)) && <p>{naturalEffectLabel(actionResolution.result?.naturalEffect, { teamLabel: actionResolution.result?.naturalEffect === "recoverer-bonus-action" ? "The recovering team" : actionResolution.team === "blue" ? "Blue" : "Red" })}</p>}</div><div className="modal-actions"><button className="save-label" onClick={confirmLoftedThroughBallResolution}>Continue</button></div></div></div>}
 
       {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "awaiting-recoverer-choice" && (() => {
         const candidates = actionResolution.recovery?.defenderCandidates || [];

@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.55.2` |
-| Git/package version | `20.55.2` |
-| Build name | `Final_Board_v20_55_1_roll_integrity_and_lofted_through_corrections` |
-| Base build | `v20.54.2 Through Ball resolution and match-entry integrity` |
+| Sandbox version | `v20.55.3` |
+| Git/package version | `20.55.3` |
+| Build name | `Final_Board_v20_55_3_bonus_action_foundation_recovery` |
+| Base build | `v20.55.1 Roll integrity and Lofted Through correction` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.55.2`. The repository version is in `package.json` as `20.55.2`. The browser title is `Sandbox v20.55.2`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.55.3`. The repository version is in `package.json` as `20.55.3`. The browser title is `Sandbox v20.55.3`.
 
 ## Current release
 
-v20.55.2 makes roll outcomes and one-roll token lifecycle explicit Engine-owned data: Short Pass direct-contact preview, Natural 20 consequence text, automatic dice sequencing, token reset/expiry, and Bonus Action Free Move all project from canonical MatchState. Manual Multiplayer remains unchanged.
+v20.55.3 restores the offline Bonus Action foundation from the accepted `v20.55.1` baseline: one Engine capability contract covers Bonus Move, Pass, Through Ball and Lofted Through Ball; their Inspector and board presentation share the official projection; and unimplemented action buttons remain visibly disabled rather than consuming a fake action. AV/AVM expiry is Engine-owned and visible, roll prompts/results show Engine-owned bonus breakdowns, and the Dice panel follows the full manual-resolution lifecycle. Manual Multiplayer remains unchanged.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

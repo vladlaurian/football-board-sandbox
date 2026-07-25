@@ -1,6 +1,5 @@
 import { createEmptyTrackerTurnState } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
-import { normalizeRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
 
 function validStartTeam(command) {
   return command.payload?.team === "blue" || command.payload?.team === "red" ? command.payload.team : null;
@@ -15,7 +14,6 @@ function playableFirstTurn(state, team, { restarted = false } = {}) {
       movementStateByPieceId: {},
       actionResolution: null,
       actionContinuation: null,
-      // A new/restarted match never inherits one-roll rewards from an older match.
       rollModifierOpportunities: [],
       tracker: {
         ...state.tracker,
@@ -34,7 +32,7 @@ function playableFirstTurn(state, team, { restarted = false } = {}) {
       // Restart is lifecycle metadata, not a second game-rule event family.
       type: "MATCH_STARTED",
       team,
-      metadata: { startingTeam: team, startedTurn: 1, restarted, clearedRollModifierCount: normalizeRollModifierOpportunities(state.rollModifierOpportunities).length },
+      metadata: { startingTeam: team, startedTurn: 1, restarted },
     },
     timeline: { groupId: null, undoMode: "step", allowNoop: true },
   };

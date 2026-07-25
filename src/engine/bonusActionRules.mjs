@@ -5,7 +5,7 @@ import {
 } from "../match/actionContinuation.mjs";
 import { createEmptyTrackerTurnState } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
-import { advanceRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
+import { expiredRollModifierOpportunities, pruneRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
 
 function continuationForCommand(state, command) {
   const continuation = normalizeActionContinuation(state.actionContinuation);
@@ -51,11 +51,11 @@ export function endBonusAction(state, command) {
       metadata = { ...metadata, nextPhase: "complete", matchComplete: true };
     } else {
       const emptyTurn = createEmptyTrackerTurnState();
-      const rollTokens = advanceRollModifierOpportunities(state.rollModifierOpportunities, requestedTurn);
+      const expired = expiredRollModifierOpportunities(state.rollModifierOpportunities, requestedTurn);
       nextState = {
         ...nextState,
         movementStateByPieceId: {},
-        rollModifierOpportunities: rollTokens.opportunities,
+        rollModifierOpportunities: pruneRollModifierOpportunities(state.rollModifierOpportunities, requestedTurn),
         tracker: {
           ...state.tracker,
           startingTeam: nextTeam,
@@ -72,7 +72,7 @@ export function endBonusAction(state, command) {
         nextPhase: policy.phase || "attack",
         automaticTurnAdvance: true,
         startedTurn: requestedTurn,
-        expiredRollModifiers: rollTokens.expired,
+        expiredRollModifierOpportunities: expired,
       };
     }
   } else if (policy.type === CONTINUATION_RESUME_TYPE.RESUME_PHASE) {

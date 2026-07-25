@@ -11,6 +11,7 @@ import { evaluateGroupMovePieceEligibility, evaluateGroupMovePlayer } from "./gr
 import { canUseTrackerActionForPiece, canUseTrackerFreeModeForPiece, hasGroupMoveAuthorization, isTeamActiveForTrackerPhase, movementAuthorizationForPiece, personalActionStatusForPiece, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { cardStat, interceptorChoiceCandidates, teamKeyForPiece } from "../rules/passEngine.mjs";
 import { activeRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
+import { BONUS_ACTION_IMPLEMENTED_TYPES } from "./bonusActionCapabilities.mjs";
 
 function formatSigned(value) {
   const number = Number(value) || 0;
@@ -47,6 +48,32 @@ export function selectSinglePlayerNormalMovePresentation(state, context, { piece
   // requests have no geometry; ordinary rejected moves still carry the Engine
   // geometry returned above.
   return { ...result, geometry: result.geometry || null, legal: Boolean(result.accepted) };
+}
+
+// Bonus MOVE is evaluated by the same Engine command that commits it.  It is
+// intentionally distinct from Normal MOVE: a ready Bonus Action does not need
+// the normal Tracker phase or a normal MOVE authorization.
+export function selectSinglePlayerBonusMovePresentation(state, context, { piece, x, y } = {}) {
+  const continuation = state?.actionContinuation;
+  if (continuation?.kind === "bonus-card-action"
+    && continuation.status === "action-active"
+    && continuation.actionType === "MOVE"
+    && String(continuation.pieceId || "") === String(piece?.id || "")) {
+    const commit = applyGameCommand({ state, context, command: previewCommand(GAME_COMMAND_TYPE.BONUS_MOVE_COMMITTED, piece, x, y) });
+    return { ...commit, geometry: commit.geometry || null, legal: Boolean(commit.accepted) };
+  }
+  const start = applyGameCommand({
+    state,
+    context,
+    command: previewCommand(GAME_COMMAND_TYPE.BONUS_MOVE_STARTED, piece, x, y),
+  });
+  if (!start.accepted) return { ...start, geometry: null, legal: false };
+  const commit = applyGameCommand({
+    state: start.nextState,
+    context,
+    command: previewCommand(GAME_COMMAND_TYPE.BONUS_MOVE_COMMITTED, piece, x, y),
+  });
+  return { ...commit, geometry: commit.geometry || null, legal: Boolean(commit.accepted) };
 }
 
 export function selectSinglePlayerThreeTwoPresentation(state, context, { piece, x, y } = {}) {
@@ -188,19 +215,6 @@ export function selectSinglePlayerDicePresentation(state, { team, extraRollArmed
   return { canRoll: Boolean(extraRollArmed), reason: extraRollArmed ? "EXTRA_ROLL" : "EXTRA_ROLL_NOT_ARMED" };
 }
 
-export function selectSinglePlayerRollSequencePresentation(state) {
-  const pending = state?.actionResolution;
-  const requiresRoll = Boolean(
-    (pending?.kind === "pass" && pending.status === "awaiting-interception-roll")
-    || (pending?.kind === "lofted-through-ball" && pending.status === "awaiting-roll")
-  );
-  const sequenceActive = Boolean(
-    (pending?.kind === "pass" && ["awaiting-interception-roll", "awaiting-interception-resolution", "interception-resolved"].includes(pending.status))
-    || (pending?.kind === "lofted-through-ball" && ["awaiting-roll", "roll-resolved"].includes(pending.status))
-  );
-  return { requiresRoll, sequenceActive, dieType: requiresRoll ? 20 : null };
-}
-
 export function selectSinglePlayerFreeMovePresentation(state, { piece, x, y } = {}) {
   const result = evaluateFreeMove(state, previewCommand("FREE_MOVE_COMMITTED", piece, x, y));
   return { ...result, legal: Boolean(result.accepted) };
@@ -255,6 +269,7 @@ export function selectSinglePlayerInspectorControlPresentation(state, context, {
     freeBall: selectSinglePlayerFreeBallControlPresentation(state, { replay }),
     freeMoveAllowed: Boolean(
       action.freeAllowed
+      && !pending
       && !current.activeMovement?.active
       && !current.groupMove?.active
       && (!current.freeMode?.active || freeMoveSamePiece)
@@ -283,6 +298,7 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
   const normalHasRemaining = Boolean(pieceState.moveAuthorized && !movement.movementEnded && speed !== null && Number(movement.spent) < speed);
   const personalBlocked = Boolean(control.personal.limit > 0 && control.personal.exhausted && type !== "GROUP_MOVE" && !moveCancellable && !(type === "MOVE" && normalHasRemaining));
   const continuationReady = continuation?.status === "ready";
+  const implemented = ["MOVE", "PASS", "GROUP_MOVE", "THROUGH_BALL", "LOFTED_THROUGH_BALL"].includes(type);
   const trackerComplete = control.actionStatus.exhausted;
   const disabled = bonusMoveCancellable
     ? false
@@ -290,16 +306,18 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
       ? false
       : moveCancellable
         ? false
-        : normalMove.active
+        : !implemented
+          ? true
+          : normalMove.active
           ? true
           : continuationReady
             ? Boolean(
                 !control.teamOwnsContinuation
-                || type === "GROUP_MOVE"
+                || !BONUS_ACTION_IMPLEMENTED_TYPES.includes(type)
                 || piece?.inactive
                 || current.freeMode?.active
                 || current.groupMove?.active
-                || (type === "PASS" && !pieceHasBall(state, piece))
+                || (["PASS", "THROUGH_BALL", "LOFTED_THROUGH_BALL"].includes(type) && !pieceHasBall(state, piece))
               )
             : Boolean(
                 pending
@@ -310,12 +328,13 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
                 || personalBlocked
                 || current.freeMode?.active
                 || current.groupMove?.active
-                || (type === "PASS" && !pieceHasBall(state, piece))
+                || (["PASS", "THROUGH_BALL", "LOFTED_THROUGH_BALL"].includes(type) && !pieceHasBall(state, piece))
                 || (type === "MOVE" && pieceState.moveUsed && !normalHasRemaining)
                 || (type === "GROUP_MOVE" && control.actionStatus.remaining !== 1 && !trackerComplete)
               );
   return {
     ...control,
+    implemented,
     disabled,
     actionLocked: trackerComplete && !continuationReady && !passCancellable && !moveCancellable,
     label: passCancellable ? "CANCEL PASS" : (moveCancellable || bonusMoveCancellable) ? "CANCEL MOVE" : type === "PASS" ? "PASS S/L" : String(type || "").replace("GROUP_MOVE", "GROUP MOVE"),

@@ -576,6 +576,8 @@ v20.54.2 closes the action-identity audit found during Through Ball testing. Tra
 
 v20.54.3 completes the Through targeting interaction boundary without changing its Engine state. Any pending resolution, including `through-ball`, now locks the ordinary Inspector action row; Through Ball retains its dedicated inline cancellation control. Returning from route selection keeps the target in canonical targeting state, but the presentation suppresses the placed-ball preview until route selection resumes. This is projection-only and leaves Timeline/Undo/Redo semantics and Manual Multiplayer unchanged.
 
+v20.55.3 repairs the reusable offline Bonus Action foundation from the accepted `v20.55.1` baseline. `bonusActionCapabilities.mjs` is the one Engine capability registry for implemented consumers (`MOVE`, `PASS`, `THROUGH_BALL`, `LOFTED_THROUGH_BALL`). It coordinates existing continuation state with each action's command chain; normal Tracker action economy is bypassed only after that canonical Bonus Action start. `matchPresentationSelectors.mjs` projects the same capability state to both Inspector and board movement, preventing duplicate UI gates. Free Move remains a separately Engine-owned administrative command and is available during ready Bonus Action; Group Move and unimplemented mechanics are intentionally not capabilities. Roll modifier opportunities reset on Match start/restart, expire through Engine turn transitions with semantic metadata, and remain visible to presentation without UI lifecycle inference. Manual Multiplayer remains unchanged.
+
 ## Required update after every implementation build
 
 - mark only completed items complete;
@@ -583,9 +585,3 @@ v20.54.3 completes the Through targeting interaction boundary without changing i
 - record discovered blockers without silent scope expansion;
 - update permanent architecture when its durable contract changed;
 - provide complete new-chat handoff with phase, baseline, scope, prohibitions, acceptance criteria, and tests.
-### v20.55.2 — Roll interaction and projection integrity
-
-- Complete: Short Pass direct contact now carries the same official route segmentation data as Long Pass.
-- Complete: canonical roll outcomes expose the actual Natural 20 effect and total bonus; UI does not infer a Bonus Action from `PASS_NATURAL_20`.
-- Complete: AV/AVM reset, consumption and expiry are MatchState/Engine lifecycle transitions, including semantic expiry metadata on numbered-turn changes.
-- Complete: Dice visibility is driven by canonical roll-sequence state; Manual Multiplayer is unchanged.

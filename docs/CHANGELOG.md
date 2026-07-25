@@ -2,6 +2,15 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.55.3 — Bonus Action foundation recovery
+
+- Starts from the accepted `v20.55.1` source; the rejected `v20.55.2` source is not a base or compatibility branch.
+- Establishes one offline Engine capability contract for the single Bonus Action: Move, Pass, Through Ball and Lofted Through Ball. Those actions enter and complete through canonical continuation state without normal Tracker cost; their atomic Timeline transaction remains intact.
+- Inspector and board use the official projection for Bonus Action availability. Free Move remains an Engine-owned administrative tool and is reachable during a ready Bonus Action; Group Move and unimplemented gameplay mechanics are not falsely offered.
+- Disables unimplemented Shot/Cross/Dribble/Tackling controls instead of consuming normal or Bonus Action economy with a fake manual declaration.
+- Makes roll-bonus token expiry an Engine-recorded turn-transition fact, clears tokens on Match Start/Restart, and shows the resulting expiry notice from Engine event metadata. Roll prompts/results use the stored modifier sources; draggable prompt controls retain click behavior; Dice opens for a pending roll and closes only after its complete resolution.
+- Manual Multiplayer remains unchanged.
+
 ## v20.55.1 — Roll integrity and Lofted Through correction
 
 - Gives Lofted Through Ball independent frozen geometry, correct foot projection, and trajectory-based failed-pass recovery.
@@ -386,10 +395,3 @@ This is the compact release history. Current architecture and rules are document
 - MatchContext is now created from the exact Timeline baseline at offline Match entry, removing the save-then-immediate-Match Rule Set capture race.
 - Corrected the direction restriction so it applies only to the approved continuation after 3/2, not to ordinary segmented MOVE.
 - AI Export now includes Tracker markers, Through Ball maximum range, and recovery/race facts. Manual Multiplayer remains unchanged.
-## v20.55.2 — Roll interaction and projection integrity
-
-- Extends direct-contact route projection from Long Pass to Short Pass, including the grey continuation to the requested target.
-- Makes Natural 20 consequence presentation explicit for Interception and Lofted Through instead of inferring a Bonus Action from an event name.
-- Centralizes AV/AVM lifecycle at match reset and numbered-turn transitions; expired unused tokens are recorded as semantic event metadata and announced.
-- Opens Dice automatically for every canonical D20 request, retains it during a roll sequence, and closes it when the sequence resolves.
-- Removes Single Player UI guards that contradicted Engine-authorized Free Move during Bonus Action, and prevents draggable prompts from swallowing button interactions.

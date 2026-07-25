@@ -148,6 +148,46 @@ test("Through Ball freezes its configured maximum distance in the Engine", () =>
   assert.deepEqual(result, { accepted: false, reason: "THROUGH_BALL_MAX_DISTANCE" });
 });
 
+test("a ready Bonus Action starts Through Ball through Engine state without Tracker cost", () => {
+  const state = normalMoveState({
+    pieces: [{ id: "ball", team: "BALL", x: 1, y: 1 }, { id: "blue-1", team: "A", cardId: "blue-1", x: 1, y: 1 }],
+    actionContinuation: { id: "bonus-through", kind: "bonus-card-action", team: "blue", status: "ready", resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" } },
+  });
+  const context = throughBallContext();
+  const started = applyGameCommand({ state, context, command: { id: "bonus-through-start", type: "THROUGH_BALL_STARTED", payload: { pieceId: "blue-1" } } });
+  assert.equal(started.accepted, true);
+  assert.equal(started.events[0].type, "BONUS_THROUGH_BALL_TARGETING_STARTED");
+  assert.equal(started.nextState.actionContinuation.status, "action-active");
+  assert.equal(started.nextState.actionContinuation.actionType, "THROUGH_BALL");
+  assert.equal(started.nextState.tracker.usedActions.blue, 0);
+  const targeted = applyGameCommand({ state: started.nextState, context, command: { id: "bonus-through-target", type: "THROUGH_BALL_TARGET_SELECTED", payload: { x: 4, y: 1 } } });
+  assert.equal(targeted.accepted, true);
+  assert.equal(targeted.nextState.actionResolution.status, "route-selection");
+  assert.equal(targeted.nextState.tracker.usedActions.blue, 0);
+});
+
+test("a ready Bonus Action starts Lofted Through through Engine state without Tracker cost", () => {
+  const state = normalMoveState({
+    pieces: [{ id: "ball", team: "BALL", x: 1, y: 1 }, { id: "blue-1", team: "A", cardId: "blue-1", x: 1, y: 1 }],
+    actionContinuation: { id: "bonus-lofted", kind: "bonus-card-action", team: "blue", status: "ready", resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" } },
+  });
+  const context = createMatchContext({
+    boardSettings: { cols: 20, rows: 12 },
+    ruleSet: { actions: { pass: { pathMode: "corner-to-center" }, loftedThroughBall: { pathMode: "corner-to-center", maxDistance: 32, difficultyThreshold: 16, rollStatId: "stat:lofted-through" } } },
+    gameplayCards: [{ id: "blue-1", passiveAttributes: [{ id: "stat:speed", value: 5 }, { id: "stat:lofted-through", value: 10 }] }],
+  });
+  const started = applyGameCommand({ state, context, command: { id: "bonus-lofted-start", type: "LOFTED_THROUGH_BALL_STARTED", payload: { pieceId: "blue-1" } } });
+  assert.equal(started.accepted, true);
+  assert.equal(started.events[0].type, "BONUS_LOFTED_THROUGH_BALL_TARGETING_STARTED");
+  assert.equal(started.nextState.actionContinuation.status, "action-active");
+  assert.equal(started.nextState.actionContinuation.actionType, "LOFTED_THROUGH_BALL");
+  assert.equal(started.nextState.tracker.usedActions.blue, 0);
+  const targeted = applyGameCommand({ state: started.nextState, context, command: { id: "bonus-lofted-target", type: "LOFTED_THROUGH_BALL_TARGET_SELECTED", payload: { x: 4, y: 1 } } });
+  assert.equal(targeted.accepted, true);
+  assert.equal(targeted.nextState.actionResolution.status, "route-selection");
+  assert.equal(targeted.nextState.tracker.usedActions.blue, 0);
+});
+
 test("reselecting a Through Ball target returns to canonical targeting without losing that target", () => {
   const state = normalMoveState({ pieces: [{ id: "ball", team: "BALL", x: 1, y: 1 }, { id: "blue-1", team: "A", cardId: "blue-1", x: 1, y: 1 }] });
   const context = throughBallContext();
@@ -262,7 +302,27 @@ test("MATCH_STARTED creates the canonical playable first turn and clears stale i
   assert.equal(result.nextState.actionResolution, null);
   assert.equal(result.nextState.actionContinuation, null);
   assert.equal(result.events[0].type, "MATCH_STARTED");
-  assert.deepEqual(result.events[0].metadata, { startingTeam: "blue", startedTurn: 1, restarted: false, clearedRollModifierCount: 0 });
+  assert.deepEqual(result.events[0].metadata, { startingTeam: "blue", startedTurn: 1, restarted: false });
+});
+
+test("Match start clears stale roll-bonus opportunities and a numbered turn advance records expiry", () => {
+  const stale = createGameState({
+    gameMode: "match",
+    rollModifierOpportunities: [{ id: "stale-av", team: "blue", modifierType: "advantage", availableFromTurn: 1, expiresAfterTurn: 1 }],
+  });
+  const started = applyGameCommand({ state: stale, context: normalMoveContext(), command: { id: "start-clears-av", type: "MATCH_STARTED", payload: { team: "blue" } } });
+  assert.equal(started.accepted, true);
+  assert.deepEqual(started.nextState.rollModifierOpportunities, []);
+
+  const defense = createGameState({
+    ...normalMoveState(),
+    rollModifierOpportunities: [{ id: "expiring-av", team: "blue", modifierType: "advantage", availableFromTurn: 1, expiresAfterTurn: 1 }],
+    tracker: { ...normalMoveState().tracker, turnPhase: "defense", startingTeam: "blue" },
+  });
+  const advanced = applyGameCommand({ state: defense, context: normalMoveContext(), command: { id: "advance-expires-av", type: "TRACKER_PHASE_ENDED", payload: { team: "red" } } });
+  assert.equal(advanced.accepted, true);
+  assert.deepEqual(advanced.nextState.rollModifierOpportunities, []);
+  assert.equal(advanced.events[0].metadata.expiredRollModifierOpportunities[0].id, "expiring-av");
 });
 
 test("MATCH_RESTARTED restarts an existing Match without moving any board piece", () => {
@@ -1532,31 +1592,6 @@ test("PASS_CONSEQUENCE_DUE completes the atomic Bonus Pass and creates Natural 2
   assert.equal(naturalTwenty.nextState.actionContinuation.origin.reason, "NATURAL_20");
   assert.deepEqual(naturalTwenty.nextState.tracker, resolved.nextState.tracker);
   assert.equal(naturalTwenty.events[0].metadata.undoTransaction.id, resolved.nextState.actionResolution.resolutionTransaction.id);
-});
-
-test("Natural 20 Interception with no extra effect changes turn without creating a Bonus Action", () => {
-  const state = createGameState({
-    ...normalMoveState(),
-    pieces: [...normalMoveState().pieces, { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 }],
-  });
-  const context = createMatchContext({
-    id: "natural-twenty-none",
-    boardSettings: { cols: 20, rows: 12 },
-    ruleSet: { actions: { pass: { requireFieldPlayerTarget: false }, interception: { naturalTwentyEffect: "none" } } },
-    gameplayCards: [
-      { id: "card-blue-1", passiveAttributes: [{ id: "stat:speed", value: 4 }, { id: "stat:passing", value: 13 }] },
-      { id: "card-red-1", defensiveArea: [{ dx: 2, dy: 0 }] },
-    ],
-  });
-  const { resolved } = resolvedPassInterception(state, "natural-twenty-none", 20, context);
-  const result = applyGameCommand({
-    state: resolved.nextState, context,
-    command: { id: "natural-twenty-none-consequence", type: "PASS_CONSEQUENCE_DUE", payload: { passId: "natural-twenty-none", rollEventId: "natural-twenty-none-roll-event" } },
-  });
-  assert.equal(result.accepted, true);
-  assert.equal(result.events[0].metadata.naturalTwentyEffect, "none");
-  assert.equal(result.nextState.actionContinuation, null);
-  assert.equal(result.nextState.tracker.currentTurn, 2);
 });
 
 test("Natural 20 replaces an interrupted Bonus Action and records the continuation chain", () => {

@@ -7,7 +7,7 @@ import { resolveInterception } from "../rules/interceptionEngine.mjs";
 import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { activateTrackerAction, createEmptyTrackerTurnState, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
-import { advanceRollModifierOpportunities, consumeRollModifierOpportunity, grantRollModifierOpportunity } from "./rollModifierOpportunities.mjs";
+import { consumeRollModifierOpportunity, expiredRollModifierOpportunities, grantRollModifierOpportunity, pruneRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
 
 function pieceForCommand(state, command) {
   const pieceId = String(command.payload?.pieceId || "");
@@ -95,7 +95,6 @@ function createInterceptionRollPresentation(pending, interceptorIndex, context) 
     attackerTargetValue: Number(plan.attackerTargetValue ?? plan.passerPass) || 0,
     attackerTargetStatId: plan.attackerTargetStatId || "stat:passing",
     modifier,
-    totalBonus: interception + modifier,
     modifierCap,
     capped: modifier !== rawModifier,
     modifierSources: [
@@ -250,10 +249,7 @@ export function selectPassTarget(state, context, command) {
     goalkeeperRouteBlocked: Boolean(plan.goalkeeperRouteBlocked),
     endpointBodyBlocked: Boolean(plan.endpointBodyBlocked),
     targetInvalidReason,
-    // Short and Long Pass use the same physical-contact projection. The
-    // distinction is a rule for interception eligibility, never a reason to
-    // hide that the ball stops before its selected target.
-    directContact: plan.directHit && Number(plan.directHit.entryT) < 1
+    directContact: plan.isLong && plan.directHit && Number(plan.directHit.entryT) < 1
       ? {
           x: plan.origin.x + ((Number(x) + .5) - plan.origin.x) * Number(plan.directHit.entryT),
           y: plan.origin.y + ((Number(y) + .5) - plan.origin.y) * Number(plan.directHit.entryT),
@@ -711,7 +707,7 @@ function completeNormalInterception(state, pending, interceptor, { directHit = f
   const tracker = normalizeTrackerSnapshot(state.tracker);
   const emptyTurn = createEmptyTrackerTurnState();
   const nextTurn = Math.min(tracker.settings.turns, Math.max(1, tracker.currentTurn + 1));
-  const rollTokens = advanceRollModifierOpportunities(state.rollModifierOpportunities, nextTurn);
+  const expired = expiredRollModifierOpportunities(state.rollModifierOpportunities, nextTurn);
   return {
     accepted: true,
     nextState: {
@@ -720,7 +716,7 @@ function completeNormalInterception(state, pending, interceptor, { directHit = f
       movementStateByPieceId: {},
       actionResolution: null,
       actionContinuation: null,
-      rollModifierOpportunities: rollTokens.opportunities,
+      rollModifierOpportunities: pruneRollModifierOpportunities(state.rollModifierOpportunities, nextTurn),
       tracker: {
         ...state.tracker,
         startingTeam: nextTeam,
@@ -740,7 +736,7 @@ function completeNormalInterception(state, pending, interceptor, { directHit = f
         interceptorId: interceptor.id,
         directHit,
         startedTurn: nextTurn,
-        expiredRollModifiers: rollTokens.expired,
+        expiredRollModifierOpportunities: expired,
       }),
     },
   };
@@ -765,7 +761,7 @@ function completeNaturalTwentyInterception(state, pending, interceptor) {
     return {
       ...normal,
       nextState: { ...normal.nextState, rollModifierOpportunities: opportunities },
-      event: { type: "PASS_NATURAL_20", team: bonusTeam, metadata: passTimelineMetadata(pending, { passId: pending.id, interceptorId: interceptor.id, naturalTwentyEffect, outcomePresentation: { naturalTwentyEffect, grantsBonusAction: false, grantedRollModifier: modifierType } }) },
+      event: { type: "PASS_NATURAL_20", team: bonusTeam, metadata: passTimelineMetadata(pending, { passId: pending.id, interceptorId: interceptor.id, naturalTwentyEffect }) },
     };
   }
   const continuation = createBonusCardActionContinuation({
@@ -796,8 +792,6 @@ function completeNaturalTwentyInterception(state, pending, interceptor) {
       metadata: passTimelineMetadata(pending, {
         passId: pending.id,
         interceptorId: interceptor.id,
-        naturalTwentyEffect: "bonus-action",
-        outcomePresentation: { naturalTwentyEffect: "bonus-action", grantsBonusAction: true, grantedRollModifier: null },
         bonusAction: {
           origin: continuation.origin,
           supersededContinuationId: previousContinuation?.id || null,

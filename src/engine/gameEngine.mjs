@@ -14,6 +14,7 @@ import { applyPassConsequence, cancelPass, confirmPassRoute, resolvePassIntercep
 import { changePieceActivity, changeTrackerPossession, declareManualAction, declareManualBonusAction, resetTrackerActions } from "./matchAdministrationRules.mjs";
 import { cancelThroughBall, cancelThroughBallRoute, commitThroughBall, confirmThroughBallRecovery, selectThroughBallRecoverer, selectThroughBallTarget, startThroughBall } from "./throughBallRules.mjs";
 import { cancelLoftedThroughBall, cancelLoftedThroughBallRoute, commitLoftedThroughBall, confirmLoftedThroughBallRecovery, resolveLoftedThroughBall, selectLoftedThroughBallRecoverer, selectLoftedThroughBallTarget, startLoftedThroughBall, submitLoftedThroughBallRoll } from "./loftedThroughBallRules.mjs";
+import { isBonusActionCommand } from "./bonusActionCapabilities.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -138,7 +139,9 @@ export function applyGameCommand({ state, context, command } = {}) {
     GAME_COMMAND_TYPE.TRACKER_ACTIONS_RESET,
     GAME_COMMAND_TYPE.TRACKER_POSSESSION_CHANGED,
   ].includes(normalizedCommand.type)) return rejected("MOVE_INTERACTION_ACTIVE");
-  if (bonusActionActive && ![
+  if (bonusActionActive && !(
+    isBonusActionCommand(normalizedCommand.type)
+    || [
     GAME_COMMAND_TYPE.MATCH_STARTED,
     GAME_COMMAND_TYPE.MATCH_RESTARTED,
     GAME_COMMAND_TYPE.THREE_TWO_MOVE_COMMITTED,
@@ -162,7 +165,8 @@ export function applyGameCommand({ state, context, command } = {}) {
     GAME_COMMAND_TYPE.TRACKER_ACTIONS_RESET,
     GAME_COMMAND_TYPE.TRACKER_POSSESSION_CHANGED,
     GAME_COMMAND_TYPE.BONUS_MANUAL_ACTION_DECLARED,
-  ].includes(normalizedCommand.type)) return rejected("BONUS_ACTION_ACTIVE");
+  ].includes(normalizedCommand.type)
+  )) return rejected("BONUS_ACTION_ACTIVE");
   if ([GAME_COMMAND_TYPE.MATCH_STARTED, GAME_COMMAND_TYPE.MATCH_RESTARTED].includes(normalizedCommand.type)) {
     const transition = normalizedCommand.type === GAME_COMMAND_TYPE.MATCH_RESTARTED
       ? restartMatch(currentState, normalizedCommand)

@@ -1,6 +1,6 @@
 import { activeTeamForTrackerPhase, createEmptyTrackerTurnState, nextTrackerPhase } from "../tracker/actionRules.mjs";
 import { clearGroupMoveState, normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
-import { advanceRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
+import { expiredRollModifierOpportunities, pruneRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
 
 export function endTrackerPhase(state, command) {
   if (state.gameMode !== "match") return { accepted: false, reason: "MATCH_MODE_REQUIRED" };
@@ -19,13 +19,13 @@ export function endTrackerPhase(state, command) {
   if (tracker.turnPhase === "defense" && tracker.currentTurn < tracker.settings.turns) {
     const emptyTurn = createEmptyTrackerTurnState();
     const nextTurn = tracker.currentTurn + 1;
-    const rollTokens = advanceRollModifierOpportunities(state.rollModifierOpportunities, nextTurn);
+    const expired = expiredRollModifierOpportunities(state.rollModifierOpportunities, nextTurn);
     return {
       accepted: true,
       nextState: {
         ...state,
         movementStateByPieceId: {}, threeTwoOpportunity: null,
-        rollModifierOpportunities: rollTokens.opportunities,
+        rollModifierOpportunities: pruneRollModifierOpportunities(state.rollModifierOpportunities, nextTurn),
         tracker: {
           ...baseTracker,
           currentTurn: nextTurn,
@@ -39,7 +39,7 @@ export function endTrackerPhase(state, command) {
       event: {
         type: "PHASE_ENDED",
         team,
-        metadata: { endingTeam: team, nextPhase: "attack", automaticTurnAdvance: true, startedTurn: nextTurn, expiredRollModifiers: rollTokens.expired },
+        metadata: { endingTeam: team, nextPhase: "attack", automaticTurnAdvance: true, startedTurn: nextTurn, expiredRollModifierOpportunities: expired },
       },
       timeline: { groupId: null, undoMode: "step", allowNoop: false },
     };

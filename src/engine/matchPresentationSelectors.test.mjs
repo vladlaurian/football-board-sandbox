@@ -5,7 +5,7 @@ import { createGameState } from "../game/gameState.mjs";
 import { GAME_COMMAND_TYPE } from "./gameCommands.mjs";
 import { applyGameCommand } from "./gameEngine.mjs";
 import { createMatchContext } from "./matchContext.mjs";
-import { selectSinglePlayerBallCellMoveChoicePresentation, selectSinglePlayerDicePresentation, selectSinglePlayerFreeBallPresentation, selectSinglePlayerFreeMovePresentation, selectSinglePlayerGroupMoveDraftPresentation, selectSinglePlayerGroupMovePieceStatuses, selectSinglePlayerInspectorActionPresentation, selectSinglePlayerNormalMovePresentation, selectSinglePlayerPassPresentation, selectSinglePlayerThreeTwoPresentation } from "./matchPresentationSelectors.mjs";
+import { selectSinglePlayerBallCellMoveChoicePresentation, selectSinglePlayerDicePresentation, selectSinglePlayerFreeBallPresentation, selectSinglePlayerFreeMovePresentation, selectSinglePlayerGroupMoveDraftPresentation, selectSinglePlayerGroupMovePieceStatuses, selectSinglePlayerInspectorActionPresentation, selectSinglePlayerInspectorControlPresentation, selectSinglePlayerNormalMovePresentation, selectSinglePlayerPassPresentation, selectSinglePlayerThreeTwoPresentation } from "./matchPresentationSelectors.mjs";
 
 test("Single Player Pass selector projects persisted route and roll facts without recalculating them", () => {
   const projection = selectSinglePlayerPassPresentation({
@@ -334,4 +334,15 @@ test("Free Move and Free Ball projections use the same Engine validation as thei
   const ball = selectSinglePlayerFreeBallPresentation(state, context, { x: 6, y: 2 });
   assert.equal(ball.legal, false);
   assert.equal(ball.reason, "BALL_DESTINATION_OUT_OF_BOUNDS");
+});
+
+test("Free Move remains projected for either team while a Bonus Action is ready", () => {
+  const state = createGameState({
+    gameMode: "match",
+    pieces: [{ id: "ball", team: "BALL", x: 8, y: 3 }, { id: "blue-1", team: "A", x: 3, y: 3 }, { id: "red-1", team: "B", x: 4, y: 3 }],
+    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+    actionContinuation: { id: "bonus-blue", kind: "bonus-card-action", team: "blue", status: "ready", resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" } },
+  });
+  const redControl = selectSinglePlayerInspectorControlPresentation(state, createMatchContext({}), { piece: state.pieces[2] });
+  assert.equal(redControl.freeMoveAllowed, true);
 });
