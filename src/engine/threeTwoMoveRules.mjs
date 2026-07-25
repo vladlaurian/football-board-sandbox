@@ -45,7 +45,7 @@ export function evaluateThreeTwoMove(state, context, command) {
   const continuation = normalizeActionContinuation(state.actionContinuation);
   const teamOwnsBonusAction = continuation?.kind === "bonus-card-action"
     && continuation.team === team
-    && ["ready", "action-active"].includes(continuation.status);
+    && ["ready", "action-active", "awaiting-end-bonus-action"].includes(continuation.status);
   if (!team || (!isTeamActiveForTrackerPhase(tracker, team) && !teamOwnsBonusAction)) return { eligible: false, reason: "wait-active-team", geometry, current };
   if (!ball || Number(ball.x) !== x || Number(ball.y) !== y) return { eligible: false, reason: "not-ball", geometry, current };
   const opportunity = state.threeTwoOpportunity;

@@ -4,7 +4,7 @@ import { PASS_CORNERS, bodyBlockingPassOrigin, cardStat, defensiveCellsForPiece,
 import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { activateTrackerAction, createEmptyTrackerTurnState, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
-import { consumeRollModifierOpportunity, effectiveCurrentTurnForRollOpportunity, grantRollModifierOpportunity, pruneRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
+import { consumeRollModifierOpportunity, effectiveCurrentTurnForRollOpportunity, expiredRollModifierOpportunities, grantRollModifierOpportunity, pruneRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
 import { naturalRollOutcome } from "./rollOutcomeEffects.mjs";
 import { activeBonusActionFor, beginImplementedBonusAction, completeImplementedBonusAction } from "./bonusActionCapabilities.mjs";
 

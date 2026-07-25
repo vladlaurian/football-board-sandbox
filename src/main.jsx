@@ -207,7 +207,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.55.6";
+const APP_VERSION = "v20.55.7";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -10164,11 +10164,12 @@ function App() {
   function renderRollModifierChoice(team) {
     const tokens = selectSinglePlayerRollModifierTokenPresentation({ rollModifierOpportunities, tracker: { currentTurn: trackerCurrentTurn } }, { team });
     if (!tokens.length) return null;
+    const selectedTokenId = rollModifierChoice?.kind === "token" ? rollModifierChoice.tokenId : null;
     const selected = rollModifierChoice?.kind === "token" ? rollModifierChoice.modifierType : null;
     const saved = rollModifierChoice?.kind === "save";
     return <div className="roll-token-choice" data-prompt-interactive="true">
       <span>{selected ? `${selected === "majorAdvantage" ? "AVM" : "AV"} selected — roll D20 to use it.` : saved ? "Roll normally selected — team bonus is saved." : "Team roll bonus available:"}</span>
-      {tokens.map(token => <button type="button" key={token.id} className={`roll-choice-button ${selected === token.modifierType ? "active" : ""}`} onClick={() => { setPendingRollModifierType(token.modifierType); setRollModifierChoice({ kind: "token", modifierType: token.modifierType }); }}>{token.modifierType === "majorAdvantage" ? "Use AVM" : "Use AV"}</button>)}
+      {tokens.map(token => <button type="button" key={token.id} className={`roll-choice-button ${selectedTokenId === token.id ? "active" : ""}`} onClick={() => { setPendingRollModifierType(token.modifierType); setRollModifierChoice({ kind: "token", tokenId: token.id, modifierType: token.modifierType }); }}>{token.modifierType === "majorAdvantage" ? "Use AVM" : "Use AV"}</button>)}
       <button type="button" className={`roll-choice-button ${saved ? "active" : ""}`} onClick={() => { setPendingRollModifierType(null); setRollModifierChoice({ kind: "save" }); }}>Roll normally — save</button>
     </div>;
   }

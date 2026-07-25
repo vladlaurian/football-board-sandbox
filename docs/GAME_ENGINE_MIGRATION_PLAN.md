@@ -594,6 +594,12 @@ This recovery continues from v20.55.4 source, not from a prior trust base. It re
 
 Natural-roll effects now leave the Engine as structured facts, including recipient and timing. Current Interception and Lofted Through prompts use that fact, preventing a configured `none`, AV or AVM outcome from being rewritten visually as a Bonus Action. Roll-token selection is one shared UI projection, Match → Editor clears its rendered state and ref-backed Timeline capture, unimplemented Offline Match action buttons are disabled in normal and BA contexts, and the obsolete interaction-active yellow halo is removed. No Pass route/interception geometry changed; Manual Multiplayer remains unchanged.
 
+### v20.55.7 — LT recovery and 3/2 BA continuity
+
+**Status:** Complete.
+
+The Engine now treats `awaiting-end-bonus-action` as an eligible owner state for a previously granted 3/2, without changing its normal opportunity restrictions or reopening any card action. LT recovery confirmation imports and executes its shared turn-expiry helper correctly, restoring the same Continue path already used by Through Ball. Token selection is presentation-only but keyed by canonical token ID, so duplicate equal-type tokens no longer render as simultaneously selected. Manual Multiplayer remains unchanged.
+
 ### Next approved build — Pass / Interception route integrity
 
 **Status:** Queued; not implemented by v20.55.5.

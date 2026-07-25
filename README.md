@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.55.6` |
-| Git/package version | `20.55.6` |
-| Build name | `Final_Board_v20_55_6_roll_outcome_ba_cleanup` |
-| Base build | `v20.55.5 Bonus Action recovery` |
+| Sandbox version | `v20.55.7` |
+| Git/package version | `20.55.7` |
+| Build name | `Final_Board_v20_55_7_lt_recovery_three_two_ba` |
+| Base build | `v20.55.6 Roll outcome and BA presentation cleanup` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.55.6`. The repository version is in `package.json` as `20.55.6`. The browser title is `Sandbox v20.55.6`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.55.7`. The repository version is in `package.json` as `20.55.7`. The browser title is `Sandbox v20.55.7`.
 
 ## Current release
 
-v20.55.6 makes Natural-roll consequences explicit Engine facts (`none`, Bonus Action, Advantage, Major Advantage) before their UI wording is chosen. Interception and Lofted Through result prompts now read that stored outcome; AV/AVM choice uses one styled prompt control; Match → Editor clears the rendered token state as well as the canonical state. Offline Match disables action buttons with no implemented mechanic in both normal and Bonus Action contexts. Manual Multiplayer remains unchanged. Pass/Interception route integrity remains separately queued.
+v20.55.7 repairs the two accepted LT continuity faults: a successful LT/TB opportunity may use 3/2 while its owning BA awaits END B.A., and the LT recovery confirmation no longer fails on a missing Engine import. AV/AVM selection now identifies one token by its canonical token ID, including duplicate AV tokens, and the active choice uses a neutral pressed-control style. Manual Multiplayer remains unchanged. Pass/Interception route integrity remains separately queued.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

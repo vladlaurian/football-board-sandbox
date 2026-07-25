@@ -518,7 +518,7 @@ test("THREE_TWO_MOVE_COMMITTED is a free active-phase action and preserves the b
   assert.equal(result.events[0].metadata.movementReason, "THREE_TWO");
 });
 
-test("THREE_TWO_MOVE is available to the owning Bonus Action team outside the regular Tracker phase", () => {
+test("THREE_TWO_MOVE is available to the owning Bonus Action team after its card action awaits END B.A.", () => {
   const state = createGameState({
     gameMode: "match",
     pieces: [
@@ -532,7 +532,7 @@ test("THREE_TWO_MOVE is available to the owning Bonus Action team outside the re
       turnPhase: "attack",
       settings: { attackActions: 5, defenseActions: 4, turns: 20 },
     },
-    actionContinuation: { id: "bonus-red", kind: "bonus-card-action", team: "red", status: "action-active", actionType: "MOVE", pieceId: "red-1" },
+    actionContinuation: { id: "bonus-red", kind: "bonus-card-action", team: "red", status: "awaiting-end-bonus-action", actionType: "LOFTED_THROUGH_BALL", pieceId: "red-1" },
     threeTwoOpportunity: { sourceAction: "LOFTED_THROUGH_BALL", team: "red", passerId: "other", target: { x: 5, y: 5 }, turn: 2 },
   });
   const context = createMatchContext({ gameplayCards: [{ id: "card-red-1", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] }] });
@@ -544,6 +544,20 @@ test("THREE_TWO_MOVE is available to the owning Bonus Action team outside the re
   assert.equal(result.accepted, true);
   assert.equal(result.nextState.pieces.find(piece => piece.id === "red-1").x, 5);
   assert.equal(result.nextState.threeTwoOpportunity, null);
+});
+
+test("Lofted Through recovery confirmation advances play instead of leaving its recovery prompt blocked", () => {
+  const state = createGameState({
+    gameMode: "match",
+    pieces: [{ id: "ball", team: "BALL", x: 5, y: 5 }, { id: "red-1", team: "B", cardId: "card-red-1", x: 4, y: 5 }],
+    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+    actionResolution: { id: "lt-recovery", kind: "lofted-through-ball", status: "awaiting-recovery-confirmation", team: "blue", passerId: "blue-1", target: { x: 5, y: 5 }, result: { natural: 10, naturalEffect: "none", succeeds: true }, recovery: { type: "success-race", selectedRecovererId: "red-1" } },
+  });
+  const result = applyGameCommand({ state, context: createMatchContext({ gameplayCards: [{ id: "card-red-1" }] }), command: { id: "lt-recovery-confirm", type: "LOFTED_THROUGH_BALL_RECOVERY_CONFIRMED", payload: {} } });
+  assert.equal(result.accepted, true);
+  assert.equal(result.nextState.actionResolution, null);
+  assert.equal(result.nextState.tracker.startingTeam, "red");
+  assert.equal(result.nextState.tracker.currentTurn, 2);
 });
 
 test("Bonus Action locks unrelated Engine commands while retaining Three Two and Free Move", () => {

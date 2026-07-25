@@ -7543,7 +7543,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 .draggable-action-prompt { cursor: grab; touch-action: none; user-select: none; }
 .draggable-action-prompt:active { cursor: grabbing; }
 .draggable-action-prompt button { cursor: pointer; }
-.roll-token-choice{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:10px}.roll-token-choice>span{width:100%;text-align:center;font-weight:700}.roll-token-choice .roll-choice-button{border:1px solid rgba(197,218,230,.62);border-radius:9px;background:rgba(25,47,58,.92);color:#f4f8fb;padding:8px 12px;font:inherit;font-size:14px;font-weight:800}.roll-token-choice .roll-choice-button.active{border-color:#ffe26e;background:rgba(128,113,41,.78);box-shadow:0 0 0 2px rgba(255,226,110,.2)}
+.roll-token-choice{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:10px}.roll-token-choice>span{width:100%;text-align:center;font-weight:700}.roll-token-choice .roll-choice-button{border:1px solid rgba(197,218,230,.62);border-radius:9px;background:rgba(25,47,58,.92);color:#f4f8fb;padding:8px 12px;font:inherit;font-size:14px;font-weight:800}.roll-token-choice .roll-choice-button.active{border-color:rgba(235,242,247,.9);background:rgba(74,91,101,.96);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),0 0 0 2px rgba(170,193,207,.2)}
 
 /* The Interaction Layer remains present for input routing, but has no separate
    board highlight. Selected and Group Move states own their own visuals. */

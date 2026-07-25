@@ -410,3 +410,9 @@ This is the compact release history. Current architecture and rules are document
 - Unifies the AV/AVM selection control and visibly records the deliberate “roll normally — save” choice.
 - Clears rendered AV/AVM opportunities during Match → Editor, disables unimplemented offline action buttons in normal and Bonus Action contexts, and removes the obsolete yellow interaction highlight.
 - Manual Multiplayer remains unchanged. Pass route/interception integrity remains queued separately.
+## v20.55.7 — LT recovery and 3/2 BA continuity
+
+- Corrected the omitted Engine import that prevented `LOFTED_THROUGH_BALL_RECOVERY_CONFIRMED` from completing its recovery popup.
+- Allows a canonical LT/TB 3/2 opportunity during the owning Bonus Action's `awaiting-end-bonus-action` state, without reopening other actions.
+- Gives duplicate AV/AVM tokens individual selected-button identity and changes the selected control to a neutral pressed style.
+- Manual Multiplayer remains unchanged.
