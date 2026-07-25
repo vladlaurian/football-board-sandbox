@@ -36,6 +36,7 @@ export function createDefaultRuleSet() {
       throughBall: { status: "configured", maxDistance: 16 },
       loftedThroughBall: {
         status: "configured", maxDistance: 32, difficultyThreshold: 16,
+        pathMode: "corner-to-center",
         naturalOneEffect: "recoverer-bonus-action", naturalTwentyEffect: "passer-bonus-action",
         equalRollOutcome: "lofted-fails",
       },
@@ -137,6 +138,7 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
         status: usesPreActionConfigurationDefaults || loftedThroughBall.status === "configured" ? "configured" : "not-configured",
         maxDistance: Math.max(1, Math.floor(Number(loftedThroughBall.maxDistance) || 32)),
         difficultyThreshold: Math.max(1, Math.floor(Number(loftedThroughBall.difficultyThreshold) || 16)),
+        pathMode: loftedThroughBall.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center",
         naturalOneEffect: ["recoverer-bonus-action", "none"].includes(loftedThroughBall.naturalOneEffect) ? loftedThroughBall.naturalOneEffect : "recoverer-bonus-action",
         naturalTwentyEffect: ["passer-bonus-action", "none", "current-turn-roll-advantage", "current-turn-roll-major-advantage"].includes(loftedThroughBall.naturalTwentyEffect) ? loftedThroughBall.naturalTwentyEffect : "passer-bonus-action",
         equalRollOutcome: loftedThroughBall.equalRollOutcome === "lofted-succeeds" ? "lofted-succeeds" : "lofted-fails",

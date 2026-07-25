@@ -23,7 +23,7 @@ export function selectSinglePlayerPassPresentation(state) {
   const routeOptions = (pending.routePresentation || []).map(route => ({
     ...route,
     modifierLabel: formatSigned(route.modifier),
-    status: route.targetInvalidReason || route.goalkeeperRouteBlocked || route.endpointBodyBlocked ? "blocked" : route.risk ? "risk" : "clear",
+    status: route.targetInvalidReason || route.goalkeeperRouteBlocked || route.endpointBodyBlocked ? "blocked" : (route.directContact?.team && route.directContact.team !== route.team) || route.risk ? "risk" : "clear",
     disabled: Boolean(route.targetInvalidReason || route.goalkeeperRouteBlocked || route.endpointBodyBlocked),
   }));
   const selectedRoute = routeOptions.find(route => route.cornerId === pending.cornerId)

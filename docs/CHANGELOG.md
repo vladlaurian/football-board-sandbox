@@ -2,6 +2,12 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.55.1 — Roll integrity and Lofted Through correction
+
+- Gives Lofted Through Ball independent frozen geometry, correct foot projection, and trajectory-based failed-pass recovery.
+- Gives Long Pass direct opponent contact priority over any interception roll.
+- Standardizes Engine-owned roll source data for Lofted Through prompts/results and permits Free Move during Bonus Action.
+
 ## v20.55.0 — Lofted Through Ball and configurable natural outcomes
 
 - Adds canonical offline Single Player Lofted Through Ball, frozen rules, D20 resolution, recovery race, and generic 3/2 opportunity.

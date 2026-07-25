@@ -314,6 +314,8 @@ test("offline pass plan freezes the permanent Interception modifier contract", (
     useProgressiveBonus: true,
     diceModifiers: { advantage: 1, majorAdvantage: 3, disadvantage: -1, majorDisadvantage: -3, stackCap: 2 },
     equalRollOutcome: "interception",
+    naturalOneEffect: "carry-disadvantage",
+    naturalTwentyEffect: "bonus-action",
   });
 });
 

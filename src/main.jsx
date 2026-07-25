@@ -204,7 +204,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.55.0";
+const APP_VERSION = "v20.55.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -7023,7 +7023,7 @@ function App() {
         target: pending.status === "route-selection" ? pending.target : null,
         visibleCells: [], blockedCells: [],
         lines: routes.map(route => ({ id: route.cornerId || "center", origin: route.origin, endpoint: route.endpoint, status: route.legal ? "clear" : "blocked", selected: route.cornerId === pending.cornerId })),
-        routes: pending.status === "route-selection" ? routes.map(route => ({ id: route.cornerId || "center", cornerId: route.cornerId, origin: route.origin, foot: "LT", modifier: route.disadvantageStacks ? `${route.disadvantageStacks} D` : "", status: route.legal ? "clear" : "blocked", disabled: !route.legal })) : [],
+        routes: pending.status === "route-selection" ? routes.map(route => ({ id: route.cornerId || "center", cornerId: route.cornerId, origin: route.origin, foot: route.foot?.foot === "Left" ? "LF" : route.foot?.foot === "Right" ? "RF" : "BF", modifier: route.foot?.dominant ? "0" : "−1", status: route.legal ? "clear" : "blocked", disabled: !route.legal })) : [],
       };
     }
     if (pending?.kind === "through-ball" && pending.passerId && pending.target) {
@@ -10088,11 +10088,10 @@ function App() {
   }
 
   function formatTotalModifier(roll) {
-    const modifier = Number(roll?.modifier) || 0;
+    const modifier = Number(roll?.totalBonus ?? roll?.modifier) || 0;
     const sign = modifier >= 0 ? "+" : "";
-    const label = modifier > 0 ? "Total Bonus" : modifier < 0 ? "Total Penalty" : "Total Modifier";
-    const capNote = roll?.capped ? ` — ${modifier >= 0 ? "maximum advantage" : "maximum disadvantage"}` : "";
-    return `${label} ${sign}${modifier}${capNote}`;
+    const capNote = roll?.capped ? ` (cap ${roll.modifierCap}; raw ${Number(roll.rawModifier) >= 0 ? "+" : ""}${Number(roll.rawModifier)})` : "";
+    return `TOTAL BONUSES ${sign}${modifier}${capNote}`;
   }
 
   function passTargetLabel(plan) {
@@ -10110,6 +10109,15 @@ function App() {
     const sources = Array.isArray(roll?.appliedModifierSources) ? roll.appliedModifierSources : (Array.isArray(roll?.modifierSources) ? roll.modifierSources : []);
     const expression = sources.map(formatModifierSource).join(" + ");
     return `${expression || "No modifier"}. ${formatTotalModifier(roll)}.`;
+  }
+
+  function renderRollBreakdown(roll, comparisonLabel) {
+    const sources = Array.isArray(roll?.modifierSources) ? roll.modifierSources : [];
+    return <>
+      {sources.map((source, index) => <span key={`${source.source || source.label}-${index}`}>{formatModifierSource(source)}</span>)}
+      <span><strong>{formatTotalModifier(roll)}</strong></span>
+      {Number.isFinite(Number(roll?.natural)) && <span><strong>D20 {Number(roll.natural)} + TOTAL BONUSES {Number(roll?.totalBonus ?? roll?.modifier) >= 0 ? "+" : ""}{Number(roll?.totalBonus ?? roll?.modifier) || 0} = {Number(roll?.total) || 0}{comparisonLabel ? ` vs ${comparisonLabel}` : ""}</strong></span>}
+    </>;
   }
 
   function interceptionResultNotice({ defender, roll, pending, continuation }) {
@@ -12519,7 +12527,7 @@ function App() {
           {preview && <span><strong>{passTargetLabel(actionResolution.plan)}</strong></span>}
           {!sessionCode && gameMode === "match" && (() => {
             const tokens = selectSinglePlayerRollModifierTokenPresentation({ rollModifierOpportunities, tracker: { currentTurn: trackerCurrentTurn } }, { team: defenseTeam });
-            return tokens.length ? <div className="roll-token-choice"><span>Team roll bonus available:</span>{tokens.map(token => <button key={token.id} className={pendingRollModifierType === token.modifierType ? "active" : ""} onClick={() => setPendingRollModifierType(current => current === token.modifierType ? null : token.modifierType)}>{token.modifierType === "majorAdvantage" ? "Use AVM" : "Use AV"}</button>)}<button onClick={() => setPendingRollModifierType(null)}>Roll normally — save</button></div> : null;
+            return tokens.length ? <div className="roll-token-choice"><span>{pendingRollModifierType ? `${pendingRollModifierType === "majorAdvantage" ? "AVM" : "AV"} selected — roll D20 to use it.` : "Team roll bonus available:"}</span>{tokens.map(token => <button type="button" key={token.id} className={pendingRollModifierType === token.modifierType ? "active" : ""} onClick={() => setPendingRollModifierType(current => current === token.modifierType ? null : token.modifierType)}>{token.modifierType === "majorAdvantage" ? "Use AVM" : "Use AV"}</button>)}<button type="button" onClick={() => setPendingRollModifierType(null)}>Roll normally — save</button></div> : null;
           })()}
         </DraggableActionPrompt>;
       })()}
@@ -12529,15 +12537,15 @@ function App() {
         return <DraggableActionPrompt promptKey="lofted-through-roll" className="warning">
           <strong>Lofted Through Ball roll required</strong>
           <span>{getPieceIdentity(passer)} rolls D20. Roll {actionResolution.team?.toUpperCase()}.</span>
-          <span>Difficulty {actionResolution.plan?.difficultyThreshold} · Lofted Through {actionResolution.plan?.rollStatValue || 0} · {actionResolution.plan?.disadvantageStacks || 0} defensive-area disadvantage stack(s).</span>
+          {renderRollBreakdown(actionResolution.plan?.rollPreview, `Difficulty ${actionResolution.plan?.difficultyThreshold}`)}
           {!sessionCode && gameMode === "match" && (() => {
             const tokens = selectSinglePlayerRollModifierTokenPresentation({ rollModifierOpportunities, tracker: { currentTurn: trackerCurrentTurn } }, { team: actionResolution.team });
-            return tokens.length ? <div className="roll-token-choice"><span>Team roll bonus available:</span>{tokens.map(token => <button key={token.id} className={pendingRollModifierType === token.modifierType ? "active" : ""} onClick={() => setPendingRollModifierType(current => current === token.modifierType ? null : token.modifierType)}>{token.modifierType === "majorAdvantage" ? "Use AVM" : "Use AV"}</button>)}<button onClick={() => setPendingRollModifierType(null)}>Roll normally — save</button></div> : null;
+            return tokens.length ? <div className="roll-token-choice"><span>{pendingRollModifierType ? `${pendingRollModifierType === "majorAdvantage" ? "AVM" : "AV"} selected — roll D20 to use it.` : "Team roll bonus available:"}</span>{tokens.map(token => <button type="button" key={token.id} className={pendingRollModifierType === token.modifierType ? "active" : ""} onClick={() => setPendingRollModifierType(current => current === token.modifierType ? null : token.modifierType)}>{token.modifierType === "majorAdvantage" ? "Use AVM" : "Use AV"}</button>)}<button type="button" onClick={() => setPendingRollModifierType(null)}>Roll normally — save</button></div> : null;
           })()}
         </DraggableActionPrompt>;
       })()}
 
-      {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "roll-resolved" && <div className="modal-backdrop pass-result-backdrop"><div className={`modal pass-result-modal ${actionResolution.team || ""}`} role="dialog" aria-modal="true"><div className="modal-title"><strong>Lofted Through Ball result</strong>{renderBlockingGameplayHistoryControls()}</div><div className="pass-result-lines"><p>D20 {actionResolution.result?.natural} · total {actionResolution.result?.total} vs difficulty {actionResolution.plan?.difficultyThreshold}.</p><p>{actionResolution.result?.succeeds ? "Lofted Through Ball succeeds." : "Lofted Through Ball fails."}</p></div><div className="modal-actions"><button className="save-label" onClick={confirmLoftedThroughBallResolution}>Continue</button></div></div></div>}
+      {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "roll-resolved" && <div className="modal-backdrop pass-result-backdrop"><div className={`modal pass-result-modal ${actionResolution.team || ""}`} role="dialog" aria-modal="true"><div className="modal-title"><strong>Lofted Through Ball result</strong>{renderBlockingGameplayHistoryControls()}</div><div className="pass-result-lines">{renderRollBreakdown(actionResolution.result, `Difficulty ${actionResolution.plan?.difficultyThreshold}`)}<p>{actionResolution.result?.succeeds ? "Lofted Through Ball succeeds." : "Lofted Through Ball fails."}</p></div><div className="modal-actions"><button className="save-label" onClick={confirmLoftedThroughBallResolution}>Continue</button></div></div></div>}
 
       {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "awaiting-recoverer-choice" && (() => {
         const candidates = actionResolution.recovery?.defenderCandidates || [];
@@ -12783,6 +12791,12 @@ function App() {
             <section className="rule-action-card">
               <div><strong>Lofted Through Ball</strong><span>Manual D20 roll</span></div>
               <p>Target and passer must be outside opposing defensive areas. Every distinct opposing defensive area crossed adds one Disadvantage stack.</p>
+              <label>Path geometry
+                <select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.loftedThroughBall?.pathMode || "corner-to-center"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, loftedThroughBall: { ...draft.actions?.loftedThroughBall, pathMode: e.target.value } } }))}>
+                  <option value="corner-to-center">Corner → Center</option>
+                  <option value="center-to-center">Center → Center</option>
+                </select>
+              </label>
               <label>Maximum distance (whole squares)
                 <input disabled={ruleSetEditingLocked} type="number" min="1" step="1" value={ruleSetDraft.actions?.loftedThroughBall?.maxDistance ?? 32} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, loftedThroughBall: { ...draft.actions?.loftedThroughBall, maxDistance: e.target.value === "" ? "" : Math.max(1, Math.floor(Number(e.target.value) || 1)) } } }))} onBlur={() => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, loftedThroughBall: { ...draft.actions?.loftedThroughBall, maxDistance: Math.max(1, Math.floor(Number(draft.actions?.loftedThroughBall?.maxDistance)) || 32) } } }))} />
               </label>

@@ -508,7 +508,7 @@ test("THREE_TWO_MOVE is not available to a Bonus Action owner outside the active
   assert.equal(result.reason, "wait-active-team");
 });
 
-test("Bonus Action locks unrelated Engine commands while retaining Three Two", () => {
+test("Bonus Action locks unrelated Engine commands while retaining Three Two and Free Move", () => {
   const state = createGameState({
     ...normalMoveState(),
     actionContinuation: { id: "bonus-blue", kind: "bonus-card-action", team: "blue", status: "ready" },
@@ -523,11 +523,11 @@ test("Bonus Action locks unrelated Engine commands while retaining Three Two", (
     context: normalMoveContext(),
     command: moveBallCommand({ id: "bonus-free-ball", payload: { x: 7, y: 8 } }),
   }), { accepted: false, reason: "BONUS_ACTION_ACTIVE" });
-  assert.deepEqual(applyGameCommand({
+  assert.equal(applyGameCommand({
     state,
     context: normalMoveContext(),
     command: normalMoveCommand("FREE_MOVE_STARTED", {}, "bonus-free-move"),
-  }), { accepted: false, reason: "BONUS_ACTION_ACTIVE" });
+  }).accepted, true);
 });
 
 test("BONUS_MOVE is Engine-owned, never consumes Tracker, and may continue until End B.A.", () => {

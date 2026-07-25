@@ -231,6 +231,7 @@ export function selectPassTarget(state, context, command) {
       ? "PASS_TARGET_FIELD_PLAYER_REQUIRED"
       : null;
   const routePresentation = routePlans.map(plan => ({
+    team: pending.team,
     id: plan.origin.cornerId || "center",
     cornerId: plan.origin.cornerId,
     origin: plan.origin,
@@ -350,7 +351,11 @@ export function confirmPassRoute(state, context, command) {
     pendingDecision: null,
     pendingRoll: null,
   };
-  const nextResolution = passRequiresInterceptionSequence(plan, pending.team)
+  // A direct body contact decides possession before any defensive-area roll.
+  // Long Pass uses the same priority: a defender already receiving the ball
+  // cannot also roll to intercept it.
+  const directOpponentContact = plan.directHit && teamKeyForPiece(state.pieces.find(piece => String(piece?.id) === String(plan.directHit.pieceId))) !== pending.team;
+  const nextResolution = !directOpponentContact && passRequiresInterceptionSequence(plan, pending.team)
     ? pendingPassInput(baseNext, 0, context)
     : baseNext;
   return {

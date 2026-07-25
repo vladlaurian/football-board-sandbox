@@ -6,13 +6,13 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.55.0` |
-| Git/package version | `20.55.0` |
-| Build name | `Final_Board_v20_55_0_lofted_through_and_roll_outcomes` |
+| Sandbox version | `v20.55.1` |
+| Git/package version | `20.55.1` |
+| Build name | `Final_Board_v20_55_1_roll_integrity_and_lofted_through_corrections` |
 | Base build | `v20.54.2 Through Ball resolution and match-entry integrity` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.55.0`. The repository version is in `package.json` as `20.55.0`. The browser title is `Sandbox v20.55.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.55.1`. The repository version is in `package.json` as `20.55.1`. The browser title is `Sandbox v20.55.1`.
 
 ## Current release
 
