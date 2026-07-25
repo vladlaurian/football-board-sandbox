@@ -5,7 +5,7 @@ import { createGameState } from "../game/gameState.mjs";
 import { GAME_COMMAND_TYPE } from "./gameCommands.mjs";
 import { applyGameCommand } from "./gameEngine.mjs";
 import { createMatchContext } from "./matchContext.mjs";
-import { selectSinglePlayerBallCellMoveChoicePresentation, selectSinglePlayerDicePresentation, selectSinglePlayerFreeBallPresentation, selectSinglePlayerFreeMovePresentation, selectSinglePlayerGroupMoveDraftPresentation, selectSinglePlayerGroupMovePieceStatuses, selectSinglePlayerInspectorActionPresentation, selectSinglePlayerInspectorControlPresentation, selectSinglePlayerNormalMovePresentation, selectSinglePlayerPassPresentation, selectSinglePlayerThreeTwoPresentation } from "./matchPresentationSelectors.mjs";
+import { selectSinglePlayerBallCellMoveChoicePresentation, selectSinglePlayerBonusMovePresentation, selectSinglePlayerDicePresentation, selectSinglePlayerFreeBallPresentation, selectSinglePlayerFreeMovePresentation, selectSinglePlayerGroupMoveDraftPresentation, selectSinglePlayerGroupMovePieceStatuses, selectSinglePlayerInspectorActionPresentation, selectSinglePlayerInspectorControlPresentation, selectSinglePlayerNormalMovePresentation, selectSinglePlayerPassPresentation, selectSinglePlayerRollPromptPresentation, selectSinglePlayerThreeTwoPresentation } from "./matchPresentationSelectors.mjs";
 
 test("Single Player Pass selector projects persisted route and roll facts without recalculating them", () => {
   const projection = selectSinglePlayerPassPresentation({
@@ -305,6 +305,10 @@ test("ready Bonus Action controls do not inherit normal Tracker phase or action 
   const context = createMatchContext({ gameplayCards: [{ id: "blue-card", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 5 }] }] });
   assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "MOVE" }).disabled, false);
   assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "PASS" }).disabled, false);
+  assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "THROUGH_BALL" }).disabled, false);
+  assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "LOFTED_THROUGH_BALL" }).disabled, false);
+  assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "SHOT" }).disabled, true);
+  assert.equal(selectSinglePlayerInspectorControlPresentation(state, context, { piece: state.pieces[1] }).freeMoveAllowed, true);
   assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "GROUP_MOVE" }).disabled, true);
 });
 
@@ -321,6 +325,50 @@ test("Through Ball targeting locks the ordinary Inspector action row", () => {
   assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "GROUP_MOVE" }).disabled, true);
 });
 
+test("Bonus Move projection preserves cost and remaining speed for a rejected destination", () => {
+  const state = createGameState({
+    gameMode: "match",
+    pieces: [{ id: "ball", team: "BALL", x: 3, y: 3 }, { id: "blue-1", team: "A", cardId: "blue-card", x: 3, y: 3 }],
+    actionContinuation: { id: "bonus-blue", kind: "bonus-card-action", team: "blue", status: "ready" },
+    tracker: { gameStarted: true, startingTeam: "red", currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+  });
+  const context = createMatchContext({ gameplayCards: [{ id: "blue-card", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] }] });
+  const projection = selectSinglePlayerBonusMovePresentation(state, context, { piece: state.pieces[1], x: 9, y: 3 });
+  assert.equal(projection.legal, false);
+  assert.equal(projection.reason, "speed");
+  assert.equal(projection.geometry.cost, 6);
+  assert.equal(projection.moveCost, 6);
+  assert.equal(projection.remaining, 4);
+});
+
+test("selected AVM is included in the official pending-roll preview", () => {
+  const state = createGameState({
+    gameMode: "match",
+    actionResolution: { kind: "lofted-through-ball", status: "awaiting-roll", team: "blue", plan: { rollPreview: { modifier: -1, rawModifier: -1, modifierCap: 4, totalBonus: 9, modifierSources: [{ label: "Lofted Through", value: 10, source: "card" }, { label: "Disadvantage", value: -1, source: "area" }] } } },
+    rollModifierOpportunities: [{ id: "avm", team: "blue", modifierType: "majorAdvantage", availableFromTurn: 1, expiresAfterTurn: 1 }],
+    tracker: { gameStarted: true, currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+  });
+  const context = createMatchContext({ ruleSet: { diceModifiers: { advantage: 1, majorAdvantage: 3, disadvantage: -1, majorDisadvantage: -3, stackCap: 4 } } });
+  const preview = selectSinglePlayerRollPromptPresentation(state, context, { team: "blue", selectedModifierType: "majorAdvantage" });
+  assert.equal(preview.totalBonus, 12);
+  assert.equal(preview.modifier, 2);
+  assert.equal(preview.modifierSources.at(-1).label, "Major Advantage");
+});
+
+test("selected AV is included in the interception prompt total, including the card statistic", () => {
+  const state = createGameState({
+    gameMode: "match",
+    actionResolution: { kind: "pass", status: "awaiting-interception-roll", rollPresentation: { defenderStatValue: 2, modifier: 1, rawModifier: 1, modifierCap: 4, totalBonus: 3, modifierSources: [{ label: "Interception", value: 2, source: "card" }, { label: "Advantage", value: 1, source: "order" }] } },
+    rollModifierOpportunities: [{ id: "av", team: "blue", modifierType: "advantage", availableFromTurn: 1, expiresAfterTurn: 1 }],
+    tracker: { gameStarted: true, currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+  });
+  const context = createMatchContext({ ruleSet: { diceModifiers: { advantage: 1, majorAdvantage: 3, disadvantage: -1, majorDisadvantage: -3, stackCap: 4 } } });
+  const preview = selectSinglePlayerRollPromptPresentation(state, context, { team: "blue", selectedModifierType: "advantage" });
+  assert.equal(preview.modifier, 2);
+  assert.equal(preview.totalBonus, 4);
+  assert.equal(preview.modifierSources.at(-1).source, "bonus-roll-token");
+});
+
 test("Free Move and Free Ball projections use the same Engine validation as their commits", () => {
   const state = createGameState({
     gameMode: "match",
@@ -334,15 +382,4 @@ test("Free Move and Free Ball projections use the same Engine validation as thei
   const ball = selectSinglePlayerFreeBallPresentation(state, context, { x: 6, y: 2 });
   assert.equal(ball.legal, false);
   assert.equal(ball.reason, "BALL_DESTINATION_OUT_OF_BOUNDS");
-});
-
-test("Free Move remains projected for either team while a Bonus Action is ready", () => {
-  const state = createGameState({
-    gameMode: "match",
-    pieces: [{ id: "ball", team: "BALL", x: 8, y: 3 }, { id: "blue-1", team: "A", x: 3, y: 3 }, { id: "red-1", team: "B", x: 4, y: 3 }],
-    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
-    actionContinuation: { id: "bonus-blue", kind: "bonus-card-action", team: "blue", status: "ready", resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" } },
-  });
-  const redControl = selectSinglePlayerInspectorControlPresentation(state, createMatchContext({}), { piece: state.pieces[2] });
-  assert.equal(redControl.freeMoveAllowed, true);
 });

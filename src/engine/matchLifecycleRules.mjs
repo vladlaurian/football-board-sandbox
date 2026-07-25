@@ -14,7 +14,6 @@ function playableFirstTurn(state, team, { restarted = false } = {}) {
       movementStateByPieceId: {},
       actionResolution: null,
       actionContinuation: null,
-      rollModifierOpportunities: [],
       tracker: {
         ...state.tracker,
         gameStarted: true,

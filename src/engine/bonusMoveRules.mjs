@@ -79,7 +79,9 @@ export function cancelBonusMove(state, command) {
   };
 }
 
-export function commitBonusMove(state, context, command) {
+// This evaluator is the single source for both preview and commit.  Unlike the
+// command envelope, it preserves geometry/cost/remaining for every rejection.
+export function evaluateBonusMove(state, context, command) {
   if (state.gameMode !== "match") return { accepted: false, reason: "MATCH_MODE_REQUIRED" };
   const piece = pieceForCommand(state, command);
   const { continuation, team, valid } = activeBonusMove(state, piece);
@@ -87,20 +89,28 @@ export function commitBonusMove(state, context, command) {
   const y = Number(command.payload?.y);
   if (!valid) return { accepted: false, reason: "BONUS_MOVE_NOT_ACTIVE" };
   if (!Number.isInteger(x) || !Number.isInteger(y)) return { accepted: false, reason: "MOVE_DESTINATION_INVALID" };
-  if (state.pieces.some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === x && Number(item.y) === y)) return { accepted: false, reason: "occupied" };
   const geometry = getMovementGeometry(piece, { x, y });
   if (geometry.kind === "same") return { accepted: false, reason: "same" };
   if (geometry.kind === "mixed") return { accepted: false, reason: "mixed" };
-  if (firstPlayerBlockingMovementPath({ pieces: state.pieces, movingPieceId: piece.id, from: piece, to: { x, y } })) return { accepted: false, reason: "path-blocked" };
   const current = movementState(state.movementStateByPieceId[piece.id]);
-  if (current.movementEnded) return { accepted: false, reason: "movement-ended" };
   const speed = speedFor(piece, context);
-  if (speed === null) return { accepted: false, reason: "no-speed" };
-  if (current.axis && current.axis !== geometry.axis) return { accepted: false, reason: "axis" };
+  const remaining = speed === null ? null : Math.max(0, speed - current.spent);
+  if (state.pieces.some(item => item.id !== piece.id && item.team !== "BALL" && Number(item.x) === x && Number(item.y) === y)) return { accepted: false, reason: "occupied", piece, team, x, y, geometry, current, speed, remaining };
+  if (firstPlayerBlockingMovementPath({ pieces: state.pieces, movingPieceId: piece.id, from: piece, to: { x, y } })) return { accepted: false, reason: "path-blocked", piece, team, x, y, geometry, current, speed, remaining };
+  if (current.movementEnded) return { accepted: false, reason: "movement-ended", piece, team, x, y, geometry, current, speed, remaining: 0 };
+  if (speed === null) return { accepted: false, reason: "no-speed", piece, team, x, y, geometry, current, speed, remaining };
+  if (current.axis && current.axis !== geometry.axis) return { accepted: false, reason: "axis", piece, team, x, y, geometry, current, speed, remaining };
   const moveCost = geometry.kind === "diagonal"
     ? diagonalCostForDistance(current.distance + geometry.distance) - diagonalCostForDistance(current.distance)
     : geometry.cost;
-  if (moveCost > Math.max(0, speed - current.spent)) return { accepted: false, reason: "speed" };
+  if (moveCost > remaining) return { accepted: false, reason: "speed", piece, team, x, y, geometry, current, speed, moveCost, remaining };
+  return { accepted: true, piece, team, x, y, geometry, current, speed, moveCost, remaining, continuation };
+}
+
+export function commitBonusMove(state, context, command) {
+  const evaluation = evaluateBonusMove(state, context, command);
+  if (!evaluation.accepted) return evaluation;
+  const { piece, team, x, y, current, moveCost, geometry, continuation } = evaluation;
   const carriesBall = state.pieces.some(item => item.team === "BALL" && Number(item.x) === Number(piece.x) && Number(item.y) === Number(piece.y));
   const pieces = state.pieces.map(item => {
     if (item.id === piece.id) return { ...item, x, y };

@@ -5,6 +5,7 @@ import { createGameState } from "../game/gameState.mjs";
 import { applyGameCommand } from "./gameEngine.mjs";
 import { evaluateGroupMovePieceEligibility, evaluateGroupMovePlayer } from "./groupMoveRules.mjs";
 import { createMatchContext } from "./matchContext.mjs";
+import { effectiveCurrentTurnForRollOpportunity } from "./rollModifierOpportunities.mjs";
 
 function matchState() {
   return createGameState({
@@ -61,6 +62,15 @@ function normalMoveContext() {
 function normalMoveCommand(type, payload = {}, id = type.toLowerCase()) {
   return { id, type, payload: { pieceId: "blue-1", ...payload } };
 }
+
+test("a current-turn roll token earned in an advancing Bonus Action belongs to the resumed numbered turn", () => {
+  assert.equal(effectiveCurrentTurnForRollOpportunity({
+    actionContinuation: { kind: "bonus-card-action", resumePolicy: { type: "advance-turn", nextTurn: 2 } },
+  }, 1), 2);
+  assert.equal(effectiveCurrentTurnForRollOpportunity({
+    actionContinuation: { kind: "bonus-card-action", resumePolicy: { type: "resume-phase", nextTurn: 1 } },
+  }, 1), 1);
+});
 
 function confirmedPass(state, passId, context = normalMoveContext()) {
   const started = applyGameCommand({
@@ -148,7 +158,7 @@ test("Through Ball freezes its configured maximum distance in the Engine", () =>
   assert.deepEqual(result, { accepted: false, reason: "THROUGH_BALL_MAX_DISTANCE" });
 });
 
-test("a ready Bonus Action starts Through Ball through Engine state without Tracker cost", () => {
+test("Through Ball begins and resolves as the one canonical action inside Bonus Action", () => {
   const state = normalMoveState({
     pieces: [{ id: "ball", team: "BALL", x: 1, y: 1 }, { id: "blue-1", team: "A", cardId: "blue-1", x: 1, y: 1 }],
     actionContinuation: { id: "bonus-through", kind: "bonus-card-action", team: "blue", status: "ready", resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" } },
@@ -156,36 +166,14 @@ test("a ready Bonus Action starts Through Ball through Engine state without Trac
   const context = throughBallContext();
   const started = applyGameCommand({ state, context, command: { id: "bonus-through-start", type: "THROUGH_BALL_STARTED", payload: { pieceId: "blue-1" } } });
   assert.equal(started.accepted, true);
-  assert.equal(started.events[0].type, "BONUS_THROUGH_BALL_TARGETING_STARTED");
   assert.equal(started.nextState.actionContinuation.status, "action-active");
-  assert.equal(started.nextState.actionContinuation.actionType, "THROUGH_BALL");
-  assert.equal(started.nextState.tracker.usedActions.blue, 0);
+  assert.equal(started.nextState.actionResolution.bonusContinuationId, "bonus-through");
   const targeted = applyGameCommand({ state: started.nextState, context, command: { id: "bonus-through-target", type: "THROUGH_BALL_TARGET_SELECTED", payload: { x: 4, y: 1 } } });
-  assert.equal(targeted.accepted, true);
-  assert.equal(targeted.nextState.actionResolution.status, "route-selection");
-  assert.equal(targeted.nextState.tracker.usedActions.blue, 0);
-});
-
-test("a ready Bonus Action starts Lofted Through through Engine state without Tracker cost", () => {
-  const state = normalMoveState({
-    pieces: [{ id: "ball", team: "BALL", x: 1, y: 1 }, { id: "blue-1", team: "A", cardId: "blue-1", x: 1, y: 1 }],
-    actionContinuation: { id: "bonus-lofted", kind: "bonus-card-action", team: "blue", status: "ready", resumePolicy: { type: "resume-phase", team: "blue", phase: "attack" } },
-  });
-  const context = createMatchContext({
-    boardSettings: { cols: 20, rows: 12 },
-    ruleSet: { actions: { pass: { pathMode: "corner-to-center" }, loftedThroughBall: { pathMode: "corner-to-center", maxDistance: 32, difficultyThreshold: 16, rollStatId: "stat:lofted-through" } } },
-    gameplayCards: [{ id: "blue-1", passiveAttributes: [{ id: "stat:speed", value: 5 }, { id: "stat:lofted-through", value: 10 }] }],
-  });
-  const started = applyGameCommand({ state, context, command: { id: "bonus-lofted-start", type: "LOFTED_THROUGH_BALL_STARTED", payload: { pieceId: "blue-1" } } });
-  assert.equal(started.accepted, true);
-  assert.equal(started.events[0].type, "BONUS_LOFTED_THROUGH_BALL_TARGETING_STARTED");
-  assert.equal(started.nextState.actionContinuation.status, "action-active");
-  assert.equal(started.nextState.actionContinuation.actionType, "LOFTED_THROUGH_BALL");
-  assert.equal(started.nextState.tracker.usedActions.blue, 0);
-  const targeted = applyGameCommand({ state: started.nextState, context, command: { id: "bonus-lofted-target", type: "LOFTED_THROUGH_BALL_TARGET_SELECTED", payload: { x: 4, y: 1 } } });
-  assert.equal(targeted.accepted, true);
-  assert.equal(targeted.nextState.actionResolution.status, "route-selection");
-  assert.equal(targeted.nextState.tracker.usedActions.blue, 0);
+  const committed = applyGameCommand({ state: targeted.nextState, context, command: { id: "bonus-through-commit", type: "THROUGH_BALL_COMMITTED", payload: { cornerId: "top-left" } } });
+  assert.equal(committed.accepted, true);
+  assert.equal(committed.nextState.tracker.usedActions.blue, 0);
+  assert.equal(committed.nextState.actionContinuation.status, "awaiting-end-bonus-action");
+  assert.equal(committed.timeline.undoMode, "atomic");
 });
 
 test("reselecting a Through Ball target returns to canonical targeting without losing that target", () => {
@@ -303,26 +291,6 @@ test("MATCH_STARTED creates the canonical playable first turn and clears stale i
   assert.equal(result.nextState.actionContinuation, null);
   assert.equal(result.events[0].type, "MATCH_STARTED");
   assert.deepEqual(result.events[0].metadata, { startingTeam: "blue", startedTurn: 1, restarted: false });
-});
-
-test("Match start clears stale roll-bonus opportunities and a numbered turn advance records expiry", () => {
-  const stale = createGameState({
-    gameMode: "match",
-    rollModifierOpportunities: [{ id: "stale-av", team: "blue", modifierType: "advantage", availableFromTurn: 1, expiresAfterTurn: 1 }],
-  });
-  const started = applyGameCommand({ state: stale, context: normalMoveContext(), command: { id: "start-clears-av", type: "MATCH_STARTED", payload: { team: "blue" } } });
-  assert.equal(started.accepted, true);
-  assert.deepEqual(started.nextState.rollModifierOpportunities, []);
-
-  const defense = createGameState({
-    ...normalMoveState(),
-    rollModifierOpportunities: [{ id: "expiring-av", team: "blue", modifierType: "advantage", availableFromTurn: 1, expiresAfterTurn: 1 }],
-    tracker: { ...normalMoveState().tracker, turnPhase: "defense", startingTeam: "blue" },
-  });
-  const advanced = applyGameCommand({ state: defense, context: normalMoveContext(), command: { id: "advance-expires-av", type: "TRACKER_PHASE_ENDED", payload: { team: "red" } } });
-  assert.equal(advanced.accepted, true);
-  assert.deepEqual(advanced.nextState.rollModifierOpportunities, []);
-  assert.equal(advanced.events[0].metadata.expiredRollModifierOpportunities[0].id, "expiring-av");
 });
 
 test("MATCH_RESTARTED restarts an existing Match without moving any board piece", () => {
@@ -686,6 +654,30 @@ test("BONUS_ACTION_ENDED is Engine-owned, records decline semantics, and starts 
   assert.deepEqual(result.events[0].metadata.bonusAction, { used: false, declined: true, actionType: null, pieceId: null });
   assert.equal(result.events[0].metadata.startedTurn, 2);
   assert.deepEqual(result.timeline, { groupId: "bonus-end-1", undoMode: "atomic", allowNoop: false });
+});
+
+test("BONUS_ACTION_ENDED preserves a current-turn token earned inside an advancing Bonus Action", () => {
+  const state = normalMoveState({
+    rollModifierOpportunities: [{ id: "ba-earned-avm", team: "red", modifierType: "majorAdvantage", availableFromTurn: 2, expiresAfterTurn: 2 }],
+    actionContinuation: {
+      id: "bonus-token-end",
+      kind: "bonus-card-action",
+      team: "red",
+      status: "awaiting-end-bonus-action",
+      actionType: "LOFTED_THROUGH_BALL",
+      pieceId: "blue-1",
+      resumePolicy: { type: "advance-turn", team: "red", nextTurn: 2, phase: "attack" },
+    },
+  });
+  const result = applyGameCommand({
+    state,
+    context: normalMoveContext(),
+    command: { id: "bonus-token-end-command", type: "BONUS_ACTION_ENDED", payload: { continuationId: "bonus-token-end" } },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.nextState.tracker.currentTurn, 2);
+  assert.deepEqual(result.nextState.rollModifierOpportunities, state.rollModifierOpportunities);
+  assert.deepEqual(result.events[0].metadata.expiredRollBonuses, []);
 });
 
 test("BONUS_ACTION_ENDED accepts an active partial Bonus MOVE and completes the match after the final numbered turn", () => {

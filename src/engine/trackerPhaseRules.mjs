@@ -19,7 +19,7 @@ export function endTrackerPhase(state, command) {
   if (tracker.turnPhase === "defense" && tracker.currentTurn < tracker.settings.turns) {
     const emptyTurn = createEmptyTrackerTurnState();
     const nextTurn = tracker.currentTurn + 1;
-    const expired = expiredRollModifierOpportunities(state.rollModifierOpportunities, nextTurn);
+    const expiredRollBonuses = expiredRollModifierOpportunities(state.rollModifierOpportunities, nextTurn);
     return {
       accepted: true,
       nextState: {
@@ -39,7 +39,10 @@ export function endTrackerPhase(state, command) {
       event: {
         type: "PHASE_ENDED",
         team,
-        metadata: { endingTeam: team, nextPhase: "attack", automaticTurnAdvance: true, startedTurn: nextTurn, expiredRollModifierOpportunities: expired },
+        metadata: {
+          endingTeam: team, nextPhase: "attack", automaticTurnAdvance: true, startedTurn: nextTurn,
+          expiredRollBonuses: expiredRollBonuses.map(item => ({ id: item.id, team: item.team, modifierType: item.modifierType })),
+        },
       },
       timeline: { groupId: null, undoMode: "step", allowNoop: false },
     };

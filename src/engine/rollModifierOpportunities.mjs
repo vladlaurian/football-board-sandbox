@@ -1,5 +1,19 @@
 const TYPES = new Set(["advantage", "majorAdvantage"]);
 
+// "Current turn" means the numbered gameplay turn in which the token can be
+// used. A Bonus Action may live between numbered turns; closing it must not
+// consume a token earned inside it.
+export function effectiveCurrentTurnForRollOpportunity(state, fallbackTurn) {
+  const currentTurn = Math.max(1, Math.floor(Number(fallbackTurn) || 1));
+  const continuation = state?.actionContinuation;
+  const nextTurn = Number(continuation?.resumePolicy?.nextTurn);
+  return continuation?.kind === "bonus-card-action"
+    && continuation?.resumePolicy?.type === "advance-turn"
+    && Number.isFinite(nextTurn)
+    ? Math.max(1, Math.floor(nextTurn))
+    : currentTurn;
+}
+
 export function normalizeRollModifierOpportunities(raw) {
   return (Array.isArray(raw) ? raw : []).map((item, index) => {
     const team = item?.team === "blue" || item?.team === "red" ? item.team : null;
@@ -38,9 +52,8 @@ export function pruneRollModifierOpportunities(raw, turn) {
   return normalizeRollModifierOpportunities(raw).filter(item => item.expiresAfterTurn >= currentTurn);
 }
 
-// The Engine records the exact items that disappear as a turn advances. This
-// lets presentation explain an expiry without re-deriving lifecycle rules.
-export function expiredRollModifierOpportunities(raw, nextTurn) {
-  const currentTurn = Math.max(1, Math.floor(Number(nextTurn) || 1));
-  return normalizeRollModifierOpportunities(raw).filter(item => item.expiresAfterTurn < currentTurn);
+export function expiredRollModifierOpportunities(raw, turn) {
+  const currentTurn = Math.max(1, Math.floor(Number(turn) || 1));
+  return normalizeRollModifierOpportunities(raw)
+    .filter(item => item.expiresAfterTurn < currentTurn);
 }

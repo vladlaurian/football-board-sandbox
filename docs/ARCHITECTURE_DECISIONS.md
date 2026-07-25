@@ -69,21 +69,6 @@ README records the current release. Changelogs record implementation history. Th
 - The Long plan persists group identity and carries progressive/Natural-1 sequencing from origin through destination; Timeline, Replay and AI display stored facts rather than recomputing geometry or values.
 - The frozen Manual Multiplayer/session branch remains on its legacy Pass plan and is not silently migrated by this decision.
 
-## ADR-052 — Bonus Action has one Engine capability contract
-
-**Status:** Active
-
-**Decision:** Offline Single Player treats a Bonus Action as one generic continuation with an explicit Engine capability list. Currently implemented consumers are `MOVE`, `PASS`, `THROUGH_BALL`, and `LOFTED_THROUGH_BALL`. Each consumer starts from `ready`, records its active action in canonical continuation state, resolves through its own Engine command chain, and finishes through the existing `END B.A.` continuation policy. Inspector buttons, board movement and popup availability read official projections of this state; they do not apply a second normal-Tracker gate.
-
-Free Move remains an Engine-owned administrative correction, not a Bonus Action consumer, and is therefore available while a Bonus Action is ready. Group Move is not a Bonus Action capability. Unimplemented action controls may remain visible, but must be disabled in offline Match until their Engine mechanic is integrated; they must not create a manual or fake Bonus Action transition.
-
-**Consequences:**
-
-- a future mechanic earns Bonus Action support only by adding its complete Engine command chain and capability evidence through the Mechanic Integration Gate; adding a button or a local allow-list is insufficient;
-- Timeline/Undo/Redo/Replays retain the same atomic continuation transaction for every implemented Bonus Action consumer;
-- AV/AVM opportunities and their expiry remain MatchState/Engine facts. UI may select a presented token for the pending roll and display Engine-recorded expiry metadata, but never grants, consumes or expires it itself;
-- Manual Multiplayer retains its frozen legacy continuation branch and is not routed through this contract.
-
 ## ADR-004 — Manual roll only
 
 **Status:** Active
@@ -769,3 +754,18 @@ While Free Move is active, no other offline Match Mode action may proceed. Its s
 - UI-level lock prevents remaining legacy offline action entrances and Free Ball from interleaving.
 - Undoing an end restores active Free Move; undoing a segment restores its prior board position; Redo reapplies the same sequence.
 - Manual Multiplayer and Editor Mode remain unchanged.
+
+## ADR-053 — Bonus Action capability and token lifetime are Engine facts
+
+**Status:** Active.
+
+**Decision:** Offline Bonus Action has one Engine-owned capability list. Only an implemented action type may transition a ready continuation to an active action; its ordinary typed command then carries the mechanic through Timeline. The UI may disable or present those capabilities but cannot create a local BA action or reinterpret Tracker state. Free Move remains an explicitly permitted administrative Engine action while BA is pending.
+
+AV/AVM opportunities are canonical MatchState records. The Engine resolves a selected token into the pending-roll projection and consumes it with the submitted roll. A token earned during a Bonus Action with an advance-turn resume policy is assigned to that resumed numbered turn, not to the transient BA boundary. Each Engine turn advance prunes expired opportunities and records the loss in event metadata.
+
+**Consequences:**
+
+- BA Move, Pass, Through Ball and Lofted Through share one typed contract and atomic Timeline grouping where applicable.
+- Rejected BA movement retains Engine geometry for render-safe feedback; UI never reads an internal command envelope as a preview result.
+- Prompt values, roll math, Undo/Redo, Replay and AI all retain the same token state and source facts.
+- Manual Multiplayer is not routed through this offline capability contract.

@@ -50,8 +50,8 @@ export function endBonusAction(state, command) {
       };
       metadata = { ...metadata, nextPhase: "complete", matchComplete: true };
     } else {
+      const expiredRollBonuses = expiredRollModifierOpportunities(state.rollModifierOpportunities, requestedTurn);
       const emptyTurn = createEmptyTrackerTurnState();
-      const expired = expiredRollModifierOpportunities(state.rollModifierOpportunities, requestedTurn);
       nextState = {
         ...nextState,
         movementStateByPieceId: {},
@@ -72,7 +72,7 @@ export function endBonusAction(state, command) {
         nextPhase: policy.phase || "attack",
         automaticTurnAdvance: true,
         startedTurn: requestedTurn,
-        expiredRollModifierOpportunities: expired,
+        expiredRollBonuses: expiredRollBonuses.map(item => ({ id: item.id, team: item.team, modifierType: item.modifierType })),
       };
     }
   } else if (policy.type === CONTINUATION_RESUME_TYPE.RESUME_PHASE) {

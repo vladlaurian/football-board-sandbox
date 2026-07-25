@@ -1,8 +1,7 @@
 import { CONTINUATION_STATUS, beginContinuationAction, completeContinuationAction, normalizeActionContinuation } from "../match/actionContinuation.mjs";
 
-// This is the single Engine contract for actions that can consume the one
-// Bonus Action. UI asks selectors for this contract; it never infers it from
-// the ordinary Tracker phase or from button names.
+// Single Engine contract for the actions currently supported by Bonus Action.
+// UI projects this state; it never opens a local substitute continuation.
 export const BONUS_ACTION_IMPLEMENTED_TYPES = Object.freeze(["MOVE", "PASS", "THROUGH_BALL", "LOFTED_THROUGH_BALL"]);
 
 const COMMAND_ACTION_TYPES = Object.freeze({

@@ -8,9 +8,11 @@ import { applyGameCommand, evaluateFreeBallMoved } from "./gameEngine.mjs";
 import { GAME_COMMAND_TYPE } from "./gameCommands.mjs";
 import { evaluateThreeTwoMove } from "./threeTwoMoveRules.mjs";
 import { evaluateGroupMovePieceEligibility, evaluateGroupMovePlayer } from "./groupMoveRules.mjs";
+import { evaluateBonusMove } from "./bonusMoveRules.mjs";
 import { canUseTrackerActionForPiece, canUseTrackerFreeModeForPiece, hasGroupMoveAuthorization, isTeamActiveForTrackerPhase, movementAuthorizationForPiece, personalActionStatusForPiece, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { cardStat, interceptorChoiceCandidates, teamKeyForPiece } from "../rules/passEngine.mjs";
 import { activeRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
+import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { BONUS_ACTION_IMPLEMENTED_TYPES } from "./bonusActionCapabilities.mjs";
 
 function formatSigned(value) {
@@ -50,30 +52,19 @@ export function selectSinglePlayerNormalMovePresentation(state, context, { piece
   return { ...result, geometry: result.geometry || null, legal: Boolean(result.accepted) };
 }
 
-// Bonus MOVE is evaluated by the same Engine command that commits it.  It is
-// intentionally distinct from Normal MOVE: a ready Bonus Action does not need
-// the normal Tracker phase or a normal MOVE authorization.
+// BA Move presentation always uses the Engine evaluator, including rejected
+// destinations. The command envelope intentionally does not expose internal
+// calculation details, therefore it cannot be used as a hover evaluator.
 export function selectSinglePlayerBonusMovePresentation(state, context, { piece, x, y } = {}) {
   const continuation = state?.actionContinuation;
-  if (continuation?.kind === "bonus-card-action"
-    && continuation.status === "action-active"
-    && continuation.actionType === "MOVE"
-    && String(continuation.pieceId || "") === String(piece?.id || "")) {
-    const commit = applyGameCommand({ state, context, command: previewCommand(GAME_COMMAND_TYPE.BONUS_MOVE_COMMITTED, piece, x, y) });
-    return { ...commit, geometry: commit.geometry || null, legal: Boolean(commit.accepted) };
+  let previewState = state;
+  if (continuation?.kind === "bonus-card-action" && continuation.status === "ready") {
+    const start = applyGameCommand({ state, context, command: previewCommand(GAME_COMMAND_TYPE.BONUS_MOVE_STARTED, piece, x, y) });
+    if (!start.accepted) return { ...start, geometry: null, legal: false };
+    previewState = start.nextState;
   }
-  const start = applyGameCommand({
-    state,
-    context,
-    command: previewCommand(GAME_COMMAND_TYPE.BONUS_MOVE_STARTED, piece, x, y),
-  });
-  if (!start.accepted) return { ...start, geometry: null, legal: false };
-  const commit = applyGameCommand({
-    state: start.nextState,
-    context,
-    command: previewCommand(GAME_COMMAND_TYPE.BONUS_MOVE_COMMITTED, piece, x, y),
-  });
-  return { ...commit, geometry: commit.geometry || null, legal: Boolean(commit.accepted) };
+  const result = evaluateBonusMove(previewState, context, previewCommand(GAME_COMMAND_TYPE.BONUS_MOVE_COMMITTED, piece, x, y));
+  return { ...result, geometry: result.geometry || null, legal: Boolean(result.accepted) };
 }
 
 export function selectSinglePlayerThreeTwoPresentation(state, context, { piece, x, y } = {}) {
@@ -202,6 +193,38 @@ export function selectSinglePlayerRollModifierTokenPresentation(state, { team } 
   return activeRollModifierOpportunities(state?.rollModifierOpportunities, team, turn);
 }
 
+// The UI may choose a token type, but this Engine selector owns the resulting
+// numeric preview and source list. Prompt and submitted roll therefore share
+// one calculation contract.
+export function selectSinglePlayerRollPromptPresentation(state, context, { team, selectedModifierType = null } = {}) {
+  const pending = state?.actionResolution;
+  const base = pending?.kind === "lofted-through-ball"
+    ? pending?.plan?.rollPreview
+    : pending?.kind === "pass"
+      ? pending?.rollPresentation
+      : null;
+  if (!base) return null;
+  const token = activeRollModifierOpportunities(state?.rollModifierOpportunities, team, state?.tracker?.currentTurn)
+    .find(item => item.modifierType === selectedModifierType) || null;
+  if (!token) return base;
+  const value = resolveDiceModifierStacks(context?.ruleSet?.diceModifiers, token.modifierType);
+  const rawModifier = (Number(base.rawModifier ?? base.modifier) || 0) + value;
+  const cap = Math.max(0, Number(base.modifierCap ?? context?.ruleSet?.diceModifiers?.stackCap) || 0);
+  const modifier = Math.max(-cap, Math.min(cap, rawModifier));
+  return {
+    ...base,
+    rawModifier,
+    modifier,
+    modifierCap: cap,
+    capped: modifier !== rawModifier,
+    totalBonus: (Number(base.totalBonus ?? base.modifier) || 0) + (modifier - (Number(base.modifier) || 0)),
+    modifierSources: [
+      ...(Array.isArray(base.modifierSources) ? base.modifierSources : []),
+      { label: token.modifierType === "majorAdvantage" ? "Major Advantage" : "Advantage", value, source: "bonus-roll-token", detail: "earned roll bonus" },
+    ],
+  };
+}
+
 export function selectSinglePlayerDicePresentation(state, { team, extraRollArmed = false } = {}) {
   const pending = state?.actionResolution;
   if (pending?.kind === "pass" && pending.status === "awaiting-interception-roll") {
@@ -269,7 +292,9 @@ export function selectSinglePlayerInspectorControlPresentation(state, context, {
     freeBall: selectSinglePlayerFreeBallControlPresentation(state, { replay }),
     freeMoveAllowed: Boolean(
       action.freeAllowed
-      && !pending
+      // A ready Bonus Action does not own a piece yet. Free Move remains an
+      // explicit always-available action until a bonus card action is begun.
+      && !(continuation && continuation.status !== "ready")
       && !current.activeMovement?.active
       && !current.groupMove?.active
       && (!current.freeMode?.active || freeMoveSamePiece)
@@ -298,7 +323,7 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
   const normalHasRemaining = Boolean(pieceState.moveAuthorized && !movement.movementEnded && speed !== null && Number(movement.spent) < speed);
   const personalBlocked = Boolean(control.personal.limit > 0 && control.personal.exhausted && type !== "GROUP_MOVE" && !moveCancellable && !(type === "MOVE" && normalHasRemaining));
   const continuationReady = continuation?.status === "ready";
-  const implemented = ["MOVE", "PASS", "GROUP_MOVE", "THROUGH_BALL", "LOFTED_THROUGH_BALL"].includes(type);
+  const implementedBonusAction = BONUS_ACTION_IMPLEMENTED_TYPES.includes(type);
   const trackerComplete = control.actionStatus.exhausted;
   const disabled = bonusMoveCancellable
     ? false
@@ -306,14 +331,13 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
       ? false
       : moveCancellable
         ? false
-        : !implemented
-          ? true
-          : normalMove.active
+        : normalMove.active
           ? true
           : continuationReady
             ? Boolean(
                 !control.teamOwnsContinuation
-                || !BONUS_ACTION_IMPLEMENTED_TYPES.includes(type)
+                || !implementedBonusAction
+                || type === "GROUP_MOVE"
                 || piece?.inactive
                 || current.freeMode?.active
                 || current.groupMove?.active
@@ -334,7 +358,6 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
               );
   return {
     ...control,
-    implemented,
     disabled,
     actionLocked: trackerComplete && !continuationReady && !passCancellable && !moveCancellable,
     label: passCancellable ? "CANCEL PASS" : (moveCancellable || bonusMoveCancellable) ? "CANCEL MOVE" : type === "PASS" ? "PASS S/L" : String(type || "").replace("GROUP_MOVE", "GROUP MOVE"),

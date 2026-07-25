@@ -94,9 +94,11 @@ function createInterceptionRollPresentation(pending, interceptorIndex, context) 
     defenderStatValue: interception,
     attackerTargetValue: Number(plan.attackerTargetValue ?? plan.passerPass) || 0,
     attackerTargetStatId: plan.attackerTargetStatId || "stat:passing",
+    rawModifier,
     modifier,
     modifierCap,
     capped: modifier !== rawModifier,
+    totalBonus: interception + modifier,
     modifierSources: [
       { label: "Interception", value: interception, source: "card" },
       ...(orderModifier ? [{ label: "Advantage", type: "advantage", value: orderModifier, source: "interceptor-order", detail: interceptionOrderLabel(orderModifier) }] : []),
@@ -707,16 +709,16 @@ function completeNormalInterception(state, pending, interceptor, { directHit = f
   const tracker = normalizeTrackerSnapshot(state.tracker);
   const emptyTurn = createEmptyTrackerTurnState();
   const nextTurn = Math.min(tracker.settings.turns, Math.max(1, tracker.currentTurn + 1));
-  const expired = expiredRollModifierOpportunities(state.rollModifierOpportunities, nextTurn);
+  const expiredRollBonuses = expiredRollModifierOpportunities(state.rollModifierOpportunities, nextTurn);
   return {
     accepted: true,
     nextState: {
       ...state,
       pieces,
       movementStateByPieceId: {},
+      rollModifierOpportunities: pruneRollModifierOpportunities(state.rollModifierOpportunities, nextTurn),
       actionResolution: null,
       actionContinuation: null,
-      rollModifierOpportunities: pruneRollModifierOpportunities(state.rollModifierOpportunities, nextTurn),
       tracker: {
         ...state.tracker,
         startingTeam: nextTeam,
@@ -736,7 +738,7 @@ function completeNormalInterception(state, pending, interceptor, { directHit = f
         interceptorId: interceptor.id,
         directHit,
         startedTurn: nextTurn,
-        expiredRollModifierOpportunities: expired,
+        expiredRollBonuses: expiredRollBonuses.map(item => ({ id: item.id, team: item.team, modifierType: item.modifierType })),
       }),
     },
   };

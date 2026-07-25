@@ -95,6 +95,12 @@ A command is an attempted action. An event is a confirmed gameplay fact emitted 
 
 Future Dribble, Shot, Tackle, and Cross commands use this same contract; they must not introduce separate UI, Timeline, Dice, or Firebase gameplay paths.
 
+### Bonus Action capability and one-roll token contract
+
+A Bonus Action is a continuation around exactly one implemented card action. The Engine declares which typed actions are implemented; the offline UI may only project that declaration and send the corresponding normal Engine command. Move, Pass, Through Ball and Lofted Through Ball are implemented in v20.55.4. Other visible action buttons remain disabled until their own Engine mechanic exists; they must not create a local/manual substitute in offline Match.
+
+AV/AVM opportunities are Engine-owned MatchState records. A selected opportunity is resolved into the pending-roll presentation from frozen `MatchContext`, then consumed by the submitted roll command. A token described as valid for the current turn means the numbered gameplay turn in which it can be used: when earned inside a Bonus Action whose resume policy advances the turn, it is assigned to that next numbered turn and End B.A. does not remove it. Every Engine turn advance prunes expired opportunities and records the expired identities in event metadata; UI may show that event fact but cannot expire tokens itself.
+
 Existing Timeline event names remain authoritative wherever possible, including `MOVE_ACTIVATED`, `MOVE_COMMITTED`, `BALL_MOVED`, `PASS_TARGETING_STARTED`, `PASS_TARGET_SELECTED`, `DICE_ROLLED`, `PASS_INTERCEPTION_MISSED`, `PASS_COMPLETED`, `PASS_INTERCEPTED`, `BONUS_ACTION_ENDED`, and `BONUS_ACTION_DECLINED`. Cosmetic renaming is prohibited.
 
 Normal, 3/2, and Bonus player movement validate one shared path rule: every intermediate horizontal, vertical, or diagonal square must be free of players. Teammates and opponents block identically; the ball does not block. Group Move is the deliberate tactical exception: it may cross players but cannot finish on a player or ball. Its Engine evaluator applies the frozen Group Move orthogonal limit to horizontal/vertical geometry and the separately frozen diagonal limit to exact diagonals, then projects the applied limit to UI. Free Move is deliberately exempt because it is an administrative recovery tool, not a normal gameplay movement mechanic.

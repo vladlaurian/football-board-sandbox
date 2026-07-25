@@ -4,7 +4,7 @@ import { PASS_CORNERS, bodyBlockingPassOrigin, cardStat, defensiveCellsForPiece,
 import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { activateTrackerAction, createEmptyTrackerTurnState, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
-import { consumeRollModifierOpportunity, expiredRollModifierOpportunities, grantRollModifierOpportunity, pruneRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
+import { consumeRollModifierOpportunity, effectiveCurrentTurnForRollOpportunity, grantRollModifierOpportunity, pruneRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
 import { activeBonusActionFor, beginImplementedBonusAction, completeImplementedBonusAction } from "./bonusActionCapabilities.mjs";
 
 const EPSILON = 1e-9;
@@ -102,9 +102,7 @@ export function commitLoftedThroughBall(state, context, command) {
   if (!plan.legal) return { accepted: false, reason: plan.distance > plan.maxDistance ? "LOFTED_THROUGH_BALL_MAX_DISTANCE" : "LOFTED_THROUGH_BALL_ROUTE_BLOCKED" };
   const bonus = pending.bonusContinuationId ? activeBonusActionFor(state, { team: pending.team, pieceId: passer.id, type: "LOFTED_THROUGH_BALL", continuationId: pending.bonusContinuationId }) : null;
   if (pending.bonusContinuationId && !bonus) return { accepted: false, reason: "BONUS_LOFTED_THROUGH_BALL_NOT_ACTIVE" };
-  const activation = bonus
-    ? { allowed: true, actionLog: state.tracker.actionLog, usedActions: state.tracker.usedActions, personalActionsByPieceId: state.tracker.personalActionsByPieceId, matchActionState: state.tracker.matchActionState }
-    : activateTrackerAction(state.tracker, { type: "LOFTED_THROUGH_BALL", trackerMarker: "LT", pieceId: passer.id, team: pending.team, entryId: command.id, enforcePersonalActions: true });
+  const activation = bonus ? { allowed: true, actionLog: state.tracker.actionLog, usedActions: state.tracker.usedActions, personalActionsByPieceId: state.tracker.personalActionsByPieceId, matchActionState: state.tracker.matchActionState } : activateTrackerAction(state.tracker, { type: "LOFTED_THROUGH_BALL", trackerMarker: "LT", pieceId: passer.id, team: pending.team, entryId: command.id, enforcePersonalActions: true });
   if (!activation.allowed) return { accepted: false, reason: activation.reason };
   const tracker = { ...state.tracker, actionLog: activation.actionLog, usedActions: activation.usedActions, personalActionsByPieceId: activation.personalActionsByPieceId, matchActionState: activation.matchActionState };
   const next = { ...pending, status: "awaiting-roll", cornerId, plan, pendingRoll: { requestId: `lofted_roll_${pending.id}`, actionId: pending.id, team: pending.team, dieType: 20, subjectId: passer.id, reactionIndex: 0 } };
@@ -177,10 +175,11 @@ export function resolveLoftedThroughBall(state, context) {
   if (!pending || pending.kind !== "lofted-through-ball" || pending.status !== "roll-resolved" || !passer) return { accepted: false, reason: "LOFTED_THROUGH_BALL_NOT_RESOLVED" };
   const tracker = normalizeTrackerSnapshot(state.tracker);
   const grantCurrentTurnToken = pending.result.naturalEffect === "current-turn-roll-advantage" || pending.result.naturalEffect === "current-turn-roll-major-advantage";
+  const tokenTurn = effectiveCurrentTurnForRollOpportunity(state, tracker.currentTurn);
   const opportunities = grantCurrentTurnToken ? grantRollModifierOpportunity(state.rollModifierOpportunities, {
     id: `roll_bonus_lofted_${pending.id}`, team: pending.team,
     modifierType: pending.result.naturalEffect === "current-turn-roll-major-advantage" ? "majorAdvantage" : "advantage",
-    availableFromTurn: tracker.currentTurn, expiresAfterTurn: tracker.currentTurn,
+    availableFromTurn: tokenTurn, expiresAfterTurn: tokenTurn,
     source: "natural-20-lofted-through", sourceActionId: pending.id,
   }) : state.rollModifierOpportunities;
   if (pending.result.succeeds) {
@@ -194,10 +193,10 @@ export function resolveLoftedThroughBall(state, context) {
       return { accepted: true, nextState: { ...state, pieces: moveBall(state, pending.target), actionResolution: null, actionContinuation: continuation || completedBonus || null, rollModifierOpportunities: opportunities, threeTwoOpportunity: { sourceAction: "LOFTED_THROUGH_BALL", team: pending.team, passerId: passer.id, target: pending.target, turn: tracker.currentTurn } }, event: { type: "LOFTED_THROUGH_BALL_COMPLETED", team: pending.team, metadata: { passerId: passer.id, target: pending.target, result: pending.result, ...recovery, bonusAction: continuation?.origin || null } }, timeline: { groupId: pending.bonusContinuationId || pending.id, undoMode: pending.bonusContinuationId ? "atomic" : "step", allowNoop: false } };
     }
     const candidates = recovery.defenderCandidates.map(item => ({ pieceId: item.piece.id, distance: item.distance, speed: item.speed }));
-    return { accepted: true, nextState: { ...state, pieces: moveBall(state, pending.target), rollModifierOpportunities: opportunities, actionResolution: { ...pending, status: candidates.length > 1 ? "awaiting-recoverer-choice" : "awaiting-recovery-confirmation", recovery: { type: "success-race", ...recovery, defenderCandidates: candidates, selectedRecovererId: candidates.length === 1 ? candidates[0].pieceId : null } }, threeTwoOpportunity: null }, event: { type: candidates.length > 1 ? "LOFTED_THROUGH_BALL_RECOVERER_CHOICE_REQUIRED" : "LOFTED_THROUGH_BALL_AUTO_RECOVERY_PENDING", team: otherTeam(pending.team), metadata: { passerId: passer.id, target: pending.target, result: pending.result, ...recovery } }, timeline: { groupId: pending.bonusContinuationId || pending.id, undoMode: pending.bonusContinuationId ? "atomic" : "step", allowNoop: false } };
+    return { accepted: true, nextState: { ...state, pieces: moveBall(state, pending.target), rollModifierOpportunities: opportunities, actionResolution: { ...pending, status: candidates.length > 1 ? "awaiting-recoverer-choice" : "awaiting-recovery-confirmation", recovery: { type: "success-race", ...recovery, defenderCandidates: candidates, selectedRecovererId: candidates.length === 1 ? candidates[0].pieceId : null } }, threeTwoOpportunity: null }, event: { type: candidates.length > 1 ? "LOFTED_THROUGH_BALL_RECOVERER_CHOICE_REQUIRED" : "LOFTED_THROUGH_BALL_AUTO_RECOVERY_PENDING", team: otherTeam(pending.team), metadata: { passerId: passer.id, target: pending.target, result: pending.result, ...recovery } }, timeline: { allowNoop: false } };
   }
   const candidates = failureCandidates(state, context, pending.team, pending.plan).map(item => ({ pieceId: item.piece.id, distance: item.distance, speed: item.speed }));
-  return { accepted: true, nextState: { ...state, rollModifierOpportunities: opportunities, actionResolution: { ...pending, status: candidates.length > 1 ? "awaiting-recoverer-choice" : "awaiting-recovery-confirmation", recovery: { type: "failure", defenderCandidates: candidates, selectedRecovererId: candidates.length === 1 ? candidates[0].pieceId : null } }, threeTwoOpportunity: null }, event: { type: candidates.length > 1 ? "LOFTED_THROUGH_BALL_FAILURE_RECOVERER_CHOICE_REQUIRED" : "LOFTED_THROUGH_BALL_FAILURE_PENDING", team: otherTeam(pending.team), metadata: { passerId: passer.id, target: pending.target, result: pending.result, defenderCandidates: candidates } }, timeline: { groupId: pending.bonusContinuationId || pending.id, undoMode: pending.bonusContinuationId ? "atomic" : "step", allowNoop: false } };
+  return { accepted: true, nextState: { ...state, rollModifierOpportunities: opportunities, actionResolution: { ...pending, status: candidates.length > 1 ? "awaiting-recoverer-choice" : "awaiting-recovery-confirmation", recovery: { type: "failure", defenderCandidates: candidates, selectedRecovererId: candidates.length === 1 ? candidates[0].pieceId : null } }, threeTwoOpportunity: null }, event: { type: candidates.length > 1 ? "LOFTED_THROUGH_BALL_FAILURE_RECOVERER_CHOICE_REQUIRED" : "LOFTED_THROUGH_BALL_FAILURE_PENDING", team: otherTeam(pending.team), metadata: { passerId: passer.id, target: pending.target, result: pending.result, defenderCandidates: candidates } }, timeline: { allowNoop: false } };
 }
 
 export function selectLoftedThroughBallRecoverer(state, command) {
@@ -222,6 +221,6 @@ export function confirmLoftedThroughBallRecovery(state) {
     return { accepted: true, nextState: { ...base, actionContinuation: continuation }, event: { type: "LOFTED_THROUGH_BALL_NATURAL_20", team: pending.team, metadata: { recovererId: recoverer.id, bonusAction: continuation.origin } }, timeline: { allowNoop: false } };
   }
   const empty = createEmptyTrackerTurnState();
-  const expired = expiredRollModifierOpportunities(state.rollModifierOpportunities, nextTurn);
-  return { accepted: true, nextState: { ...base, actionContinuation: null, rollModifierOpportunities: pruneRollModifierOpportunities(state.rollModifierOpportunities, nextTurn), tracker: { ...state.tracker, startingTeam: team, currentTurn: nextTurn, usedActions: empty.usedActions, actionLog: empty.actionLog, personalActionsByPieceId: empty.personalActionsByPieceId, matchActionState: empty.matchActionState, turnPhase: "attack" } }, event: { type: "LOFTED_THROUGH_BALL_RECOVERED", team, metadata: { recovererId: recoverer.id, startedTurn: nextTurn, result: pending.result, expiredRollModifierOpportunities: expired } }, timeline: { allowNoop: false } };
+  const expiredRollBonuses = expiredRollModifierOpportunities(state.rollModifierOpportunities, nextTurn);
+  return { accepted: true, nextState: { ...base, actionContinuation: null, rollModifierOpportunities: pruneRollModifierOpportunities(state.rollModifierOpportunities, nextTurn), tracker: { ...state.tracker, startingTeam: team, currentTurn: nextTurn, usedActions: empty.usedActions, actionLog: empty.actionLog, personalActionsByPieceId: empty.personalActionsByPieceId, matchActionState: empty.matchActionState, turnPhase: "attack" } }, event: { type: "LOFTED_THROUGH_BALL_RECOVERED", team, metadata: { recovererId: recoverer.id, startedTurn: nextTurn, result: pending.result, expiredRollBonuses: expiredRollBonuses.map(item => ({ id: item.id, team: item.team, modifierType: item.modifierType })) } }, timeline: { allowNoop: false } };
 }

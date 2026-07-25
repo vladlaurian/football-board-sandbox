@@ -2,14 +2,14 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
-## v20.55.3 — Bonus Action foundation recovery
+## v20.55.4 — Bonus Action foundation recovery
 
-- Starts from the accepted `v20.55.1` source; the rejected `v20.55.2` source is not a base or compatibility branch.
-- Establishes one offline Engine capability contract for the single Bonus Action: Move, Pass, Through Ball and Lofted Through Ball. Those actions enter and complete through canonical continuation state without normal Tracker cost; their atomic Timeline transaction remains intact.
-- Inspector and board use the official projection for Bonus Action availability. Free Move remains an Engine-owned administrative tool and is reachable during a ready Bonus Action; Group Move and unimplemented gameplay mechanics are not falsely offered.
-- Disables unimplemented Shot/Cross/Dribble/Tackling controls instead of consuming normal or Bonus Action economy with a fake manual declaration.
-- Makes roll-bonus token expiry an Engine-recorded turn-transition fact, clears tokens on Match Start/Restart, and shows the resulting expiry notice from Engine event metadata. Roll prompts/results use the stored modifier sources; draggable prompt controls retain click behavior; Dice opens for a pending roll and closes only after its complete resolution.
-- Manual Multiplayer remains unchanged.
+- Rebuilds offline Bonus Action around one typed Engine capability contract for Move, Pass, Through Ball and Lofted Through Ball. Their UI controls project the canonical continuation state; they do not open a local substitute action.
+- Repairs BA Move rejected-destination projection, preserving Engine geometry/cost/remaining Speed and preventing the `undefined` hover / render-crash path.
+- Keeps targeting actions out of movement presentation, allows Free Move during a ready Bonus Action, and disables presently unimplemented BA actions instead of declaring a manual gameplay action.
+- Selected AV/AVM is included in the official Engine-backed pending-roll preview. Roll prompts now include card statistic plus modifiers in `TOTAL BONUSES` for Interception as well as Lofted Through.
+- Defines current-turn AV/AVM gained inside an advancing Bonus Action as belonging to the resumed numbered turn. Token expiry is Engine-owned at every implemented turn advance and emits a user-facing loss notice when an unused token actually expires.
+- Manual Multiplayer remains unchanged. Pass/Interception direct-contact route integrity is intentionally deferred to the separately approved next build.
 
 ## v20.55.1 — Roll integrity and Lofted Through correction
 

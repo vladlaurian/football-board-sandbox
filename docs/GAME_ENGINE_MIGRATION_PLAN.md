@@ -576,7 +576,17 @@ v20.54.2 closes the action-identity audit found during Through Ball testing. Tra
 
 v20.54.3 completes the Through targeting interaction boundary without changing its Engine state. Any pending resolution, including `through-ball`, now locks the ordinary Inspector action row; Through Ball retains its dedicated inline cancellation control. Returning from route selection keeps the target in canonical targeting state, but the presentation suppresses the placed-ball preview until route selection resumes. This is projection-only and leaves Timeline/Undo/Redo semantics and Manual Multiplayer unchanged.
 
-v20.55.3 repairs the reusable offline Bonus Action foundation from the accepted `v20.55.1` baseline. `bonusActionCapabilities.mjs` is the one Engine capability registry for implemented consumers (`MOVE`, `PASS`, `THROUGH_BALL`, `LOFTED_THROUGH_BALL`). It coordinates existing continuation state with each action's command chain; normal Tracker action economy is bypassed only after that canonical Bonus Action start. `matchPresentationSelectors.mjs` projects the same capability state to both Inspector and board movement, preventing duplicate UI gates. Free Move remains a separately Engine-owned administrative command and is available during ready Bonus Action; Group Move and unimplemented mechanics are intentionally not capabilities. Roll modifier opportunities reset on Match start/restart, expire through Engine turn transitions with semantic metadata, and remain visible to presentation without UI lifecycle inference. Manual Multiplayer remains unchanged.
+### v20.55.4 — Bonus Action foundation recovery
+
+**Status:** Complete.
+
+The accepted v20.55.1 source is retained as the base; v20.55.2/20.55.3 are not used as trust bases. The build closes the discovered Bonus Action projection breach: BA Move preview calls an Engine evaluator rather than reading the stripped command envelope; Move, Pass, Through Ball and Lofted Through Ball use one typed Engine capability contract; and ready BA controls do not inherit normal Tracker exhaustion/phase locks. Free Move remains permitted during BA while targeting modes suppress movement presentation. Roll-token selection projects Engine-resolved numbers, and any turn advance prunes token expiry in Engine state/event metadata. Tests cover rejected BA Move geometry, implemented/unimplemented BA controls, Through Ball BA atomicity, selected AV/AVM preview, and a current-turn token earned in an advancing BA. Manual Multiplayer remains unchanged.
+
+### Next approved build — Pass / Interception route integrity
+
+**Status:** Queued; not implemented by v20.55.4.
+
+Resolve direct body contact before defensive-area interception. When a direct opponent contact determines reception/interception, no redundant defensive-area interception roll may occur. The persisted route projection must color only the actual route to contact and continue grey to the intended target. This is a rule/Engine and projection slice, not a cosmetic-only change.
 
 ## Required update after every implementation build
 
