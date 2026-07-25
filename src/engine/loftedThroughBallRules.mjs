@@ -174,6 +174,13 @@ export function resolveLoftedThroughBall(state, context) {
   const passer = state.pieces.find(piece => String(piece?.id) === String(pending?.passerId)) || null;
   if (!pending || pending.kind !== "lofted-through-ball" || pending.status !== "roll-resolved" || !passer) return { accepted: false, reason: "LOFTED_THROUGH_BALL_NOT_RESOLVED" };
   const tracker = normalizeTrackerSnapshot(state.tracker);
+  // A Natural 20 earned while resolving an existing BA replaces that BA, but
+  // it must inherit its numbered-turn resume policy.  Otherwise the child BA
+  // would resume the current phase and a token earned "this turn" could be
+  // stranded/expired at the wrong boundary.
+  const parentBonus = pending.bonusContinuationId
+    ? activeBonusActionFor(state, { team: pending.team, pieceId: passer.id, type: "LOFTED_THROUGH_BALL", continuationId: pending.bonusContinuationId })
+    : null;
   const grantCurrentTurnToken = pending.result.naturalEffect === "current-turn-roll-advantage" || pending.result.naturalEffect === "current-turn-roll-major-advantage";
   const tokenTurn = effectiveCurrentTurnForRollOpportunity(state, tracker.currentTurn);
   const opportunities = grantCurrentTurnToken ? grantRollModifierOpportunity(state.rollModifierOpportunities, {
@@ -185,11 +192,11 @@ export function resolveLoftedThroughBall(state, context) {
   if (pending.result.succeeds) {
     const recovery = successRace(state, context, pending.team, passer, pending.target);
     if (!recovery.defenderWins) {
-      const completedBonus = pending.bonusContinuationId
-        ? completeImplementedBonusAction(state, { team: pending.team, pieceId: passer.id, type: "LOFTED_THROUGH_BALL", continuationId: pending.bonusContinuationId })
+      const completedBonus = parentBonus
+        ? completeImplementedBonusAction(state, { team: pending.team, pieceId: passer.id, type: "LOFTED_THROUGH_BALL", continuationId: parentBonus.id })
         : null;
       const continuation = pending.result.naturalEffect === "passer-bonus-action"
-        ? createBonusCardActionContinuation({ id: `continuation_lofted_${pending.id}_${pending.lastRollEvent.id}`, team: pending.team, nextTurn: tracker.currentTurn, sourceEntryId: pending.id, resumePolicy: { type: "resume-phase", team: pending.team, nextTurn: tracker.currentTurn, phase: tracker.turnPhase }, origin: { actionType: "LOFTED_THROUGH_BALL", outcome: "SUCCESS", reason: "NATURAL_20", sourceEntryId: pending.id } }) : null;
+        ? createBonusCardActionContinuation({ id: `continuation_lofted_${pending.id}_${pending.lastRollEvent.id}`, team: pending.team, nextTurn: parentBonus?.resumePolicy?.nextTurn || tracker.currentTurn, sourceEntryId: pending.id, resumePolicy: parentBonus?.resumePolicy || { type: "resume-phase", team: pending.team, nextTurn: tracker.currentTurn, phase: tracker.turnPhase }, origin: { actionType: "LOFTED_THROUGH_BALL", outcome: "SUCCESS", reason: "NATURAL_20", sourceEntryId: pending.id, parentContinuationId: parentBonus?.id || null } }) : null;
       return { accepted: true, nextState: { ...state, pieces: moveBall(state, pending.target), actionResolution: null, actionContinuation: continuation || completedBonus || null, rollModifierOpportunities: opportunities, threeTwoOpportunity: { sourceAction: "LOFTED_THROUGH_BALL", team: pending.team, passerId: passer.id, target: pending.target, turn: tracker.currentTurn } }, event: { type: "LOFTED_THROUGH_BALL_COMPLETED", team: pending.team, metadata: { passerId: passer.id, target: pending.target, result: pending.result, ...recovery, bonusAction: continuation?.origin || null } }, timeline: { groupId: pending.bonusContinuationId || pending.id, undoMode: pending.bonusContinuationId ? "atomic" : "step", allowNoop: false } };
     }
     const candidates = recovery.defenderCandidates.map(item => ({ pieceId: item.piece.id, distance: item.distance, speed: item.speed }));

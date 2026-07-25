@@ -206,7 +206,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.55.4";
+const APP_VERSION = "v20.55.5";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -1924,8 +1924,10 @@ function DraggableActionPrompt({ promptKey, className = "", children }) {
 
   function onPointerDown(event) {
     if (event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
+    // Controls inside a draggable prompt must remain ordinary controls.
+    // Starting a drag from a button used to swallow its click, including AV/
+    // AVM choices.  Only non-interactive prompt chrome can initiate a drag.
+    if (event.target.closest("button, input, select, textarea, label, a, [data-prompt-interactive]")) return;
     dragRef.current = { pointerId: event.pointerId, dx: event.clientX - position.x, dy: event.clientY - position.y };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
@@ -2265,9 +2267,11 @@ function App() {
   }, [actionResolution]);
   useEffect(() => { actionContinuationRef.current = actionContinuation; }, [actionContinuation]);
   useEffect(() => {
-    if (actionResolution?.kind !== "pass" || actionResolution.status !== "awaiting-interception-roll") return;
-    // A reaction roll is never optional UI. Opening Dice and pinning D20
-    // removes an avoidable extra click while keeping the roll itself manual.
+    const pendingRoll = (actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interception-roll")
+      || (actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "awaiting-roll");
+    if (!pendingRoll) return;
+    // Any canonical pending D20 roll opens Dice; mechanics do not get their
+    // own UI-only exceptions.
     setDicePanelVisible(true);
     setDieType(20);
   }, [actionResolution]);

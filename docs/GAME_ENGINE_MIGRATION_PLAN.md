@@ -582,9 +582,15 @@ v20.54.3 completes the Through targeting interaction boundary without changing i
 
 The accepted v20.55.1 source is retained as the base; v20.55.2/20.55.3 are not used as trust bases. The build closes the discovered Bonus Action projection breach: BA Move preview calls an Engine evaluator rather than reading the stripped command envelope; Move, Pass, Through Ball and Lofted Through Ball use one typed Engine capability contract; and ready BA controls do not inherit normal Tracker exhaustion/phase locks. Free Move remains permitted during BA while targeting modes suppress movement presentation. Roll-token selection projects Engine-resolved numbers, and any turn advance prunes token expiry in Engine state/event metadata. Tests cover rejected BA Move geometry, implemented/unimplemented BA controls, Through Ball BA atomicity, selected AV/AVM preview, and a current-turn token earned in an advancing BA. Manual Multiplayer remains unchanged.
 
+### v20.55.5 — Bonus Action recovery
+
+**Status:** Complete.
+
+This recovery continues from v20.55.4 source, not from a prior trust base. It repairs the three broken boundaries found in acceptance: prompt dragging no longer consumes button clicks, all canonical pending D20 rolls open Dice automatically, and Match lifecycle/Editor exit clear temporary AV/AVM and 3/2 state. It also removes the contradictory 3/2 condition where the command guard permitted BA but its evaluator rejected it: a granted 3/2 is now legal for the owning ready/active Bonus Action team under its unchanged target, path, range, one-use and passer exclusions. A Natural-20 Lofted Through that replaces an active BA inherits the parent resume policy so the generated AV/AVM is assigned to, and survives into, the real resumed numbered turn. Tests cover the BA 3/2 case and Start/Restart/Editor token cleanup. Manual Multiplayer remains unchanged.
+
 ### Next approved build — Pass / Interception route integrity
 
-**Status:** Queued; not implemented by v20.55.4.
+**Status:** Queued; not implemented by v20.55.5.
 
 Resolve direct body contact before defensive-area interception. When a direct opponent contact determines reception/interception, no redundant defensive-area interception roll may occur. The persisted route projection must color only the actual route to contact and continue grey to the intended target. This is a rule/Engine and projection slice, not a cosmetic-only change.
 

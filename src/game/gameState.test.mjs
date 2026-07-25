@@ -48,6 +48,8 @@ test("leaving Match creates an Editor state without Match-only interaction locks
   assert.equal(exited.gameMode, "editor");
   assert.equal(exited.actionResolution, null);
   assert.equal(exited.actionContinuation, null);
+  assert.deepEqual(exited.rollModifierOpportunities, []);
+  assert.equal(exited.threeTwoOpportunity, null);
   assert.deepEqual(exited.tracker.personalActionsByPieceId, {});
   assert.equal(exited.tracker.matchActionState.freeMode.active, false);
   assert.equal(exited.tracker.matchActionState.groupMove.active, false);

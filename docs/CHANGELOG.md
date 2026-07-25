@@ -2,6 +2,15 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.55.5 — Bonus Action recovery
+
+- Repairs draggable offline action prompts so interactive child controls, including AV/AVM selection, receive normal clicks; only non-interactive prompt surface begins a drag.
+- Generalizes automatic Dice opening from Pass-only logic to every implemented canonical pending D20 roll, including Lofted Through.
+- Clears roll-modifier opportunities and 3/2 opportunities canonically at Match Start, Match Restart, and Match → Editor; they cannot leak between Match lifecycles or into Editor.
+- Corrects the contradictory 3/2 Bonus Action gate: an owning BA team may use a granted 3/2 opportunity under the same target/range/path/passer/one-use restrictions as normal play.
+- A Natural-20 Lofted Through that replaces an existing BA inherits that BA's resume policy. Its current-turn AV/AVM is therefore tied to the actual numbered turn reached after `END B.A.`, rather than being stranded at an internal BA boundary.
+- Manual Multiplayer remains unchanged.
+
 ## v20.55.4 — Bonus Action foundation recovery
 
 - Rebuilds offline Bonus Action around one typed Engine capability contract for Move, Pass, Through Ball and Lofted Through Ball. Their UI controls project the canonical continuation state; they do not open a local substitute action.

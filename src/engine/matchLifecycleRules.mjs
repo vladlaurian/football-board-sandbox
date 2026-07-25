@@ -14,6 +14,10 @@ function playableFirstTurn(state, team, { restarted = false } = {}) {
       movementStateByPieceId: {},
       actionResolution: null,
       actionContinuation: null,
+      // A newly started/restarted Match never inherits temporary opportunities
+      // from an earlier Match lifecycle.
+      rollModifierOpportunities: [],
+      threeTwoOpportunity: null,
       tracker: {
         ...state.tracker,
         gameStarted: true,

@@ -265,6 +265,8 @@ test("MATCH_STARTED creates the canonical playable first turn and clears stale i
     movementStateByPieceId: { "blue-1": { spent: 2 } },
     actionResolution: { id: "stale-pass", kind: "pass" },
     actionContinuation: { id: "stale-bonus", kind: "bonus-card-action", team: "blue", status: "ready" },
+    rollModifierOpportunities: [{ id: "stale-av", team: "blue", modifierType: "advantage", availableFromTurn: 1, expiresAfterTurn: 1 }],
+    threeTwoOpportunity: { team: "blue", passerId: "blue-9", target: { x: 4, y: 5 }, turn: 1 },
     tracker: {
       gameStarted: false,
       currentTurn: 0,
@@ -289,6 +291,8 @@ test("MATCH_STARTED creates the canonical playable first turn and clears stale i
   assert.deepEqual(result.nextState.movementStateByPieceId, {});
   assert.equal(result.nextState.actionResolution, null);
   assert.equal(result.nextState.actionContinuation, null);
+  assert.deepEqual(result.nextState.rollModifierOpportunities, []);
+  assert.equal(result.nextState.threeTwoOpportunity, null);
   assert.equal(result.events[0].type, "MATCH_STARTED");
   assert.deepEqual(result.events[0].metadata, { startingTeam: "blue", startedTurn: 1, restarted: false });
 });
@@ -302,6 +306,8 @@ test("MATCH_RESTARTED restarts an existing Match without moving any board piece"
     movementStateByPieceId: { "blue-1": { axis: "horizontal", spent: 3, distance: 3 } },
     actionResolution: { id: "restart-pass", kind: "pass" },
     actionContinuation: { id: "restart-bonus", kind: "bonus-card-action", team: "blue", status: "ready" },
+    rollModifierOpportunities: [{ id: "restart-avm", team: "red", modifierType: "majorAdvantage", availableFromTurn: 6, expiresAfterTurn: 6 }],
+    threeTwoOpportunity: { team: "red", passerId: "red-9", target: { x: 8, y: 5 }, turn: 6 },
     tracker: {
       ...normalMoveState().tracker,
       currentTurn: 6,
@@ -324,6 +330,8 @@ test("MATCH_RESTARTED restarts an existing Match without moving any board piece"
   assert.deepEqual(result.nextState.movementStateByPieceId, {});
   assert.equal(result.nextState.actionResolution, null);
   assert.equal(result.nextState.actionContinuation, null);
+  assert.deepEqual(result.nextState.rollModifierOpportunities, []);
+  assert.equal(result.nextState.threeTwoOpportunity, null);
   assert.equal(result.events[0].type, "MATCH_STARTED");
   assert.equal(result.events[0].metadata.restarted, true);
 });
@@ -510,7 +518,7 @@ test("THREE_TWO_MOVE_COMMITTED is a free active-phase action and preserves the b
   assert.equal(result.events[0].metadata.movementReason, "THREE_TWO");
 });
 
-test("THREE_TWO_MOVE is not available to a Bonus Action owner outside the active Tracker phase", () => {
+test("THREE_TWO_MOVE is available to the owning Bonus Action team outside the regular Tracker phase", () => {
   const state = createGameState({
     gameMode: "match",
     pieces: [
@@ -525,6 +533,7 @@ test("THREE_TWO_MOVE is not available to a Bonus Action owner outside the active
       settings: { attackActions: 5, defenseActions: 4, turns: 20 },
     },
     actionContinuation: { id: "bonus-red", kind: "bonus-card-action", team: "red", status: "action-active", actionType: "MOVE", pieceId: "red-1" },
+    threeTwoOpportunity: { sourceAction: "LOFTED_THROUGH_BALL", team: "red", passerId: "other", target: { x: 5, y: 5 }, turn: 2 },
   });
   const context = createMatchContext({ gameplayCards: [{ id: "card-red-1", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] }] });
   const result = applyGameCommand({
@@ -532,8 +541,9 @@ test("THREE_TWO_MOVE is not available to a Bonus Action owner outside the active
     context,
     command: { id: "bonus-three-two", type: "THREE_TWO_MOVE_COMMITTED", payload: { pieceId: "red-1", x: 5, y: 5 } },
   });
-  assert.equal(result.accepted, false);
-  assert.equal(result.reason, "wait-active-team");
+  assert.equal(result.accepted, true);
+  assert.equal(result.nextState.pieces.find(piece => piece.id === "red-1").x, 5);
+  assert.equal(result.nextState.threeTwoOpportunity, null);
 });
 
 test("Bonus Action locks unrelated Engine commands while retaining Three Two and Free Move", () => {

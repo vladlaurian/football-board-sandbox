@@ -117,6 +117,10 @@ export function createEditorStateAfterMatchExit(rawState) {
     gameMode: "editor",
     actionResolution: null,
     actionContinuation: null,
+    // Roll bonuses and 3/2 grants are Match-runtime opportunities. They must
+    // never leak into the unrestricted Editor workspace.
+    rollModifierOpportunities: [],
+    threeTwoOpportunity: null,
     tracker: {
       ...state.tracker,
       // Personal-action values belong to the Match that is being closed.

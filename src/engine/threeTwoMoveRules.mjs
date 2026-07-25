@@ -2,6 +2,7 @@ import { getMovementGeometry } from "../board/movementState.mjs";
 import { cardStat, teamKeyForPiece } from "../rules/passEngine.mjs";
 import { isTeamActiveForTrackerPhase } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
+import { normalizeActionContinuation } from "../match/actionContinuation.mjs";
 import { firstPlayerBlockingMovementPath } from "./movementPathRules.mjs";
 
 function threeTwoMovementState(value) {
@@ -37,7 +38,15 @@ export function evaluateThreeTwoMove(state, context, command) {
   const current = threeTwoMovementState(state.movementStateByPieceId[piece.id]);
   const ball = state.pieces.find(item => item?.team === "BALL");
   if (!tracker.gameStarted || tracker.currentTurn < 1) return { eligible: false, reason: "match-not-started", geometry, current };
-  if (!team || !isTeamActiveForTrackerPhase(tracker, team)) return { eligible: false, reason: "wait-active-team", geometry, current };
+  // 3/2 is a granted follow-up, not a Tracker card action.  It is legal for
+  // the owner of an active Bonus Action as well as for the regular active
+  // Tracker team.  The opportunity itself still supplies all target, turn,
+  // passer, range and path restrictions below.
+  const continuation = normalizeActionContinuation(state.actionContinuation);
+  const teamOwnsBonusAction = continuation?.kind === "bonus-card-action"
+    && continuation.team === team
+    && ["ready", "action-active"].includes(continuation.status);
+  if (!team || (!isTeamActiveForTrackerPhase(tracker, team) && !teamOwnsBonusAction)) return { eligible: false, reason: "wait-active-team", geometry, current };
   if (!ball || Number(ball.x) !== x || Number(ball.y) !== y) return { eligible: false, reason: "not-ball", geometry, current };
   const opportunity = state.threeTwoOpportunity;
   if (!opportunity || opportunity.team !== team || opportunity.passerId === piece.id || Number(opportunity.target?.x) !== x || Number(opportunity.target?.y) !== y || Number(opportunity.turn) !== Number(tracker.currentTurn)) return { eligible: false, reason: "three-two-not-granted", geometry, current };
