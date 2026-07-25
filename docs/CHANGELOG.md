@@ -2,6 +2,12 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.54.3 — Through Ball targeting lock and preview cleanup
+
+- While offline Through Ball targeting or route selection is pending, the normal Inspector action row is locked; the dedicated Through Ball control remains the only cancellation route, matching the existing Pass interaction contract.
+- Cancelling a selected Through Ball route keeps its target in canonical MatchState for the next targeting click, but suppresses the visual placed-ball preview until a route is selected again.
+- Manual Multiplayer remains unchanged.
+
 ## v20.53.6 — Pass coordinate contract and integer limits
 
 - Corrected offline corner-origin handling: a selected corner still determines foot and physical route, while body position, distance and defensive-area eligibility use the passer-square centre.

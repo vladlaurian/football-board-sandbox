@@ -248,8 +248,11 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
   const current = state?.tracker?.matchActionState || {};
   const pieceState = current.byPieceId?.[piece?.id] || {};
   const continuation = control.continuation;
-  const pending = control.pending?.kind === "pass" ? control.pending : null;
-  const passCancellable = type === "PASS" && pending?.passerId === piece?.id && ["targeting", "route-selection"].includes(pending.status);
+  // A pending resolution locks the ordinary action row regardless of its
+  // mechanic. Only Pass has a row-level cancellation label; Through Ball
+  // owns its inline control separately in the Inspector.
+  const pending = control.pending || null;
+  const passCancellable = type === "PASS" && pending?.kind === "pass" && pending?.passerId === piece?.id && ["targeting", "route-selection"].includes(pending.status);
   const normalMove = current.activeMovement || {};
   const moveCancellable = type === "MOVE" && normalMove.active && normalMove.kind === "normal-move" && String(normalMove.pieceId || "") === String(piece?.id || "");
   const bonusMoveCancellable = type === "MOVE" && continuation?.status === "action-active" && continuation.actionType === "MOVE" && String(continuation.pieceId || "") === String(piece?.id || "") && !continuation.movementStarted;
