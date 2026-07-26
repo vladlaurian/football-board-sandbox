@@ -16,7 +16,7 @@ The visible Sandbox label is defined in `src/main.jsx` as `v20.56.1`. The reposi
 
 ## Current release
 
-v20.56.1 completes the approved offline Long Pass correction. In the established launch and landing neighbourhoods, Long Pass now applies Short Pass's per-traversed-defensive-cell visibility rule instead of testing only endpoint-anchor membership; the aerial middle remains excluded. Pass route presentation now distinguishes a selected receiver from an intermediate body contact, so only a true early contact creates a grey continuation. Match → Editor now requires an explicit safety confirmation before the existing unsaved-recording decision. Manual Multiplayer remains unchanged.
+v20.56.1 completes the approved offline Long Pass correction. A Long defender is activated only when its defensive area contains the passer or receiver body at the respective endpoint; for that defender, every physically crossed defensive-area cell is then checked independently with Short Pass visibility. The aerial middle remains excluded. Pass route presentation distinguishes a selected receiver from an intermediate body contact, so only a true early contact creates a grey continuation. Match → Editor requires an explicit safety confirmation before the existing unsaved-recording decision. Manual Multiplayer remains unchanged.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

@@ -135,16 +135,17 @@ The exact interception resolution continues to be stored with its numeric values
 
 Long Pass remains one `PASS` action and one Pass plan. It is aerial through its middle: defensive areas and bodies crossed only in that middle aerial section do not create an interception.
 
-At each permitted reaction zone (origin first, then destination), eligibility follows the **same per-crossed-cell rule as Short Pass**:
+At each permitted reaction group (origin first, then destination), eligibility follows the **same per-crossed-cell rule as Short Pass**:
 
-1. find every defensive-area cell actually crossed by the physical selected-corner-to-target route in that local reaction zone;
-2. for each defender owning such a crossed cell, test whether that defender has a clear geometric path to the ball at that concrete crossed cell;
-3. an opposing body blocks only if the defender-to-ball segment actually crosses that body's occupied square; adjacent or lateral bodies do not block it;
-4. every defender that passes that test is eligible to roll, ordered by the established endpoint priority; equal defenders use the defending-coach choice.
+1. activate an origin defender only when its defensive area contains the passer's occupied cell; activate a destination defender only when its defensive area contains the receiver's occupied cell;
+2. for every activated defender, find every one of its defensive-area cells actually crossed by the physical selected-corner-to-target route;
+3. test every crossed cell separately: the defender must have a clear geometric path to the ball at that concrete crossed cell;
+4. an opposing body blocks only if the defender-to-ball segment actually crosses that body's occupied square; adjacent or lateral bodies do not block it. A blocked cell does not remove another clear crossed cell for that defender;
+5. every defender with at least one clear crossed cell is eligible to roll, ordered by the established endpoint priority; equal defenders use the defending-coach choice.
 
 The route's selected corner changes the physical route and therefore may change which defensive-area cell is crossed. It never changes distance measurement or the passer's body position. The selected target is a destination, not an obstruction: its ordinary receipt must not erase a separately eligible defender reaction. Conversely, a body that the route actually contacts before the requested target remains a direct reception/interception and takes precedence over a redundant roll.
 
-The existing Long Pass endpoint-contact rule defines the local border: the occupied endpoint square and its eight adjacent squares form the launch/landing neighbourhood. The Engine persists the route cells belonging to each such neighbourhood as `longReactionZones`; all other cells are the aerial middle and cannot create body contact or interception. Endpoint squares remain included even where an open-interior segment starts on a corner or ends at a centre. This is an Engine fact, tested independently, and never guessed by UI geometry.
+The endpoint body-contact rule remains separate from interception eligibility. The eligibility boundary is not a fixed cell neighbourhood: the passer/receiver occupied cell activates the respective defender only when it belongs to that defender's defensive area, and only that defender's physically crossed defensive-area cells are then evaluated. All other defensive-area crossings are aerial middle and cannot create an interceptor. This is an Engine fact, tested independently, and never guessed by UI geometry.
 
 Origin and destination remain one Long Pass contest: destination starts after every origin roll, so progressive stacks and carried Natural-1 disadvantage continue without reset, up to the shared global cap. The frozen plan stores the stable Long Pass attacker stat ID/value, crossed reaction cells, defender eligibility, modifiers, rolls and results, so Timeline, Undo/Redo, Replay and AI never reconstruct them from UI.
 

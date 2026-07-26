@@ -4,8 +4,8 @@ This is the compact release history. Current architecture and rules are document
 
 ## v20.56.1 — Long Pass route integrity
 
-- Repairs offline Long Pass eligibility by applying the Short Pass per-crossed-defensive-cell rule in the established origin and destination endpoint neighbourhoods. The aerial middle remains excluded.
-- Persists `longReactionZones`, concrete crossed defensive cells, reaction points and the unified origin-before-destination interceptor stack for Timeline, Undo/Redo, Replay and AI export.
+- Repairs offline Long Pass eligibility: a defender is activated only when its defensive area contains the passer or receiver at the respective endpoint, then each one of that defender's physically crossed defensive-area cells uses the Short Pass visibility test independently. The aerial middle remains excluded.
+- Persists concrete crossed defensive cells, reaction points and the unified origin-before-destination interceptor stack for Timeline, Undo/Redo, Replay and AI export.
 - Makes selected-target receipt distinct from an intermediate body contact in the canonical Pass route projection. Only the latter creates a coloured-to-grey split; badges and route segments consume the same Engine verdict.
 - Adds a first Match → Editor safety confirmation before the existing unsaved-recording dialog.
 - Manual Multiplayer, Firebase authority and `src/multiplayer/` remain unchanged.

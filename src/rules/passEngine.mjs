@@ -350,23 +350,6 @@ function endpointBodyContact(origin, targetPoint, passer, targetPlayer, pieces) 
   return contacts[0] || null;
 }
 
-function pointOnSegment(origin, endpoint, t) {
-  return {
-    x: Number(origin.x) + (Number(endpoint.x) - Number(origin.x)) * Number(t),
-    y: Number(origin.y) + (Number(endpoint.y) - Number(origin.y)) * Number(t),
-  };
-}
-
-function longPassReactionPoint(group, origin, endpoint, anchor) {
-  if (group === "origin") return { x: Number(origin.x), y: Number(origin.y) };
-  const rect = { x: Number(anchor.x), y: Number(anchor.y) };
-  const entryT = segmentEntryT(origin, endpoint, rect);
-  if (entryT !== null) return pointOnSegment(origin, endpoint, entryT);
-  const contactT = segmentClosedContactT(origin, endpoint, rect);
-  if (contactT !== null) return pointOnSegment(origin, endpoint, contactT);
-  return pointForPassTarget(anchor);
-}
-
 export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, target, cornerId, rules, legacyManual = false }) {
   const passRules = rules?.actions?.pass || rules || {};
   const configuredInterceptionRules = rules?.actions?.interception || {};
@@ -425,20 +408,29 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     })
     .filter(item => item.visibleCells.length);
   const longGroup = (group, anchor) => {
-    const reactionPoint = longPassReactionPoint(group, origin, effectiveTargetPoint, anchor);
     return (pieces || [])
     .filter(piece => teamKeyForPiece(piece) === defenseTeam && !piece.inactive)
     .map(defender => {
       const cells = defensiveCellsForPiece(defender, cardById?.[defender.cardId], settings);
-      const matching = cells.filter(cell => cell.x === Number(anchor.x) && cell.y === Number(anchor.y));
-      const visibleCells = matching.filter(() => isPointVisibleToDefender(defender, reactionPoint, pieces));
+      // A Long Pass is aerial except at its two endpoints.  An endpoint only
+      // activates this defender when the passer/receiver body is in that
+      // defender's defensive area. Once activated, use the same rule as a
+      // Short Pass: every one of this defender's area cells physically crossed
+      // by this selected-corner route is considered on its own.
+      const endpointInDefensiveArea = cells.some(cell => cell.x === Number(anchor.x) && cell.y === Number(anchor.y));
+      const crossedCells = endpointInDefensiveArea
+        ? cells.map(cell => ({ ...cell, passEntryT: segmentEntryT(origin, effectiveTargetPoint, cell) }))
+          .filter(cell => cell.passEntryT !== null)
+        : [];
+      const visibleCells = crossedCells.filter(cell => isCellVisibleToDefender(defender, cell, pieces));
+      const firstVisibleCell = visibleCells.slice().sort((left, right) => left.passEntryT - right.passEntryT)[0] || null;
       const priorityDistanceSquared = interceptorPriorityDistanceSquared(anchor, defender);
       return {
         defender,
-        cells: matching,
+        cells: crossedCells,
         visibleCells,
-        reactionPoint,
-        firstEntryT: null,
+        reactionPoint: firstVisibleCell ? pointForPassTarget(firstVisibleCell) : null,
+        firstEntryT: firstVisibleCell?.passEntryT ?? null,
         priorityDistanceSquared,
         priorityDistance: Math.sqrt(priorityDistanceSquared),
         priorityMethod: `${group}-endpoint-square-center-to-defender-square-center`,

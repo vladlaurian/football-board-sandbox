@@ -66,7 +66,7 @@ README records the current release. Changelogs record implementation history. Th
 
 - Rule Set schema v8 owns the threshold; MatchContext resolves and freezes the stable global `Long Pass` stat ID without exposing a Rule Set selector.
 - Compact MatchContext gameplay cards retain stable stat IDs, so visible stat renames cannot alter a frozen match.
-- The Long plan persists endpoint-local reaction cells, group identity, reaction points and progressive/Natural-1 sequencing from origin through destination; Timeline, Replay and AI display stored facts rather than recomputing geometry or values.
+- The Long plan persists the activated endpoint group, each eligible defender's physically crossed defensive cells, reaction points and progressive/Natural-1 sequencing from origin through destination; Timeline, Replay and AI display stored facts rather than recomputing geometry or values. Activation is symmetric: the passer/receiver body must belong to the defender's area; aerial-middle crossings alone cannot activate a defender.
 - Every Pass plan persists one direct-contact fact and its canonical route verdict. The Single Player projection converts it into a shared Short/Long segmented route; a selected target is not an intermediate impact, and UI neither discovers contact nor independently chooses a conflicting colour verdict.
 - The frozen Manual Multiplayer/session branch remains on its legacy Pass plan and is not silently migrated by this decision.
 
