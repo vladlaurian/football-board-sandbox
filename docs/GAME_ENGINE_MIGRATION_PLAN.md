@@ -618,6 +618,10 @@ The Engine now treats `awaiting-end-bonus-action` as an eligible owner state for
 
 The direct-contact priority, crossed-cell Long eligibility and Engine-owned segmented projection are complete in v20.56.1. A selected target is not an intermediate impact. No next scope is authorized by this migration plan.
 
+### v20.56.2 — Generic gameplay-roll result hold
+
+Offline Single Player now preserves a canonical one-second result hold after `DICE_ROLLED` and before an automatic consequence. The shared delayed-resolution descriptor is the only timer boundary; Pass/Interception no longer resolves directly from the Dice animation callback. Future automatic pending-roll actions inherit the same scheduler by using `createSinglePlayerRollResultHold(...)` and their action-specific Engine resolution adapter. Extra Roll and frozen Manual Multiplayer remain outside this automatic-consequence hold.
+
 ## Required update after every implementation build
 
 - mark only completed items complete;

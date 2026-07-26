@@ -207,7 +207,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.1";
+const APP_VERSION = "v20.56.2";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5589,31 +5589,12 @@ function App() {
         showDiceNotice(team, result, rollingDieType);
         if (extraRoll) setExtraRollArmed(false);
         const delayedResolution = dispatched.entry?.metadata?.delayedResolution;
-        // Offline play keeps the short die animation, then resolves an
-        // interception immediately.  The descriptor remains in the Engine
-        // event for the frozen Manual Multiplayer path; Single Player does
-        // not schedule a second suspense/cooldown delay after the animation.
-        if (delayedResolution && pending?.kind === "pass") {
-          const resolved = dispatchSinglePlayerGameCommand({
-            timeline: dispatched.timeline,
-            state: dispatched.state,
-            context: singlePlayerMatchContext(),
-            command: {
-              id: createActionEventId(`pass_resolution_due_${pending.id}`),
-              type: GAME_COMMAND_TYPE.PASS_INTERCEPTION_RESOLUTION_DUE,
-              payload: { passId: pending.id, rollEventId: rollEvent.id },
-            },
-            label: `${getPieceDisplayLabel((piecesRef.current || pieces).find(piece => piece.id === pending?.plan?.interceptors?.[pending.interceptorIndex]?.defender?.id))} interception result`,
-          });
-          if (!resolved.result.accepted) {
-            setPassResultNotice({
-              id: `interception_resolution_rejected_${Date.now()}`,
-              title: "Interception result not accepted",
-              lines: [String(resolved.result.reason || "The Engine rejected the immediate interception resolution.")],
-            });
-            return;
-          }
-          resolveRecordedPassInterception(resolved.state.actionResolution);
+        // The generic Engine descriptor holds the final canonical die face
+        // before an automatic consequence. It is one scheduler for every
+        // present/future pending-roll action, never an action-local Pass timer.
+        if (delayedResolution) {
+          const diceEntry = dispatched.timeline?.entries?.[(dispatched.timeline?.cursor || 0) - 1];
+          scheduleDelayedResolution({ ...delayedResolution, entryId: String(diceEntry?.id || "") });
         }
         return;
       }

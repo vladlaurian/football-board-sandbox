@@ -269,7 +269,7 @@ test("offline Dice UI derives pending-roll availability and die type without Pas
   assert.doesNotMatch(autoOpen, /lofted-through-ball|awaiting-interception-roll/);
 });
 
-test("offline Dice has no post-roll cooldown while Timeline navigation is guarded during animation", () => {
+test("offline Dice schedules the generic canonical result hold while Timeline navigation is guarded during animation", () => {
   const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
   const reserve = localFunctionSource(source, "reserveDiceRoll");
   assert.match(reserve, /if \(!sessionCode\) \{\s*return true;/);
@@ -277,9 +277,8 @@ test("offline Dice has no post-roll cooldown while Timeline navigation is guarde
   const offlineBranchStart = roll.indexOf("if (offlineMatch)");
   const offlineBranchEnd = roll.indexOf("      setResult(result);", offlineBranchStart);
   const offlineBranch = roll.slice(offlineBranchStart, offlineBranchEnd);
-  assert.match(offlineBranch, /PASS_INTERCEPTION_RESOLUTION_DUE/);
-  assert.match(offlineBranch, /resolveRecordedPassInterception/);
-  assert.doesNotMatch(offlineBranch, /scheduleDelayedResolution/);
+  assert.match(offlineBranch, /scheduleDelayedResolution/);
+  assert.doesNotMatch(offlineBranch, /PASS_INTERCEPTION_RESOLUTION_DUE/);
   const undo = localFunctionSource(source, "undo");
   const redo = localFunctionSource(source, "redo");
   assert.match(undo, /if \(diceAnimationActive\(\)\) return;/);

@@ -3,9 +3,11 @@ import test from "node:test";
 import {
   canonicalDelayedResolutionContext,
   createDelayedResolution,
+  createSinglePlayerRollResultHold,
   diagnoseCanonicalDelayedResolution,
   delayedResolutionAtCursor,
   delayedResolutionRemaining,
+  SINGLE_PLAYER_ROLL_RESULT_HOLD_MS,
   shouldScheduleCanonicalDelayedResolution,
 } from "./delayedResolution.mjs";
 
@@ -25,6 +27,12 @@ test("creates a serializable cosmetic deadline without changing gameplay state",
   assert.equal(request.actionId, "pass-1");
   assert.deepEqual(request.payload, { defenderId: "blue-st" });
   assert.equal(pendingPass.status, "awaiting-interception-roll");
+});
+
+test("the shared Single Player gameplay-roll hold is exactly one second", () => {
+  const hold = createSinglePlayerRollResultHold({ kind: "future-action", actionId: "future-1", createdAt: 5000 });
+  assert.equal(SINGLE_PLAYER_ROLL_RESULT_HOLD_MS, 1000);
+  assert.equal(hold.resolveAt, 6000);
 });
 
 test("derives a pending resolution only from the applied DICE_ROLLED entry", () => {

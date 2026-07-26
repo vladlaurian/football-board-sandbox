@@ -2,6 +2,12 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.2 — Canonical gameplay-roll result hold
+
+- Adds one shared `1000 ms` offline Single Player hold between a revealed gameplay die face and an automatic consequence. The canonical delayed-resolution descriptor is stored with `DICE_ROLLED`, so the same deadline survives Timeline navigation without a local mechanic timer.
+- Pass/Interception now uses that shared scheduler instead of resolving immediately after the die animation. Future automatic actions use `createSinglePlayerRollResultHold(...)`; Extra Roll remains immediate because it has no gameplay consequence.
+- Manual Multiplayer and its frozen timing path remain unchanged.
+
 ## v20.56.1 — Long Pass route integrity
 
 - Repairs offline Long Pass eligibility: a defender is activated only when its defensive area contains the passer or receiver at the respective endpoint, then each one of that defender's physically crossed defensive-area cells uses the Short Pass visibility test independently. The aerial middle remains excluded.

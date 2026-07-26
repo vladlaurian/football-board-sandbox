@@ -1,4 +1,8 @@
 export const DELAYED_RESOLUTION_SCHEMA_VERSION = 2;
+// Offline Match reveals the canonical die face for this fixed interval before
+// an automatic gameplay consequence may be applied. Future pending-roll
+// actions reuse this contract rather than introducing action-local timers.
+export const SINGLE_PLAYER_ROLL_RESULT_HOLD_MS = 1000;
 
 function safeObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -28,6 +32,13 @@ export function createDelayedResolution({
     resolveAt: safeCreatedAt + safeDelay,
     payload: { ...safeObject(payload) },
   };
+}
+
+export function createSinglePlayerRollResultHold(options = {}) {
+  return createDelayedResolution({
+    ...options,
+    delayMs: SINGLE_PLAYER_ROLL_RESULT_HOLD_MS,
+  });
 }
 
 export function delayedResolutionAtCursor(timeline, actionResolution) {

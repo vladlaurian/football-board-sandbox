@@ -1469,6 +1469,7 @@ test("PASS_INTERCEPTION_ROLL_SUBMITTED consumes the exact pending roll and start
   assert.deepEqual(result.nextState.actionResolution.consumedEventIds, ["roll-event-1"]);
   assert.equal(result.nextState.dice.redResult, 13);
   assert.equal(result.events[0].metadata.delayedResolution.payload.defenderId, "red-1");
+  assert.equal(result.events[0].metadata.delayedResolution.resolveAt, 2000);
   assert.deepEqual(result.nextState.tracker, before.tracker);
   assert.deepEqual(result.nextState.pieces, before.pieces);
   const submittedBefore = structuredClone(result.nextState);
