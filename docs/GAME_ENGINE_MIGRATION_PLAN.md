@@ -430,9 +430,11 @@ Offline Dice now projects the canonical `actionResolution.pendingRoll` request f
 
 The generic gameplay-roll command is now admitted during Bonus Action only when its canonical pending request belongs to the exact active continuation. This fixes the otherwise silent BA → Lofted Through rejection without adding an LT-specific exception, and is the contract future rolling BA mechanics inherit. Offline Pass/Interception resolves immediately after the same short Dice animation used by every roll; its former extra suspense timer is retained only by the frozen Manual Multiplayer path.
 
-### v20.56.0 — Pass contact and interception projection integrity
+### v20.56.1 — Pass contact and interception projection integrity
 
-Offline Pass now persists one direct-contact projection for both Short and Long routes. The board receives the Engine-owned coloured-to-contact plus grey-to-requested-target segments and uses the same verdict for each origin badge. Long Pass remains aerial through its middle, but its origin/destination defender groups now test their actual line to the local launch/landing ball point rather than a centre-cell shortcut with a passer/receiver exemption. Manual Multiplayer is explicitly outside this slice.
+**Status: complete.**
+
+Offline Pass persists one direct-contact projection for both Short and Long routes. Long now applies Short's per-crossed-defensive-cell visibility rule in the existing launch/landing endpoint neighbourhoods, stores those canonical `longReactionZones`, and excludes the aerial middle. Direct-contact segmentation now distinguishes the selected target from an earlier contact, so only a true intermediate body creates the grey continuation. Manual Multiplayer remains explicitly outside the slice.
 
 Migrate RollEvent submission, delayed resolution, Natural 1/20, interception outcome, possession consequence, Bonus continuation, completion/decline, and atomic Undo.
 
@@ -612,11 +614,9 @@ Natural-roll effects now leave the Engine as structured facts, including recipie
 
 The Engine now treats `awaiting-end-bonus-action` as an eligible owner state for a previously granted 3/2, without changing its normal opportunity restrictions or reopening any card action. LT recovery confirmation imports and executes its shared turn-expiry helper correctly, restoring the same Continue path already used by Through Ball. Token selection is presentation-only but keyed by canonical token ID, so duplicate equal-type tokens no longer render as simultaneously selected. Manual Multiplayer remains unchanged.
 
-### Next approved build — Pass / Interception route integrity
+### v20.56.1 completion note — Pass / Interception route integrity
 
-**Status:** Queued; not implemented by v20.55.5.
-
-Resolve direct body contact before defensive-area interception. When a direct opponent contact determines reception/interception, no redundant defensive-area interception roll may occur. The persisted route projection must color only the actual route to contact and continue grey to the intended target. This is a rule/Engine and projection slice, not a cosmetic-only change.
+The direct-contact priority, crossed-cell Long eligibility and Engine-owned segmented projection are complete in v20.56.1. A selected target is not an intermediate impact. No next scope is authorized by this migration plan.
 
 ## Required update after every implementation build
 

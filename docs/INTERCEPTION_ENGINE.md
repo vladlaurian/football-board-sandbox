@@ -7,7 +7,7 @@ v20 separates **who may attempt an interception** from **how an interception rol
 - Pass geometry determines the route, defensive-area crossings, body-blocking, eligible defenders, and their order.
 - The Interception engine resolves one eligible defender's manual D20 against an attacker target value.
 
-Long Pass is now a client of this generic resolver. It supplies its own attacker statistic and endpoint-only eligibility; it does not create a second roll engine.
+Long Pass is now a client of this generic resolver. It supplies its own attacker statistic and its approved aerial reaction-zone eligibility; it does not create a second roll engine.
 
 ## Authoritative resolver
 
@@ -133,14 +133,20 @@ The exact interception resolution continues to be stored with its numeric values
 
 ## Long Pass eligibility contract
 
-Long Pass remains one `PASS` action and one Pass plan. It is aerial: middle defensive areas and bodies do not create interceptors. Eligibility is evaluated in this exact order:
+Long Pass remains one `PASS` action and one Pass plan. It is aerial through its middle: defensive areas and bodies crossed only in that middle aerial section do not create an interception.
 
-1. all visible defenders whose defensive area contains the passer's square;
-2. only after that group has failed, all visible defenders whose defensive area contains the intended recipient's square.
+At each permitted reaction zone (origin first, then destination), eligibility follows the **same per-crossed-cell rule as Short Pass**:
 
-Within each group, priority is defender-square-centre to the relevant endpoint-square-centre; equal defenders use the existing defending-coach choice. The two groups are one Long Pass contest: destination starts after every origin roll, so progressive stacks and carried Natural-1 disadvantage continue without reset, up to the shared global cap. The frozen plan stores the resolved stable Long Pass attacker stat ID/value, both group identities, modifiers, rolls and results, so Timeline, Undo/Redo, Replay and AI never reconstruct them from UI.
+1. find every defensive-area cell actually crossed by the physical selected-corner-to-target route in that local reaction zone;
+2. for each defender owning such a crossed cell, test whether that defender has a clear geometric path to the ball at that concrete crossed cell;
+3. an opposing body blocks only if the defender-to-ball segment actually crosses that body's occupied square; adjacent or lateral bodies do not block it;
+4. every defender that passes that test is eligible to roll, ordered by the established endpoint priority; equal defenders use the defending-coach choice.
 
-The passer/receiver square used by those eligibility groups is always the body position at the square centre. A selected Pass corner changes the physical trajectory and foot only; it never moves the player into or out of a defensive area.
+The route's selected corner changes the physical route and therefore may change which defensive-area cell is crossed. It never changes distance measurement or the passer's body position. The selected target is a destination, not an obstruction: its ordinary receipt must not erase a separately eligible defender reaction. Conversely, a body that the route actually contacts before the requested target remains a direct reception/interception and takes precedence over a redundant roll.
+
+The existing Long Pass endpoint-contact rule defines the local border: the occupied endpoint square and its eight adjacent squares form the launch/landing neighbourhood. The Engine persists the route cells belonging to each such neighbourhood as `longReactionZones`; all other cells are the aerial middle and cannot create body contact or interception. Endpoint squares remain included even where an open-interior segment starts on a corner or ends at a centre. This is an Engine fact, tested independently, and never guessed by UI geometry.
+
+Origin and destination remain one Long Pass contest: destination starts after every origin roll, so progressive stacks and carried Natural-1 disadvantage continue without reset, up to the shared global cap. The frozen plan stores the stable Long Pass attacker stat ID/value, crossed reaction cells, defender eligibility, modifiers, rolls and results, so Timeline, Undo/Redo, Replay and AI never reconstruct them from UI.
 
 ## Multiplayer authority boundary
 

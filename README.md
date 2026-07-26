@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.0` |
-| Git/package version | `20.56.0` |
-| Build name | `Final_Board_v20_56_0_pass_contact_interception_projection` |
-| Base build | `v20.55.9 Bonus Action generic-roll completion` |
+| Sandbox version | `v20.56.1` |
+| Git/package version | `20.56.1` |
+| Build name | `Final_Board_v20_56_1_long_pass_route_integrity` |
+| Base build | `v20.56.0 documentation handoff` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.0`. The repository version is in `package.json` as `20.56.0`. The browser title is `Sandbox v20.56.0`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.1`. The repository version is in `package.json` as `20.56.1`. The browser title is `Sandbox v20.56.1`.
 
 ## Current release
 
-v20.56.0 unifies offline Pass contact projection and repairs Long Pass origin/destination interception geometry. Short and Long now expose the same canonical direct-contact data for segmented board routes. Long Pass remains aerial through the middle, but its origin and destination reactions test the defender's actual line to the launch/landing point; an opposing body blocks only when it lies on that line. Badge and coloured route use the same official verdict. Manual Multiplayer remains unchanged.
+v20.56.1 completes the approved offline Long Pass correction. In the established launch and landing neighbourhoods, Long Pass now applies Short Pass's per-traversed-defensive-cell visibility rule instead of testing only endpoint-anchor membership; the aerial middle remains excluded. Pass route presentation now distinguishes a selected receiver from an intermediate body contact, so only a true early contact creates a grey continuation. Match → Editor now requires an explicit safety confirmation before the existing unsaved-recording decision. Manual Multiplayer remains unchanged.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 
@@ -72,8 +72,7 @@ src/
 docs/
   active architecture, rule and workflow contracts
   CHANGELOG.md
-  NEXT_CHAT_PROMPT_v20_48_0.md
-  history/      non-active handoff history
+  NEXT_CHAT_PROMPT_v20_56_0.md
 ```
 
 ## Documentation roles
@@ -94,7 +93,7 @@ docs/
 | [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md) | Frozen legacy automated-multiplayer model; reference only until reopening is approved. |
 | [`MULTIPLAYER_CHANGELOG.md`](docs/MULTIPLAYER_CHANGELOG.md) | Historical Multiplayer fixes and rejected approaches. |
 | [`CHANGELOG.md`](docs/CHANGELOG.md) | Compact release history. |
-| [`NEXT_CHAT_PROMPT_v20_48_0.md`](docs/NEXT_CHAT_PROMPT_v20_48_0.md) | The one active handoff for a new chat. |
+| [`NEXT_CHAT_PROMPT_v20_56_0.md`](docs/NEXT_CHAT_PROMPT_v20_56_0.md) | The one active handoff for a new chat. |
 
 ## Mandatory development rules
 

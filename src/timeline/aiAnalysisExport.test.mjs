@@ -452,3 +452,32 @@ test("AI export records an explicitly declined bonus action separately from a co
     continuationId: "bonus_declined",
   });
 });
+
+test("AI export retains canonical Long Pass reaction cells rather than reconstructing them", () => {
+  const before = state({
+    actionResolution: {
+      kind: "pass",
+      status: "awaiting-interception-roll",
+      plan: {
+        isLong: true,
+        origin: { x: 10, y: 8 },
+        target: { x: 20, y: 8 },
+        longReactionZones: {
+          boundary: "endpoint-chebyshev-one-neighbourhood",
+          origin: [{ x: 11, y: 8, entryT: .1 }],
+          destination: [{ x: 20, y: 8, entryT: 1 }],
+        },
+        interceptors: [{
+          defender: { id: "B-1" }, reactionGroup: "long-origin", reactionPoint: { x: 11.5, y: 8.5 },
+          visibleCells: [{ x: 11, y: 8, passEntryT: .1 }],
+        }],
+      },
+    },
+  });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, { id: "long-pass", type: "PASS_CONFIRMED", label: "Long Pass", team: "blue", before, after: before }, { allowNoop: true });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  const pass = exported.semanticTimeline[0].resolution.pass;
+  assert.equal(pass.longReactionZones.boundary, "endpoint-chebyshev-one-neighbourhood");
+  assert.deepEqual(pass.interceptorOrder[0].crossedDefensiveCells, [{ x: 11, y: 8, entryT: .1 }]);
+});

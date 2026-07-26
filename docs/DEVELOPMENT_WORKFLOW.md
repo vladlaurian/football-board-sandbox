@@ -122,7 +122,7 @@ Rules:
 - A new permanent document is allowed only for a genuinely independent subsystem with its own stable contract.
 - Temporary `*_PLAN.md` files are allowed only for a genuinely open large migration. Delete them after completion and preserve permanent consequences in the appropriate source of truth.
 - Changelogs contain history; architecture documents describe the current model; ADRs contain durable decisions. Do not mix these roles.
-- Keep only the current `NEXT_CHAT_PROMPT_*.md` at the top level of `docs/`. Move completed prompts to `docs/history/handoffs/`; they remain evidence, not active instructions.
+- Keep only the current `NEXT_CHAT_PROMPT_*.md` at the top level of `docs/`. Retired prompts may be removed once their durable decisions and release facts are already present in the authoritative contracts and changelog; they must never remain as competing active instructions.
 - The README or an ADR may summarize and link, but must not become a second full copy of a subsystem specification.
 
 ## 9. Build identity and version synchronization

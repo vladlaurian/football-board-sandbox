@@ -198,6 +198,45 @@ test("Long Pass origin interception uses the physical launch point rather than a
   assert.deepEqual(plan.interceptors[0].reactionPoint, { x: plan.origin.x, y: plan.origin.y });
 });
 
+test("Long Pass includes a crossed defensive cell near launch even when it does not contain the passer square", () => {
+  const passer = { id: "passer", team: "A", x: 2, y: 3, cardId: "pass-card" };
+  const receiver = { id: "receiver", team: "A", x: 20, y: 3, cardId: "receiver-card" };
+  const cb = { id: "cb", team: "B", x: 5, y: 3, cardId: "cb-card" };
+  const cards = {
+    "pass-card": { bonuses: [{ id: "stat:long-pass", value: 17 }] },
+    "receiver-card": {},
+    // Team B maps dy -2 to board x -2: this is square (3,3), crossed by
+    // the physical route but not the passer's square (2,3).
+    "cb-card": { defensiveArea: [{ dx: 0, dy: -2 }] },
+  };
+  const plan = buildPassPlan({
+    passer, passerCard: cards["pass-card"], pieces: [passer, receiver, cb], cardById: cards,
+    settings: { cols: 24, rows: 12 }, target: receiver, cornerId: "top-right",
+    rules: { actions: { pass: { pathMode: "corner-to-center", longPassThreshold: 16, longPassAttackerStatId: "stat:long-pass" } } },
+  });
+  assert.equal(plan.interceptors[0]?.defender.id, "cb");
+  assert.equal(plan.interceptors[0]?.reactionGroup, "long-origin");
+  assert.deepEqual(plan.interceptors[0]?.visibleCells.map(cell => [cell.x, cell.y]), [[3, 3]]);
+});
+
+test("Long Pass keeps defensive cells in its aerial middle out of interception eligibility", () => {
+  const passer = { id: "passer", team: "A", x: 2, y: 3, cardId: "pass-card" };
+  const receiver = { id: "receiver", team: "A", x: 20, y: 3, cardId: "receiver-card" };
+  const cb = { id: "middle-cb", team: "B", x: 13, y: 3, cardId: "cb-card" };
+  const cards = {
+    "pass-card": { bonuses: [{ id: "stat:long-pass", value: 17 }] },
+    "receiver-card": {},
+    "cb-card": { defensiveArea: [{ dx: 0, dy: -2 }] },
+  };
+  const plan = buildPassPlan({
+    passer, passerCard: cards["pass-card"], pieces: [passer, receiver, cb], cardById: cards,
+    settings: { cols: 24, rows: 12 }, target: receiver, cornerId: "top-right",
+    rules: { actions: { pass: { pathMode: "corner-to-center", longPassThreshold: 16, longPassAttackerStatId: "stat:long-pass" } } },
+  });
+  assert.equal(plan.interceptors.length, 0);
+  assert.ok(!plan.longReactionZones.origin.some(cell => cell.x === 11 && cell.y === 3));
+});
+
 test("an opponent square blocks defensive-line visibility but a teammate does not", () => {
   const passer = { id: "p", team: "A", x: 1, y: 1 };
   const defender = { id: "d", team: "B", x: 5, y: 1, cardId: "d-card" };

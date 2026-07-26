@@ -26,6 +26,8 @@ test("Single Player Pass selector projects persisted route and roll facts withou
         originBlocked: false,
         goalkeeperRouteBlocked: false,
         risk: true,
+        verdict: "clear",
+        segments: [{ endpoint: { x: 8.5, y: 4.5 }, status: "clear" }],
       }],
       rollPresentation: {
         defenderId: "red-2",
@@ -38,7 +40,8 @@ test("Single Player Pass selector projects persisted route and roll facts withou
     },
   });
   assert.equal(projection.routeOptions[0].modifierLabel, "−5");
-  assert.equal(projection.routeOptions[0].status, "risk");
+  assert.equal(projection.routeOptions[0].status, "clear");
+  assert.equal(projection.routeOptions[0].segments.length, 1);
   assert.equal(projection.selectedRoute.cornerId, "top-right");
   assert.equal(projection.rollPrompt.modifier, 6);
   assert.equal(projection.rollPrompt.modifierSources[0].value, 7);

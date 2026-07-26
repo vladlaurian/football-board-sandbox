@@ -33,7 +33,9 @@ export function selectSinglePlayerPassPresentation(state) {
   const routeOptions = (pending.routePresentation || []).map(route => ({
     ...route,
     modifierLabel: formatSigned(route.modifier),
-    status: route.targetInvalidReason || route.goalkeeperRouteBlocked || route.endpointBodyBlocked ? "blocked" : (route.directContact?.team && route.directContact.team !== route.team) || route.risk ? "risk" : "clear",
+    // Route verdict and segments are canonical Engine projection facts. Keep
+    // the fallback only for pre-v20.56.1 recordings that lack this field.
+    status: route.verdict || (route.targetInvalidReason || route.goalkeeperRouteBlocked || route.endpointBodyBlocked ? "blocked" : (route.directContact?.team && route.directContact.team !== route.team) || route.risk ? "risk" : "clear"),
     disabled: Boolean(route.targetInvalidReason || route.goalkeeperRouteBlocked || route.endpointBodyBlocked),
   }));
   const selectedRoute = routeOptions.find(route => route.cornerId === pending.cornerId)

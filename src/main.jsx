@@ -207,7 +207,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.0";
+const APP_VERSION = "v20.56.1";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2136,6 +2136,7 @@ function App() {
   // Undo/Redo.
   const matchPlayableStartEstablishedRef = useRef(false);
   const [pendingEditorModeExit, setPendingEditorModeExit] = useState(false);
+  const [matchExitConfirmationOpen, setMatchExitConfirmationOpen] = useState(false);
   const [replayRecording, setReplayRecording] = useState(null);
   const isReplayView = Boolean(replayRecording);
   const replayModeRef = useRef(false);
@@ -6129,11 +6130,24 @@ function App() {
       matchRecordingNeedsExport(existingTimeline, exportedRevision) &&
       !window.confirm("Match Timeline-ul anterior nu a fost salvat. Dacă începi un meci nou, acesta va fi înlocuit. Continui?")
     ) return;
-    if (next === "editor" && matchRecordingNeedsExport(existingTimeline, exportedRevision)) {
-      setPendingEditorModeExit(true);
+    if (next === "editor") {
+      setMatchExitConfirmationOpen(true);
       return;
     }
     completeGameModeChange(next);
+  }
+
+  function continueEditorModeExit() {
+    setMatchExitConfirmationOpen(false);
+    const existingTimeline = gameTimelineRef.current;
+    const exportedRevision = existingTimeline
+      ? exportedRecordingRevisionRef.current.get(existingTimeline.recordingId)
+      : undefined;
+    if (matchRecordingNeedsExport(existingTimeline, exportedRevision)) {
+      setPendingEditorModeExit(true);
+      return;
+    }
+    completeGameModeChange("editor");
   }
 
   function confirmEditorModeExit(saveFirst) {
@@ -7126,20 +7140,13 @@ function App() {
           endpoint: route.requestedEndpoint || route.endpoint,
           status: route.status,
           selected: route.cornerId === pending.cornerId || (routePlans.length === 1 && !pending.cornerId),
-          segments: route.directContact ? [
-            // A route has one official verdict.  A physical contact may split
-            // its drawing into a coloured approach and a grey continuation,
-            // but its coloured portion must never contradict the origin badge
-            // by independently guessing reception versus interception.
-            { endpoint: route.directContact, status: route.status },
-            { origin: route.directContact, endpoint: route.requestedEndpoint || route.endpoint, status: "blocked" },
-          ] : null,
+          segments: route.segments || null,
         })),
         routes: pending.status === "route-selection" ? (presentation?.routeOptions || []).filter(route => !route.originBlocked).map(route => ({
           ...route,
           modifier: route.modifierLabel,
         })) : [],
-        targetStatus: presentation?.selectedRoute?.directContact ? "blocked" : "clear",
+        targetStatus: presentation?.selectedRoute?.targetStatus || "clear",
       };
     }
     const passer = pieces.find(piece => piece.id === pending.passerId);
@@ -12523,6 +12530,21 @@ function App() {
       )}
 
       <AssignCardModal controller={buildAssignCardModalController()} />
+
+      {matchExitConfirmationOpen && (
+        <div className="modal-backdrop match-exit-backdrop">
+          <div className="modal match-exit-modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="modal-title"><strong>Exit Match Mode</strong></div>
+            <div className="turn-confirm-message">
+              Exit Match Mode and return to Editor? Match play will stop.
+            </div>
+            <div className="modal-actions match-exit-actions">
+              <button onClick={() => setMatchExitConfirmationOpen(false)}>Cancel</button>
+              <button className="save-switch" onClick={continueEditorModeExit}>Continue</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {pendingEditorModeExit && (
         <div className="modal-backdrop match-exit-backdrop">

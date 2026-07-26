@@ -2,7 +2,24 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.1 — Long Pass route integrity
+
+- Repairs offline Long Pass eligibility by applying the Short Pass per-crossed-defensive-cell rule in the established origin and destination endpoint neighbourhoods. The aerial middle remains excluded.
+- Persists `longReactionZones`, concrete crossed defensive cells, reaction points and the unified origin-before-destination interceptor stack for Timeline, Undo/Redo, Replay and AI export.
+- Makes selected-target receipt distinct from an intermediate body contact in the canonical Pass route projection. Only the latter creates a coloured-to-grey split; badges and route segments consume the same Engine verdict.
+- Adds a first Match → Editor safety confirmation before the existing unsaved-recording dialog.
+- Manual Multiplayer, Firebase authority and `src/multiplayer/` remain unchanged.
+
+## v20.56.0 documentation handoff
+
+- Consolidates the active handoff into `NEXT_CHAT_PROMPT_v20_56_0.md` and removes retired prompt copies.
+- Corrects the permanent Long Pass contract to require defensive-area cells actually crossed in the permitted reaction zones, rather than endpoint-cell membership.
+- Marks the two v20.56.0 Pass defects as open: missed eligible Long Pass interception and selected-target grey-tail over-segmentation.
+- No runtime code changed.
+
 ## v20.56.0 — Pass contact and interception projection integrity
+
+**Acceptance correction:** post-release tests found that this release is incomplete. Its Long Pass code still uses endpoint-cell membership where the approved contract requires crossed defensive-area cells in the permitted reaction zones; ordinary selected-target receipt is also over-projected as a grey-tail contact. These defects are queued explicitly for v20.56.1 and must not be treated as accepted behavior.
 
 - Repairs offline Long Pass origin/destination interception eligibility. Long remains aerial through the middle, while launch and landing now test the defender's actual route to the ball's physical launch/landing point; no blanket passer/receiver exception remains.
 - Makes every Short and Long Pass project the persisted canonical direct contact to the board. The coloured route ends at that contact and the remaining route to the requested target is grey.

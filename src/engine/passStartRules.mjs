@@ -233,13 +233,31 @@ export function selectPassTarget(state, context, command) {
     : context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !targetPlayer
       ? "PASS_TARGET_FIELD_PLAYER_REQUIRED"
       : null;
-  const routePresentation = routePlans.map(plan => ({
+  const routePresentation = routePlans.map(plan => {
+    const requestedEndpoint = { x: Number(x) + .5, y: Number(y) + .5 };
+    const contactKind = plan.directHit
+      ? String(plan.directHit.pieceId) === String(plan.targetPlayerId || "") ? "selected-target" : "intermediate"
+      : null;
+    const directContact = contactKind === "intermediate" && Number(plan.directHit.entryT) < 1
+      ? {
+          x: plan.origin.x + (requestedEndpoint.x - plan.origin.x) * Number(plan.directHit.entryT),
+          y: plan.origin.y + (requestedEndpoint.y - plan.origin.y) * Number(plan.directHit.entryT),
+          pieceId: plan.directHit.pieceId,
+          team: plan.directHit.team,
+        }
+      : null;
+    const verdict = targetInvalidReason || plan.goalkeeperRouteBlocked || plan.endpointBodyBlocked
+      ? "blocked"
+      : (directContact?.team && directContact.team !== pending.team) || plan.interceptors?.length
+        ? "risk"
+        : "clear";
+    return {
     team: pending.team,
     id: plan.origin.cornerId || "center",
     cornerId: plan.origin.cornerId,
     origin: plan.origin,
     endpoint: plan.endpoint,
-    requestedEndpoint: { x: Number(x) + .5, y: Number(y) + .5 },
+    requestedEndpoint,
     foot: plan.foot?.foot === "Left" ? "LF" : plan.foot?.foot === "Right" ? "RF" : "BF",
     // Compact board badge: this is the numeric execution effect, resolved from
     // the frozen Rule Set's semantic Disadvantage definition.
@@ -252,20 +270,19 @@ export function selectPassTarget(state, context, command) {
     goalkeeperRouteBlocked: Boolean(plan.goalkeeperRouteBlocked),
     endpointBodyBlocked: Boolean(plan.endpointBodyBlocked),
     targetInvalidReason,
-    // Every Pass plan owns one physical first-contact fact.  Short and Long
-    // differ in how that contact is discovered, never in how Match projects
-    // it: the board can therefore segment either route at the same canonical
-    // impact point instead of recreating Short Pass geometry locally.
-    directContact: plan.directHit && Number(plan.directHit.entryT) < 1
-      ? {
-          x: plan.origin.x + ((Number(x) + .5) - plan.origin.x) * Number(plan.directHit.entryT),
-          y: plan.origin.y + ((Number(y) + .5) - plan.origin.y) * Number(plan.directHit.entryT),
-          pieceId: plan.directHit.pieceId,
-          team: plan.directHit.team,
-        }
-      : null,
-    risk: Boolean(plan.interceptors?.length || plan.directHit?.team && plan.directHit.team !== pending.team),
-  }));
+    // The selected target is the normal receiver, never an intermediate
+    // impact. Only an earlier body contact splits a visual route.
+    contactKind,
+    directContact,
+    verdict,
+    targetStatus: directContact ? "blocked" : "clear",
+    segments: directContact ? [
+      { endpoint: directContact, status: verdict },
+      { origin: directContact, endpoint: requestedEndpoint, status: "blocked" },
+    ] : [{ endpoint: requestedEndpoint, status: verdict }],
+    risk: verdict === "risk",
+  };
+  });
   const next = {
     ...pending,
     target: { x, y },
