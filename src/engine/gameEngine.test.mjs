@@ -1165,6 +1165,31 @@ test("PASS_TARGET_SELECTED is canonical, keeps an occupied target legal, and doe
   assert.equal(selected.events[0].type, "PASS_TARGET_SELECTED");
 });
 
+test("Short Pass route projection persists its Engine direct contact for the shared segmented board preview", () => {
+  const state = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 3, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 3, y: 5 },
+      { id: "red-contact", team: "B", cardId: "card-red-1", x: 6, y: 5 },
+      { id: "blue-target", team: "A", cardId: "card-blue-1", x: 9, y: 5 },
+    ],
+  });
+  const context = normalMoveContext();
+  const started = applyGameCommand({
+    state, context,
+    command: { id: "short-contact-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "short-contact" } },
+  });
+  const selected = applyGameCommand({
+    state: started.nextState, context,
+    command: { id: "short-contact-target", type: "PASS_TARGET_SELECTED", payload: { passId: "short-contact", x: 9, y: 5 } },
+  });
+  assert.equal(selected.accepted, true);
+  assert.ok(selected.nextState.actionResolution.routePresentation.every(route => route.passType === "SHORT_PASS"));
+  assert.ok(selected.nextState.actionResolution.routePresentation.every(route => route.directContact?.pieceId === "red-contact"));
+  assert.ok(selected.nextState.actionResolution.routePresentation.every(route => route.directContact?.team === "red"));
+});
+
 test("PASS_TARGET_SELECTED rejects stale, non-integer, and out-of-bounds targets without mutation", () => {
   const started = applyGameCommand({
     state: normalMoveState(), context: normalMoveContext(),

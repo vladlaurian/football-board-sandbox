@@ -252,10 +252,15 @@ export function selectPassTarget(state, context, command) {
     goalkeeperRouteBlocked: Boolean(plan.goalkeeperRouteBlocked),
     endpointBodyBlocked: Boolean(plan.endpointBodyBlocked),
     targetInvalidReason,
-    directContact: plan.isLong && plan.directHit && Number(plan.directHit.entryT) < 1
+    // Every Pass plan owns one physical first-contact fact.  Short and Long
+    // differ in how that contact is discovered, never in how Match projects
+    // it: the board can therefore segment either route at the same canonical
+    // impact point instead of recreating Short Pass geometry locally.
+    directContact: plan.directHit && Number(plan.directHit.entryT) < 1
       ? {
           x: plan.origin.x + ((Number(x) + .5) - plan.origin.x) * Number(plan.directHit.entryT),
           y: plan.origin.y + ((Number(y) + .5) - plan.origin.y) * Number(plan.directHit.entryT),
+          pieceId: plan.directHit.pieceId,
           team: plan.directHit.team,
         }
       : null,

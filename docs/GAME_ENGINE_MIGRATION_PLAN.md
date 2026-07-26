@@ -430,6 +430,10 @@ Offline Dice now projects the canonical `actionResolution.pendingRoll` request f
 
 The generic gameplay-roll command is now admitted during Bonus Action only when its canonical pending request belongs to the exact active continuation. This fixes the otherwise silent BA → Lofted Through rejection without adding an LT-specific exception, and is the contract future rolling BA mechanics inherit. Offline Pass/Interception resolves immediately after the same short Dice animation used by every roll; its former extra suspense timer is retained only by the frozen Manual Multiplayer path.
 
+### v20.56.0 — Pass contact and interception projection integrity
+
+Offline Pass now persists one direct-contact projection for both Short and Long routes. The board receives the Engine-owned coloured-to-contact plus grey-to-requested-target segments and uses the same verdict for each origin badge. Long Pass remains aerial through its middle, but its origin/destination defender groups now test their actual line to the local launch/landing ball point rather than a centre-cell shortcut with a passer/receiver exemption. Manual Multiplayer is explicitly outside this slice.
+
 Migrate RollEvent submission, delayed resolution, Natural 1/20, interception outcome, possession consequence, Bonus continuation, completion/decline, and atomic Undo.
 
 Acceptance:

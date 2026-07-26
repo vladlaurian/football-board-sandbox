@@ -60,13 +60,14 @@ README records the current release. Changelogs record implementation history. Th
 
 **Status:** Active
 
-**Decision:** Offline Single Player PASS is one Engine command with a canonical Short/Long classification. Every range measurement is source-square-centre to target-square-centre; a selected corner is execution geometry only. Short and Long both require an active outfield target. Short retains the ground-route plan. Long uses its frozen Rule Set stable attacker stat, ignores middle-route bodies/areas, and resolves independent origin then destination interception groups through the existing generic Interception engine.
+**Decision:** Offline Single Player PASS is one Engine command with a canonical Short/Long classification. Every range measurement is source-square-centre to target-square-centre; a selected corner is execution geometry only. Short and Long both require an active outfield target. Short retains the ground-route plan. Long uses its frozen Rule Set stable attacker stat and ignores bodies/defensive areas in the aerial middle route. At launch and landing only, Long uses the same defender-to-ball visibility principle as Short: eligibility requires the relevant occupied origin/receiver cell to be in the defender's area and a clear physical line from that defender to the actual launch/landing ball point. An opposing body blocks only when that line crosses its occupied square; a passer or receiver is never globally ignored. Both groups resolve through the existing generic Interception engine.
 
 **Consequences:**
 
 - Rule Set schema v8 owns the threshold; MatchContext resolves and freezes the stable global `Long Pass` stat ID without exposing a Rule Set selector.
 - Compact MatchContext gameplay cards retain stable stat IDs, so visible stat renames cannot alter a frozen match.
-- The Long plan persists group identity and carries progressive/Natural-1 sequencing from origin through destination; Timeline, Replay and AI display stored facts rather than recomputing geometry or values.
+- The Long plan persists group identity, reaction points and progressive/Natural-1 sequencing from origin through destination; Timeline, Replay and AI display stored facts rather than recomputing geometry or values.
+- Every Pass plan persists one direct-contact fact. The Single Player projection converts it into a shared Short/Long segmented route; the UI neither discovers contact nor independently chooses a conflicting colour verdict.
 - The frozen Manual Multiplayer/session branch remains on its legacy Pass plan and is not silently migrated by this decision.
 
 ## ADR-004 — Manual roll only

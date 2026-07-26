@@ -207,7 +207,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.55.9";
+const APP_VERSION = "v20.56.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -7127,7 +7127,11 @@ function App() {
           status: route.status,
           selected: route.cornerId === pending.cornerId || (routePlans.length === 1 && !pending.cornerId),
           segments: route.directContact ? [
-            { endpoint: route.directContact, status: route.directContact.team === pending.team ? "clear" : "risk" },
+            // A route has one official verdict.  A physical contact may split
+            // its drawing into a coloured approach and a grey continuation,
+            // but its coloured portion must never contradict the origin badge
+            // by independently guessing reception versus interception.
+            { endpoint: route.directContact, status: route.status },
             { origin: route.directContact, endpoint: route.requestedEndpoint || route.endpoint, status: "blocked" },
           ] : null,
         })),

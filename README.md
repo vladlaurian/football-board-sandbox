@@ -6,17 +6,17 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.55.9` |
-| Git/package version | `20.55.9` |
-| Build name | `Final_Board_v20_55_8_pending_roll_dice_integrity` |
-| Base build | `v20.55.7 LT recovery and 3/2 BA continuity` |
+| Sandbox version | `v20.56.0` |
+| Git/package version | `20.56.0` |
+| Build name | `Final_Board_v20_56_0_pass_contact_interception_projection` |
+| Base build | `v20.55.9 Bonus Action generic-roll completion` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.55.7`. The repository version is in `package.json` as `20.55.7`. The browser title is `Sandbox v20.55.7`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.0`. The repository version is in `package.json` as `20.56.0`. The browser title is `Sandbox v20.56.0`.
 
 ## Current release
 
-v20.55.9 completes the offline pending-roll Dice contract: every generic roll submitted inside a Bonus Action is authorized only by the active canonical pending request linked to that continuation, so it works for LT now and for future roll mechanics without a new mechanic-name exception. Offline Interception now resolves immediately after the shared ~800 ms Dice animation; there is no extra suspense/cooldown timer. Manual Multiplayer retains its existing cooldown and delayed-resolution path unchanged.
+v20.56.0 unifies offline Pass contact projection and repairs Long Pass origin/destination interception geometry. Short and Long now expose the same canonical direct-contact data for segmented board routes. Long Pass remains aerial through the middle, but its origin and destination reactions test the defender's actual line to the launch/landing point; an opposing body blocks only when it lies on that line. Badge and coloured route use the same official verdict. Manual Multiplayer remains unchanged.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 

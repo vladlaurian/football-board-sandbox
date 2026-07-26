@@ -2,6 +2,14 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.0 — Pass contact and interception projection integrity
+
+- Repairs offline Long Pass origin/destination interception eligibility. Long remains aerial through the middle, while launch and landing now test the defender's actual route to the ball's physical launch/landing point; no blanket passer/receiver exception remains.
+- Makes every Short and Long Pass project the persisted canonical direct contact to the board. The coloured route ends at that contact and the remaining route to the requested target is grey.
+- Uses the same official route verdict for the coloured segment and its origin badge, preventing a green contact segment alongside a red risk badge.
+- Adds sentinels for lateral Long Pass interception, a body genuinely blocking that reaction line, launch reaction geometry, and Short Pass direct-contact projection.
+- Manual Multiplayer remains unchanged.
+
 ## v20.55.9 — Bonus Action generic-roll completion
 
 - Repairs the missing Bonus Action authorization for canonical `GAMEPLAY_ROLL_SUBMITTED`. The Engine now admits a generic roll only when its pending request belongs to the exact active Bonus Action continuation; LT works in BA without a mechanic-specific UI bypass, and future pending-roll mechanics inherit the same rule.

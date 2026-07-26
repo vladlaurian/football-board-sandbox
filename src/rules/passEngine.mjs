@@ -195,8 +195,18 @@ export function bodyBlockingPassOrigin(origin, passer, pieces) {
 }
 
 export function isCellVisibleToDefender(defender, cell, pieces, { ignorePieceId = null } = {}) {
+  return isPointVisibleToDefender(defender, { x: Number(cell.x) + 0.5, y: Number(cell.y) + 0.5 }, pieces, { ignorePieceId });
+}
+
+// The interception rule asks whether the defender can physically reach the
+// ball at a concrete point on its route.  An opposing body blocks only when
+// its occupied square is actually crossed by that defender-to-ball segment.
+// This is shared by Short Pass cell reactions and Long Pass launch/landing
+// reactions; it deliberately does not treat a merely adjacent body as a
+// blocker.
+export function isPointVisibleToDefender(defender, point, pieces, { ignorePieceId = null } = {}) {
   const from = { x: Number(defender.x) + 0.5, y: Number(defender.y) + 0.5 };
-  const to = { x: Number(cell.x) + 0.5, y: Number(cell.y) + 0.5 };
+  const to = { x: Number(point.x), y: Number(point.y) };
   return !(pieces || []).some(piece => {
     if (!piece || piece.id === defender.id || String(piece.id) === String(ignorePieceId || "") || piece.team === "BALL" || piece.inactive) return false;
     // Only an opposing player's actual square blocks the geometric sightline.
@@ -340,6 +350,32 @@ function endpointBodyContact(origin, targetPoint, passer, targetPlayer, pieces) 
   return contacts[0] || null;
 }
 
+function pointOnSegment(origin, endpoint, t) {
+  return {
+    x: Number(origin.x) + (Number(endpoint.x) - Number(origin.x)) * Number(t),
+    y: Number(origin.y) + (Number(endpoint.y) - Number(origin.y)) * Number(t),
+  };
+}
+
+// Long Pass is aerial between launch and landing.  Its interception geometry
+// therefore has exactly two local reaction points: the launch point and the
+// point where the airborne route enters the effective receiving body/cell.
+// The area-membership test still uses the occupied origin/receiver cell; the
+// defender's visibility test uses this real ball point, just as Short Pass
+// uses the concrete defensive-area cell it crosses.
+function longPassReactionPoint(group, origin, endpoint, anchor) {
+  if (group === "origin") return { x: Number(origin.x), y: Number(origin.y) };
+  const rect = { x: Number(anchor.x), y: Number(anchor.y) };
+  const entryT = segmentEntryT(origin, endpoint, rect);
+  if (entryT !== null) return pointOnSegment(origin, endpoint, entryT);
+  const contactT = segmentClosedContactT(origin, endpoint, rect);
+  if (contactT !== null) return pointOnSegment(origin, endpoint, contactT);
+  // Defensive-area membership is based on the receiver's occupied cell.
+  // This fallback is deterministic for legacy/touch-only geometry; ordinary
+  // aerial routes resolve through one of the two contact calculations above.
+  return pointForPassTarget(anchor);
+}
+
 export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, target, cornerId, rules, legacyManual = false }) {
   const passRules = rules?.actions?.pass || rules || {};
   const configuredInterceptionRules = rules?.actions?.interception || {};
@@ -397,15 +433,21 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
       };
     })
     .filter(item => item.visibleCells.length);
-  const longGroup = (group, anchor) => (pieces || [])
+  const longGroup = (group, anchor) => {
+    const reactionPoint = longPassReactionPoint(group, origin, effectiveTargetPoint, anchor);
+    return (pieces || [])
     .filter(piece => teamKeyForPiece(piece) === defenseTeam && !piece.inactive)
     .map(defender => {
       const cells = defensiveCellsForPiece(defender, cardById?.[defender.cardId], settings);
       const matching = cells.filter(cell => cell.x === Number(anchor.x) && cell.y === Number(anchor.y));
-      const visibleCells = matching.filter(cell => isCellVisibleToDefender(defender, anchor, pieces, { ignorePieceId: anchor.id }));
+      // Unlike the old Long Pass shortcut, the occupied receiver/passer is
+      // not globally ignored.  The actual defender-to-ball geometry decides
+      // whether that body, or another attacking body, blocks the reaction.
+      const visibleCells = matching.filter(() => isPointVisibleToDefender(defender, reactionPoint, pieces));
       const priorityDistanceSquared = interceptorPriorityDistanceSquared(anchor, defender);
-      return { defender, cells: matching, visibleCells, firstEntryT: null, priorityDistanceSquared, priorityDistance: Math.sqrt(priorityDistanceSquared), priorityMethod: `${group}-endpoint-square-center-to-defender-square-center` };
+      return { defender, cells: matching, visibleCells, reactionPoint, firstEntryT: null, priorityDistanceSquared, priorityDistance: Math.sqrt(priorityDistanceSquared), priorityMethod: `${group}-endpoint-square-center-to-defender-square-center` };
     }).filter(item => item.visibleCells.length);
+  };
   const effectiveTargetPlayer = hit?.piece || targetPlayer;
   const originInterceptors = aerialLongPass ? progressiveInterceptors(longGroup("origin", passer), interceptionRules, diceModifiers, "long-origin") : [];
   const destinationInterceptors = aerialLongPass
