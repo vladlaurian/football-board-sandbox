@@ -357,43 +357,14 @@ function pointOnSegment(origin, endpoint, t) {
   };
 }
 
-// Long Pass is aerial between launch and landing.  Its interception geometry
-// therefore has exactly two local reaction points: the launch point and the
-// point where the airborne route enters the effective receiving body/cell.
-// The area-membership test still uses the occupied origin/receiver cell; the
-// defender's visibility test uses this real ball point, just as Short Pass
-// uses the concrete defensive-area cell it crosses.
-// Long Pass already defines its non-aerial endpoint neighbourhood through
-// endpointBodyContact: the eight adjacent squares plus the occupied endpoint
-// square are local to launch/landing; everything else is aerial middle.  The
-// interception rule uses that same boundary, but applies Short Pass's
-// per-traversed-defensive-cell visibility test inside it.
-function longPassReactionZoneCells(passCells, anchor) {
-  return (passCells || []).filter(cell => (
-    Math.max(Math.abs(Number(cell.x) - Number(anchor.x)), Math.abs(Number(cell.y) - Number(anchor.y))) <= 1
-  ));
-}
-
-function endpointInclusiveRouteCells(passCells, passer, endpointAnchor, origin, endpoint) {
-  const byCoordinate = new Map();
-  for (const cell of passCells || []) byCoordinate.set(`${cell.x}-${cell.y}`, cell);
-  // The open-interior route helper intentionally omits a square when the
-  // segment starts on its corner or ends at its centre. Launch and landing are
-  // physical Long Pass reaction locations, so retain both endpoint squares as
-  // concrete route cells for the same per-cell interception rule.
-  byCoordinate.set(`${Number(passer.x)}-${Number(passer.y)}`, { x: Number(passer.x), y: Number(passer.y), entryT: 0, reactionPoint: { x: Number(origin.x), y: Number(origin.y) } });
-  const endpointRect = { x: Number(endpointAnchor.x), y: Number(endpointAnchor.y) };
-  const endpointEntryT = segmentEntryT(origin, endpoint, endpointRect);
-  const endpointContactT = endpointEntryT ?? segmentClosedContactT(origin, endpoint, endpointRect);
-  byCoordinate.set(`${Number(endpointAnchor.x)}-${Number(endpointAnchor.y)}`, {
-    x: Number(endpointAnchor.x),
-    y: Number(endpointAnchor.y),
-    entryT: 1,
-    // Landing reaction happens where the ball reaches the receiving square,
-    // not behind the receiver at its centre.
-    reactionPoint: endpointContactT === null ? { x: Number(endpoint.x), y: Number(endpoint.y) } : pointOnSegment(origin, endpoint, endpointContactT),
-  });
-  return [...byCoordinate.values()].sort((left, right) => left.entryT - right.entryT || left.y - right.y || left.x - right.x);
+function longPassReactionPoint(group, origin, endpoint, anchor) {
+  if (group === "origin") return { x: Number(origin.x), y: Number(origin.y) };
+  const rect = { x: Number(anchor.x), y: Number(anchor.y) };
+  const entryT = segmentEntryT(origin, endpoint, rect);
+  if (entryT !== null) return pointOnSegment(origin, endpoint, entryT);
+  const contactT = segmentClosedContactT(origin, endpoint, rect);
+  if (contactT !== null) return pointOnSegment(origin, endpoint, contactT);
+  return pointForPassTarget(anchor);
 }
 
 export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, target, cornerId, rules, legacyManual = false }) {
@@ -453,30 +424,21 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
       };
     })
     .filter(item => item.visibleCells.length);
-  const longGroup = (group, anchor, reactionCells) => {
+  const longGroup = (group, anchor) => {
+    const reactionPoint = longPassReactionPoint(group, origin, effectiveTargetPoint, anchor);
     return (pieces || [])
     .filter(piece => teamKeyForPiece(piece) === defenseTeam && !piece.inactive)
     .map(defender => {
       const cells = defensiveCellsForPiece(defender, cardById?.[defender.cardId], settings);
-      const matching = cells
-        .map(cell => {
-          const crossed = reactionCells.find(routeCell => routeCell.x === cell.x && routeCell.y === cell.y);
-          return crossed ? { ...cell, passEntryT: crossed.entryT, reactionPoint: crossed.reactionPoint || null } : null;
-        })
-        .filter(Boolean);
-      // A Long Pass uses the same concrete-cell visibility rule as Short
-      // Pass. The receiver/passer is not globally ignored: only a body whose
-      // occupied square crosses defender -> ball actually blocks the reaction.
-      const visibleCells = matching.filter(cell => cell.reactionPoint
-        ? isPointVisibleToDefender(defender, cell.reactionPoint, pieces)
-        : isCellVisibleToDefender(defender, cell, pieces));
+      const matching = cells.filter(cell => cell.x === Number(anchor.x) && cell.y === Number(anchor.y));
+      const visibleCells = matching.filter(() => isPointVisibleToDefender(defender, reactionPoint, pieces));
       const priorityDistanceSquared = interceptorPriorityDistanceSquared(anchor, defender);
       return {
         defender,
         cells: matching,
         visibleCells,
-        reactionPoint: visibleCells[0] ? (visibleCells[0].reactionPoint || { x: Number(visibleCells[0].x) + .5, y: Number(visibleCells[0].y) + .5 }) : null,
-        firstEntryT: visibleCells.length ? Math.min(...visibleCells.map(cell => cell.passEntryT)) : null,
+        reactionPoint,
+        firstEntryT: null,
         priorityDistanceSquared,
         priorityDistance: Math.sqrt(priorityDistanceSquared),
         priorityMethod: `${group}-endpoint-square-center-to-defender-square-center`,
@@ -484,12 +446,9 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     }).filter(item => item.visibleCells.length);
   };
   const effectiveTargetPlayer = hit?.piece || targetPlayer;
-  const longRouteCells = aerialLongPass ? endpointInclusiveRouteCells(passCells, passer, effectiveTargetPlayer || target, origin, effectiveTargetPoint) : [];
-  const originReactionCells = aerialLongPass ? longPassReactionZoneCells(longRouteCells, passer) : [];
-  const destinationReactionCells = aerialLongPass ? longPassReactionZoneCells(longRouteCells, effectiveTargetPlayer || target) : [];
-  const originInterceptors = aerialLongPass ? progressiveInterceptors(longGroup("origin", passer, originReactionCells), interceptionRules, diceModifiers, "long-origin") : [];
+  const originInterceptors = aerialLongPass ? progressiveInterceptors(longGroup("origin", passer), interceptionRules, diceModifiers, "long-origin") : [];
   const destinationInterceptors = aerialLongPass
-    ? progressiveInterceptors(longGroup("destination", effectiveTargetPlayer || target, destinationReactionCells), interceptionRules, diceModifiers, "long-destination", originInterceptors.length)
+    ? progressiveInterceptors(longGroup("destination", effectiveTargetPlayer || target), interceptionRules, diceModifiers, "long-destination", originInterceptors.length)
     : [];
   const interceptors = aerialLongPass
     ? [...originInterceptors, ...destinationInterceptors]
@@ -547,11 +506,6 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     interceptionGroups: aerialLongPass ? {
       origin: originInterceptors.map(item => item.defender.id),
       destination: destinationInterceptors.map(item => item.defender.id),
-    } : null,
-    longReactionZones: aerialLongPass ? {
-      boundary: "endpoint-chebyshev-one-neighbourhood",
-      origin: originReactionCells,
-      destination: destinationReactionCells,
     } : null,
   };
 }

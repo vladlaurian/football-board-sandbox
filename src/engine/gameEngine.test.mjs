@@ -1163,9 +1163,10 @@ test("PASS_TARGET_SELECTED is canonical, keeps an occupied target legal, and doe
   assert.equal(selected.nextState.actionResolution.plan, undefined);
   assert.equal(selected.nextState.tracker.usedActions.blue, 0);
   assert.equal(selected.events[0].type, "PASS_TARGET_SELECTED");
-  assert.ok(selected.nextState.actionResolution.routePresentation.every(route => route.contactKind === "selected-target"));
+  assert.ok(selected.nextState.actionResolution.routePresentation.every(route => route.contactKind === "selected-opponent-target"));
   assert.ok(selected.nextState.actionResolution.routePresentation.every(route => route.directContact === null));
   assert.ok(selected.nextState.actionResolution.routePresentation.every(route => route.segments.length === 1));
+  assert.ok(selected.nextState.actionResolution.routePresentation.every(route => route.verdict === "risk" && route.targetStatus === "risk" && route.segments[0].status === "risk"));
 });
 
 test("Short Pass route projection persists its Engine direct contact for the shared segmented board preview", () => {

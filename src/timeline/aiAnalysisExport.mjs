@@ -364,7 +364,6 @@ function semanticEvent(entry, sequence, cardsById) {
         attackerTargetStatId: passPlan.attackerTargetStatId || "stat:passing",
         attackerTargetValue: passPlan.attackerTargetValue ?? passPlan.passerPass,
         directHit: passPlan.directHit,
-        longReactionZones: passPlan.longReactionZones || null,
         interceptorPriority: passPlan.interceptorPriority ? {
           method: passPlan.interceptorPriority.method || "passer-square-center-to-defender-square-center",
           metric: passPlan.interceptorPriority.metric || "euclidean-distance",
@@ -380,9 +379,6 @@ function semanticEvent(entry, sequence, cardsById) {
         interceptorOrder: (passPlan.interceptors || []).map(item => ({
           pieceId: item.defender?.id || null,
           firstEntryT: item.firstEntryT,
-          reactionGroup: item.reactionGroup || null,
-          reactionPoint: item.reactionPoint || null,
-          crossedDefensiveCells: (item.visibleCells || []).map(cell => ({ x: cell.x, y: cell.y, entryT: cell.passEntryT ?? cell.entryT ?? null })),
           priorityDistance: Number.isFinite(Number(item.priorityDistance)) ? Number(item.priorityDistance) : null,
           priorityDistanceSquared: Number.isFinite(Number(item.priorityDistanceSquared)) ? Number(item.priorityDistanceSquared) : null,
           priorityMethod: item.priorityMethod || passPlan.interceptorPriority?.method || null,

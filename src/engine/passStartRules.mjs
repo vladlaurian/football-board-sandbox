@@ -235,8 +235,15 @@ export function selectPassTarget(state, context, command) {
       : null;
   const routePresentation = routePlans.map(plan => {
     const requestedEndpoint = { x: Number(x) + .5, y: Number(y) + .5 };
-    const contactKind = plan.directHit
-      ? String(plan.directHit.pieceId) === String(plan.targetPlayerId || "") ? "selected-target" : "intermediate"
+    const selectedFriendlyTarget = plan.directHit
+      && String(plan.directHit.pieceId) === String(plan.targetPlayerId || "")
+      && plan.directHit.team === pending.team;
+    const selectedOpponentTarget = plan.directHit
+      && String(plan.directHit.pieceId) === String(plan.targetPlayerId || "")
+      && plan.directHit.team !== pending.team;
+    const contactKind = selectedFriendlyTarget ? "selected-target"
+      : selectedOpponentTarget ? "selected-opponent-target"
+      : plan.directHit ? "intermediate"
       : null;
     const directContact = contactKind === "intermediate" && Number(plan.directHit.entryT) < 1
       ? {
@@ -248,7 +255,7 @@ export function selectPassTarget(state, context, command) {
       : null;
     const verdict = targetInvalidReason || plan.goalkeeperRouteBlocked || plan.endpointBodyBlocked
       ? "blocked"
-      : (directContact?.team && directContact.team !== pending.team) || plan.interceptors?.length
+      : selectedOpponentTarget || (directContact?.team && directContact.team !== pending.team) || plan.interceptors?.length
         ? "risk"
         : "clear";
     return {
@@ -275,7 +282,7 @@ export function selectPassTarget(state, context, command) {
     contactKind,
     directContact,
     verdict,
-    targetStatus: directContact ? "blocked" : "clear",
+    targetStatus: selectedOpponentTarget ? "risk" : directContact ? "blocked" : "clear",
     segments: directContact ? [
       { endpoint: directContact, status: verdict },
       { origin: directContact, endpoint: requestedEndpoint, status: "blocked" },
