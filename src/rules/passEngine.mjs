@@ -369,6 +369,12 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
   const longPassThreshold = Number(passRules.longPassThreshold) || 16;
   const maxPassDistance = Math.max(longPassThreshold, Number(passRules.maxPassDistance) || 32);
   const passType = distance > longPassThreshold ? "LONG_PASS" : "SHORT_PASS";
+  // Offline Short Pass needs a real board cell between passer and requested
+  // target. Cells sharing either a side or a corner are too close; this closes
+  // the diagonal L-corner route without changing physical-contact geometry.
+  const targetTooClose = !legacyManual
+    && passType === "SHORT_PASS"
+    && Math.max(Math.abs(Number(target.x) - Number(passer.x)), Math.abs(Number(target.y) - Number(passer.y))) <= 1;
   const aerialLongPass = passType === "LONG_PASS" && !legacyManual;
   const targetPlayer = activeFieldPlayerAt(pieces, cardById, target);
   const longEndpointHit = aerialLongPass && targetPlayer
@@ -461,6 +467,7 @@ export function buildPassPlan({ passer, passerCard, pieces, cardById, settings, 
     longPassThreshold,
     maxPassDistance,
     maxDistanceExceeded: !legacyManual && distance > maxPassDistance,
+    targetTooClose,
     targetPlayerId: targetPlayer?.id || null,
     foot,
     attackerTargetStatId,

@@ -1238,6 +1238,30 @@ test("configured Short/Long Pass projects an invalid free-cell target as blocked
   assert.deepEqual(confirmed, { accepted: false, reason: "PASS_TARGET_FIELD_PLAYER_REQUIRED" });
 });
 
+test("offline PASS blocks orthogonal and diagonal adjacent targets for either team without changing the Rule Set", () => {
+  const context = normalMoveContext();
+  const state = normalMoveState({
+    pieces: [
+      { id: "ball", team: "BALL", x: 3, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 3, y: 5 },
+      { id: "blue-adjacent", team: "A", cardId: "card-blue-1", x: 4, y: 5 },
+      { id: "red-diagonal", team: "B", cardId: "card-red-1", x: 4, y: 6 },
+      { id: "blue-separated", team: "A", cardId: "card-blue-1", x: 5, y: 5 },
+    ],
+  });
+  for (const [target, id] of [[{ x: 4, y: 5 }, "friendly"], [{ x: 4, y: 6 }, "opponent"]]) {
+    const started = applyGameCommand({ state, context, command: { id: `close-${id}-start`, type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: `close-${id}` } } });
+    const selected = applyGameCommand({ state: started.nextState, context, command: { id: `close-${id}-target`, type: "PASS_TARGET_SELECTED", payload: { passId: `close-${id}`, ...target } } });
+    assert.equal(selected.nextState.actionResolution.targetInvalidReason, "PASS_TARGET_TOO_CLOSE");
+    assert.ok(selected.nextState.actionResolution.routePresentation.every(route => route.verdict === "blocked"));
+    const confirmed = applyGameCommand({ state: selected.nextState, context, command: { id: `close-${id}-route`, type: "PASS_ROUTE_CONFIRMED", payload: { passId: `close-${id}`, cornerId: "top-left" } } });
+    assert.deepEqual(confirmed, { accepted: false, reason: "PASS_TARGET_TOO_CLOSE" });
+  }
+  const started = applyGameCommand({ state, context, command: { id: "separated-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "separated" } } });
+  const selected = applyGameCommand({ state: started.nextState, context, command: { id: "separated-target", type: "PASS_TARGET_SELECTED", payload: { passId: "separated", x: 5, y: 5 } } });
+  assert.equal(selected.nextState.actionResolution.targetInvalidReason, null);
+});
+
 test("PASS_TARGET_SELECTED remains in the atomic Bonus Pass transaction without touching Tracker", () => {
   const start = createGameState({
     ...normalMoveState(),

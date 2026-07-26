@@ -96,6 +96,8 @@ No Pass may exceed this whole-square centre-to-centre distance. The default is `
 
 Selecting an empty square or goalkeeper in offline Match does not relax that rule. The Engine records a blocked Pass preview with the canonical reason, so the board can show every trajectory and origin badge in grey. No Tracker action is consumed and route confirmation remains rejected until the player selects an active outfield target.
 
+Offline Short Pass also requires one full board cell between passer and requested target. The target cell may not share either a side or a corner with the passer's cell; this applies regardless of the target occupant's team. It is a permanent Engine legality rule, not a Rule Set setting, and prevents an adjacent diagonal pair from creating a corner-only route with no traversed board cell. Manual Multiplayer retains its historical targeting rule.
+
 Short Pass retains the ground route: bodies and goalkeeper route blocking use the established route semantics. Its attacker target is the stable `stat:passing` value, whose visible global name may be renamed to **Short Pass**.
 
 Long Pass is aerial. It ignores defensive areas and bodies in the middle of the route. A player body matters only in the launch/landing neighbourhood when the actual selected-corner-to-target-centre trajectory touches that body cell, including edge/corner contact; merely being adjacent does not matter. A launch-adjacent body instead disables the shared execution corner before route confirmation. The first remaining such body is the direct contact: an opponent intercepts directly and a teammate receives directly.

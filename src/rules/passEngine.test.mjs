@@ -104,6 +104,17 @@ test("pass range always measures square centre to square centre, never the selec
   assert.equal(passMeasurementDistance(passer, receiver), 16);
 });
 
+test("offline Short Pass requires one full board cell between passer and target, while legacy Manual Multiplayer retains its path", () => {
+  const passer = { id: "passer", team: "A", x: 5, y: 5, cardId: "pass-card" };
+  const cards = { "pass-card": { passiveAttributes: [{ id: "stat:passing", value: 10 }] } };
+  const rules = { actions: { pass: { pathMode: "corner-to-center", longPassThreshold: 16 } } };
+  const base = { passer, passerCard: cards["pass-card"], pieces: [passer], cardById: cards, settings: { cols: 24, rows: 18 }, cornerId: "top-right", rules };
+  assert.equal(buildPassPlan({ ...base, target: { x: 6, y: 5 } }).targetTooClose, true);
+  assert.equal(buildPassPlan({ ...base, target: { x: 6, y: 6 } }).targetTooClose, true);
+  assert.equal(buildPassPlan({ ...base, target: { x: 7, y: 5 } }).targetTooClose, false);
+  assert.equal(buildPassPlan({ ...base, target: { x: 6, y: 6 }, legacyManual: true }).targetTooClose, false);
+});
+
 test("Pass plan marks only offline distances beyond the frozen maximum as illegal", () => {
   const passer = { id: "passer", team: "A", x: 1, y: 1, cardId: "pass-card" };
   const receiver = { id: "receiver", team: "A", x: 18, y: 1, cardId: "receiver-card" };

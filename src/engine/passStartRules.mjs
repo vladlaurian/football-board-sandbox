@@ -228,11 +228,13 @@ export function selectPassTarget(state, context, command) {
     cornerId,
     rules: context.ruleSet,
   }));
-  const targetInvalidReason = routePlans.some(plan => plan.maxDistanceExceeded)
-    ? "PASS_MAX_DISTANCE_EXCEEDED"
-    : context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !targetPlayer
-      ? "PASS_TARGET_FIELD_PLAYER_REQUIRED"
-      : null;
+  const targetInvalidReason = routePlans.some(plan => plan.targetTooClose)
+    ? "PASS_TARGET_TOO_CLOSE"
+    : routePlans.some(plan => plan.maxDistanceExceeded)
+      ? "PASS_MAX_DISTANCE_EXCEEDED"
+      : context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !targetPlayer
+        ? "PASS_TARGET_FIELD_PLAYER_REQUIRED"
+        : null;
   const routePresentation = routePlans.map(plan => {
     const requestedEndpoint = { x: Number(x) + .5, y: Number(y) + .5 };
     const selectedFriendlyTarget = plan.directHit
@@ -338,6 +340,7 @@ export function confirmPassRoute(state, context, command) {
   });
   if (plan.originBlocked) return { accepted: false, reason: "PASS_ROUTE_ORIGIN_BLOCKED" };
   if (plan.goalkeeperRouteBlocked) return { accepted: false, reason: "PASS_ROUTE_GOALKEEPER_BLOCKED" };
+  if (pending.targetInvalidReason === "PASS_TARGET_TOO_CLOSE" || plan.targetTooClose) return { accepted: false, reason: "PASS_TARGET_TOO_CLOSE" };
   if (pending.targetInvalidReason === "PASS_MAX_DISTANCE_EXCEEDED" || plan.maxDistanceExceeded) return { accepted: false, reason: "PASS_MAX_DISTANCE_EXCEEDED" };
   if (pending.targetInvalidReason === "PASS_TARGET_FIELD_PLAYER_REQUIRED" || (context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !plan.targetPlayerId)) return { accepted: false, reason: "PASS_TARGET_FIELD_PLAYER_REQUIRED" };
   if (plan.isLong && !plan.attackerTargetStatId) return { accepted: false, reason: "PASS_LONG_STAT_NOT_CONFIGURED" };

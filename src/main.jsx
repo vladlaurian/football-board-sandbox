@@ -207,7 +207,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.2";
+const APP_VERSION = "v20.56.3";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5999,6 +5999,7 @@ function App() {
     else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE MOVE before moving this player, or advance to next turn.</>;
     else if (result.reason === "pass-origin-blocked") primary = <>This execution corner is blocked by an adjacent player.</>;
     else if (result.reason === "pass-goalkeeper-blocked") primary = <>A pass route cannot cross a goalkeeper.</>;
+    else if (result.reason === "pass-target-too-close") primary = <>A Short Pass target must leave at least one full board cell between it and the passer.</>;
     else if (result.reason === "pass-target-field-player-required") primary = <>Short and Long Pass must target an active outfield player.</>;
     else if (result.reason === "pass-max-distance-exceeded") primary = <>The maximum Pass distance is {result.maxPassDistance ?? 32} squares.</>;
     else if (result.reason === "pass-long-stat-not-configured") primary = <>The global Long Pass statistic is required before starting this Match.</>;
@@ -9815,7 +9816,9 @@ function App() {
         label: `Pass target selected: ${toCoord(x, y)}`,
       });
       if (!dispatched.result.accepted) return false;
-      if (dispatched.state.actionResolution?.targetInvalidReason === "PASS_TARGET_FIELD_PLAYER_REQUIRED") {
+      if (dispatched.state.actionResolution?.targetInvalidReason === "PASS_TARGET_TOO_CLOSE") {
+        setIllegalMoveNotice({ reason: "pass-target-too-close" });
+      } else if (dispatched.state.actionResolution?.targetInvalidReason === "PASS_TARGET_FIELD_PLAYER_REQUIRED") {
         setIllegalMoveNotice({ reason: "pass-target-field-player-required" });
       } else if (dispatched.state.actionResolution?.targetInvalidReason === "PASS_MAX_DISTANCE_EXCEEDED") {
         setIllegalMoveNotice({ reason: "pass-max-distance-exceeded", maxPassDistance: dispatched.state.actionResolution?.routePlans?.[0]?.maxPassDistance || 32 });
