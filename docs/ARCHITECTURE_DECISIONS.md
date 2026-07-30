@@ -522,8 +522,9 @@ the Workspace board and card assignment.
 **Consequences:**
 
 - a former Match Timeline cannot leak into a newly started Match;
-- active-match formation selection may stage a future New Game but may not
-  silently mutate the canonical live board;
+- active-match formation selection uses the established live formation
+  application path and preserves every card link; Continue Game remains the
+  explicit choice that preserves a current board unchanged;
 - the Engine remains authority for Continue Game runtime reset and Match start;
 - Manual Multiplayer retains its frozen lifecycle.
 

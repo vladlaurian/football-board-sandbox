@@ -13,10 +13,12 @@ test("Tracker Start Game remains independent of Prep, Ready and Selection Rules"
   assert.doesNotMatch(implementation, /selectionRules|prepReady|validateReadySelection/);
 });
 
-test("Prep remains Single Player-only throughout Match Mode and Selection Rules exclude Manual Multiplayer", () => {
+test("Prep remains Single Player-only throughout Match Mode and can apply formations live", () => {
   assert.match(source, /\{!sessionCode && <button[\s\S]*?Selection Rules[\s\S]*?<\/button>\}/);
   assert.match(source, /\{!sessionCode && gameMode === "match" && <PrepPanel/);
-  assert.doesNotMatch(source, /gameMode !== "match" \|\| singlePlayerMatchWorkspaceLocked/);
+  const formationStart = source.indexOf("function applyFormation(team, formationId)");
+  const formationEnd = source.indexOf("function saveCurrentAsFormation", formationStart);
+  assert.doesNotMatch(source.slice(formationStart, formationEnd), /singlePlayerMatchWorkspaceLocked/);
 });
 
 test("Tracker exposes separate Start New Game and Continue Game lifecycle commands", () => {
@@ -24,6 +26,9 @@ test("Tracker exposes separate Start New Game and Continue Game lifecycle comman
   assert.match(source, /onContinueGame=\{\(\) => \{ setTrackerStartIntent\("continue"\); setTrackerStartChoiceOpen\(true\); \}\}/);
   assert.match(source, /function prepareNewGamePieces\(team\)/);
   assert.match(source, /STARTING_ST_REQUIRED/);
+  const kickoffStart = source.indexOf("function prepareNewGamePieces(team)");
+  const kickoffEnd = source.indexOf("function startTrackedGame(team)", kickoffStart);
+  assert.match(source.slice(kickoffStart, kickoffEnd), /piece\.team === "BALL"\) return \{ \.\.\.piece, x: strikerX, y: centerY \}/);
 });
 
 test("Ready acknowledgement closes Prep without creating a persistent preparation lock", () => {

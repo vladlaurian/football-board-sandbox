@@ -681,9 +681,9 @@ unchanged.
 **Status:** Complete.
 
 Prep remains available throughout offline Single Player Match Mode, but a live
-Match formation choice is staged for Start New Game so no Workspace control can
-silently rewrite canonical Match board state. Tracker separates Start New Game
-from Continue Game. New Game reapplies the selected coordinate templates while
+Match formation choice applies immediately through the established formation
+mechanism, retaining card links. Tracker separates Start New Game from Continue
+Game. New Game reapplies the selected coordinate templates while
 retaining card links, creates a fresh Timeline/MatchContext and performs the
 documented central opening placement. Continue Game uses the existing canonical
 restart transition and preserves the live board while clearing Match runtime.
@@ -693,6 +693,16 @@ keeps board coordinates and card assignments. Ready adds the approved minimum
 starter composition checks. Timeline and AI use the existing `MATCH_STARTED`
 vocabulary, with restart metadata for Continue Game; Manual Multiplayer and
 Firebase remain unchanged. Adjust remains a later separate scope.
+
+### v20.56.15 — Live Prep formation and kick-off possession correction
+
+**Status:** Complete.
+
+Prep formation selection is live throughout offline Single Player Match Mode;
+it preserves card links and remains the visible setup surface for assignment.
+Start New Game places the ball on the same agreed adjacent central cell as the
+starting ST. No Match command, Timeline vocabulary, AI export, Manual
+Multiplayer or Firebase behavior changes.
 
 ## Required update after every implementation build
 

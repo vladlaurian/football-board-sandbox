@@ -2,6 +2,14 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.15 — Live Prep formations and kick-off possession correction
+
+- Formation selection in Single Player Prep once again repositions the board
+  immediately, before or after a Match starts, while retaining every `cardId`.
+- Corrects Start New Game kick-off: the ball now occupies the same adjacent
+  central cell as the starting ST, so that player begins in possession.
+- Manual Multiplayer and Firebase are unchanged.
+
 ## v20.56.14 — Match start / continue lifecycle and minimum formation structure
 
 - Replaces Tracker Start Game with equal-width `Start New Game` and `Continue

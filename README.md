@@ -6,24 +6,21 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.14` |
-| Git/package version | `20.56.14` |
-| Build name | `Final_Board_v20_56_14_match_start_continue_lifecycle` |
-| Base build | `Final_Board_v20_56_13_prep_mode_boundary_and_summary` |
+| Sandbox version | `v20.56.15` |
+| Git/package version | `20.56.15` |
+| Build name | `Final_Board_v20_56_15_live_prep_formation_and_kickoff_ball` |
+| Base build | `Final_Board_v20_56_14_match_start_continue_lifecycle` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.14`. The repository version is in `package.json` as `20.56.14`. The browser title is `Sandbox v20.56.14`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.15`. The repository version is in `package.json` as `20.56.15`. The browser title is `Sandbox v20.56.15`.
 
 ## Current release
 
-v20.56.14 separates Tracker lifecycle into Start New Game and Continue Game.
-Start New Game reapplies the selected formations without deassigning cards,
-resets the ball to centre and places the starting ST in the adjacent opponent
-half; Continue Game preserves the current board while resetting all Match
-runtime. Leaving Match Mode for Editor also clears runtime while retaining board
-positions and assignments. Prep remains available throughout Single Player
-Match Mode; Selection Rules remain view-only there. Ready now also enforces the
-approved minimum starter structure. Manual Multiplayer/Firebase remain frozen.
+v20.56.15 restores the intended live Prep workflow: selecting a formation
+immediately rearranges the board in Single Player Match Mode while preserving
+every card assignment. Start New Game now places the ball directly on the
+starting ST in the agreed adjacent central cell. Manual Multiplayer/Firebase
+remain frozen.
 
 v20.56.12 established the Ready acknowledgement flow. v20.56.11 established
 the underlying Prep and Selection Rules foundation. v20.56.10 is its

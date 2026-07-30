@@ -214,7 +214,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.14";
+const APP_VERSION = "v20.56.15";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -4653,9 +4653,6 @@ function App() {
   }
 
   function applyFormation(team, formationId) {
-    // During a live Match, Prep may select the formation for the next
-    // Start New Game, but it must not silently rewrite the active board.
-    if (singlePlayerMatchWorkspaceLocked) return false;
     const formation = getFormationById(formationId);
     pushHistory();
     setPieces(prev => {
@@ -11427,7 +11424,7 @@ function App() {
     return {
       accepted: true,
       pieces: withFormations.map(piece => {
-        if (piece.team === "BALL") return { ...piece, x: centerX, y: centerY };
+        if (piece.team === "BALL") return { ...piece, x: strikerX, y: centerY };
         if (piece.id === striker.id) return { ...piece, x: strikerX, y: centerY };
         return piece;
       }),

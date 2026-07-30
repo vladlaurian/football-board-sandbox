@@ -20,10 +20,10 @@ v20.56.11 implements the pre-match Workspace portion only: Single Player
 Prep, Selection Rules persistence, full-roster selection analysis and Ready
 validation. v20.56.12 adds the explicit Ready acknowledgement. v20.56.13
 restores the mode boundary and makes the Blue/Red Selection summaries permanent
-inside Prep. v20.56.14 keeps Prep available throughout Single Player Match
-Mode: a formation selected during an active Match is staged for the next Start
-New Game rather than rewriting the live board. Start New Game now performs the
-documented central opening placement. Adjust and substitutions remain future
+inside Prep. v20.56.15 keeps Prep available throughout Single Player Match
+Mode and applies a selected formation immediately to the live board while
+retaining card links. Start New Game performs the documented central opening
+placement with the ball on the starting ST. Adjust and substitutions remain future
 scopes. Manual Multiplayer remains a
 frozen legacy path and keeps its existing puck-label behavior.
 
@@ -199,9 +199,9 @@ Rules and legal composition. On success, it asks:
   Tracker. It does **not** start the Match or leave a persistent Prep lock.
 
 `Start New Game` reapplies both selected formation templates without changing
-`cardId`, resets the ball to centre and places the selected starting team's
-first stable starter `ST` in the adjacent cell on the opponent half with
-possession. It starts a fresh Timeline and frozen MatchContext. `Continue
+`cardId`, then places the selected starting team's first stable starter `ST`
+in the adjacent cell on the opponent half with the ball in that same cell. It
+starts a fresh Timeline and frozen MatchContext. `Continue
 Game` preserves all board coordinates but resets all Match runtime and starts
 turn one through the canonical restart command. The selected starting team must
 have a starter `ST`; otherwise Start New Game is rejected explicitly. Start New
