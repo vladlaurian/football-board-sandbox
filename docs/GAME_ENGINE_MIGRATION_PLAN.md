@@ -763,6 +763,19 @@ is not touched. Formation-role warnings use correct card metadata and an
 explicit lock. No Engine command, MatchContext field, Timeline entry, AI export
 event, Manual Multiplayer or Firebase path changes.
 
+### v20.56.22 — Prep team ownership and Ready gate
+
+**Status:** Complete.
+
+Offline Single Player Prep now scopes its mutable controls to the currently
+selected team: formation selection already targets that team, while Adjust and
+card assignment/removal are also blocked for the non-selected team. Ready is a
+transient, independent Blue/Red acknowledgement. A setup mutation invalidates
+only its own team; `Start New Game` requires both acknowledgements, while
+`Continue Game` remains independent. These are Workspace UI authorization
+states only: no WorkspaceSnapshot field, Engine command, MatchContext field,
+Timeline entry, AI-export event, Manual Multiplayer or Firebase path changes.
+
 ### Deferred after v20.56.19 — Prep lifecycle and restart-dependent work
 
 Do not implement this as an incidental correction. The current live Prep

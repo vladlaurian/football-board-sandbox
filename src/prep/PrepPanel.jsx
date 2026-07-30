@@ -55,6 +55,7 @@ export function PrepPanel({
   onResetAdjust,
   onReady,
   readyValid,
+  teamReady,
   selectionSummaries,
   adjustDisabled,
 }) {
@@ -96,7 +97,7 @@ export function PrepPanel({
             <button onClick={() => selectionSummaryRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })}>Selection</button>
             <button disabled={adjustDisabled} className={adjustActive ? "active" : ""} onClick={onAdjust} title={adjustDisabled ? "Correct the selected formation's starter roles before Adjust." : "Select a starter to adjust it inside its local formation area."}>Adjust</button>
             <button disabled title="Substitution waits for the canonical interruption/restart lifecycle.">Substitution</button>
-            <button className={`prep-ready-button ${readyValid ? "is-valid" : ""}`} onClick={onReady}>Ready</button>
+            <button className={`prep-ready-button ${readyValid ? "is-valid" : ""} ${teamReady ? "is-confirmed" : ""}`} onClick={onReady}>{teamReady ? "Ready ✓" : "Ready"}</button>
           </div>
           {adjustActive && <button className="prep-reset-adjust" onClick={onResetAdjust}>Reset {teamName} default layout</button>}
           <div className="prep-selection-statuses" ref={selectionSummaryRef}>

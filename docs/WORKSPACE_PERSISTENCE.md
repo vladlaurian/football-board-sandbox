@@ -34,8 +34,9 @@
 - die results.
 
 Prep-panel geometry, active Adjust highlighting and Ready confirmation/success-dialog
-state are deliberately transient UI state. A Ready acknowledgement is not a
-gameplay event and is not persisted into a Match recording or Timeline.
+state are deliberately transient UI state. Per-team Ready acknowledgements are
+not gameplay events and are not persisted into WorkspaceSnapshot, a Match
+recording, Timeline or AI export.
 
 Selection Rules are editable only in Editor Mode. Match Mode reads the saved
 Workspace policy for visual inspection without allowing mutation.

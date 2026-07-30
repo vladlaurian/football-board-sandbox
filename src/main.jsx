@@ -198,6 +198,7 @@ import { CardsPanel } from "./cards/CardsPanel.jsx";
 import { AssignCardModal } from "./cards/AssignCardModal.jsx";
 import { PrepPanel } from "./prep/PrepPanel.jsx";
 import { formationAdjustCells } from "./prep/adjustZones.mjs";
+import { areBothPrepTeamsReady, createPrepReadyTeams, invalidatePrepTeamReady, markPrepTeamReady } from "./prep/teamPrepReadiness.mjs";
 import "./styles.css";
 
 const firebaseConfig = {
@@ -217,7 +218,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.21";
+const APP_VERSION = "v20.56.22";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2061,9 +2062,13 @@ function App() {
   const [prepLayoutState, setPrepLayoutState] = useState(() => normalizePrepLayoutState());
   const [prepMinimized, setPrepMinimized] = useState(false);
   const [prepSelectedTeam, setPrepSelectedTeam] = useState("A");
+  const [prepReadyTeams, setPrepReadyTeams] = useState(() => createPrepReadyTeams());
   const [prepReadyConfirmationOpen, setPrepReadyConfirmationOpen] = useState(false);
+  const [prepReadyConfirmationTeam, setPrepReadyConfirmationTeam] = useState(null);
   const [prepReadySuccessOpen, setPrepReadySuccessOpen] = useState(false);
+  const [prepReadySuccessTeam, setPrepReadySuccessTeam] = useState(null);
   const [prepReadyIssues, setPrepReadyIssues] = useState([]);
+  const [prepStartBlockedNotice, setPrepStartBlockedNotice] = useState(false);
   const [prepPosition, setPrepPosition] = useState(() => {
     try { return JSON.parse(localStorage.getItem("football-board-prep-position-v1")) || { x: 430, y: 420 }; }
     catch { return { x: 430, y: 420 }; }
@@ -2639,8 +2644,19 @@ function App() {
     return myTeam !== "spectator" && pieceTeamKey(piece) === myTeam;
   }
 
+  function isPrepTeamMutationAllowed(piece) {
+    if (sessionCode || gameMode !== "match" || !prepVisible) return true;
+    return piece?.team === prepSelectedTeam;
+  }
+
+  function invalidatePrepReadinessForTeam(team) {
+    if (!sessionCode && gameMode === "match") {
+      setPrepReadyTeams(current => invalidatePrepTeamReady(current, team));
+    }
+  }
+
   function canAssignPiece(piece) {
-    return !!piece && !singlePlayerMatchWorkspaceLocked && piece.team !== "BALL" && !piece.inactive && canControlPieceStatus(piece);
+    return !!piece && !singlePlayerMatchWorkspaceLocked && piece.team !== "BALL" && !piece.inactive && canControlPieceStatus(piece) && isPrepTeamMutationAllowed(piece);
   }
 
   function isOwnCardPiece(piece) {
@@ -4652,6 +4668,7 @@ function App() {
       ...current,
       adjustedTeams: { ...current.adjustedTeams, [team]: false },
     }));
+    invalidatePrepReadinessForTeam(team);
     return true;
   }
 
@@ -5987,6 +6004,7 @@ function App() {
     else if (result.reason === "match-not-started") primary = <>Start the match in Tracker before moving players.</>;
     else if (result.reason === "STARTING_ST_REQUIRED") primary = <>The team that starts needs at least one starting ST for kick-off.</>;
     else if (result.reason === "ADJUST_OUTSIDE_FORMATION_RANGE") primary = <>Adjust can place this player only inside the highlighted local formation area.</>;
+    else if (result.reason === "PREP_TEAM_NOT_SELECTED") primary = <>Select this player&apos;s team in Prep before adjusting its positions.</>;
     else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE MOVE before moving this player, or advance to next turn.</>;
     else if (result.reason === "pass-origin-blocked") primary = <>This execution corner is blocked by an adjacent player.</>;
     else if (result.reason === "pass-goalkeeper-blocked") primary = <>A pass route cannot cross a goalkeeper.</>;
@@ -6050,13 +6068,21 @@ function App() {
       setPendingRollModifierType(null);
       setRollModifierChoice(null);
       setPrepReadyConfirmationOpen(false);
+      setPrepReadyConfirmationTeam(null);
       setPrepReadySuccessOpen(false);
+      setPrepReadySuccessTeam(null);
       setPrepReadyIssues([]);
+      setPrepStartBlockedNotice(false);
+      setPrepReadyTeams(createPrepReadyTeams());
+      setPrepReadyConfirmationTeam(null);
       setPrepVisible(false);
       setAdjustActive(false);
     }
     setGameMode(next);
     if (next === "match") {
+      setPrepReadyTeams(createPrepReadyTeams());
+      setPrepReadySuccessTeam(null);
+      setPrepStartBlockedNotice(false);
       matchPlayableStartEstablishedRef.current = false;
       const timeline = startGameTimeline(nextState, { syncSession: Boolean(sessionCode) });
       // Freeze the MatchContext from the exact state used as this Timeline's
@@ -6335,6 +6361,10 @@ function App() {
     if (!piece) return false;
 
     if (adjustActive && !sessionCode && piece.team !== "BALL" && !isBenchReservePiece(piece)) {
+      if (piece.team !== prepSelectedTeam) {
+        setIllegalMoveNotice({ reason: "PREP_TEAM_NOT_SELECTED" });
+        return false;
+      }
       const formation = getFormationById(piece.team === "A" ? blueFormationId : redFormationId);
       const allowed = formationAdjustCells(piece, formation, settingsRef.current)
         .some(cell => cell.x === Number(x) && cell.y === Number(y));
@@ -6349,6 +6379,7 @@ function App() {
         ...current,
         adjustedTeams: { ...current.adjustedTeams, [piece.team]: true },
       }));
+      invalidatePrepReadinessForTeam(piece.team);
       logSnapshot(`Adjust: ${getPieceDisplayLabel(piece)} → ${toCoord(x, y)}`, nextPieces, { type: "ADJUSTED_POSITION" });
       return true;
     }
@@ -6837,6 +6868,9 @@ function App() {
     ...(prepSelectionSummaries.blue.formation?.slotProblems || []),
     ...(prepSelectionSummaries.red.formation?.slotProblems || []),
   ].map(problem => [problem.pieceId, problem])), [prepSelectionSummaries]);
+  const prepSelectedTeamValidation = prepSelectedTeam === "A" ? prepReadyValidation.blue : prepReadyValidation.red;
+  const prepSelectedTeamReady = Boolean(prepReadyTeams[prepSelectedTeam]);
+  const bothPrepTeamsReady = areBothPrepTeamsReady(prepReadyTeams);
   const libraryPositionOptions = useMemo(() => Array.from(new Set((cardState.cards || []).map(card => card.position).filter(Boolean))).sort((a, b) => {
     const rankA = CARD_POSITION_OPTIONS.indexOf(a);
     const rankB = CARD_POSITION_OPTIONS.indexOf(b);
@@ -7123,6 +7157,7 @@ function App() {
     if (!adjustActive || sessionCode) return [];
     const selected = pieces.find(piece => piece.id === selectedId);
     if (!selected || selected.team === "BALL" || isBenchReservePiece(selected)) return [];
+    if (selected.team !== prepSelectedTeam) return [];
     const formation = getFormationById(selected.team === "A" ? blueFormationId : redFormationId);
     return formationAdjustCells(selected, formation, settings).map(cell => ({
       ...cell,
@@ -7130,7 +7165,7 @@ function App() {
       selected: true,
       team: selected.team,
     }));
-  }, [adjustActive, sessionCode, selectedId, pieces, blueFormationId, redFormationId, settings]);
+  }, [adjustActive, sessionCode, selectedId, pieces, prepSelectedTeam, blueFormationId, redFormationId, settings]);
 
   const passPreview = useMemo(() => {
     const pending = actionResolution;
@@ -7474,6 +7509,8 @@ function App() {
     if (gameMode !== "match" && user && sessionCode && sessionHydratedRef.current) {
       void saveSessionCardAssignments(nextPieces);
     }
+    invalidatePrepReadinessForTeam(targetPiece.team);
+    if (existingPiece) invalidatePrepReadinessForTeam(existingPiece.team);
     setAssignTarget(null);
   }
 
@@ -7508,6 +7545,7 @@ function App() {
     if (gameMode !== "match" && user && sessionCode && sessionHydratedRef.current) {
       void saveSessionCardAssignments(nextPieces);
     }
+    invalidatePrepReadinessForTeam(targetPiece.team);
   }
 
 
@@ -9293,17 +9331,22 @@ function App() {
     setSelectionRules(current => selectionRulesWithPatch(current, patch));
   }
   function requestPrepReady() {
-    const ready = prepReadyValidation;
+    const ready = prepSelectedTeamValidation;
     if (!ready.valid) {
       setPrepReadyIssues(ready.issues);
       return;
     }
+    setPrepReadyConfirmationTeam(prepSelectedTeam);
     setPrepReadyConfirmationOpen(true);
   }
   function confirmPrepReady() {
+    const team = prepReadyConfirmationTeam || prepSelectedTeam;
+    setPrepReadyTeams(current => markPrepTeamReady(current, team));
     setPrepReadyConfirmationOpen(false);
+    setPrepReadyConfirmationTeam(null);
     setAdjustActive(false);
     setPrepVisible(false);
+    setPrepReadySuccessTeam(team);
     setPrepReadySuccessOpen(true);
   }
   function buildTrackerSnapshot(overrides = {}) {
@@ -11442,9 +11485,23 @@ function App() {
     };
   }
 
+  function requestStartNewGame() {
+    if (!bothPrepTeamsReady) {
+      setPrepStartBlockedNotice(true);
+      return;
+    }
+    setTrackerStartIntent("new");
+    setTrackerStartChoiceOpen(true);
+  }
+
   function startTrackedGame(team) {
     if (trackerReadOnly) return;
     if (!sessionCode && gameMode === "match") {
+      if (trackerStartIntent === "new" && !bothPrepTeamsReady) {
+        setTrackerStartChoiceOpen(false);
+        setPrepStartBlockedNotice(true);
+        return;
+      }
       const completeRosters = prepReadyValidation.blue.assignedCount === 18 && prepReadyValidation.red.assignedCount === 18;
       if (trackerStartIntent === "new" && completeRosters && !prepReadyValidation.valid) {
         setPrepReadyIssues(prepReadyValidation.issues);
@@ -12721,7 +12778,8 @@ function App() {
           }));
         }}
         onReady={requestPrepReady}
-        readyValid={prepReadyValidation.valid}
+        readyValid={prepSelectedTeamValidation.valid}
+        teamReady={prepSelectedTeamReady}
         selectionSummaries={prepSelectionSummaries}
         adjustDisabled={!((prepSelectedTeam === "A" ? prepSelectionSummaries.blue : prepSelectionSummaries.red)?.formation?.exact)}
       />}
@@ -12739,7 +12797,7 @@ function App() {
         onMinimize={() => setTrackerMinimized(v => !v)}
         onClose={() => setTrackerEnabledForSession(false)}
         gameStarted={trackerGameStarted}
-        onStartNewGame={() => { setTrackerStartIntent("new"); setTrackerStartChoiceOpen(true); }}
+        onStartNewGame={requestStartNewGame}
         onContinueGame={() => { setTrackerStartIntent("continue"); setTrackerStartChoiceOpen(true); }}
         onChangePossession={changeTrackerPossession}
         onReset={resetTrackerActions}
@@ -12823,13 +12881,23 @@ function App() {
         </div>
       )}
 
+      {prepStartBlockedNotice && (
+        <div className="modal-backdrop" onPointerDown={() => setPrepStartBlockedNotice(false)}>
+          <div className="modal prep-start-blocked-modal" onPointerDown={event => event.stopPropagation()}>
+            <div className="modal-title"><strong>Start New Game</strong><button className="icon-btn" onClick={() => setPrepStartBlockedNotice(false)}>×</button></div>
+            <div className="turn-confirm-message">Please prepare your team from Prep Menu.</div>
+            <div className="modal-actions turn-confirm-actions"><button className="save-switch" onClick={() => setPrepStartBlockedNotice(false)}>OK</button></div>
+          </div>
+        </div>
+      )}
+
       {prepReadyConfirmationOpen && (
-        <div className="modal-backdrop" onPointerDown={() => setPrepReadyConfirmationOpen(false)}>
+        <div className="modal-backdrop" onPointerDown={() => { setPrepReadyConfirmationOpen(false); setPrepReadyConfirmationTeam(null); }}>
           <div className="modal prep-ready-confirm-modal" onPointerDown={event => event.stopPropagation()}>
             <div className="modal-title"><strong>Ready</strong></div>
-            <div className="turn-confirm-message">Are you sure you are ready to start the Match?</div>
+            <div className="turn-confirm-message">Are you sure {prepReadyConfirmationTeam === "A" ? "Blue" : "Red"} is ready?</div>
             <div className="modal-actions turn-confirm-actions">
-              <button onClick={() => setPrepReadyConfirmationOpen(false)}>No</button>
+              <button onClick={() => { setPrepReadyConfirmationOpen(false); setPrepReadyConfirmationTeam(null); }}>No</button>
               <button onClick={confirmPrepReady}>Yes</button>
             </div>
           </div>
@@ -12840,8 +12908,8 @@ function App() {
         <div className="modal-backdrop" onPointerDown={() => setPrepReadySuccessOpen(false)}>
           <div className="modal prep-ready-success-modal" onPointerDown={event => event.stopPropagation()}>
             <div className="modal-title"><strong>Prep complete</strong></div>
-            <div className="turn-confirm-message">Everything is ready. Press Start New Game in Tracker to start the Match.</div>
-            <div className="modal-actions turn-confirm-actions"><button className="save-switch" onClick={() => setPrepReadySuccessOpen(false)}>OK</button></div>
+            <div className="turn-confirm-message">{bothPrepTeamsReady ? "Both teams are ready. Press Start New Game in Tracker to start the Match." : `${prepReadySuccessTeam === "A" ? "Blue" : "Red"} is ready. Prepare the other team from Prep Menu.`}</div>
+            <div className="modal-actions turn-confirm-actions"><button className="save-switch" onClick={() => { setPrepReadySuccessOpen(false); setPrepReadySuccessTeam(null); }}>OK</button></div>
           </div>
         </div>
       )}

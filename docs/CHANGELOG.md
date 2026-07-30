@@ -2,6 +2,21 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.22 — Prep team ownership and Ready gate
+
+- While offline Single Player Prep is open, the selected Prep team is the only
+  team that may adjust a starter or change card assignment/removal. The other
+  team remains available for inspection and its existing board state is not
+  changed.
+- Ready is an independent transient confirmation for Blue and Red. A formation,
+  Adjust or card-assignment mutation invalidates only the affected team's Ready
+  state; the other team remains confirmed.
+- `Start New Game` now requires both teams to be Ready. Until then it keeps its
+  visible Tracker control and explains: `Please prepare your team from Prep
+  Menu.` `Continue Game` has no Ready dependency.
+- No WorkspaceSnapshot schema, Engine, MatchContext, Timeline, AI export,
+  Manual Multiplayer or Firebase behavior changes.
+
 ## v20.56.21 — Half-pitch formations and local Adjust correction
 
 - Clean corrective build from v20.56.19; no runtime code is retained from the

@@ -5,12 +5,13 @@ import test from "node:test";
 const source = readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
 const prepSource = readFileSync(new URL("../prep/PrepPanel.jsx", import.meta.url), "utf8");
 
-test("Tracker Start Game remains independent of opening Prep or acknowledging Ready", () => {
+test("Start New requires both Prep confirmations while Continue remains independent", () => {
   const start = source.indexOf("function startTrackedGame(team)");
   const end = source.indexOf("function applyTrackerTurn(turn)", start);
   assert.ok(start >= 0 && end > start);
   const implementation = source.slice(start, end);
-  assert.doesNotMatch(implementation, /prepVisible|prepReadyConfirmationOpen|prepReadySuccessOpen/);
+  assert.match(implementation, /trackerStartIntent === "new" && !bothPrepTeamsReady/);
+  assert.doesNotMatch(implementation, /trackerStartIntent === "continue" && !bothPrepTeamsReady/);
   assert.match(implementation, /completeRosters/);
 });
 
@@ -23,7 +24,9 @@ test("Prep remains Single Player-only throughout Match Mode and can apply format
 });
 
 test("Tracker exposes separate Start New Game and Continue Game lifecycle commands", () => {
-  assert.match(source, /onStartNewGame=\{\(\) => \{ setTrackerStartIntent\("new"\); setTrackerStartChoiceOpen\(true\); \}\}/);
+  assert.match(source, /onStartNewGame=\{requestStartNewGame\}/);
+  assert.match(source, /function requestStartNewGame\(\)/);
+  assert.match(source, /Please prepare your team from Prep Menu\./);
   assert.match(source, /onContinueGame=\{\(\) => \{ setTrackerStartIntent\("continue"\); setTrackerStartChoiceOpen\(true\); \}\}/);
   assert.match(source, /function prepareNewGamePieces\(team\)/);
   assert.match(source, /STARTING_ST_REQUIRED/);
@@ -39,8 +42,9 @@ test("Ready acknowledgement closes Prep without creating a persistent preparatio
   const implementation = source.slice(start, end);
   assert.match(implementation, /setPrepVisible\(false\)/);
   assert.match(implementation, /setPrepReadySuccessOpen\(true\)/);
-  assert.doesNotMatch(source, /const \[prepReady,/);
-  assert.doesNotMatch(source, /singlePlayerMatchWorkspaceLocked \|\| prepReady/);
+  assert.match(source, /const \[prepReadyTeams,/);
+  assert.match(source, /markPrepTeamReady/);
+  assert.match(source, /invalidatePrepTeamReady/);
 });
 
 test("Prep keeps both team Selection summaries visible and Match Mode locks Selection Rules to view-only", () => {
@@ -66,11 +70,22 @@ test("Adjust stays Single Player Prep-only, local to the selected starter, and B
   const overlay = source.slice(overlayStart, overlayEnd);
   assert.doesNotMatch(overlay, /interactionState\.activePieceId/);
   assert.match(overlay, /const selected = pieces\.find\(piece => piece\.id === selectedId\)/);
+  assert.match(overlay, /selected\.team !== prepSelectedTeam/);
+  assert.match(source, /piece\.team !== prepSelectedTeam/);
   const kickoffStart = source.indexOf("function prepareNewGamePieces(team)");
   const kickoffEnd = source.indexOf("function startTrackedGame(team)", kickoffStart);
   const kickoff = source.slice(kickoffStart, kickoffEnd);
   assert.match(kickoff, /team === "blue" \? centerX : centerX - 1/);
   assert.match(kickoff, /piece\.team === "BALL"\) return \{ \.\.\.piece, x: strikerX, y: centerY \}/);
+});
+
+test("Prep mutations are limited to the team selected in Prep", () => {
+  assert.match(source, /function isPrepTeamMutationAllowed\(piece\)/);
+  assert.match(source, /piece\?\.team === prepSelectedTeam/);
+  const canAssignStart = source.indexOf("function canAssignPiece(piece)");
+  const canAssignEnd = source.indexOf("function isOwnCardPiece", canAssignStart);
+  assert.ok(canAssignStart >= 0 && canAssignEnd > canAssignStart);
+  assert.match(source.slice(canAssignStart, canAssignEnd), /isPrepTeamMutationAllowed\(piece\)/);
 });
 
 test("Ready exits Adjust and Start New preserves an explicitly prepared layout", () => {

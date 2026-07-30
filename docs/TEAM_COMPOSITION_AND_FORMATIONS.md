@@ -27,9 +27,11 @@ prepared layout for Start New. v20.56.19 replaces editable formation slots with
 the approved standard catalogue and validates each selected formation's exact
 starter-role recipe. v20.56.21 corrects that catalogue so every default starter
 remains in its own half and outside the centre circle, and replaces role-wide
-Adjust zones with local formation-slot adjustment. Substitutions remain future
-work. Manual Multiplayer remains a frozen legacy path and keeps its existing
-puck-label behavior.
+Adjust zones with local formation-slot adjustment. v20.56.22 gives Prep's
+mutable controls an explicit selected-team boundary and requires a separate
+transient Ready confirmation from both teams before Start New. Substitutions
+remain future work. Manual Multiplayer remains a frozen legacy path and keeps
+its existing puck-label behavior.
 
 ## 1. One authority for a player's role
 
@@ -140,6 +142,11 @@ The panel always exposes these controls:
 - `Formation` selects a spatial formation template for that team. The board
   updates immediately, using the existing stable puck identities and keeping
   their assigned cards. This is functional in v20.56.11.
+- While Single Player Prep is open, its selected team owns Prep mutation:
+  formation application, Adjust movement and card assignment/removal may alter
+  only that team. The other team remains inspectable but cannot be changed
+  until it is selected in Prep. This is a UI preparation boundary, not a
+  gameplay ownership change.
 
 ### 5.2 Selection
 
@@ -214,14 +221,24 @@ prepared Adjust layout.
 
 ### 5.5 Ready and Match start
 
-Before the Match starts, `Ready` validates the full roster, active Selection
-Rules and legal composition. On success, it asks:
-
-`Are you sure you are ready to start the Match?`
+Before the Match starts, `Ready` validates the selected team's full roster,
+active Selection Rules and legal composition. Blue and Red acknowledge
+independently.
 
 - `No` changes nothing.
-- `Yes` closes Prep and confirms that the user must press `Start New Game` in
-  Tracker. It does **not** start the Match or leave a persistent Prep lock.
+- `Yes` closes Prep, visibly marks that team Ready, and directs the user to
+  prepare the other team or, when both are Ready, to use `Start New Game` in
+  Tracker.
+- A formation application, Adjust movement or card assignment/removal
+  invalidates only the changed team's Ready acknowledgement. The other team's
+  Ready state remains intact.
+- Ready state is transient preparation UI: it is neither WorkspaceSnapshot nor
+  a Timeline, replay or AI-export event.
+
+`Start New Game` requires both team acknowledgements. If either team is not
+Ready, its Tracker request is rejected with:
+
+`Please prepare your team from Prep Menu.`
 
 `Start New Game` reapplies both selected formation templates without changing
 `cardId`, then places the selected starting team's first stable starter `ST`
@@ -231,8 +248,8 @@ layout is retained instead of applying that team's formation template again. It
 starts a fresh Timeline and frozen MatchContext. `Continue
 Game` preserves all board coordinates but resets all Match runtime and starts
 turn one through the canonical restart command. The selected starting team must
-have a starter `ST`; otherwise Start New Game is rejected explicitly. Start New
-Game may be used without Prep or Ready.
+have a starter `ST`; otherwise Start New Game is rejected explicitly. `Continue
+Game` does not require Prep or Ready.
 
 ### 5.6 Substitution control
 

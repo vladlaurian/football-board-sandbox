@@ -6,24 +6,23 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.21` |
-| Git/package version | `20.56.21` |
-| Build name | `Final_Board_v20_56_21_formation_half_pitch_and_local_adjust` |
-| Base build | `Final_Board_v20_56_19_standard_formations_and_role_validation` |
+| Sandbox version | `v20.56.22` |
+| Git/package version | `20.56.22` |
+| Build name | `Final_Board_v20_56_22_prep_team_ownership_and_ready_gate` |
+| Base build | `Final_Board_v20_56_21_formation_half_pitch_and_local_adjust` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.21`. The repository version is in `package.json` as `20.56.21`. The browser title is `Sandbox v20.56.21`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.22`. The repository version is in `package.json` as `20.56.22`. The browser title is `Sandbox v20.56.22`.
 
 ## Current release
 
-v20.56.21 is a clean corrective build from v20.56.19. The 22 standard
-formations keep Blue entirely in the Blue half and Red in the mirrored Red
-half; no default starter is inside the centre circle, while forwards remain as
-advanced as their own half permits. Adjust no longer auto-positions players or
-uses role-wide yellow zones: selecting a starter exposes only that formation
-slot's team-coloured local 5×5 area. Existing board-coordinate display settings
-are untouched. Formation-role mismatches now receive an explicit red lock with
-the expected/assigned-role explanation. Card authority, live card-preserving
+v20.56.22 gives Prep an explicit selected-team ownership boundary: while Prep
+is open, only the selected team may use its Adjust movement or change card
+assignment; the other team remains inspectable. Ready is now an independent,
+transient acknowledgement per team. A setup mutation invalidates only that
+team's acknowledgement. `Start New Game` is allowed only after both Blue and
+Red are Ready and otherwise gives the exact Prep instruction; `Continue Game`
+remains independent. WorkspaceSnapshot, card authority, live card-preserving
 formation application, Engine, Timeline, AI export, Manual Multiplayer and
 Firebase remain unchanged.
 
