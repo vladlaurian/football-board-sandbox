@@ -12,6 +12,7 @@ test("an incompatible formation preserves every starter card while reporting the
   assert.deepEqual(plan.excess.sort(), ["CAM", "CDM"]);
   assert.equal(Object.values(plan.cardIdsByStarterIndex).filter(Boolean).length, 11);
   assert.equal(plan.slotProblems.length, 2);
+  assert.equal(plan.slotProblems.every(problem => problem.cardId === pieces.find(piece => piece.id === problem.pieceId)?.cardId), true);
 });
 
 test("compatible formation suggestions require capacity for every already assigned starter role", () => {

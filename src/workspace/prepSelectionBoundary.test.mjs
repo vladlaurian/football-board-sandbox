@@ -54,14 +54,18 @@ test("Prep keeps both team Selection summaries visible and Match Mode locks Sele
   assert.doesNotMatch(source, /prep-selection-live-panel/);
 });
 
-test("Adjust stays Single Player Prep-only and Blue kick-off mirrors Red", () => {
-  assert.match(prepSource, /Highlight role zones and adjust starter positions/);
+test("Adjust stays Single Player Prep-only, local to the selected starter, and Blue kick-off mirrors Red", () => {
+  assert.match(prepSource, /local formation area/);
   assert.match(prepSource, /adjustActive/);
   assert.match(source, /adjustZoneCells=\{adjustZoneOverlays\}/);
-  assert.match(source, /ADJUST_OUTSIDE_ROLE_ZONE/);
+  assert.match(source, /ADJUST_OUTSIDE_FORMATION_RANGE/);
+  assert.match(source, /formationAdjustCells\(selected, formation, settings\)/);
+  assert.doesNotMatch(source, /planAutoAdjustStarters/);
   const overlayStart = source.indexOf("const adjustZoneOverlays = useMemo");
   const overlayEnd = source.indexOf("const passPreview = useMemo", overlayStart);
-  assert.doesNotMatch(source.slice(overlayStart, overlayEnd), /interactionState\.activePieceId/);
+  const overlay = source.slice(overlayStart, overlayEnd);
+  assert.doesNotMatch(overlay, /interactionState\.activePieceId/);
+  assert.match(overlay, /const selected = pieces\.find\(piece => piece\.id === selectedId\)/);
   const kickoffStart = source.indexOf("function prepareNewGamePieces(team)");
   const kickoffEnd = source.indexOf("function startTrackedGame(team)", kickoffStart);
   const kickoff = source.slice(kickoffStart, kickoffEnd);
@@ -78,5 +82,5 @@ test("Ready exits Adjust and Start New preserves an explicitly prepared layout",
   const kickoff = source.slice(kickoffStart, kickoffEnd);
   assert.match(kickoff, /prepLayoutState\.adjustedTeams\.A/);
   assert.match(kickoff, /prepLayoutState\.adjustedTeams\.B/);
-  assert.match(prepSource, /Reset \{teamName\} formation layout/);
+  assert.match(prepSource, /Reset \{teamName\} default layout/);
 });

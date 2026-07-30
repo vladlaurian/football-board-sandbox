@@ -217,7 +217,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.20";
+const APP_VERSION = "v20.56.21";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5986,7 +5986,7 @@ function App() {
     else if (result.reason === "movement-ended") primary = <>This player has no legal movement remaining during the current turn.</>;
     else if (result.reason === "match-not-started") primary = <>Start the match in Tracker before moving players.</>;
     else if (result.reason === "STARTING_ST_REQUIRED") primary = <>The team that starts needs at least one starting ST for kick-off.</>;
-    else if (result.reason === "ADJUST_OUTSIDE_ROLE_ZONE") primary = <>Adjust can place this player only inside the highlighted zone for the position on the card.</>;
+    else if (result.reason === "ADJUST_OUTSIDE_FORMATION_RANGE") primary = <>Adjust can place this player only inside the highlighted local formation area.</>;
     else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE MOVE before moving this player, or advance to next turn.</>;
     else if (result.reason === "pass-origin-blocked") primary = <>This execution corner is blocked by an adjacent player.</>;
     else if (result.reason === "pass-goalkeeper-blocked") primary = <>A pass route cannot cross a goalkeeper.</>;
@@ -7130,7 +7130,7 @@ function App() {
       selected: true,
       team: selected.team,
     }));
-  }, [adjustActive, sessionCode, selectedId, pieces, settings, blueFormationId, redFormationId]);
+  }, [adjustActive, sessionCode, selectedId, pieces, blueFormationId, redFormationId, settings]);
 
   const passPreview = useMemo(() => {
     const pending = actionResolution;
@@ -12207,7 +12207,7 @@ function App() {
         movementAxisSymbol={movementAxisSymbol}
         movementPreview={adjustActive ? null : movementPreview}
         hoveredCell={hoveredCell}
-        coordinateCells={adjustActive ? [] : coordinateCells}
+        coordinateCells={coordinateCells}
         measureMode={measureMode}
         measureStart={measureStart}
         measureEnd={measureEnd}
@@ -12723,7 +12723,6 @@ function App() {
         onReady={requestPrepReady}
         readyValid={prepReadyValidation.valid}
         selectionSummaries={prepSelectionSummaries}
-        selectedTeamSummary={prepSelectedTeam === "A" ? prepSelectionSummaries.blue : prepSelectionSummaries.red}
         adjustDisabled={!((prepSelectedTeam === "A" ? prepSelectionSummaries.blue : prepSelectionSummaries.red)?.formation?.exact)}
       />}
 

@@ -25,9 +25,11 @@ Mode and applies a selected formation immediately to the live board while
 retaining card links. v20.56.18 makes Adjust role-aware and persists its
 prepared layout for Start New. v20.56.19 replaces editable formation slots with
 the approved standard catalogue and validates each selected formation's exact
-starter-role recipe. v20.56.20 replaces role-zone Adjust with formation-local
-Adjust, while substitutions remain future work. Manual Multiplayer remains a
-frozen legacy path and keeps its existing puck-label behavior.
+starter-role recipe. v20.56.21 corrects that catalogue so every default starter
+remains in its own half and outside the centre circle, and replaces role-wide
+Adjust zones with local formation-slot adjustment. Substitutions remain future
+work. Manual Multiplayer remains a frozen legacy path and keeps its existing
+puck-label behavior.
 
 ## 1. One authority for a player's role
 
@@ -185,25 +187,30 @@ Prep summaries recalculate after each card assignment.
 
 ### 5.4 Adjust
 
-`Adjust` uses the selected formation's default coordinate for each stable
-starter puck as its permanent anchor. Entering Adjust never repositions a team.
-After selecting one starter, only that player's local 5×5 square is shown:
-two cells in every orthogonal and diagonal direction from its formation anchor.
-The local area is Blue or Red, never the former shared yellow role-zone overlay.
-The starter may move only to a free cell inside that square; reserves and the
-ball are not adjusted. Normal movement/cursor previews are hidden only while
-this Adjust interaction is active.
+`Adjust` does not generate a role-based layout and never moves a player merely
+because the button was pressed. It reads the selected formation's stable neutral
+starter-slot coordinate; the player's card remains the sole role authority.
 
-All standard formation defaults deliberately avoid the centre-circle corridor.
-`Reset [team] formation layout` reapplies that team's selected template and
-therefore restores its local Adjust anchors. Selecting another Formation also
-replaces that team's anchors.
+When a coach selects one eligible starter while Adjust is active, only the
+local 5×5 area centred on that slot's formation coordinate is highlighted. Blue
+uses blue highlight; Red uses red highlight. The player may be placed only in
+that area and never on an occupied player cell. Reserves and the ball are not
+adjusted. Normal movement preview/cursor presentation is suppressed only during
+this local Adjust interaction; the existing board-coordinate display setting is
+not changed by Adjust.
+
+The formation catalogue is authored in Blue coordinates and mirrored for Red.
+Every template keeps starters in their own half and outside the actual centre
+circle. Forwards use the nearest legal own-half cells to the centre circle;
+they are not placed in the opposing half or inside the circle.
 
 The Ready validator checks roster composition and all other setup legality.
 Adjust does not change card roles or card assignment. It is available only in
 Single Player Prep; Manual Multiplayer receives neither the control nor its
-movement path. Reopening Adjust only re-enters its highlight/move mode and does
-not reset the board.
+movement path. Reopening Adjust only re-enters its highlight/move mode; it does
+not reset the board. `Reset [team] default layout` deliberately reapplies that
+team's selected formation. Selecting a new Formation invalidates that team's
+prepared Adjust layout.
 
 ### 5.5 Ready and Match start
 
@@ -259,9 +266,8 @@ entrance:
 
 ## 6. Positional zones
 
-The following former role-zone map is retained only as historical approved
-reference for a future, separately designed central-restart system. It has no
-active Adjust behavior.
+The following card-role map is retained for the separately approved future
+central-restart system. It is not an active Adjust movement map.
 
 The following is the approved first zone map for Blue, which attacks toward
 increasing column numbers. Red is mirrored in depth using `n → 45 − n`.
@@ -288,11 +294,10 @@ other spatial overlaps where distinct role rows or coach adjustment preserve
 legal placement. The future automatic placement rule must select distinct
 free cells within the applicable zones.
 
-The implemented Adjust algorithm chooses central distinct free cells. A future
-central-restart algorithm must use a canonical Engine/MatchState command rather
-than treating this Workspace control as gameplay resolution. Changing a zone
-boundary later must be a centralized data edit, not a rewrite of roster or
-Match rules.
+A future central-restart algorithm must use a canonical Engine/MatchState
+command rather than treating this Workspace control as gameplay resolution.
+Changing a zone boundary later must be a centralized data edit, not a rewrite
+of roster or Match rules.
 
 ## 7. Architecture boundary
 

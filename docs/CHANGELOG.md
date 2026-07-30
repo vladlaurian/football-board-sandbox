@@ -2,19 +2,20 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
-## v20.56.20 — Formation-local Adjust and visible role locks
+## v20.56.21 — Half-pitch formations and local Adjust correction
 
-- Replaces role-zone Adjust and its global yellow overlays with a selected
-  starter's local 5×5 formation area (±2 cells, orthogonal and diagonal).
-  Adjust never auto-repositions a team.
-- All standard default templates avoid the centre-circle corridor; Reset now
-  restores the selected formation layout rather than role-zone anchors.
-- Adds team-coloured local highlights, hides normal movement preview only while
-  Adjust is active, and displays an explicit lock with expected/actual roles on
-  each incompatible formation slot.
-- Prep shows an immediate selected-team formation status above the permanent
-  Blue-then-Red summaries. Manual Multiplayer, Engine, Timeline and AI export
-  remain unchanged.
+- Clean corrective build from v20.56.19; no runtime code is retained from the
+  rejected v20.56.20 build.
+- All 22 fixed templates now keep Blue starters in their own half, mirror Red
+  into its own half, avoid the actual centre-circle geometry and retain forwards
+  as close to that circle as legally possible.
+- Adjust no longer applies automatic role-zone layout or hides the existing
+  coordinate display. It is a selected-starter-only local 5×5 formation-anchor
+  adjustment, highlighted in the selected team colour and blocked by occupied
+  player cells.
+- Formation incompatibilities render an explicit red lock and correct card id
+  metadata for the expected/assigned role tooltip. Manual Multiplayer, Engine,
+  Timeline and AI export are unchanged.
 
 ## v20.56.19 — Standard formations and recipe-based selection
 

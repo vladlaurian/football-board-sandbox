@@ -749,17 +749,21 @@ but cannot pass Ready or invoke Adjust. No Engine command, MatchContext,
 Timeline entry or AI-export event is created by formation selection or by the
 compatibility presentation. Manual Multiplayer and Firebase are unchanged.
 
-### v20.56.20 — Formation-local Adjust and role locks
+### v20.56.21 — Formation-template and Adjust presentation correction
 
 **Status:** Complete.
 
-Adjust is now a visual Workspace interaction anchored to selected formation
-coordinates, limited to a local ±2-cell square for the selected starter. It
-does not create gameplay state, Timeline entries or AI-export facts. The old
-role-zone placement system is retired from active code. Manual Multiplayer and
-Firebase remain unchanged.
+This corrective Workspace build starts from the accepted v20.56.19 source. The
+fixed Blue templates and Red mirrors are tested to remain in their respective
+halves and outside the rendered centre-circle geometry; attackers remain as
+advanced as that constraint permits. Adjust is no longer a role-zone placement
+algorithm: it presents only a selected starter's local formation-anchor 5×5
+area, with no automatic piece movement. Existing coordinate-display preference
+is not touched. Formation-role warnings use correct card metadata and an
+explicit lock. No Engine command, MatchContext field, Timeline entry, AI export
+event, Manual Multiplayer or Firebase path changes.
 
-### Deferred after v20.56.20 — Prep lifecycle and restart-dependent work
+### Deferred after v20.56.19 — Prep lifecycle and restart-dependent work
 
 Do not implement this as an incidental correction. The current live Prep
 Formation application is required for visible formation/card setup, but it can
