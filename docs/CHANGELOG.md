@@ -2,6 +2,21 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.12 — Prep Ready acknowledgement and Selection feedback
+
+- Replaces the persistent Ready lock with a live legal-state indicator: Ready
+  is green only while both full rosters currently validate.
+- A confirmed Ready closes Prep and opens a success dialog directing the user
+  to Tracker Start Game. Prep and Selection Rules remain reusable until a Match
+  is actually started, and transient Ready UI clears on Match exit.
+- Changes the Prep Selection popup into a non-blocking live summary window. It
+  explicitly reports `Free Selection enabled`, or every active limit and its
+  current result, plus live assignment/legality errors.
+- Renames the Selection Rules checkbox label from `Free Mode` to
+  `Free Selection`; the underlying persisted rule schema remains unchanged.
+- No Engine, MatchState, Timeline, Undo/Redo, Replay, AI export, Manual
+  Multiplayer or Firebase behavior changed. Adjust remains unimplemented.
+
 ## v20.56.11 — Prep and Selection Rules
 
 - Implements the Single Player-only movable, resizable, minimizable Prep panel

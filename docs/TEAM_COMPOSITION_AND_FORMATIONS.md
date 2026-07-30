@@ -18,10 +18,12 @@ v20.56.9 established the ownership boundary below:
 
 v20.56.11 implements the pre-match Workspace portion only: Single Player
 Prep, Selection Rules persistence, full-roster selection analysis and Ready
-validation. Its Ready confirmation locks Prep controls but neither starts nor
-changes a Match. Adjust, substitutions and central-restart placement remain
-future scopes. Manual Multiplayer remains a frozen legacy path and keeps its
-existing puck-label behavior.
+validation. v20.56.12 adds the explicit Ready acknowledgement and live
+Selection feedback: confirmation closes Prep and directs the user to Tracker
+Start Game, but does not start or change a Match. Prep remains reusable until
+that start. Adjust, substitutions and central-restart placement remain future
+scopes. Manual Multiplayer remains a frozen legacy path and keeps its existing
+puck-label behavior.
 
 ## 1. One authority for a player's role
 
@@ -149,17 +151,18 @@ There are three checkbox-controlled modes:
    cap is enforced across all eighteen cards: no card may have more than `Y`
    stars and at most `X` cards may have `Y` stars. If unchecked, both values
    are disabled and have no effect.
-3. **Free Mode** — if checked, it automatically unchecks and disables both
+3. **Free Selection** — if checked, it automatically unchecks and disables both
    constrained criteria. If unchecked, those criteria become available and
    can be enabled independently or together. If both constrained criteria are
-   unchecked, Free Mode checks itself automatically.
+   unchecked, Free Selection checks itself automatically.
 
-Therefore the state is always either Free Mode, or at least one active
+Therefore the state is always either Free Selection, or at least one active
 selection criterion.
 
-In Free Mode the Prep popup shows only the current total stars. With one or
-both criteria active, it also shows every active limit and, where relevant,
-the current number of `Y`-star cards.
+With Free Selection active, the Prep Selection window explicitly says `Free
+Selection enabled`. With one or both criteria active, it shows every active
+limit and, where relevant, the current number of `Y`-star cards. The window is
+non-blocking and recalculates after each card assignment.
 
 ### 5.4 Adjust
 
@@ -170,8 +173,8 @@ inside that card's own role zone; it may not freely place the player elsewhere
 on the board.
 
 The Ready validator checks roster composition and all other setup legality.
-Adjust itself will not change card roles or card assignment. In v20.56.11,
-the control is intentionally disabled pending v20.56.12.
+Adjust itself will not change card roles or card assignment. In v20.56.12,
+the control is intentionally disabled pending v20.56.13.
 
 ### 5.5 Ready and Match start
 
@@ -181,7 +184,8 @@ Rules and legal composition. On success, it asks:
 `Are you sure you are ready to start the Match?`
 
 - `No` changes nothing.
-- `Yes` locks Prep setup controls. It does **not** start the Match.
+- `Yes` closes Prep and confirms that the user must press `Start Game` in
+  Tracker. It does **not** start the Match or leave a persistent Prep lock.
 
 `Start Game` remains a Tracker command. It may start a Match from the current
 board placement even if Prep has never been used or confirmed.

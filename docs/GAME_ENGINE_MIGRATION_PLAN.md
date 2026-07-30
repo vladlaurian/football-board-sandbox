@@ -633,8 +633,7 @@ Ready validation; and `src/workspace/workspaceSnapshot.mjs` persists the
 selection policy. Formation application continues to use the established
 coordinate-only mechanism, retaining stable puck/card links. Ready checks the
 full eighteen-card roster, starter/reserve/GK structure, starter role limits
-and active selection criteria, then only locks Prep controls after the
-approved confirmation. Tracker Start Game remains independent.
+and active selection criteria. Tracker Start Game remains independent.
 
 No Engine command, MatchState field, Timeline event, Undo/Redo behavior,
 Replay state or AI export is added: Selection Rules and Ready are pre-match
@@ -643,8 +642,25 @@ Workspace state, not gameplay. Static boundary coverage protects the absent
 unchanged. Automated coverage is in `selectionRules.test.mjs`,
 `workspaceSnapshot.test.mjs`, `workspaceOperations.test.mjs`,
 `formationUtils.test.mjs` and `prepSelectionBoundary.test.mjs`, in addition to
-the full regression suite. v20.56.12 remains the separately approved Adjust
-scope and is not implemented here.
+the full regression suite.
+
+### v20.56.12 — Prep Ready acknowledgement and Selection feedback
+
+**Status:** Complete.
+
+This narrow Workspace correction removes the persistent `prepReady` UI lock.
+The current pure full-roster validation drives Ready's green state; a confirmed
+Ready closes Prep and opens a success dialog that directs the user to Tracker
+Start Game. Prep and Selection Rules remain reusable until the Match actually
+starts, and all transient Ready UI is cleared when leaving Match Mode.
+
+Prep Selection is now a non-blocking live summary surface that reports Free
+Selection or active limits, assigned-card count and precise current violations.
+The stored schema remains compatible (`freeMode` is its internal field); only
+the visible label is now Free Selection. This stays outside Engine, MatchState,
+Timeline, Undo/Redo, Replay and AI export because it is not gameplay state.
+Manual Multiplayer and Firebase are unchanged. v20.56.13 is the next separate
+Adjust scope; Adjust is not implemented in this build.
 
 ## Required update after every implementation build
 

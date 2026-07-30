@@ -214,7 +214,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.11";
+const APP_VERSION = "v20.56.12";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2092,8 +2092,8 @@ function App() {
   const [prepMinimized, setPrepMinimized] = useState(false);
   const [prepSelectedTeam, setPrepSelectedTeam] = useState("A");
   const [prepSelectionOpen, setPrepSelectionOpen] = useState(false);
-  const [prepReady, setPrepReady] = useState(false);
   const [prepReadyConfirmationOpen, setPrepReadyConfirmationOpen] = useState(false);
+  const [prepReadySuccessOpen, setPrepReadySuccessOpen] = useState(false);
   const [prepReadyIssues, setPrepReadyIssues] = useState([]);
   const [prepPosition, setPrepPosition] = useState(() => {
     try { return JSON.parse(localStorage.getItem("football-board-prep-position-v1")) || { x: 430, y: 420 }; }
@@ -6098,6 +6098,10 @@ function App() {
       setRollModifierOpportunities(rollModifierOpportunitiesRef.current);
       setPendingRollModifierType(null);
       setRollModifierChoice(null);
+      setPrepReadyConfirmationOpen(false);
+      setPrepReadySuccessOpen(false);
+      setPrepReadyIssues([]);
+      setPrepSelectionOpen(false);
     }
     setGameMode(next);
     if (next === "match") {
@@ -6841,6 +6845,11 @@ function App() {
     team: prepSelectedTeam,
     selectionRules,
   }), [pieces, cardById, prepSelectedTeam, selectionRules]);
+  const prepReadyValidation = useMemo(() => validateReadySelection({
+    pieces,
+    cardsById: cardById,
+    selectionRules,
+  }), [pieces, cardById, selectionRules]);
   const libraryPositionOptions = useMemo(() => Array.from(new Set((cardState.cards || []).map(card => card.position).filter(Boolean))).sort((a, b) => {
     const rankA = CARD_POSITION_OPTIONS.indexOf(a);
     const rankB = CARD_POSITION_OPTIONS.indexOf(b);
@@ -9283,7 +9292,7 @@ function App() {
     setSelectionRules(current => selectionRulesWithPatch(current, patch));
   }
   function requestPrepReady() {
-    const ready = validateReadySelection({ pieces, cardsById, selectionRules });
+    const ready = prepReadyValidation;
     if (!ready.valid) {
       setPrepReadyIssues(ready.issues);
       return;
@@ -9291,9 +9300,10 @@ function App() {
     setPrepReadyConfirmationOpen(true);
   }
   function confirmPrepReady() {
-    setPrepReady(true);
     setPrepReadyConfirmationOpen(false);
     setPrepSelectionOpen(false);
+    setPrepVisible(false);
+    setPrepReadySuccessOpen(true);
   }
   function buildTrackerSnapshot(overrides = {}) {
     return {
@@ -11975,8 +11985,8 @@ function App() {
           <input type="file" accept="application/json" disabled={Boolean(sessionCode)} onChange={e => { importMatchRecording(e.target.files?.[0]); e.target.value = ""; }} />
         </label>
         {!sessionCode && <button
-          disabled={singlePlayerMatchWorkspaceLocked || prepReady}
-          title={singlePlayerMatchWorkspaceLocked ? "Selection Rules are locked after an offline Match starts." : prepReady ? "Prep is ready. Its Selection Rules are locked." : "Manage future-Match team-selection rules."}
+          disabled={singlePlayerMatchWorkspaceLocked}
+          title={singlePlayerMatchWorkspaceLocked ? "Selection Rules are locked after an offline Match starts." : "Manage future-Match team-selection rules."}
           onClick={() => setSelectionRulesOpen(true)}
         >
           Selection Rules
@@ -12622,7 +12632,7 @@ function App() {
         }}
         onOpenSelection={() => setPrepSelectionOpen(true)}
         onReady={requestPrepReady}
-        readyLocked={prepReady}
+        readyValid={prepReadyValidation.valid}
       />}
 
       <TrackerPanel
@@ -12679,7 +12689,7 @@ function App() {
                   setSelectionRulesConstraintDraftOpen(false);
                 } else setSelectionRulesConstraintDraftOpen(true);
               }} />
-              Free Mode
+              Free Selection
             </label>
             <section className="selection-rule-section">
               <label className="selection-rule-checkbox">
@@ -12712,21 +12722,24 @@ function App() {
         </div>
       )}
 
-      {prepSelectionOpen && !sessionCode && (
-        <div className="modal-backdrop" onPointerDown={() => setPrepSelectionOpen(false)}>
-          <div className="modal prep-selection-modal" onPointerDown={event => event.stopPropagation()}>
-            <div className="modal-title"><strong>{prepSelectionSummary.teamName} Selection</strong><button className="icon-btn" onClick={() => setPrepSelectionOpen(false)}>×</button></div>
-            <div className="prep-selection-summary">
-              <div><strong>Total Stars:</strong> {prepSelectionSummary.totalStars}</div>
-              {!selectionRules.freeMode && <>
-                {selectionRules.totalStarsCap.enabled && <div className={prepSelectionSummary.issues.some(item => item.code === "total-stars-cap") ? "selection-problem" : ""}>Total cap: {selectionRules.totalStarsCap.value}</div>}
-                {selectionRules.maximumPlayersAtStars.enabled && <div className={prepSelectionSummary.issues.some(item => item.code === "individual-stars-cap" || item.code === "maximum-stars-player-count") ? "selection-problem" : ""}>Maximum {selectionRules.maximumPlayersAtStars.maxPlayers} player(s) at {selectionRules.maximumPlayersAtStars.stars} stars · current: {prepSelectionSummary.atMaximumStars}</div>}
-              </>}
-              <div>Assigned cards: {prepSelectionSummary.assignedCount}/18</div>
-              {prepSelectionSummary.issues.length > 0 && <ul className="selection-issues">{prepSelectionSummary.issues.map((item, index) => <li key={`${item.code}-${index}`}>{item.message}</li>)}</ul>}
-            </div>
+      {prepSelectionOpen && !sessionCode && !singlePlayerMatchWorkspaceLocked && (
+        <aside className="prep-selection-live-panel" aria-label={`${prepSelectionSummary.teamName} selection summary`}>
+          <div className="prep-selection-live-title"><strong>{prepSelectionSummary.teamName} Selection</strong><button className="icon-btn" onClick={() => setPrepSelectionOpen(false)}>×</button></div>
+          <div className="prep-selection-summary">
+            {selectionRules.freeMode ? (
+              <div className="selection-free-enabled">Free Selection enabled</div>
+            ) : (
+              <>
+                {selectionRules.totalStarsCap.enabled && <div className={prepSelectionSummary.issues.some(item => item.code === "total-stars-cap") ? "selection-problem" : ""}><strong>Total Stars Cap:</strong> {prepSelectionSummary.totalStars}/{selectionRules.totalStarsCap.value}</div>}
+                {selectionRules.maximumPlayersAtStars.enabled && <div className={prepSelectionSummary.issues.some(item => item.code === "individual-stars-cap" || item.code === "maximum-stars-player-count") ? "selection-problem" : ""}><strong>Maximum {selectionRules.maximumPlayersAtStars.maxPlayers} at {selectionRules.maximumPlayersAtStars.stars} stars:</strong> current {prepSelectionSummary.atMaximumStars} · no card above {selectionRules.maximumPlayersAtStars.stars}</div>}
+              </>
+            )}
+            <div><strong>Total Stars:</strong> {prepSelectionSummary.totalStars}</div>
+            <div><strong>Assigned cards:</strong> {prepSelectionSummary.assignedCount}/18</div>
+            <div className={prepSelectionSummary.valid ? "selection-current-valid" : "selection-problem"}>{prepSelectionSummary.valid ? "Current selection is legal." : "Selection needs correction."}</div>
+            {prepSelectionSummary.issues.length > 0 && <ul className="selection-issues">{prepSelectionSummary.issues.map((item, index) => <li key={`${item.code}-${index}`}>{item.message}</li>)}</ul>}
           </div>
-        </div>
+        </aside>
       )}
 
       {prepReadyIssues.length > 0 && (
@@ -12747,6 +12760,16 @@ function App() {
               <button onClick={() => setPrepReadyConfirmationOpen(false)}>No</button>
               <button onClick={confirmPrepReady}>Yes</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {prepReadySuccessOpen && (
+        <div className="modal-backdrop" onPointerDown={() => setPrepReadySuccessOpen(false)}>
+          <div className="modal prep-ready-success-modal" onPointerDown={event => event.stopPropagation()}>
+            <div className="modal-title"><strong>Prep complete</strong></div>
+            <div className="turn-confirm-message">Everything is ready. Press Start Game in Tracker to start the Match.</div>
+            <div className="modal-actions turn-confirm-actions"><button className="save-switch" onClick={() => setPrepReadySuccessOpen(false)}>OK</button></div>
           </div>
         </div>
       )}

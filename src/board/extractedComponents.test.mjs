@@ -24,7 +24,7 @@ const settings = {
   cornerArcRadius: 1,
 };
 
-test("extracted Board, History, Tracker, and shared Card Preview JSX components render through Vite", async (t) => {
+test("extracted Board, History, Tracker, Prep, and shared Card Preview JSX components render through Vite", async (t) => {
   const server = await createServer({
     server: { middlewareMode: true },
     optimizeDeps: { noDiscovery: true },
@@ -40,6 +40,7 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
   const { CardEditorPanel, CardStarMenuEditor } = await server.ssrLoadModule("/src/cards/CardEditorPanel.jsx");
   const { CardsPanel } = await server.ssrLoadModule("/src/cards/CardsPanel.jsx");
   const { AssignCardModal } = await server.ssrLoadModule("/src/cards/AssignCardModal.jsx");
+  const { PrepPanel } = await server.ssrLoadModule("/src/prep/PrepPanel.jsx");
 
   const boardMarkup = renderToStaticMarkup(
     React.createElement(BoardCanvas, {
@@ -156,6 +157,30 @@ test("extracted Board, History, Tracker, and shared Card Preview JSX components 
     }),
   );
   assert.match(trackerMarkup, /tracker-panel/);
+
+  const prepMarkup = renderToStaticMarkup(React.createElement(PrepPanel, {
+    visible: true,
+    lockUI: false,
+    minimized: false,
+    position: { x: 0, y: 0 },
+    size: { w: 360, h: 300 },
+    onPointerMove: noop,
+    onPointerUp: noop,
+    onTitlePointerDown: noop,
+    onResizeDown: noop,
+    onMinimize: noop,
+    onClose: noop,
+    selectedTeam: "A",
+    onSelectedTeam: noop,
+    formations: [{ id: 1, name: "4-4-2" }],
+    formationId: 1,
+    onFormationChange: noop,
+    onOpenSelection: noop,
+    onReady: noop,
+    readyValid: true,
+  }));
+  assert.match(prepMarkup, /prep-panel\s+ready-valid/);
+  assert.match(prepMarkup, /prep-ready-button is-valid/);
   assert.match(trackerMarkup, /MV/);
 
   const cardRenderContext = {

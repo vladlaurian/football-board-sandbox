@@ -12,7 +12,8 @@
 - scenario library and selected scenario;
 - card library and card-to-piece assignment data;
 - Rule Set library and selected Rule Set;
-- Selection Rules policy for the full eighteen-card team roster (Free Mode,
+- Selection Rules policy for the full eighteen-card team roster (Free
+  Selection,
   Total Stars Cap and Maximum X Players at Y Stars);
 - preferred die type and Tracker settings defaults;
 - persisted display preferences: touch mode, coordinates and Tracker visibility.
@@ -27,9 +28,9 @@
 - pending Pass, interception, delayed resolution and Bonus Action;
 - die results.
 
-`prepReady` and Prep-panel geometry are deliberately transient UI state. A
-Ready confirmation is not a gameplay event and is not persisted into a Match
-recording or Timeline.
+Prep-panel geometry and Ready confirmation/success-dialog state are deliberately
+transient UI state. A Ready acknowledgement is not a gameplay event and is not
+persisted into a Match recording or Timeline.
 
 An active Match is saved/exported only as a Match Recording, whose Timeline and referenced cards are complete and canonical.
 
