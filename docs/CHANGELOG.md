@@ -2,6 +2,20 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.13 — Prep mode boundary and permanent Selection summary
+
+- Restores Prep as a Single Player Match Mode-only pre-start panel. Its Editor
+  button remains visible but blocked with an explicit explanation; leaving
+  Match Mode closes Prep.
+- Makes Selection Rules view-only immediately on entry to Match Mode. The
+  stored selection policy remains editable only in Editor and no gameplay Rule
+  Set or Workspace snapshot behavior changes.
+- Moves the complete live Selection summary into Prep permanently: Blue first,
+  Red second, with Free Selection or active limits, stars, assignment count,
+  legality and precise red violations. Removes the detached right-side panel.
+- No Engine, MatchState, Timeline, Undo/Redo, Replay, AI export, Manual
+  Multiplayer or Firebase behavior changed. Adjust remains unimplemented.
+
 ## v20.56.12 — Prep Ready acknowledgement and Selection feedback
 
 - Replaces the persistent Ready lock with a live legal-state indicator: Ready

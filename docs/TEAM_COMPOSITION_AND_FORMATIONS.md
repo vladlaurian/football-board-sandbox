@@ -18,12 +18,13 @@ v20.56.9 established the ownership boundary below:
 
 v20.56.11 implements the pre-match Workspace portion only: Single Player
 Prep, Selection Rules persistence, full-roster selection analysis and Ready
-validation. v20.56.12 adds the explicit Ready acknowledgement and live
-Selection feedback: confirmation closes Prep and directs the user to Tracker
-Start Game, but does not start or change a Match. Prep remains reusable until
-that start. Adjust, substitutions and central-restart placement remain future
-scopes. Manual Multiplayer remains a frozen legacy path and keeps its existing
-puck-label behavior.
+validation. v20.56.12 adds the explicit Ready acknowledgement. v20.56.13
+restores the mode boundary and makes the Blue/Red Selection summaries permanent
+inside Prep: confirmation closes Prep and directs the user to Tracker Start
+Game, but does not start or change a Match. Prep is available only after entry
+to Single Player Match Mode and before Start Game. Adjust, substitutions and
+central-restart placement remain future scopes. Manual Multiplayer remains a
+frozen legacy path and keeps its existing puck-label behavior.
 
 ## 1. One authority for a player's role
 
@@ -108,8 +109,9 @@ time. There is no sixth substitution.
 ## 5. Prep and Selection Rules
 
 `Prep` is a movable, resizable, minimizable and closable panel in the second
-application bar, immediately before `Tracker`. It is a pre-match setup
-surface; it does not itself start a Match.
+application bar, immediately before `Tracker`. It is a Single Player Match
+Mode pre-start surface; its Editor Mode button remains visibly blocked. It does
+not itself start a Match.
 
 The panel always exposes these controls:
 
@@ -129,18 +131,20 @@ roster: eleven starter pucks, the goalkeeper reserve and six outfield
 reserves. The existing card-inspection/assignment affordance remains the card
 selection surface; Prep adds a live information popup for the selected team.
 
-The popup always shows the current total stars for the full eighteen-player
-roster. When an active Selection Rule is violated, the affected fact is red.
-`Ready` refuses to lock an illegal selection and states the exact failed
-criterion. This summary and validation are functional in v20.56.11; it never
-automatically assigns, detaches or replaces a card.
+Prep permanently shows a live summary for both teams, Blue first and Red
+second: current total stars, active limits, count at the `Y`-star value,
+assigned cards and legal/invalid state. When an active Selection Rule is
+violated, the affected fact is red. `Ready` refuses to acknowledge an illegal
+selection and states the exact failed criterion. This summary and validation
+never automatically assigns, detaches or replaces a card.
 
 ### 5.3 Selection Rules
 
-`Selection Rules` is a dedicated Editor menu placed before `Rules`. It is a
+`Selection Rules` is a dedicated menu placed before `Rules`. It is a
 team-construction policy, not a gameplay Rule Set. Its selected values are
-saved in Workspace. It does not alter the gameplay Rule Set frozen in
-MatchContext when a Match starts.
+saved in Workspace. It is editable only in Editor Mode; immediately on entry
+to Match Mode it remains available only for visual inspection. It does not
+alter the gameplay Rule Set frozen in MatchContext when a Match starts.
 
 There are three checkbox-controlled modes:
 
@@ -161,8 +165,8 @@ selection criterion.
 
 With Free Selection active, the Prep Selection window explicitly says `Free
 Selection enabled`. With one or both criteria active, it shows every active
-limit and, where relevant, the current number of `Y`-star cards. The window is
-non-blocking and recalculates after each card assignment.
+limit and, where relevant, the current number of `Y`-star cards. The permanent
+Prep summaries recalculate after each card assignment.
 
 ### 5.4 Adjust
 
@@ -173,8 +177,8 @@ inside that card's own role zone; it may not freely place the player elsewhere
 on the board.
 
 The Ready validator checks roster composition and all other setup legality.
-Adjust itself will not change card roles or card assignment. In v20.56.12,
-the control is intentionally disabled pending v20.56.13.
+Adjust itself will not change card roles or card assignment. In v20.56.13,
+the control is intentionally disabled pending v20.56.14.
 
 ### 5.5 Ready and Match start
 

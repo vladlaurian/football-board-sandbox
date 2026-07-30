@@ -214,7 +214,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.12";
+const APP_VERSION = "v20.56.13";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2091,7 +2091,6 @@ function App() {
   const [prepVisible, setPrepVisible] = useState(false);
   const [prepMinimized, setPrepMinimized] = useState(false);
   const [prepSelectedTeam, setPrepSelectedTeam] = useState("A");
-  const [prepSelectionOpen, setPrepSelectionOpen] = useState(false);
   const [prepReadyConfirmationOpen, setPrepReadyConfirmationOpen] = useState(false);
   const [prepReadySuccessOpen, setPrepReadySuccessOpen] = useState(false);
   const [prepReadyIssues, setPrepReadyIssues] = useState([]);
@@ -2100,8 +2099,8 @@ function App() {
     catch { return { x: 430, y: 420 }; }
   });
   const [prepSize, setPrepSize] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("football-board-prep-size-v1")) || { w: 360, h: 300 }; }
-    catch { return { w: 360, h: 300 }; }
+    try { return JSON.parse(localStorage.getItem("football-board-prep-size-v1")) || { w: 360, h: 420 }; }
+    catch { return { w: 360, h: 420 }; }
   });
   const [prepDragging, setPrepDragging] = useState(null);
   const [prepResizing, setPrepResizing] = useState(null);
@@ -2385,6 +2384,7 @@ function App() {
   // Editor setup can define a future Match, but cannot rewrite a started
   // offline Match whose gameplay inputs were frozen into MatchContext.
   const singlePlayerMatchWorkspaceLocked = !sessionCode && gameMode === "match" && trackerGameStarted;
+  const selectionRulesReadOnly = !sessionCode && gameMode === "match";
 
   const pitchStyle = useMemo(() => ({
     "--cols": settings.cols,
@@ -6101,7 +6101,7 @@ function App() {
       setPrepReadyConfirmationOpen(false);
       setPrepReadySuccessOpen(false);
       setPrepReadyIssues([]);
-      setPrepSelectionOpen(false);
+      setPrepVisible(false);
     }
     setGameMode(next);
     if (next === "match") {
@@ -6839,12 +6839,6 @@ function App() {
     if (sessionCode) return { ...localCards, ...libraryCards, ...sessionCardsById };
     return { ...sessionCardsById, ...localCards };
   }, [cardState.cards, sessionCardsById, sessionLibraryCards, sessionCode]);
-  const prepSelectionSummary = useMemo(() => analyzeTeamSelection({
-    pieces,
-    cardsById: cardById,
-    team: prepSelectedTeam,
-    selectionRules,
-  }), [pieces, cardById, prepSelectedTeam, selectionRules]);
   const prepReadyValidation = useMemo(() => validateReadySelection({
     pieces,
     cardsById: cardById,
@@ -9276,10 +9270,10 @@ function App() {
     const resize = prepResizeRef.current;
     if (!resize) return;
     const maximumWidth = Math.max(300, window.innerWidth - prepPosition.x - 8);
-    const maximumHeight = Math.max(180, window.innerHeight - prepPosition.y - 8);
+    const maximumHeight = Math.max(380, window.innerHeight - prepPosition.y - 8);
     setPrepSize({
       w: clamp(resize.originW + e.clientX - resize.startX, 300, maximumWidth),
-      h: clamp(resize.originH + e.clientY - resize.startY, 180, maximumHeight),
+      h: clamp(resize.originH + e.clientY - resize.startY, 380, maximumHeight),
     });
   }
   function onPrepPointerUp() {
@@ -9289,6 +9283,7 @@ function App() {
     setPrepResizing(null);
   }
   function updateSelectionRules(patch) {
+    if (selectionRulesReadOnly) return;
     setSelectionRules(current => selectionRulesWithPatch(current, patch));
   }
   function requestPrepReady() {
@@ -9301,7 +9296,6 @@ function App() {
   }
   function confirmPrepReady() {
     setPrepReadyConfirmationOpen(false);
-    setPrepSelectionOpen(false);
     setPrepVisible(false);
     setPrepReadySuccessOpen(true);
   }
@@ -11985,8 +11979,7 @@ function App() {
           <input type="file" accept="application/json" disabled={Boolean(sessionCode)} onChange={e => { importMatchRecording(e.target.files?.[0]); e.target.value = ""; }} />
         </label>
         {!sessionCode && <button
-          disabled={singlePlayerMatchWorkspaceLocked}
-          title={singlePlayerMatchWorkspaceLocked ? "Selection Rules are locked after an offline Match starts." : "Manage future-Match team-selection rules."}
+          title={selectionRulesReadOnly ? "Selection Rules are view-only in Match Mode." : "Manage future-Match team-selection rules."}
           onClick={() => setSelectionRulesOpen(true)}
         >
           Selection Rules
@@ -12090,8 +12083,8 @@ function App() {
         </button>
         {!sessionCode && <button
           className={prepVisible ? "toggle-on" : ""}
-          disabled={singlePlayerMatchWorkspaceLocked}
-          title={singlePlayerMatchWorkspaceLocked ? "Prep is available only before an offline Match starts." : "Open pre-match team preparation."}
+          disabled={gameMode !== "match" || singlePlayerMatchWorkspaceLocked}
+          title={gameMode !== "match" ? "Enter Match Mode to prepare the squads." : singlePlayerMatchWorkspaceLocked ? "Prep is available only before an offline Match starts." : "Open pre-match team preparation."}
           onClick={() => { setPrepVisible(visible => !visible); if (!prepVisible) setPrepMinimized(false); }}
         >
           Prep
@@ -12609,7 +12602,7 @@ function App() {
         </div>
       )}
 
-      {!sessionCode && !singlePlayerMatchWorkspaceLocked && <PrepPanel
+      {!sessionCode && gameMode === "match" && !singlePlayerMatchWorkspaceLocked && <PrepPanel
         visible={prepVisible}
         lockUI={lockUI}
         minimized={prepMinimized}
@@ -12630,9 +12623,9 @@ function App() {
           else setRedFormationId(id);
           applyFormation(prepSelectedTeam, id);
         }}
-        onOpenSelection={() => setPrepSelectionOpen(true)}
         onReady={requestPrepReady}
         readyValid={prepReadyValidation.valid}
+        selectionSummaries={{ blue: prepReadyValidation.blue, red: prepReadyValidation.red }}
       />}
 
       <TrackerPanel
@@ -12680,10 +12673,10 @@ function App() {
       {selectionRulesOpen && !sessionCode && (
         <div className="modal-backdrop" onPointerDown={() => { setSelectionRulesOpen(false); setSelectionRulesConstraintDraftOpen(false); }}>
           <div className="modal selection-rules-modal" onPointerDown={event => event.stopPropagation()}>
-            <div className="modal-title"><strong>Selection Rules</strong><button className="icon-btn" onClick={() => { setSelectionRulesOpen(false); setSelectionRulesConstraintDraftOpen(false); }}>×</button></div>
-            <p className="rules-lock-note">This is a future-Match squad-building policy. It is separate from gameplay Rule Sets.</p>
+            <div className="modal-title"><strong>{selectionRulesReadOnly ? "Selection Rules — View only" : "Selection Rules"}</strong><button className="icon-btn" onClick={() => { setSelectionRulesOpen(false); setSelectionRulesConstraintDraftOpen(false); }}>×</button></div>
+            <p className="rules-lock-note">{selectionRulesReadOnly ? "Selection Rules are view-only in Match Mode." : "This is a future-Match squad-building policy. It is separate from gameplay Rule Sets."}</p>
             <label className="selection-rule-checkbox">
-              <input type="checkbox" checked={selectionRules.freeMode} onChange={event => {
+              <input type="checkbox" disabled={selectionRulesReadOnly} checked={selectionRules.freeMode} onChange={event => {
                 if (event.target.checked) {
                   updateSelectionRules({ freeMode: true, totalStarsCap: { enabled: false }, maximumPlayersAtStars: { enabled: false } });
                   setSelectionRulesConstraintDraftOpen(false);
@@ -12693,53 +12686,33 @@ function App() {
             </label>
             <section className="selection-rule-section">
               <label className="selection-rule-checkbox">
-                <input type="checkbox" disabled={selectionRules.freeMode && !selectionRulesConstraintDraftOpen} checked={selectionRules.totalStarsCap.enabled} onChange={event => {
+                <input type="checkbox" disabled={selectionRulesReadOnly || (selectionRules.freeMode && !selectionRulesConstraintDraftOpen)} checked={selectionRules.totalStarsCap.enabled} onChange={event => {
                   setSelectionRulesConstraintDraftOpen(false);
                   updateSelectionRules({ freeMode: false, totalStarsCap: { enabled: event.target.checked } });
                 }} />
                 Total Stars Cap
               </label>
               <label>Total stars
-                <input type="number" min="0" max="180" step="1" disabled={!selectionRules.totalStarsCap.enabled} value={selectionRules.totalStarsCap.value} onChange={event => updateSelectionRules({ totalStarsCap: { value: event.target.value } })} />
+                <input type="number" min="0" max="180" step="1" disabled={selectionRulesReadOnly || !selectionRules.totalStarsCap.enabled} value={selectionRules.totalStarsCap.value} onChange={event => updateSelectionRules({ totalStarsCap: { value: event.target.value } })} />
               </label>
             </section>
             <section className="selection-rule-section">
               <label className="selection-rule-checkbox">
-                <input type="checkbox" disabled={selectionRules.freeMode && !selectionRulesConstraintDraftOpen} checked={selectionRules.maximumPlayersAtStars.enabled} onChange={event => {
+                <input type="checkbox" disabled={selectionRulesReadOnly || (selectionRules.freeMode && !selectionRulesConstraintDraftOpen)} checked={selectionRules.maximumPlayersAtStars.enabled} onChange={event => {
                   setSelectionRulesConstraintDraftOpen(false);
                   updateSelectionRules({ freeMode: false, maximumPlayersAtStars: { enabled: event.target.checked } });
                 }} />
                 Maximum X Players at Y Stars
               </label>
               <label>Maximum players
-                <input type="number" min="0" max="18" step="1" disabled={!selectionRules.maximumPlayersAtStars.enabled} value={selectionRules.maximumPlayersAtStars.maxPlayers} onChange={event => updateSelectionRules({ maximumPlayersAtStars: { maxPlayers: event.target.value } })} />
+                <input type="number" min="0" max="18" step="1" disabled={selectionRulesReadOnly || !selectionRules.maximumPlayersAtStars.enabled} value={selectionRules.maximumPlayersAtStars.maxPlayers} onChange={event => updateSelectionRules({ maximumPlayersAtStars: { maxPlayers: event.target.value } })} />
               </label>
               <label>Stars
-                <input type="number" min="0" max="10" step="1" disabled={!selectionRules.maximumPlayersAtStars.enabled} value={selectionRules.maximumPlayersAtStars.stars} onChange={event => updateSelectionRules({ maximumPlayersAtStars: { stars: event.target.value } })} />
+                <input type="number" min="0" max="10" step="1" disabled={selectionRulesReadOnly || !selectionRules.maximumPlayersAtStars.enabled} value={selectionRules.maximumPlayersAtStars.stars} onChange={event => updateSelectionRules({ maximumPlayersAtStars: { stars: event.target.value } })} />
               </label>
             </section>
           </div>
         </div>
-      )}
-
-      {prepSelectionOpen && !sessionCode && !singlePlayerMatchWorkspaceLocked && (
-        <aside className="prep-selection-live-panel" aria-label={`${prepSelectionSummary.teamName} selection summary`}>
-          <div className="prep-selection-live-title"><strong>{prepSelectionSummary.teamName} Selection</strong><button className="icon-btn" onClick={() => setPrepSelectionOpen(false)}>×</button></div>
-          <div className="prep-selection-summary">
-            {selectionRules.freeMode ? (
-              <div className="selection-free-enabled">Free Selection enabled</div>
-            ) : (
-              <>
-                {selectionRules.totalStarsCap.enabled && <div className={prepSelectionSummary.issues.some(item => item.code === "total-stars-cap") ? "selection-problem" : ""}><strong>Total Stars Cap:</strong> {prepSelectionSummary.totalStars}/{selectionRules.totalStarsCap.value}</div>}
-                {selectionRules.maximumPlayersAtStars.enabled && <div className={prepSelectionSummary.issues.some(item => item.code === "individual-stars-cap" || item.code === "maximum-stars-player-count") ? "selection-problem" : ""}><strong>Maximum {selectionRules.maximumPlayersAtStars.maxPlayers} at {selectionRules.maximumPlayersAtStars.stars} stars:</strong> current {prepSelectionSummary.atMaximumStars} · no card above {selectionRules.maximumPlayersAtStars.stars}</div>}
-              </>
-            )}
-            <div><strong>Total Stars:</strong> {prepSelectionSummary.totalStars}</div>
-            <div><strong>Assigned cards:</strong> {prepSelectionSummary.assignedCount}/18</div>
-            <div className={prepSelectionSummary.valid ? "selection-current-valid" : "selection-problem"}>{prepSelectionSummary.valid ? "Current selection is legal." : "Selection needs correction."}</div>
-            {prepSelectionSummary.issues.length > 0 && <ul className="selection-issues">{prepSelectionSummary.issues.map((item, index) => <li key={`${item.code}-${index}`}>{item.message}</li>)}</ul>}
-          </div>
-        </aside>
       )}
 
       {prepReadyIssues.length > 0 && (

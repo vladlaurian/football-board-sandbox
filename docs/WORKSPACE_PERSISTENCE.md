@@ -32,6 +32,9 @@ Prep-panel geometry and Ready confirmation/success-dialog state are deliberately
 transient UI state. A Ready acknowledgement is not a gameplay event and is not
 persisted into a Match recording or Timeline.
 
+Selection Rules are editable only in Editor Mode. Match Mode reads the saved
+Workspace policy for visual inspection without allowing mutation.
+
 An active Match is saved/exported only as a Match Recording, whose Timeline and referenced cards are complete and canonical.
 
 ## Persistence behavior

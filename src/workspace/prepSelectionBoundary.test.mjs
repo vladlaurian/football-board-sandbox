@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const source = readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
+const prepSource = readFileSync(new URL("../prep/PrepPanel.jsx", import.meta.url), "utf8");
 
 test("Tracker Start Game remains independent of Prep, Ready and Selection Rules", () => {
   const start = source.indexOf("function startTrackedGame(team)");
@@ -14,7 +15,7 @@ test("Tracker Start Game remains independent of Prep, Ready and Selection Rules"
 
 test("Prep and Selection Rules are explicitly excluded from the Manual Multiplayer branch", () => {
   assert.match(source, /\{!sessionCode && <button[\s\S]*?Selection Rules[\s\S]*?<\/button>\}/);
-  assert.match(source, /\{!sessionCode && !singlePlayerMatchWorkspaceLocked && <PrepPanel/);
+  assert.match(source, /\{!sessionCode && gameMode === "match" && !singlePlayerMatchWorkspaceLocked && <PrepPanel/);
 });
 
 test("Ready acknowledgement closes Prep without creating a persistent preparation lock", () => {
@@ -28,8 +29,13 @@ test("Ready acknowledgement closes Prep without creating a persistent preparatio
   assert.doesNotMatch(source, /singlePlayerMatchWorkspaceLocked \|\| prepReady/);
 });
 
-test("Selection summary announces Free Selection and remains a live Workspace-only surface", () => {
-  assert.match(source, /Free Selection enabled/);
-  assert.match(source, /Current selection is legal\./);
-  assert.match(source, /prepSelectionOpen && !sessionCode && !singlePlayerMatchWorkspaceLocked/);
+test("Prep keeps both team Selection summaries visible and Match Mode locks Selection Rules to view-only", () => {
+  assert.match(prepSource, /Free Selection enabled/);
+  assert.match(prepSource, /selectionSummaries\.blue/);
+  assert.match(prepSource, /selectionSummaries\.red/);
+  assert.match(source, /selectionSummaries=\{\{ blue: prepReadyValidation\.blue, red: prepReadyValidation\.red \}\}/);
+  assert.match(source, /const selectionRulesReadOnly = !sessionCode && gameMode === "match"/);
+  assert.match(source, /disabled=\{selectionRulesReadOnly\}/);
+  assert.match(source, /if \(selectionRulesReadOnly\) return;/);
+  assert.doesNotMatch(source, /prep-selection-live-panel/);
 });

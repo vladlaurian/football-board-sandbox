@@ -163,7 +163,7 @@ test("extracted Board, History, Tracker, Prep, and shared Card Preview JSX compo
     lockUI: false,
     minimized: false,
     position: { x: 0, y: 0 },
-    size: { w: 360, h: 300 },
+    size: { w: 360, h: 420 },
     onPointerMove: noop,
     onPointerUp: noop,
     onTitlePointerDown: noop,
@@ -175,12 +175,18 @@ test("extracted Board, History, Tracker, Prep, and shared Card Preview JSX compo
     formations: [{ id: 1, name: "4-4-2" }],
     formationId: 1,
     onFormationChange: noop,
-    onOpenSelection: noop,
     onReady: noop,
     readyValid: true,
+    selectionSummaries: {
+      blue: { teamName: "Blue", rules: { freeMode: true }, totalStars: 36, assignedCount: 18, valid: true, issues: [] },
+      red: { teamName: "Red", rules: { freeMode: false, totalStarsCap: { enabled: true, value: 40 }, maximumPlayersAtStars: { enabled: false } }, totalStars: 36, assignedCount: 18, valid: true, issues: [] },
+    },
   }));
   assert.match(prepMarkup, /prep-panel\s+ready-valid/);
   assert.match(prepMarkup, /prep-ready-button is-valid/);
+  assert.match(prepMarkup, /Blue Selection/);
+  assert.match(prepMarkup, /Red Selection/);
+  assert.match(prepMarkup, /Free Selection enabled/);
   assert.match(trackerMarkup, /MV/);
 
   const cardRenderContext = {

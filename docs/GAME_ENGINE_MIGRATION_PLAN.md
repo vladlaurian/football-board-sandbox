@@ -659,8 +659,25 @@ Selection or active limits, assigned-card count and precise current violations.
 The stored schema remains compatible (`freeMode` is its internal field); only
 the visible label is now Free Selection. This stays outside Engine, MatchState,
 Timeline, Undo/Redo, Replay and AI export because it is not gameplay state.
-Manual Multiplayer and Firebase are unchanged. v20.56.13 is the next separate
-Adjust scope; Adjust is not implemented in this build.
+Manual Multiplayer and Firebase are unchanged.
+
+### v20.56.13 — Prep mode boundary and permanent Selection summary
+
+**Status:** Complete.
+
+Prep is now a pre-start Single Player Match Mode surface only: its Editor button
+is visibly blocked, its panel closes on Match exit, and it remains absent after
+Start Game. Selection Rules are editable in Editor but view-only from the
+instant Match Mode is entered. The UI and the `updateSelectionRules` command
+both enforce that boundary.
+
+The detached Selection popup is removed. `PrepPanel` renders the same pure
+full-roster analysis permanently for Blue and Red in that order, showing Free
+Selection or active limits, stars, assignments and violations. This stays
+outside Engine, MatchState, Timeline, Undo/Redo, Replay and AI export because
+it is Workspace presentation only. Manual Multiplayer and Firebase are
+unchanged. v20.56.14 is the next separate Adjust scope; Adjust is not
+implemented in this build.
 
 ## Required update after every implementation build
 

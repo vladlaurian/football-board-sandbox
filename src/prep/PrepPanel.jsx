@@ -1,4 +1,26 @@
-import React from "react";
+import React, { useRef } from "react";
+
+function SelectionStatus({ summary }) {
+  const rules = summary?.rules;
+  const starLimitIssues = summary?.issues?.some(item => item.code === "individual-stars-cap" || item.code === "maximum-stars-player-count");
+  return (
+    <section className="prep-selection-status">
+      <strong className="prep-selection-status-title">{summary.teamName} Selection</strong>
+      {rules.freeMode ? (
+        <div className="selection-free-enabled">Free Selection enabled</div>
+      ) : (
+        <>
+          {rules.totalStarsCap.enabled && <div className={summary.issues.some(item => item.code === "total-stars-cap") ? "selection-problem" : ""}><strong>Total Stars Cap:</strong> {summary.totalStars}/{rules.totalStarsCap.value}</div>}
+          {rules.maximumPlayersAtStars.enabled && <div className={starLimitIssues ? "selection-problem" : ""}><strong>Maximum {rules.maximumPlayersAtStars.maxPlayers} at {rules.maximumPlayersAtStars.stars} stars:</strong> current {summary.atMaximumStars} · no card above {rules.maximumPlayersAtStars.stars}</div>}
+        </>
+      )}
+      <div><strong>Total Stars:</strong> {summary.totalStars}</div>
+      <div><strong>Assigned cards:</strong> {summary.assignedCount}/18</div>
+      <div className={summary.valid ? "selection-current-valid" : "selection-problem"}>{summary.valid ? "Current selection is legal." : "Selection needs correction."}</div>
+      {summary.issues.length > 0 && <ul className="selection-issues">{summary.issues.map((item, index) => <li key={`${item.code}-${index}`}>{item.message}</li>)}</ul>}
+    </section>
+  );
+}
 
 // Prep is a future-Match Workspace surface. It deliberately owns only its
 // presentation; card assignment and formation application remain in App.
@@ -19,10 +41,11 @@ export function PrepPanel({
   formations,
   formationId,
   onFormationChange,
-  onOpenSelection,
   onReady,
   readyValid,
+  selectionSummaries,
 }) {
+  const selectionSummaryRef = useRef(null);
   if (!visible || lockUI) return null;
   const teamName = selectedTeam === "A" ? "Blue" : "Red";
 
@@ -57,14 +80,14 @@ export function PrepPanel({
             </select>
           </section>
           <div className="prep-action-grid">
-            <button onClick={onOpenSelection}>Selection</button>
-            <button disabled title="Adjust will be implemented in v20.56.13.">Adjust</button>
+            <button onClick={() => selectionSummaryRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })}>Selection</button>
+            <button disabled title="Adjust will be implemented in v20.56.14.">Adjust</button>
             <button disabled title="Substitution waits for the canonical interruption/restart lifecycle.">Substitution</button>
             <button className={`prep-ready-button ${readyValid ? "is-valid" : ""}`} onClick={onReady}>Ready</button>
           </div>
-          <div className="prep-disabled-notes">
-            <span>Adjust: v20.56.13</span>
-            <span>Substitution: waits for interruptions/restarts</span>
+          <div className="prep-selection-statuses" ref={selectionSummaryRef}>
+            <SelectionStatus summary={selectionSummaries.blue} />
+            <SelectionStatus summary={selectionSummaries.red} />
           </div>
         </div>
       )}

@@ -6,30 +6,31 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.12` |
-| Git/package version | `20.56.12` |
-| Build name | `Final_Board_v20_56_12_prep_ready_feedback` |
-| Base build | `Final_Board_v20_56_11_prep_selection_rules` |
+| Sandbox version | `v20.56.13` |
+| Git/package version | `20.56.13` |
+| Build name | `Final_Board_v20_56_13_prep_mode_boundary_and_summary` |
+| Base build | `Final_Board_v20_56_12_prep_ready_feedback` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.12`. The repository version is in `package.json` as `20.56.12`. The browser title is `Sandbox v20.56.12`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.13`. The repository version is in `package.json` as `20.56.13`. The browser title is `Sandbox v20.56.13`.
 
 ## Current release
 
-v20.56.12 corrects the Single Player Prep acknowledgement flow. Ready is green
-only while the live full-roster validation is legal; its confirmation closes
-Prep and opens an explicit success message directing the user to Tracker Start
-Game. Prep and Selection Rules remain reusable before Match start and temporary
-Ready UI is cleared on Match exit. Selection is now a non-blocking live summary
-window that explicitly reports Free Selection or each active limit. Adjust and
-Substitution remain disabled. This build adds no Engine, Timeline or AI-export
-event, and Manual Multiplayer/Firebase retain their frozen legacy paths.
+v20.56.13 restores the approved mode boundary: Prep is available only in
+Single Player Match Mode before Start Game, while its Editor button is visibly
+blocked. Selection Rules remain editable in Editor but are view-only as soon
+as Match Mode is entered. Prep permanently shows the live Blue and Red
+selection summaries together, including Free Selection/active limits, totals,
+assignment count and exact violations; the detached right-side panel is gone.
+Adjust and Substitution remain disabled. This build adds no Engine, Timeline or
+AI-export event, and Manual Multiplayer/Firebase retain their frozen legacy
+paths.
 
-v20.56.11 established the underlying Single Player Prep and Selection Rules
-foundation. v20.56.10 is its documentation-only contract base; v20.56.9 makes
-the assigned card the only Single Player authority for a player's football
-role, while pucks remain neutral board identities and formations are
-coordinate-only templates.
+v20.56.12 established the Ready acknowledgement flow. v20.56.11 established
+the underlying Prep and Selection Rules foundation. v20.56.10 is its
+documentation-only contract base; v20.56.9 makes the assigned card the only
+Single Player authority for a player's football role, while pucks remain neutral
+board identities and formations are coordinate-only templates.
 
 v20.56.8 is the immediately preceding documentation-only Penalty contract:
 Match Penalty clearance, pure roll, goalkeeper catch, Natural effects, hidden
