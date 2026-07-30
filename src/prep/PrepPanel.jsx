@@ -57,6 +57,7 @@ export function PrepPanel({
   readyValid,
   selectionSummaries,
   adjustDisabled,
+  selectedTeamSummary,
 }) {
   const selectionSummaryRef = useRef(null);
   if (!visible || lockUI) return null;
@@ -92,13 +93,16 @@ export function PrepPanel({
               {(formations || []).map(formation => <option key={formation.id} value={formation.id}>{formation.id}. {formation.name}</option>)}
             </select>
           </section>
+          {selectedTeamSummary && <div className={selectedTeamSummary.formation?.exact ? "prep-selected-formation-status valid" : "prep-selected-formation-status invalid"}>
+            <strong>{teamName} formation:</strong> {selectedTeamSummary.formation?.exact ? "roles match." : `needs correction${selectedTeamSummary.formation?.missing?.length ? ` · missing ${selectedTeamSummary.formation.missing.join(", ")}` : ""}${selectedTeamSummary.formation?.excess?.length ? ` · excess ${selectedTeamSummary.formation.excess.join(", ")}` : ""}`}
+          </div>}
           <div className="prep-action-grid">
             <button onClick={() => selectionSummaryRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })}>Selection</button>
             <button disabled={adjustDisabled} className={adjustActive ? "active" : ""} onClick={onAdjust} title={adjustDisabled ? "Correct the selected formation's starter roles before Adjust." : "Highlight role zones and adjust starter positions."}>Adjust</button>
             <button disabled title="Substitution waits for the canonical interruption/restart lifecycle.">Substitution</button>
             <button className={`prep-ready-button ${readyValid ? "is-valid" : ""}`} onClick={onReady}>Ready</button>
           </div>
-          {adjustActive && <button className="prep-reset-adjust" onClick={onResetAdjust}>Reset {teamName} default layout</button>}
+          {adjustActive && <button className="prep-reset-adjust" onClick={onResetAdjust}>Reset {teamName} formation layout</button>}
           <div className="prep-selection-statuses" ref={selectionSummaryRef}>
             <SelectionStatus summary={selectionSummaries.blue} />
             <SelectionStatus summary={selectionSummaries.red} />

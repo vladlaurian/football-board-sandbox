@@ -197,7 +197,7 @@ import { CardEditorPanel, CardStarMenuEditor } from "./cards/CardEditorPanel.jsx
 import { CardsPanel } from "./cards/CardsPanel.jsx";
 import { AssignCardModal } from "./cards/AssignCardModal.jsx";
 import { PrepPanel } from "./prep/PrepPanel.jsx";
-import { adjustZoneCells, planAutoAdjustStarters } from "./prep/adjustZones.mjs";
+import { formationAdjustCells } from "./prep/adjustZones.mjs";
 import "./styles.css";
 
 const firebaseConfig = {
@@ -217,7 +217,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.19";
+const APP_VERSION = "v20.56.20";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -6335,16 +6335,20 @@ function App() {
     if (!piece) return false;
 
     if (adjustActive && !sessionCode && piece.team !== "BALL" && !isBenchReservePiece(piece)) {
-      const role = cardById[String(piece.cardId || "")]?.position;
-      const allowed = adjustZoneCells(piece.team, role, settingsRef.current.cols)
+      const formation = getFormationById(piece.team === "A" ? blueFormationId : redFormationId);
+      const allowed = formationAdjustCells(piece, formation, settingsRef.current)
         .some(cell => cell.x === Number(x) && cell.y === Number(y));
-      if (!allowed) { setIllegalMoveNotice({ reason: "ADJUST_OUTSIDE_ROLE_ZONE" }); return false; }
+      if (!allowed) { setIllegalMoveNotice({ reason: "ADJUST_OUTSIDE_FORMATION_RANGE" }); return false; }
       const currentPieces = piecesRef.current || pieces;
       const occupied = currentPieces.some(item => item.id !== piece.id && item.team !== "BALL" && item.x === Number(x) && item.y === Number(y));
       if (occupied) { setIllegalMoveNotice({ reason: "occupied" }); return false; }
       const nextPieces = currentPieces.map(item => item.id === piece.id ? { ...item, x: Number(x), y: Number(y) } : item);
       piecesRef.current = nextPieces;
       setPieces(nextPieces);
+      setPrepLayoutState(current => ({
+        ...current,
+        adjustedTeams: { ...current.adjustedTeams, [piece.team]: true },
+      }));
       logSnapshot(`Adjust: ${getPieceDisplayLabel(piece)} → ${toCoord(x, y)}`, nextPieces, { type: "ADJUSTED_POSITION" });
       return true;
     }
@@ -7117,15 +7121,16 @@ function App() {
 
   const adjustZoneOverlays = useMemo(() => {
     if (!adjustActive || sessionCode) return [];
-    return pieces
-      .filter(piece => piece.team !== "BALL" && !isBenchReservePiece(piece))
-      .flatMap(piece => adjustZoneCells(piece.team, cardById[String(piece.cardId || "")]?.position, settings.cols)
-        .map(cell => ({
-          ...cell,
-          id: `adjust-${piece.id}-${cell.x}-${cell.y}`,
-          selected: piece.id === selectedId,
-        })));
-  }, [adjustActive, sessionCode, selectedId, pieces, cardById, settings.cols]);
+    const selected = pieces.find(piece => piece.id === selectedId);
+    if (!selected || selected.team === "BALL" || isBenchReservePiece(selected)) return [];
+    const formation = getFormationById(selected.team === "A" ? blueFormationId : redFormationId);
+    return formationAdjustCells(selected, formation, settings).map(cell => ({
+      ...cell,
+      id: `adjust-${selected.id}-${cell.x}-${cell.y}`,
+      selected: true,
+      team: selected.team,
+    }));
+  }, [adjustActive, sessionCode, selectedId, pieces, settings, blueFormationId, redFormationId]);
 
   const passPreview = useMemo(() => {
     const pending = actionResolution;
@@ -12198,11 +12203,11 @@ function App() {
         onPitchPointerUp={onPitchPointerUp}
         onPitchPointerCancel={onPitchPointerCancel}
         selectedPiece={selectedPiece}
-        selectedMovementAxis={selectedMovementAxis}
+        selectedMovementAxis={adjustActive ? null : selectedMovementAxis}
         movementAxisSymbol={movementAxisSymbol}
-        movementPreview={movementPreview}
+        movementPreview={adjustActive ? null : movementPreview}
         hoveredCell={hoveredCell}
-        coordinateCells={coordinateCells}
+        coordinateCells={adjustActive ? [] : coordinateCells}
         measureMode={measureMode}
         measureStart={measureStart}
         measureEnd={measureEnd}
@@ -12706,50 +12711,19 @@ function App() {
             setAdjustActive(false);
             return;
           }
-          const teamsToArrange = ["A", "B"].filter(team => !prepLayoutState.adjustedTeams[team]);
-          if (teamsToArrange.length) {
-            const plan = planAutoAdjustStarters({
-              pieces: piecesRef.current || pieces,
-              cardsById: cardById,
-              cols: settingsRef.current.cols,
-              teams: teamsToArrange,
-            });
-            if (!plan.accepted) {
-              setPrepReadyIssues(plan.issues);
-              return;
-            }
-            piecesRef.current = plan.pieces;
-            setPieces(plan.pieces);
-            logSnapshot("Adjust starter positions", plan.pieces, { type: "ADJUST_STARTED" });
-            setPrepLayoutState(current => ({
-              ...current,
-              adjustedTeams: teamsToArrange.reduce((next, team) => ({ ...next, [team]: true }), current.adjustedTeams),
-            }));
-          }
           setAdjustActive(true);
         }}
         onResetAdjust={() => {
-          const plan = planAutoAdjustStarters({
-            pieces: piecesRef.current || pieces,
-            cardsById: cardById,
-            cols: settingsRef.current.cols,
-            teams: [prepSelectedTeam],
-          });
-          if (!plan.accepted) {
-            setPrepReadyIssues(plan.issues);
-            return;
-          }
-          piecesRef.current = plan.pieces;
-          setPieces(plan.pieces);
-          logSnapshot(`Reset ${prepSelectedTeam === "A" ? "Blue" : "Red"} Adjust layout`, plan.pieces, { type: "ADJUST_RESET" });
+          applyFormation(prepSelectedTeam, prepSelectedTeam === "A" ? blueFormationId : redFormationId);
           setPrepLayoutState(current => ({
             ...current,
-            adjustedTeams: { ...current.adjustedTeams, [prepSelectedTeam]: true },
+            adjustedTeams: { ...current.adjustedTeams, [prepSelectedTeam]: false },
           }));
         }}
         onReady={requestPrepReady}
         readyValid={prepReadyValidation.valid}
         selectionSummaries={prepSelectionSummaries}
+        selectedTeamSummary={prepSelectedTeam === "A" ? prepSelectionSummaries.blue : prepSelectionSummaries.red}
         adjustDisabled={!((prepSelectedTeam === "A" ? prepSelectionSummaries.blue : prepSelectionSummaries.red)?.formation?.exact)}
       />}
 

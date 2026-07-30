@@ -25,7 +25,8 @@ Mode and applies a selected formation immediately to the live board while
 retaining card links. v20.56.18 makes Adjust role-aware and persists its
 prepared layout for Start New. v20.56.19 replaces editable formation slots with
 the approved standard catalogue and validates each selected formation's exact
-starter-role recipe, while substitutions remain future work. Manual Multiplayer remains a
+starter-role recipe. v20.56.20 replaces role-zone Adjust with formation-local
+Adjust, while substitutions remain future work. Manual Multiplayer remains a
 frozen legacy path and keeps its existing puck-label behavior.
 
 ## 1. One authority for a player's role
@@ -184,31 +185,25 @@ Prep summaries recalculate after each card assignment.
 
 ### 5.4 Adjust
 
-`Adjust` first builds a complete layout plan from `piece.cardId → card.position`
-only; puck labels never participate. Each role has an explicit central anchor
-inside its approved zone, mirrored for Red. The plan is rejected without moving
-any piece if a starter lacks a valid role card or its target cannot remain in
-that role's zone.
+`Adjust` uses the selected formation's default coordinate for each stable
+starter puck as its permanent anchor. Entering Adjust never repositions a team.
+After selecting one starter, only that player's local 5×5 square is shown:
+two cells in every orthogonal and diagonal direction from its formation anchor.
+The local area is Blue or Red, never the former shared yellow role-zone overlay.
+The starter may move only to a free cell inside that square; reserves and the
+ball are not adjusted. Normal movement/cursor previews are hidden only while
+this Adjust interaction is active.
 
-For duplicate roles, the default vertical layout is:
-
-- CB: two starters at centre −2 and +2; three at centre, −2 and +2;
-- CDM and CM: two starters at centre −3 and +3; three at centre, −3 and +3;
-- other duplicate roles use the same symmetric ±3 pattern unless their zone
-  requires a nearest legal free-cell fallback.
-
-ST defaults use the approved column 18 for Blue / 27 for Red only between
-K–S. Their wider approved zone remains legal for manual tactical Adjust moves.
-All active starter role zones are highlighted; the selected player's cells have
-the dominant highlight. A coach may move a starter only to an unoccupied cell
-inside that card's own role zone. Reserves and the ball are not adjusted.
+All standard formation defaults deliberately avoid the centre-circle corridor.
+`Reset [team] formation layout` reapplies that team's selected template and
+therefore restores its local Adjust anchors. Selecting another Formation also
+replaces that team's anchors.
 
 The Ready validator checks roster composition and all other setup legality.
 Adjust does not change card roles or card assignment. It is available only in
 Single Player Prep; Manual Multiplayer receives neither the control nor its
-movement path. Reopening Adjust only re-enters its highlight/move mode; it does
-not reset the board. `Reset [team] default layout` is the deliberate explicit
-reset. Selecting a new Formation invalidates that team's prepared Adjust layout.
+movement path. Reopening Adjust only re-enters its highlight/move mode and does
+not reset the board.
 
 ### 5.5 Ready and Match start
 
@@ -264,9 +259,9 @@ entrance:
 
 ## 6. Positional zones
 
-The Adjust implementation reads each card role and automatically places the
-eleven inside its role zone. A future central-restart system may reuse this
-same map, but it is not implemented by Adjust.
+The following former role-zone map is retained only as historical approved
+reference for a future, separately designed central-restart system. It has no
+active Adjust behavior.
 
 The following is the approved first zone map for Blue, which attacks toward
 increasing column numbers. Red is mirrored in depth using `n → 45 − n`.

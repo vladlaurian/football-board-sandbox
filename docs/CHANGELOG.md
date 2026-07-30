@@ -2,6 +2,20 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.20 — Formation-local Adjust and visible role locks
+
+- Replaces role-zone Adjust and its global yellow overlays with a selected
+  starter's local 5×5 formation area (±2 cells, orthogonal and diagonal).
+  Adjust never auto-repositions a team.
+- All standard default templates avoid the centre-circle corridor; Reset now
+  restores the selected formation layout rather than role-zone anchors.
+- Adds team-coloured local highlights, hides normal movement preview only while
+  Adjust is active, and displays an explicit lock with expected/actual roles on
+  each incompatible formation slot.
+- Prep shows an immediate selected-team formation status above the permanent
+  Blue-then-Red summaries. Manual Multiplayer, Engine, Timeline and AI export
+  remain unchanged.
+
 ## v20.56.19 — Standard formations and recipe-based selection
 
 - Replaces editable formation slots with the approved 22-template standard

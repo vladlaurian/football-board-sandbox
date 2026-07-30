@@ -40,7 +40,7 @@ export function planFormationRoleAssignment({ pieces = [], cardsById = {}, team,
   });
   const cardIdsByStarterIndex = Object.fromEntries(slotAssignments.map((slot, index) => [index, slot.entry?.piece?.cardId || null]));
   const slotProblems = slotAssignments.map((slot, index) => slot.entry && slot.entry.role !== slot.expectedRole ? ({
-    index, pieceId: `${team}-${index}`, expectedRole: slot.expectedRole, actualRole: slot.entry.role, cardName: nameFor(slot.entry.card), cardId: slot.entry.cardId,
+    index, pieceId: `${team}-${index}`, expectedRole: slot.expectedRole, actualRole: slot.entry.role, cardName: nameFor(slot.entry.card), cardId: slot.entry.piece.cardId,
   }) : null).filter(Boolean);
   return { ...analysis, cardIdsByStarterIndex, slotProblems };
 }

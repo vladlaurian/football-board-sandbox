@@ -78,5 +78,5 @@ test("Ready exits Adjust and Start New preserves an explicitly prepared layout",
   const kickoff = source.slice(kickoffStart, kickoffEnd);
   assert.match(kickoff, /prepLayoutState\.adjustedTeams\.A/);
   assert.match(kickoff, /prepLayoutState\.adjustedTeams\.B/);
-  assert.match(prepSource, /Reset \{teamName\} default layout/);
+  assert.match(prepSource, /Reset \{teamName\} formation layout/);
 });

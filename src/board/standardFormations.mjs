@@ -1,6 +1,15 @@
 // Standard starter templates. `starterRoleRecipe` describes formation slots,
 // never a player's role; the assigned card remains the sole role authority.
-const f = (id, name, players, starterRoleRecipe) => Object.freeze({ id, name, players: Object.freeze(players), starterRoleRecipe: Object.freeze(starterRoleRecipe) });
+// Keep all default starters outside the centre-circle corridor. Tactical
+// variation inside that space belongs to local Adjust, not the initial shape.
+const outsideCentreCircle = coordinate => {
+  const match = String(coordinate).match(/^([A-Z]+)(\d+)$/);
+  if (!match) return coordinate;
+  const column = Number(match[2]);
+  const safeColumn = column >= 18 && column <= 20 ? 17 : column >= 21 && column <= 25 ? 26 : column;
+  return `${match[1]}${safeColumn}`;
+};
+const f = (id, name, players, starterRoleRecipe) => Object.freeze({ id, name, players: Object.freeze(players.map(outsideCentreCircle)), starterRoleRecipe: Object.freeze(starterRoleRecipe) });
 const back4 = ["GK", "LB", "CB", "CB", "RB"];
 
 export const STANDARD_FORMATIONS = Object.freeze([

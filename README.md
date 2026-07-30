@@ -6,24 +6,23 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.19` |
-| Git/package version | `20.56.19` |
-| Build name | `Final_Board_v20_56_19_standard_formations_and_role_validation` |
-| Base build | `Final_Board_v20_56_18_adjust_role_layout_and_persistence` |
+| Sandbox version | `v20.56.20` |
+| Git/package version | `20.56.20` |
+| Build name | `Final_Board_v20_56_20_formation_local_adjust_and_role_locks` |
+| Base build | `Final_Board_v20_56_19_standard_formations_and_role_validation` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.19`. The repository version is in `package.json` as `20.56.19`. The browser title is `Sandbox v20.56.19`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.20`. The repository version is in `package.json` as `20.56.20`. The browser title is `Sandbox v20.56.20`.
 
 ## Current release
 
-v20.56.19 replaces editable coordinate slots with the approved fixed library
-of 22 standard formations. Each template has a separate starter-role recipe;
-the card remains the sole role authority. Formation selection always applies
-live without detaching cards. Mismatched cards are visibly red, explained in
-Prep, and receive compatible-formation suggestions. Ready validates the exact
-selected recipe instead of generic positional minima/maxima; an incompatible
-complete roster cannot Start New or Adjust. Engine, Timeline, AI export,
-Manual Multiplayer and Firebase remain unchanged.
+v20.56.20 replaces the former role-zone Adjust model with a local 5×5 area
+around each selected formation slot: two cells in every orthogonal and diagonal
+direction from its default position. The selected player's area is team-coloured
+and ordinary movement preview is hidden only during Adjust. Standard formation
+defaults avoid the centre-circle corridor. Incompatible formation slots now use
+an explicit lock plus a selected-team status in Prep. Engine, Timeline, AI
+export, Manual Multiplayer and Firebase remain unchanged.
 
 v20.56.12 established the Ready acknowledgement flow. v20.56.11 established
 the underlying Prep and Selection Rules foundation. v20.56.10 is its
