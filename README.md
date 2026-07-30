@@ -6,17 +6,25 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.3` |
-| Git/package version | `20.56.3` |
-| Build name | `Final_Board_v20_56_1_long_pass_route_integrity` |
-| Base build | `v20.56.0 documentation handoff` |
+| Sandbox version | `v20.56.9` |
+| Git/package version | `20.56.9` |
+| Build name | `Final_Board_v20_56_9_card_role_authority` |
+| Base build | `Final_Board_v20_56_8_penalty_rules_documentation` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.3`. The repository version is in `package.json` as `20.56.3`. The browser title is `Sandbox v20.56.3`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.9`. The repository version is in `package.json` as `20.56.9`. The browser title is `Sandbox v20.56.9`.
 
 ## Current release
 
-v20.56.3 requires one full board cell between an offline Short Pass passer and target: cells touching by side or corner are blocked for either team, removing the diagonal L-corner route without altering physical-contact geometry. It retains the fixed canonical `1000 ms` Single Player gameplay-roll result hold and the approved Long Pass correction. Manual Multiplayer remains unchanged.
+v20.56.9 makes the assigned card the only Single Player authority for a
+player's football role. Pucks are neutral board identities and formations are
+coordinate-only templates; applying one preserves card assignment rather than
+recreating the player. Old labelled formations migrate by retaining only their
+coordinates. Manual Multiplayer retains its frozen legacy puck-label path.
+
+v20.56.8 is the immediately preceding documentation-only Penalty contract:
+Match Penalty clearance, pure roll, goalkeeper catch, Natural effects, hidden
+ordered shoot-out lists, coin toss, early finish and sudden death are defined.
 
 The v20.52.5 audit accepts the Single Player Engine foundation: implemented mechanics are command-driven and testable without UI, MatchContext is frozen per active match, Timeline/Undo/Redo/Replay/AI Export share the canonical cursor state, Manual Multiplayer matches the v20.46.6 baseline, and Firebase has no newly introduced rule or deterministic-resolution logic. It does not reopen automated Multiplayer.
 
@@ -88,6 +96,15 @@ docs/
 | [`WORKSPACE_PERSISTENCE.md`](docs/WORKSPACE_PERSISTENCE.md) | Future-Match WorkspaceSnapshot and structural Workspace-operation boundary. |
 | [`ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md) | Generic automated-action lifecycle. |
 | [`INTERCEPTION_ENGINE.md`](docs/INTERCEPTION_ENGINE.md) | Interception resolver and its boundary with Pass. |
+| [`GAMEPLAY_RULES_FOUNDATIONS.md`](docs/GAMEPLAY_RULES_FOUNDATIONS.md) | Canonical shared board-game rules: proximity, possession, inactive state, reactions, result vocabulary and Offside. |
+| [`CROSS_RULES.md`](docs/CROSS_RULES.md) | Canonical Cross rule: eligibility, interception order, Cross Claim, Aerial Duel and Header finalisation. |
+| [`MODIFIERS_AND_TRACKER_RULES.md`](docs/MODIFIERS_AND_TRACKER_RULES.md) | Agreed future modifier capacity, cancellation, expiry and canonical Tracker contract. |
+| [`FINALISATION_AND_RESTARTS_RULES.md`](docs/FINALISATION_AND_RESTARTS_RULES.md) | Agreed future result, restart, kick-off, score, wall, execution-order, Penalty and action-economy contract. |
+| [`MARKING_RULES.md`](docs/MARKING_RULES.md) | Agreed future passive defensive tracking, Speed budget, fast exit and Marking-switch contract. |
+| [`TACKLING_RULES.md`](docs/TACKLING_RULES.md) | Agreed future defensive action and reaction Tackling contract, including Marking delay, fouls and inactivity. |
+| [`DRIBBLING_RULES.md`](docs/DRIBBLING_RULES.md) | Agreed future mandatory Dribbling, movement reorientation, inactivity and possession contract. |
+| [`SHOOTING_RULES.md`](docs/SHOOTING_RULES.md) | Agreed future normal, direct-free-kick and direct-Corner Shot contract, including range, wall and goalkeeper rules. |
+| [`TEAM_COMPOSITION_AND_FORMATIONS.md`](docs/TEAM_COMPOSITION_AND_FORMATIONS.md) | Canonical card-role authority, formation-coordinate contract and agreed future roster, substitutions and positional zones. |
 | [`RULE_SETS_EDITOR.md`](docs/RULE_SETS_EDITOR.md) | Editable Rule Set schema and editor behavior. |
 | [`GLOBAL_BACK_STATS.md`](docs/GLOBAL_BACK_STATS.md) | Global card-stat schema and card-local values. |
 | [`MULTIPLAYER_ARCHITECTURE.md`](docs/MULTIPLAYER_ARCHITECTURE.md) | Frozen legacy automated-multiplayer model; reference only until reopening is approved. |

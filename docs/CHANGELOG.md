@@ -2,6 +2,102 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.9 — Card-role authority and coordinate-only formations
+
+- Makes `card.position` the only Single Player authority for a player's football role. New starter and reserve pucks are neutral; role labels are no longer created, displayed as a fallback or exported by the offline path.
+- Migrates formation templates from legacy `[label, coordinate]` pairs to coordinates only. Existing saved formations remain readable and retain their coordinates.
+- Applying a formation now preserves stable puck identity and assigned cards instead of reconstructing cardless player pucks.
+- Adds the permanent team-composition/formations contract, including the agreed future roster, substitution and positional-zone rules. Those future Match mechanics are documented but not implemented in this release.
+- Manual Multiplayer/Firebase retain their legacy label path and are otherwise unchanged.
+
+## v20.56.8 — Penalty rules documentation
+
+- Replaces the deferred Penalty placeholder with the Match Penalty contract:
+  automatic outfield clearance from the large box and semicircle, fixed
+  goalkeeper, selected executor, pure `Penalty` versus `GK Penalty` roll and
+  result routing.
+- Defines Match Penalty Natural 1 as goalkeeper catch plus an immediate
+  defending Bonus Action, and Natural 20 as an ordinary Goal.
+- Defines the full shoot-out: canonical coin toss, hidden ordered eleven-player
+  lists, alternating kicks, early mathematical finish, no-repeat-before-eleven,
+  new order after a complete sequence, equality as a miss, and the next-own-kick
+  Natural AV/DV effects.
+- Records the future global `Penalty` Bonus and `GK Penalty` Attribute without
+  changing the current runtime card schema.
+- No runtime source was changed. Manual Multiplayer remains unchanged.
+
+## v20.56.7 — Free Kick and Corner rules documentation
+
+- Corrects both wall conventions to the fifth cell after the ball (the ball
+  cell is not counted), measured as exactly five cells centre-to-centre for
+  the closest wall player; Free Kick wall is continuous, parallel to the
+  goal line and contains one to four players, while Corner may have an optional
+  one-player wall.
+- Defines the shared canonical setup order: ball, defending wall, coach
+  repositioning beginning with attack, then attacker executor placement.
+- Defines Free Kick execution boundaries: all native action rules remain,
+  Long Pass contact/reaction rules remain unchanged, and Free Kick Lofted
+  Through uses threshold 18 with no effect from crossed-area count.
+- Adds direct Corner Shot: mandatory DVM, normal distant-range penalty,
+  optional-wall DV, and a curved route that may leave the board without
+  bypassing on-board body or defensive-area effects.
+- No runtime source was changed. Manual Multiplayer remains unchanged.
+
+## v20.56.6 — Shooting rules documentation
+
+- Added the agreed normal Shot contract: physical route, body blocking, distinct defensive-area DVs, editable range bands, goalkeeper retention and natural outcomes.
+- Added direct free-kick Shot: normal distance rules, no body or defensive-area route penalty, one DV per wall player and its Natural-1 recovery sequence.
+- No runtime source was changed.
+
+## v20.56.5 — Dribbling rules documentation
+
+- Added the agreed mandatory-Dribbling contract for defensive-area exits and movements that begin inside an area, including action cost and multi-defender ordering.
+- Defines successful reorientation, defender inactivity, failure recovery, failed-dribbler inactivity, Natural-1 immediate Bonus Action and configurable equality outcomes.
+- No runtime source was changed.
+
+## v20.56.4 — Tackling rules documentation
+
+- Added the agreed Tackling contract for phase-start action eligibility, proximity reactions, Marking-derived delayed reactions, pair-specific reaction deferral and reactive multi-defender ordering.
+- Defines success, inactivity, greater-distance fouls, yellow/red Natural-1 discipline, Natural-20 outcomes, equality restart outcomes and the full-proximity fallback placement.
+- No runtime source was changed.
+
+## v20.56.3 — Marking rules documentation
+
+- Added the agreed passive defensive-tracking contract: first-area-entry decision, one marker per attacker and defender, two consumed team opportunities per turn, and total per-turn Speed budgets.
+- Defines fast exit at two orthogonal or one diagonal defensive-area cells with a Speed difference of at least two, plus canonical Marking switching to a new defender.
+- Defines the required Engine-owned pending decisions, movement freeze and card-level visual projection without changing current runtime behavior.
+- No runtime source was changed.
+
+## v20.56.3 — Finalisation and restarts documentation
+
+- Added the agreed restart contract for Goal, kick-off, goal kick, throw-in, Corner, Free Kick and Penalty setup.
+- Records restart-specific action economy: Corner, non-possession-changing throw-in, Free Kick and Penalty reset only team/personal actions; modifiers remain governed by their own expiry rules.
+- Separates the goal-kick defensive-area exception from the distinct Cross goalkeeper-restart body-and-area exception.
+- Leaves Penalty roll, result and shoot-out resolution explicitly deferred.
+- No runtime source was changed.
+
+## v20.56.3 — Modifiers and Tracker documentation
+
+- Added the agreed future contract for team modifier capacity, exact-tier cancellation, mechanic-owned application and expiry, and canonical Tracker ownership.
+- Clarified that only AV/DV and AVM/DVM cancel as token pairs; other types may coexist and only offset numerically where an applicable roll uses them.
+- Documented that action-economy resets, including Corner restart reset, do not clear modifiers.
+- No runtime source was changed.
+
+## v20.56.3 — Cross rules documentation
+
+- Adds `CROSS_RULES.md` as the canonical Cross contract: range/angle/route eligibility, local origin obstruction, origin interception, automatic outfield interception, goalkeeper Cross Claim, Z0/Z1, Aerial Duel, Header and finalisation.
+- Resolves outfield automatic-interception selection by centre-to-centre proximity, with defending-coach choice only at equal distance; a direct goalkeeper target remains in the goalkeeper's cell.
+- Defines origin interception as the existing Long Pass resolver with the same interceptor roll, stack and Natural-1 carry, but with the crosser's fixed `Crossing` value replacing the Long Pass target.
+- Defines configured `corner` equality at Cross Claim and Aerial Duel as an immediate attacking corner, and makes physical body blocking require route entry into the cell interior.
+- No runtime code, Rule Set schema, MatchState, Tracker behavior, Manual Multiplayer or Firebase behavior changed.
+
+## v20.56.3 — Gameplay foundations documentation
+
+- Adds `GAMEPLAY_RULES_FOUNDATIONS.md` as the single permanent home for shared gameplay vocabulary: proximity, possession, inactive players, reactions, result categories and the agreed simplified real-football Offside rule.
+- Explicitly distinguishes agreed future rules from current implementation: `inactive` has no canonical reason/expiry yet, while Shot, Cross, Dribble and Tackling remain manual declarations rather than resolver mechanics.
+- Records that no global reaction-chain prohibition exists; the future Marking-to-Tackling restriction belongs to those specific mechanisms.
+- No runtime code, Rule Set schema, MatchState, Tracker behavior, Manual Multiplayer or Firebase behavior changed.
+
 ## v20.56.3 — Short Pass minimum separation
 
 - Offline Short Pass rejects a target cell touching the passer by side or corner, irrespective of target team. This removes the diagonal adjacent L-corner route with no real traversed board cell while preserving the established physical-contact rule.

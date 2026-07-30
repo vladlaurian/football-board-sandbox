@@ -38,7 +38,7 @@ function teamForPiece(piece) {
   return null;
 }
 
-function compactPiece(piece, cardsById) {
+function compactPiece(piece, cardsById, { legacyPuckLabels = false } = {}) {
   const cardId = String(piece?.cardId || "").trim() || null;
   const card = cardId ? cardsById.get(cardId) : null;
   return {
@@ -47,7 +47,7 @@ function compactPiece(piece, cardsById) {
     isBall: piece?.team === "BALL",
     cardId,
     name: card?.name || null,
-    position: card?.position || String(piece?.label || "").trim() || null,
+    position: card?.position || (legacyPuckLabels ? String(piece?.label || "").trim() : "") || null,
     coord: analysisCoord(piece),
     inactive: Boolean(piece?.inactive),
   };
@@ -95,9 +95,9 @@ function compactResumePolicy(value) {
   };
 }
 
-function compactState(state, cardsById) {
+function compactState(state, cardsById, options = {}) {
   return {
-    pieces: (Array.isArray(state?.pieces) ? state.pieces : []).map(piece => compactPiece(piece, cardsById)),
+    pieces: (Array.isArray(state?.pieces) ? state.pieces : []).map(piece => compactPiece(piece, cardsById, options)),
     tracker: compactTracker(state?.tracker),
     dice: {
       dieType: Math.max(2, Number(state?.dice?.dieType) || 20),
@@ -156,7 +156,7 @@ function piecesById(state) {
     .map(piece => [String(piece.id), piece]));
 }
 
-function changedPieces(before, after, cardsById) {
+function changedPieces(before, after, cardsById, options = {}) {
   const beforeById = piecesById(before);
   const afterById = piecesById(after);
   const ids = new Set([...beforeById.keys(), ...afterById.keys()]);
@@ -175,8 +175,8 @@ function changedPieces(before, after, cardsById) {
       pieceId,
       team: teamForPiece(next || previous),
       isBall: (next || previous)?.team === "BALL",
-      name: compactPiece(next || previous, cardsById).name,
-      position: compactPiece(next || previous, cardsById).position,
+      name: compactPiece(next || previous, cardsById, options).name,
+      position: compactPiece(next || previous, cardsById, options).position,
       origin,
       destination,
       inactiveBefore: previousInactive,
@@ -207,12 +207,12 @@ function addedTrackerActions(before, after) {
   return added;
 }
 
-function actorForEntry(entry, before, after, movements, cardsById) {
+function actorForEntry(entry, before, after, movements, cardsById, options = {}) {
   const action = addedTrackerActions(before, after)[0];
   const pieceId = action?.pieceId || movements.find(change => !change.isBall)?.pieceId || null;
   if (!pieceId) return null;
   const piece = piecesById(after).get(pieceId) || piecesById(before).get(pieceId);
-  const compact = compactPiece(piece, cardsById);
+  const compact = compactPiece(piece, cardsById, options);
   return {
     pieceId,
     name: compact.name,
@@ -277,12 +277,12 @@ function actionEconomy(state, team, actorId) {
   };
 }
 
-function semanticEvent(entry, sequence, cardsById) {
+function semanticEvent(entry, sequence, cardsById, options = {}) {
   const before = entry.before || {};
   const after = entry.after || {};
-  const movements = changedPieces(before, after, cardsById);
+  const movements = changedPieces(before, after, cardsById, options);
   const trackerActions = addedTrackerActions(before, after);
-  const actor = actorForEntry(entry, before, after, movements, cardsById);
+  const actor = actorForEntry(entry, before, after, movements, cardsById, options);
   const team = entry.team || actor?.pieceId && teamForPiece(piecesById(after).get(actor.pieceId) || piecesById(before).get(actor.pieceId)) || null;
   const eventState = entry.type === "MATCH_STARTED" ? after : before;
   const passResolution = after?.actionResolution?.kind === "pass"
@@ -507,7 +507,8 @@ export function createAiAnalysisExport(recording, metadata = {}) {
   const initialState = timeline.initialState;
   const finalState = timelineStateAt(timeline, timeline.cursor);
   const activeEntries = timeline.entries.slice(0, timeline.cursor);
-  const events = linkSequentialMoveEvents(activeEntries.map((entry, index) => semanticEvent(entry, index + 1, cardsById)));
+  const compactOptions = { legacyPuckLabels: Boolean(metadata.legacyPuckLabels) };
+  const events = linkSequentialMoveEvents(activeEntries.map((entry, index) => semanticEvent(entry, index + 1, cardsById, compactOptions)));
   const context = matchContext(initialState, recording.appVersion || metadata.appVersion, openingAttackingTeam(timeline));
   return {
     exportType: AI_ANALYSIS_EXPORT_TYPE,
@@ -530,9 +531,9 @@ export function createAiAnalysisExport(recording, metadata = {}) {
       dieType: Math.max(2, Number(initialState?.dice?.dieType) || 20),
     },
     gameplayCardSnapshot: [...cardsById.values()].map(card => cloneGameState(card)),
-    initialState: compactState(initialState, cardsById),
+    initialState: compactState(initialState, cardsById, compactOptions),
     semanticTimeline: events,
-    finalState: compactState(finalState, cardsById),
+    finalState: compactState(finalState, cardsById, compactOptions),
     matchSummary: {
       timelineEntryCount: activeEntries.length,
       retainedTimelineEntryCount: timeline.entries.length,

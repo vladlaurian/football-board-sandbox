@@ -108,6 +108,14 @@ Each fact must have one authoritative home. Other documents should link to that 
 | Historical multiplayer fixes and rejected approaches | `MULTIPLAYER_CHANGELOG.md` |
 | Generic action-resolution lifecycle | `ACTION_RESOLUTION_ENGINE.md` |
 | Interception resolver contract | `INTERCEPTION_ENGINE.md` |
+| Shared board-game rules: proximity, possession, inactive state, reactions, result vocabulary and Offside | `GAMEPLAY_RULES_FOUNDATIONS.md` |
+| Cross rule: eligibility, interception order, Cross Claim, Aerial Duel and Header finalisation | `CROSS_RULES.md` |
+| Team modifier capacity, cancellation, expiry and canonical Tracker contract | `MODIFIERS_AND_TRACKER_RULES.md` |
+| Result, restart, kick-off, score, wall, execution-order, Penalty and action-economy contract | `FINALISATION_AND_RESTARTS_RULES.md` |
+| Passive defensive tracking, Speed budget, fast exit and Marking switch contract | `MARKING_RULES.md` |
+| Defensive action/reaction Tackling, Marking delay, fouls and inactivity contract | `TACKLING_RULES.md` |
+| Mandatory Dribbling, movement reorientation, inactivity and possession contract | `DRIBBLING_RULES.md` |
+| Normal, direct-free-kick and direct-Corner Shot range, wall and goalkeeper contract | `SHOOTING_RULES.md` |
 | Rule Set schema and editor behavior | `RULE_SETS_EDITOR.md` |
 | Global back-card stat schema and card-local values | `GLOBAL_BACK_STATS.md` |
 | Command-driven MatchState, MatchContext, Engine, Controller, Timeline, and persistence boundaries | `GAME_ENGINE_ARCHITECTURE.md` |

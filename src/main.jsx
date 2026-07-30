@@ -207,7 +207,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.3";
+const APP_VERSION = "v20.56.9";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -411,7 +411,9 @@ const CARD_POSITION_OPTIONS = [
 const PREFERRED_FOOT_OPTIONS = ["Left", "Right", "Both"];
 
 const TEAM_LAYOUT_POSITIONS = ["GK", "LWB", "LB", "CB", "RB", "RWB", "LM", "CDM", "CM", "CAM", "RM", "LW", "ST", "RW"];
-const TEAM_SLOT_POSITIONS = ["GK", "LB", "CB", "CB", "RB", "CDM", "CM", "CAM", "LW", "RW", "ST"];
+// A playing position belongs to a card only. Puck identity is deliberately
+// neutral so formations remain spatial templates instead of a second roster.
+const TEAM_SLOT_POSITIONS = ["", "", "", "", "", "", "", "", "", "", ""];
 const CARD_THEMES = ["Style 1", "Style 2", "Style 3", "Style 4", "Style 5", "Style 6", "Style 7"];
 const CUSTOM_CARD_THEME = "Custom";
 
@@ -1798,30 +1800,30 @@ const FORMATION_SLOTS = [
     id: 1,
     name: "4-4-2",
     players: [
-      ["GK", "O1"], ["LB", "G8"], ["CB", "L7"], ["CB", "R7"], ["RB", "W8"],
-      ["LM", "D16"], ["CM", "L13"], ["CM", "R13"], ["RM", "Z16"],
-      ["ST", "M16"], ["ST", "Q16"]
+      "O1", "G8", "L7", "R7", "W8",
+      "D16", "L13", "R13", "Z16",
+      "M16", "Q16"
     ]
   },
   {
     id: 2,
     name: "4-2-3-1",
     players: [
-      ["GK", "O1"], ["LWB", "Y8"], ["CB", "R7"], ["CB", "L7"], ["RWB", "E8"],
-      ["CDM", "M11"], ["CDM", "Q11"], ["LW", "C19"], ["AM", "O16"], ["RW", "AA19"],
-      ["ST", "O19"]
+      "O1", "Y8", "R7", "L7", "E8",
+      "M11", "Q11", "C19", "O16", "AA19",
+      "O19"
     ]
   },
   {
     id: 3,
     name: "3-5-2 (1)",
     players: [
-      ["GK", "O1"], ["CB", "K7"], ["CB", "O7"], ["CB", "S7"],
-      ["LM", "D16"], ["CM", "K13"], ["CM", "O13"], ["CM", "S13"], ["RM", "Z16"],
-      ["ST", "M16"], ["ST", "Q16"]
+      "O1", "K7", "O7", "S7",
+      "D16", "K13", "O13", "S13", "Z16",
+      "M16", "Q16"
     ]
   },
-  ...Array.from({ length: 12 }, (_, i) => ({ id: i + 4, name: `Slot ${i + 4} - 4-4-2`, players: [["GK", "O1"], ["LB", "G8"], ["CB", "L7"], ["CB", "R7"], ["RB", "W8"], ["LM", "D16"], ["CM", "L13"], ["CM", "R13"], ["RM", "Z16"], ["ST", "M16"], ["ST", "Q16"]] }))
+  ...Array.from({ length: 12 }, (_, i) => ({ id: i + 4, name: `Slot ${i + 4} - 4-4-2`, players: ["O1", "G8", "L7", "R7", "W8", "D16", "L13", "R13", "Z16", "M16", "Q16"] }))
 ];
 
 function loadStoredFormations() {
@@ -1873,13 +1875,13 @@ function createInitialPieces(cols, rows, blueFormation = FORMATION_SLOTS[0], red
 
   function addFormation(team, formation) {
     const isBlue = team === "A";
-    normalizeFormationPlayers(formation?.players).forEach(([label, coord], i) => {
+    normalizeFormationPlayers(formation?.players).forEach((coord, i) => {
       const pos = fromCoord(coord);
       const x = isBlue ? pos.x : cols - 1 - pos.x;
       pieces.push({
         id: `${team}-${i}`,
         team,
-        label,
+        label: "",
         x: clampBoardXForY(x, pos.y, localSettings),
         y: clampBoardY(pos.y, localSettings),
       });
@@ -4632,6 +4634,9 @@ function App() {
         settings,
         createInitialPieces,
         sanitizePieces: nextPieces => sanitizePiecesCardIds(nextPieces, cardStateRef.current, settingsRef.current),
+        // Manual Multiplayer keeps its established puck-label behavior.
+        // Single Player formations intentionally clear legacy role labels.
+        stripPuckLabels: !sessionCode,
       });
       piecesRef.current = next;
       logSnapshot(`${team === "A" ? "Blue" : "Red"} formation: ${formation.name}`, next);
@@ -4652,7 +4657,7 @@ function App() {
       .map(p => {
         const x = team === "A" ? Math.round(p.x) : settings.cols - 1 - Math.round(p.x);
         const y = Math.round(p.y);
-        return [p.label, normalizeGridPosition(x, y, settings).coord];
+        return normalizeGridPosition(x, y, settings).coord;
       });
 
     const nextFormations = planWorkspaceFormationSave({
@@ -5068,7 +5073,11 @@ function App() {
         cardSnapshot,
         ruleSetSnapshot: timeline.initialState?.ruleSet,
       });
-      const analysis = createAiAnalysisExport(recording, { appVersion: APP_VERSION });
+      const analysis = createAiAnalysisExport(recording, {
+        appVersion: APP_VERSION,
+        // Manual Multiplayer is frozen and may still carry legacy puck labels.
+        legacyPuckLabels: Boolean(sessionCode),
+      });
       const blob = new Blob([JSON.stringify(analysis, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -6676,6 +6685,9 @@ function App() {
 
   function openEdit(piece) {
     if (singlePlayerMatchWorkspaceLocked) return;
+    // Position labels on pucks are a legacy Manual Multiplayer affordance.
+    // Single Player gets its role from the assigned card only.
+    if (!sessionCode) return;
     if (piece.team === "BALL" || !canAssignPiece(piece)) return;
     setEditingPiece(piece);
     setEditLabel(piece.label);
@@ -7233,14 +7245,14 @@ function App() {
   const getPieceDisplayLabel = (piece) => {
     if (!piece) return "";
     const assignedCard = cardById[piece.cardId];
-    return (assignedCard?.position || piece.label || "SUB").trim();
+    return (assignedCard?.position || (sessionCode ? piece.label : "") || "").trim();
   };
   const getPieceIdentity = (piece) => {
     if (!piece) return "Unknown player";
     const assignedCard = cardById[piece.cardId];
     const position = getPieceDisplayLabel(piece);
     const name = String(assignedCard?.name || "").trim();
-    return name ? `${position} ${name}` : position;
+    return position && name ? `${position} ${name}` : name || position || "Player";
   };
   const rosterSlots = useMemo(() => {
     const orderIndex = (label) => {
@@ -7254,7 +7266,7 @@ function App() {
         .map((piece, index) => ({
           id: piece.id,
           pieceId: piece.id,
-          position: (cardById[piece.cardId]?.position || piece.label || `SUB ${index + 1}`),
+          position: (cardById[piece.cardId]?.position || (sessionCode ? piece.label : "") || `SUB ${index + 1}`),
           cardId: piece.cardId || null,
           isSub: String(piece.id).includes("-R-"),
           y: piece.y,
@@ -12037,7 +12049,7 @@ function App() {
         <div className="inspector-head inspector-drag-handle" onPointerDown={onInspectorDragDown}>
           <strong>Inspector</strong>
           <div className="inspector-head-right">
-            {inspectedPiece && <span>{inspectedPiece.team === "BALL" ? "Match Ball" : `Post puc: ${getPieceDisplayLabel(inspectedPiece)}`}</span>}
+            {inspectedPiece && <span>{inspectedPiece.team === "BALL" ? "Match Ball" : `Post card: ${getPieceDisplayLabel(inspectedPiece) || "—"}`}</span>}
             <button className="inspector-window-btn" title="Minimize" onPointerDown={e => e.stopPropagation()} onClick={() => setInspectorMinimized(v => !v)}>{inspectorMinimized ? "□" : "—"}</button>
             <button className="inspector-window-btn" title="Close" onPointerDown={e => e.stopPropagation()} onClick={() => setInspectorVisible(false)}>×</button>
           </div>

@@ -1,0 +1,164 @@
+# Shooting Rules
+
+## Status and scope
+
+This document is the agreed gameplay contract for **Shot** (Șut), including
+direct Shot from a Free Kick and Corner. It is documentation only. Shot is not
+implemented in the current runtime and must pass the Mechanic Integration Gate
+before any Engine build begins.
+
+Goal, goal kick, Corner, kick-off, wall placement and restart setup remain in
+[FINALISATION_AND_RESTARTS_RULES.md](FINALISATION_AND_RESTARTS_RULES.md). This
+document fixes Shot resolution only.
+
+## 1. Normal Shot eligibility and physical route
+
+Only an attacking player with possession may take a Shot at the opposing goal.
+The attacker selects a physical origin corner in its own cell and a target goal
+cell. The physical route is corner-to-centre of the selected goal cell.
+
+A normal Shot route is legal only when:
+
+- it remains inside the board for its complete route;
+- it does not enter the interior of any occupied active player cell, whether
+  teammate or opponent;
+- its centre-to-centre shot distance does not exceed the frozen maximum.
+
+A body contact makes that origin route invalid; it is not a deflection,
+interception or later recovery event. The selected corner changes physical
+route validity but never the regulatory centre-to-centre distance.
+
+A Shot may cross defensive areas. Each distinct defending player's defensive
+area crossed by the normal Shot route adds one DV, no matter how many cells of
+that same area the route crosses. If the Shot uses the non-dominant foot, it
+also receives DVM.
+
+## 2. Frozen distance settings
+
+The Rule Set provides and MatchContext freezes:
+
+- longShotNormalRangeMax, initially 11 cells;
+- shotMaximumRange, initially 16 cells;
+- the positional penalty for the band after normal Long Shot range: DV or DVM.
+
+The bands are:
+
+- from outside the penalty area through longShotNormalRangeMax, inclusive:
+  normal Long Shot band;
+- from longShotNormalRangeMax + 1 through shotMaximumRange, inclusive:
+  distant Long Shot band;
+- beyond shotMaximumRange: Shot is unavailable.
+
+All Shot distance is measured centre-to-centre from the shooting cell to the
+selected goal cell. Changing either editable distance automatically changes the
+relevant band boundary.
+
+## 3. Normal Shot roll
+
+Inside either penalty area, the attacking player rolls D20 plus:
+
+- Finishing;
+- every relevant AV, AVM, DV and DVM.
+
+The total is compared with the goalkeeper's fixed Reflexes.
+
+Outside the penalty area, the attacking player rolls D20 plus:
+
+- Long Shot;
+- every relevant AV, AVM, DV and DVM.
+
+The total is compared with the goalkeeper's fixed Diving Saves. A Shot in the
+distant Long Shot band receives the frozen positional DV or DVM in addition to
+all other applicable modifiers.
+
+For either normal Shot band:
+
+- greater total: Goal;
+- lower total: goalkeeper retains the ball;
+- equal total: Corner.
+
+Natural 20 is always Goal and has no additional effect. Natural 1 always
+misses the goal and produces a goal kick.
+
+When a goalkeeper retains a normal Shot, it keeps the ball in its existing
+cell. Its subsequent restart may use Short Pass, Long Pass, Through Ball or
+Lofted Through Ball. Inside the goalkeeper's large and small penalty areas,
+opposing bodies and defensive areas are ignored for that restart, exactly as
+for a goalkeeper who retained a Cross. Outside the large penalty area, ordinary
+rules resume.
+
+## 4. Direct Shot from a Free Kick
+
+A direct free-kick Shot is available under the Free Kick restart contract. It
+uses Long Shot against the goalkeeper's Diving Saves and preserves:
+
+- the frozen normal and maximum Shot distance settings;
+- the frozen positional distance penalty in the distant Long Shot band;
+- the normal maximum-range prohibition;
+- all otherwise relevant roll modifiers, including non-dominant-foot DVM.
+
+For this special Shot only:
+
+- player bodies, including every wall player, do not block the physical route;
+- defensive areas crossed by the route add no DV;
+- each player in the defensive wall adds one DV to the Shot roll.
+
+The wall therefore changes difficulty through its player count, not through
+route blocking or defensive-area crossings. Wall placement is limited by the
+Free Kick contract.
+
+Normal lower-than-target result remains goalkeeper retention with the same
+goalkeeper restart exception in section 3. Equality produces Corner, exactly as
+for a normal Shot.
+
+Natural 20 is always Goal with no additional effect.
+
+On Natural 1, the defending coach chooses one player from the wall to receive
+the ball. The defending team receives Bonus Action immediately. After that
+Bonus Action, possession changes and the defending team begins its next
+numbered turn attacking.
+
+## 5. Direct Shot from a Corner
+
+A direct Corner Shot is available only under the Corner restart contract. It
+uses Long Shot against the goalkeeper's Diving Saves and retains the ordinary
+maximum Shot range.
+
+It receives all of the following modifiers:
+
+- a mandatory DVM for the Corner execution itself;
+- the frozen distant-Long-Shot positional penalty, because the closest goal
+  cell is at least twelve cells centre-to-centre from the Corner cell;
+- one DV if the defending coach placed the optional one-player Corner wall.
+
+Unlike an ordinary Shot, this physical route may leave the board through
+off-field cells before returning to the selected goal cell. That exception
+models a curved Corner trajectory; it does not remove ordinary body blocking
+or the DV for each distinct defending defensive area crossed while the route
+is on the board. Every other normal Shot condition and resolution applies,
+including the maximum range, goalkeeper comparison, equality Corner, Natural
+20 Goal and Natural 1 goal kick.
+
+## 6. Canonical state and presentation
+
+Engine/MatchState must own:
+
+- the selected shooter, origin corner and goal-cell target;
+- physical-route validity, body-block facts and distinct defensive areas crossed;
+- regulatory distance, Shot band and frozen Rule Set values;
+- all applied modifiers, target goalkeeper statistic and the complete result;
+- goal, goal-kick, Corner or goalkeeper-retention result;
+- free-kick Shot wall count, its extra DV facts and Natural-1 receiver choice;
+- Corner Shot's selected curved physical route, mandatory DVM, distance-band
+  penalty and optional-wall DV;
+- goalkeeper restart exception and every pending choice/roll;
+- semantic Timeline and AI Export events for Shot setup, roll, result, Goal,
+  restart, Natural result and free-kick-specific consequence.
+
+The UI consumes those canonical verdicts. It does not independently calculate
+Shot validity, distance classification, defensive-area DVs, wall penalty,
+goalkeeper exception or result.
+
+Manual Multiplayer remains unchanged. Future multiplayer must route the
+Natural-1 wall-player choice and every other defensive choice to the entitled
+team in MatchState.

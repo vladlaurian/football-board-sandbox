@@ -7,7 +7,8 @@
 ## Workspace data
 
 - board settings and Editor board pieces;
-- formation library and selected formations;
+- formation library and selected formations; formations are coordinate-only
+  templates and never own a football role or card assignment;
 - scenario library and selected scenario;
 - card library and card-to-piece assignment data;
 - Rule Set library and selected Rule Set;

@@ -40,15 +40,33 @@ export function planWorkspaceFormationApplication({
   settings,
   createInitialPieces,
   sanitizePieces,
+  stripPuckLabels = false,
 } = {}) {
   const ball = (pieces || []).find(piece => piece.team === "BALL");
   const others = (pieces || []).filter(piece => piece.team !== team && piece.team !== "BALL");
-  const nextTeamPieces = createInitialPieces(
+  const existingById = new Map((pieces || [])
+    .filter(piece => piece.team === team)
+    .map(piece => [String(piece.id), piece]));
+  const positionedTeamPieces = createInitialPieces(
     settings.cols,
     settings.rows,
     team === "A" ? formation : blueFormation,
     team === "B" ? formation : redFormation
   ).filter(piece => piece.team === team);
+  // A formation changes coordinates only. Stable puck identity, assigned card
+  // and Manual Multiplayer's legacy label must survive that repositioning.
+  const nextTeamPieces = positionedTeamPieces.map(positioned => {
+    const existing = existingById.get(String(positioned.id));
+    if (!existing) return { ...positioned, label: stripPuckLabels ? "" : positioned.label };
+    return {
+      ...existing,
+      id: positioned.id,
+      team: positioned.team,
+      x: positioned.x,
+      y: positioned.y,
+      label: stripPuckLabels ? "" : existing.label,
+    };
+  });
   return sanitizePieces([...others, ...nextTeamPieces, ball].filter(Boolean));
 }
 

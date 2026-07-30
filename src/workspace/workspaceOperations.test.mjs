@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   planWorkspaceBoardSetting,
   planWorkspaceCardAssignment,
+  planWorkspaceFormationApplication,
   planWorkspaceRuleSetCommit,
   planWorkspaceScenarioSave,
 } from "./workspaceOperations.mjs";
@@ -47,6 +48,53 @@ test("Workspace scenario and card assignment plans remain setup-only", () => {
   assert.equal(pieces.find(piece => piece.id === "a").cardId, "card-1");
   assert.equal(pieces.find(piece => piece.id === "b").cardId, null);
   assert.equal(pieces.find(piece => piece.id === "ball").cardId, null);
+});
+
+test("formation application repositions stable pucks without detaching their cards", () => {
+  const pieces = [
+    { id: "A-0", team: "A", label: "GK", cardId: "card-gk", x: 1, y: 1 },
+    { id: "A-1", team: "A", label: "CB", cardId: "card-cb", x: 2, y: 2 },
+    { id: "B-0", team: "B", label: "GK", cardId: "other", x: 9, y: 1 },
+    { id: "BALL", team: "BALL", label: "●", x: 5, y: 4 },
+  ];
+  const createInitialPieces = () => [
+    { id: "A-0", team: "A", label: "legacy", x: 4, y: 4 },
+    { id: "A-1", team: "A", label: "legacy", x: 5, y: 5 },
+    { id: "B-0", team: "B", label: "legacy", x: 8, y: 4 },
+    { id: "BALL", team: "BALL", label: "●", x: 5, y: 4 },
+  ];
+  const planned = planWorkspaceFormationApplication({
+    pieces,
+    team: "A",
+    formation: { players: ["A1", "A2"] },
+    blueFormation: { players: ["A1", "A2"] },
+    redFormation: { players: ["A1"] },
+    settings: { cols: 10, rows: 9 },
+    createInitialPieces,
+    sanitizePieces: value => value,
+    stripPuckLabels: true,
+  });
+  const blueZero = planned.find(piece => piece.id === "A-0");
+  const blueOne = planned.find(piece => piece.id === "A-1");
+  assert.deepEqual({ x: blueZero.x, y: blueZero.y, cardId: blueZero.cardId, label: blueZero.label }, { x: 4, y: 4, cardId: "card-gk", label: "" });
+  assert.deepEqual({ x: blueOne.x, y: blueOne.y, cardId: blueOne.cardId, label: blueOne.label }, { x: 5, y: 5, cardId: "card-cb", label: "" });
+  assert.equal(planned.find(piece => piece.id === "B-0").cardId, "other");
+});
+
+test("formation application preserves Manual Multiplayer's legacy puck labels", () => {
+  const planned = planWorkspaceFormationApplication({
+    pieces: [{ id: "A-0", team: "A", label: "LB", cardId: "card-lb", x: 1, y: 1 }],
+    team: "A",
+    formation: { players: ["A1"] },
+    blueFormation: { players: ["A1"] },
+    redFormation: { players: [] },
+    settings: { cols: 10, rows: 9 },
+    createInitialPieces: () => [{ id: "A-0", team: "A", label: "legacy", x: 4, y: 4 }],
+    sanitizePieces: value => value,
+    stripPuckLabels: false,
+  });
+  assert.equal(planned[0].label, "LB");
+  assert.equal(planned[0].cardId, "card-lb");
 });
 
 test("Workspace Rule Set plan retains the chosen active Rule Set", () => {

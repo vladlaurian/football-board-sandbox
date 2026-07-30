@@ -81,6 +81,31 @@ test("AI analysis export is compact, directional, and keeps one action ID across
   assert.equal(exported.semanticTimeline[1].movements[0].destination, "I15");
 });
 
+test("AI export reads a position from the card and ignores a Single Player puck label", () => {
+  const before = state({
+    pieces: [
+      { id: "A-1", team: "A", label: "ST", cardId: "blue-card", x: 10, y: 8 },
+      { id: "B-1", team: "B", label: "CB", cardId: "red-card", x: 20, y: 8 },
+      { id: "A-2", team: "A", label: "LW", cardId: null, x: 11, y: 8 },
+      { id: "BALL", team: "BALL", label: "●", x: 10, y: 8 },
+    ],
+  });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline: createTimeline(before) });
+  assert.equal(exported.initialState.pieces.find(piece => piece.pieceId === "A-1").position, "RW");
+  assert.equal(exported.initialState.pieces.find(piece => piece.pieceId === "A-2").position, null);
+});
+
+test("AI export preserves legacy puck-label fallback only when explicitly requested for Manual Multiplayer", () => {
+  const before = state({
+    pieces: [
+      { id: "A-1", team: "A", label: "LB", cardId: null, x: 10, y: 8 },
+      { id: "BALL", team: "BALL", label: "●", x: 10, y: 8 },
+    ],
+  });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline: createTimeline(before) }, { legacyPuckLabels: true });
+  assert.equal(exported.initialState.pieces.find(piece => piece.pieceId === "A-1").position, "LB");
+});
+
 test("MATCH_STARTED belongs to turn 1 and opening attack never changes with a later possession change", () => {
   const before = state({
     tracker: { ...state().tracker, gameStarted: false, startingTeam: "red", currentTurn: 0 },

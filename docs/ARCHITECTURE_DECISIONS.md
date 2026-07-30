@@ -778,3 +778,23 @@ AV/AVM opportunities are canonical MatchState records. The Engine resolves a sel
 - Rejected BA movement retains Engine geometry for render-safe feedback; UI never reads an internal command envelope as a preview result.
 - Prompt values, roll math, Undo/Redo, Replay and AI all retain the same token state and source facts.
 - Manual Multiplayer is not routed through this offline capability contract.
+
+## ADR-055 — Card roles are the only Single Player role authority
+
+**Status:** Active.
+
+**Decision:** In Single Player, a football role belongs exclusively to the
+assigned card's `position`. A puck is a stable physical board identity and a
+formation is a spatial coordinate template. Neither may create, override or
+preserve a second role source. Applying a formation must retain the existing
+card-to-puck link.
+
+**Consequences:**
+
+- legacy `[label, coordinate]` formation data remains readable but migrates to
+  coordinates only;
+- roster validation and future positional zones read card data only;
+- Timeline and AI export no longer infer a Single Player role from a puck
+  label;
+- Manual Multiplayer's existing label compatibility path remains unchanged
+  and is not an authorization to extend that system.

@@ -88,6 +88,16 @@ Pass and Interception request values through stable global stat IDs, including:
 - `stat:passing`;
 - `stat:interception`.
 
+The agreed future Penalty mechanic requires two further global definitions:
+
+- `stat:penalty` — a **Bonus** named `Penalty`, used by the kicker;
+- `stat:gk-penalty` — an **Attribute** named `GK Penalty`, used as the fixed
+  goalkeeper target.
+
+These are documentation requirements only in the current runtime. Their future
+schema migration must create both statistics on every card through the existing
+global-stat mechanism; they must not be added only to selected cards.
+
 The gameplay accessor resolves the stat definition from the global schema and the numeric value from the relevant card. Display names are not the permanent gameplay contract, so a future label change must not break Pass or Interception.
 
 Legacy display-name lookup remains only as a compatibility path for old recordings, imports, and materialized card snapshots. New gameplay code should use stable IDs.
