@@ -6,21 +6,21 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.15` |
-| Git/package version | `20.56.15` |
-| Build name | `Final_Board_v20_56_15_live_prep_formation_and_kickoff_ball` |
-| Base build | `Final_Board_v20_56_14_match_start_continue_lifecycle` |
+| Sandbox version | `v20.56.16` |
+| Git/package version | `20.56.16` |
+| Build name | `Final_Board_v20_56_16_adjust_and_blue_kickoff_alignment` |
+| Base build | `Final_Board_v20_56_15_live_prep_formation_and_kickoff_ball` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.15`. The repository version is in `package.json` as `20.56.15`. The browser title is `Sandbox v20.56.15`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.16`. The repository version is in `package.json` as `20.56.16`. The browser title is `Sandbox v20.56.16`.
 
 ## Current release
 
-v20.56.15 restores the intended live Prep workflow: selecting a formation
-immediately rearranges the board in Single Player Match Mode while preserving
-every card assignment. Start New Game now places the ball directly on the
-starting ST in the agreed adjacent central cell. Manual Multiplayer/Firebase
-remain frozen.
+v20.56.16 implements Single Player Prep `Adjust`: it automatically places
+starters in distinct central cells inside their card-role zones, highlights all
+active zones, and permits subsequent manual placement only inside that
+player's highlighted role zone. Blue kick-off now exactly mirrors Red and the
+ball remains on the starting ST. Manual Multiplayer/Firebase remain frozen.
 
 v20.56.12 established the Ready acknowledgement flow. v20.56.11 established
 the underlying Prep and Selection Rules foundation. v20.56.10 is its

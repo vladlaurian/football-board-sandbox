@@ -2,6 +2,17 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.16 — Adjust zones and Blue kick-off alignment
+
+- Makes `Adjust` functional in offline Single Player Prep. It automatically
+  places the eleven starters in distinct central cells of their approved
+  `card.position` zones, visibly highlights every active zone, and restricts
+  manual Adjust moves to the selected player's own zone and an unoccupied cell.
+- Corrects Blue Start New Game placement to the exact central mirror of the
+  already correct Red kick-off, with the ball on the starting ST's cell.
+- Keeps Substitution and the interruption/restart lifecycle out of scope.
+  Manual Multiplayer and Firebase are unchanged.
+
 ## v20.56.15 — Live Prep formations and kick-off possession correction
 
 - Formation selection in Single Player Prep once again repositions the board

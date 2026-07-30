@@ -41,6 +41,8 @@ export function PrepPanel({
   formations,
   formationId,
   onFormationChange,
+  adjustActive,
+  onAdjust,
   onReady,
   readyValid,
   selectionSummaries,
@@ -81,7 +83,7 @@ export function PrepPanel({
           </section>
           <div className="prep-action-grid">
             <button onClick={() => selectionSummaryRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })}>Selection</button>
-            <button disabled title="Adjust will be implemented in v20.56.14.">Adjust</button>
+            <button className={adjustActive ? "active" : ""} onClick={onAdjust} title="Highlight role zones and adjust starter positions.">Adjust</button>
             <button disabled title="Substitution waits for the canonical interruption/restart lifecycle.">Substitution</button>
             <button className={`prep-ready-button ${readyValid ? "is-valid" : ""}`} onClick={onReady}>Ready</button>
           </div>

@@ -195,6 +195,7 @@ import { CardEditorPanel, CardStarMenuEditor } from "./cards/CardEditorPanel.jsx
 import { CardsPanel } from "./cards/CardsPanel.jsx";
 import { AssignCardModal } from "./cards/AssignCardModal.jsx";
 import { PrepPanel } from "./prep/PrepPanel.jsx";
+import { adjustZoneCells, autoAdjustStarters } from "./prep/adjustZones.mjs";
 import "./styles.css";
 
 const firebaseConfig = {
@@ -214,7 +215,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.15";
+const APP_VERSION = "v20.56.16";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2089,6 +2090,7 @@ function App() {
   const [rulerPanelResizing, setRulerPanelResizing] = useState(null);
   const [trackerVisible, setTrackerVisible] = useState(false);
   const [prepVisible, setPrepVisible] = useState(false);
+  const [adjustActive, setAdjustActive] = useState(false);
   const [prepMinimized, setPrepMinimized] = useState(false);
   const [prepSelectedTeam, setPrepSelectedTeam] = useState("A");
   const [prepReadyConfirmationOpen, setPrepReadyConfirmationOpen] = useState(false);
@@ -6038,6 +6040,7 @@ function App() {
     else if (result.reason === "movement-ended") primary = <>This player has no legal movement remaining during the current turn.</>;
     else if (result.reason === "match-not-started") primary = <>Start the match in Tracker before moving players.</>;
     else if (result.reason === "STARTING_ST_REQUIRED") primary = <>The team that starts needs at least one starting ST for kick-off.</>;
+    else if (result.reason === "ADJUST_OUTSIDE_ROLE_ZONE") primary = <>Adjust can place this player only inside the highlighted zone for the position on the card.</>;
     else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE MOVE before moving this player, or advance to next turn.</>;
     else if (result.reason === "pass-origin-blocked") primary = <>This execution corner is blocked by an adjacent player.</>;
     else if (result.reason === "pass-goalkeeper-blocked") primary = <>A pass route cannot cross a goalkeeper.</>;
@@ -6104,6 +6107,7 @@ function App() {
       setPrepReadySuccessOpen(false);
       setPrepReadyIssues([]);
       setPrepVisible(false);
+      setAdjustActive(false);
     }
     setGameMode(next);
     if (next === "match") {
@@ -6382,7 +6386,24 @@ function App() {
 
   function moveSelectedPieceTo(x, y) {
     const piece = (piecesRef.current || pieces).find(item => item.id === (interactionState.activePieceId || selectedId));
-    if (!piece || !canMovePiece(piece)) return false;
+    if (!piece) return false;
+
+    if (adjustActive && !sessionCode && piece.team !== "BALL" && !isBenchReservePiece(piece)) {
+      const role = cardById[String(piece.cardId || "")]?.position;
+      const allowed = adjustZoneCells(piece.team, role, settingsRef.current.cols)
+        .some(cell => cell.x === Number(x) && cell.y === Number(y));
+      if (!allowed) { setIllegalMoveNotice({ reason: "ADJUST_OUTSIDE_ROLE_ZONE" }); return false; }
+      const currentPieces = piecesRef.current || pieces;
+      const occupied = currentPieces.some(item => item.id !== piece.id && item.team !== "BALL" && item.x === Number(x) && item.y === Number(y));
+      if (occupied) { setIllegalMoveNotice({ reason: "occupied" }); return false; }
+      const nextPieces = currentPieces.map(item => item.id === piece.id ? { ...item, x: Number(x), y: Number(y) } : item);
+      piecesRef.current = nextPieces;
+      setPieces(nextPieces);
+      logSnapshot(`Adjust: ${getPieceDisplayLabel(piece)} → ${toCoord(x, y)}`, nextPieces, { type: "ADJUSTED_POSITION" });
+      return true;
+    }
+
+    if (!canMovePiece(piece)) return false;
 
     if (!sessionCode && gameMode === "match" && matchActionState.groupMove?.active) {
       const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
@@ -7127,6 +7148,19 @@ function App() {
       }).filter(Boolean);
     });
   }, [defAreaMode, inspectedPiece, pieces, cardById, settings.cols, settings.rows]);
+
+  const adjustZoneOverlays = useMemo(() => {
+    if (!adjustActive || sessionCode) return [];
+    const activePieceId = interactionState.activePieceId || selectedId;
+    return pieces
+      .filter(piece => piece.team !== "BALL" && !isBenchReservePiece(piece))
+      .flatMap(piece => adjustZoneCells(piece.team, cardById[String(piece.cardId || "")]?.position, settings.cols)
+        .map(cell => ({
+          ...cell,
+          id: `adjust-${piece.id}-${cell.x}-${cell.y}`,
+          selected: piece.id === activePieceId,
+        })));
+  }, [adjustActive, sessionCode, interactionState.activePieceId, selectedId, pieces, cardById, settings.cols]);
 
   const passPreview = useMemo(() => {
     const pending = actionResolution;
@@ -11420,7 +11454,9 @@ function App() {
     if (!striker) return { accepted: false, reason: "STARTING_ST_REQUIRED" };
     const centerX = Math.floor(Number(settingsRef.current?.cols) / 2);
     const centerY = Math.floor(Number(settingsRef.current?.rows) / 2);
-    const strikerX = team === "blue" ? centerX + 1 : centerX - 1;
+    // The centre point lies between the two central cells. Blue's kick-off
+    // cell mirrors Red's existing correct cell: Blue x=centerX, Red x=centerX-1.
+    const strikerX = team === "blue" ? centerX : centerX - 1;
     return {
       accepted: true,
       pieces: withFormations.map(piece => {
@@ -11493,6 +11529,7 @@ function App() {
       }
       matchContextRef.current = context;
       matchPlayableStartEstablishedRef.current = true;
+      setAdjustActive(false);
       setTrackerStartChoiceOpen(false);
       setTrackerStartIntent("new");
       return;
@@ -12198,6 +12235,7 @@ function App() {
         measureType={measureType}
         rulerMarkers={rulerMarkers}
         defensiveAreaOverlays={defensiveAreaOverlays}
+        adjustZoneCells={adjustZoneOverlays}
         passPreview={passPreview}
         passTargeting={["pass", "through-ball", "lofted-through-ball"].includes(actionResolution?.kind) && actionResolution.status === "targeting" && canControlActiveResolution(actionResolution)}
         passActive={(passActive || ["through-ball", "lofted-through-ball"].includes(actionResolution?.kind)) && canControlActiveResolution(actionResolution)}
@@ -12677,7 +12715,7 @@ function App() {
         onTitlePointerDown={onPrepPointerDown}
         onResizeDown={onPrepResizeDown}
         onMinimize={() => setPrepMinimized(value => !value)}
-        onClose={() => setPrepVisible(false)}
+        onClose={() => { setPrepVisible(false); setAdjustActive(false); }}
         selectedTeam={prepSelectedTeam}
         onSelectedTeam={setPrepSelectedTeam}
         formations={formations}
@@ -12686,6 +12724,22 @@ function App() {
           if (prepSelectedTeam === "A") setBlueFormationId(id);
           else setRedFormationId(id);
           applyFormation(prepSelectedTeam, id);
+        }}
+        adjustActive={adjustActive}
+        onAdjust={() => {
+          if (adjustActive) {
+            setAdjustActive(false);
+            return;
+          }
+          const nextPieces = autoAdjustStarters({
+            pieces: piecesRef.current || pieces,
+            cardsById: cardById,
+            cols: settingsRef.current.cols,
+          });
+          piecesRef.current = nextPieces;
+          setPieces(nextPieces);
+          logSnapshot("Adjust starter positions", nextPieces, { type: "ADJUST_STARTED" });
+          setAdjustActive(true);
         }}
         onReady={requestPrepReady}
         readyValid={prepReadyValidation.valid}

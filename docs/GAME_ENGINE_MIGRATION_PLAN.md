@@ -704,6 +704,35 @@ Start New Game places the ball on the same agreed adjacent central cell as the
 starting ST. No Match command, Timeline vocabulary, AI export, Manual
 Multiplayer or Firebase behavior changes.
 
+### v20.56.16 — Adjust zones and Blue kick-off alignment
+
+**Status:** Complete.
+
+Offline Single Player Prep now has a functional Adjust control. It uses the
+approved card-position zone map, automatically chooses distinct central cells
+for starters, highlights all active zones, and rejects manual placement outside
+the selected starter's own zone or on an occupied cell. This is a board setup
+control: it does not add a gameplay Engine rule, MatchContext field, AI export
+schema or Firebase path. The recorded board snapshot remains the existing
+Timeline representation of a workspace-position change.
+
+Blue Start New Game now uses the exact centre-adjacent mirror of Red's opening
+cell, with the ball in the same cell as the starting ST. Manual Multiplayer and
+Firebase remain unchanged.
+
+### Deferred after v20.56.16 — Prep lifecycle and restart-dependent work
+
+Do not implement this as an incidental correction. The current live Prep
+Formation application is required for visible formation/card setup, but it can
+also disturb an active Match if selected accidentally. A future approved scope
+must design a distinct New Match preparation flow around the existing Adjust
+surface, rather than adding another hidden lock.
+
+Substitution remains later than Adjust. It depends on the canonical
+interruption/restart lifecycle (goal, goal kick, throw-in, corner, free kick,
+penalty and central restart) because its only legal entrance is an eligible
+stoppage; no local substitution panel is permitted before that lifecycle.
+
 ## Required update after every implementation build
 
 - mark only completed items complete;

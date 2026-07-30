@@ -52,3 +52,15 @@ test("Prep keeps both team Selection summaries visible and Match Mode locks Sele
   assert.match(source, /if \(selectionRulesReadOnly\) return;/);
   assert.doesNotMatch(source, /prep-selection-live-panel/);
 });
+
+test("Adjust stays Single Player Prep-only and Blue kick-off mirrors Red", () => {
+  assert.match(prepSource, /Highlight role zones and adjust starter positions/);
+  assert.match(prepSource, /adjustActive/);
+  assert.match(source, /adjustZoneCells=\{adjustZoneOverlays\}/);
+  assert.match(source, /ADJUST_OUTSIDE_ROLE_ZONE/);
+  const kickoffStart = source.indexOf("function prepareNewGamePieces(team)");
+  const kickoffEnd = source.indexOf("function startTrackedGame(team)", kickoffStart);
+  const kickoff = source.slice(kickoffStart, kickoffEnd);
+  assert.match(kickoff, /team === "blue" \? centerX : centerX - 1/);
+  assert.match(kickoff, /piece\.team === "BALL"\) return \{ \.\.\.piece, x: strikerX, y: centerY \}/);
+});

@@ -82,6 +82,7 @@ export function BoardCanvas({
   measureType,
   rulerMarkers,
   defensiveAreaOverlays = [],
+  adjustZoneCells = [],
   passPreview,
   passTargeting,
   passActive,
@@ -335,6 +336,7 @@ export function BoardCanvas({
               }}
             />)}
           </> : defensiveAreaOverlays.map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
+          {adjustZoneCells.map(cell => <div key={cell.id} className={`adjust-zone-cell ${cell.selected ? "selected" : ""}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
 
           {passPreview?.lines?.length > 0 && <svg className="pass-preview-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
             {passPreview.lines.map(line => <g key={line.id} className={`pass-preview-line ${line.status || (line.risk ? "risk" : "clear")} ${line.selected ? "route-selected" : ""}`}>

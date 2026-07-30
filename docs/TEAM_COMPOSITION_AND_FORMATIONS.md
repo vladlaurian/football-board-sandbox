@@ -22,9 +22,8 @@ validation. v20.56.12 adds the explicit Ready acknowledgement. v20.56.13
 restores the mode boundary and makes the Blue/Red Selection summaries permanent
 inside Prep. v20.56.15 keeps Prep available throughout Single Player Match
 Mode and applies a selected formation immediately to the live board while
-retaining card links. Start New Game performs the documented central opening
-placement with the ball on the starting ST. Adjust and substitutions remain future
-scopes. Manual Multiplayer remains a
+retaining card links. v20.56.16 implements the approved Adjust map and correct
+Blue kick-off alignment, while substitutions remain future work. Manual Multiplayer remains a
 frozen legacy path and keeps its existing puck-label behavior.
 
 ## 1. One authority for a player's role
@@ -177,15 +176,17 @@ Prep summaries recalculate after each card assignment.
 
 ### 5.4 Adjust
 
-`Adjust` will first place each starter as centrally as possible in the zone of its
-assigned card role, separating same-role players as far as the zone permits.
-All active role zones are highlighted. A coach may then move a player only
-inside that card's own role zone; it may not freely place the player elsewhere
-on the board.
+`Adjust` first places each starter as centrally as possible in the zone of its
+assigned `card.position`, choosing distinct free cells when zones overlap or
+multiple starters share a role. All active starter role zones are highlighted;
+the selected player's cells have the dominant highlight. A coach may then move
+a starter only to an unoccupied cell inside that card's own role zone. Reserves
+and the ball are not adjusted.
 
 The Ready validator checks roster composition and all other setup legality.
-Adjust itself will not change card roles or card assignment. In v20.56.14,
-the control remains intentionally disabled pending its separate implementation.
+Adjust does not change card roles or card assignment. It is available only in
+Single Player Prep; Manual Multiplayer receives neither the control nor its
+movement path.
 
 ### 5.5 Ready and Match start
 
@@ -200,7 +201,8 @@ Rules and legal composition. On success, it asks:
 
 `Start New Game` reapplies both selected formation templates without changing
 `cardId`, then places the selected starting team's first stable starter `ST`
-in the adjacent cell on the opponent half with the ball in that same cell. It
+in the adjacent cell on the opponent half with the ball in that same cell.
+Blue uses the exact central mirror of Red's adjacent cell. It
 starts a fresh Timeline and frozen MatchContext. `Continue
 Game` preserves all board coordinates but resets all Match runtime and starts
 turn one through the canonical restart command. The selected starting team must
@@ -212,6 +214,16 @@ Game may be used without Prep or Ready.
 `Substitution` is present in Prep from its first implementation, but remains
 visibly disabled until the canonical interruption/restart lifecycle exists.
 It must not create a local manual interruption.
+
+### 5.7 Deferred Prep lifecycle redesign
+
+The current live Formation control is intentionally retained as the visible
+setup surface for card assignment. It is not yet the final protection model for
+an active Match: a mistaken formation selection can currently reposition that
+board. Do not add another local lock as a patch. A later approved Prep build
+must define separate, explicit flows for preparing a **new Match** and for an
+already active Match, alongside the functional Adjust surface and the canonical
+restart/interruption state.
 
 After that later lifecycle is implemented, it becomes the only substitution
 entrance:
@@ -227,12 +239,11 @@ entrance:
 - the post-substitution `Ready` requires confirmation and resumes the pending
   interruption only after confirmation.
 
-## 6. Positional zones for future central restarts
+## 6. Positional zones
 
-At a match start, start of a half or extra-time half, and after a goal, the
-future central-restart system reads each card role and automatically places
-the eleven inside its role zone. Coaches may then adjust their own players
-inside those zones before the free backward opening Short Pass.
+The Adjust implementation reads each card role and automatically places the
+eleven inside its role zone. A future central-restart system may reuse this
+same map, but it is not implemented by Adjust.
 
 The following is the approved first zone map for Blue, which attacks toward
 increasing column numbers. Red is mirrored in depth using `n → 45 − n`.
@@ -259,9 +270,11 @@ other spatial overlaps where distinct role rows or coach adjustment preserve
 legal placement. The future automatic placement rule must select distinct
 free cells within the applicable zones.
 
-The automatic placement/collision-resolution algorithm remains to be defined
-when central restarts are implemented. Changing a zone boundary later must be
-a centralized data edit, not a rewrite of roster or Match rules.
+The implemented Adjust algorithm chooses central distinct free cells. A future
+central-restart algorithm must use a canonical Engine/MatchState command rather
+than treating this Workspace control as gameplay resolution. Changing a zone
+boundary later must be a centralized data edit, not a rewrite of roster or
+Match rules.
 
 ## 7. Architecture boundary
 
