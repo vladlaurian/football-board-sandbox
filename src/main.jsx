@@ -215,7 +215,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.16";
+const APP_VERSION = "v20.56.17";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -7151,16 +7151,15 @@ function App() {
 
   const adjustZoneOverlays = useMemo(() => {
     if (!adjustActive || sessionCode) return [];
-    const activePieceId = interactionState.activePieceId || selectedId;
     return pieces
       .filter(piece => piece.team !== "BALL" && !isBenchReservePiece(piece))
       .flatMap(piece => adjustZoneCells(piece.team, cardById[String(piece.cardId || "")]?.position, settings.cols)
         .map(cell => ({
           ...cell,
           id: `adjust-${piece.id}-${cell.x}-${cell.y}`,
-          selected: piece.id === activePieceId,
+          selected: piece.id === selectedId,
         })));
-  }, [adjustActive, sessionCode, interactionState.activePieceId, selectedId, pieces, cardById, settings.cols]);
+  }, [adjustActive, sessionCode, selectedId, pieces, cardById, settings.cols]);
 
   const passPreview = useMemo(() => {
     const pending = actionResolution;

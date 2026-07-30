@@ -2,6 +2,14 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.17 — Adjust runtime hotfix
+
+- Fixes the v20.56.16 React initialization error that could render a black
+  screen before the application mounted. The Adjust overlay now reads only
+  state already initialized at that point in `App`.
+- No gameplay, zone, Tracker, Timeline, Engine, Manual Multiplayer or Firebase
+  behavior changes.
+
 ## v20.56.16 — Adjust zones and Blue kick-off alignment
 
 - Makes `Adjust` functional in offline Single Player Prep. It automatically

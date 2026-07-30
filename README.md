@@ -6,17 +6,18 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.16` |
-| Git/package version | `20.56.16` |
-| Build name | `Final_Board_v20_56_16_adjust_and_blue_kickoff_alignment` |
-| Base build | `Final_Board_v20_56_15_live_prep_formation_and_kickoff_ball` |
+| Sandbox version | `v20.56.17` |
+| Git/package version | `20.56.17` |
+| Build name | `Final_Board_v20_56_17_adjust_runtime_hotfix` |
+| Base build | `Final_Board_v20_56_16_adjust_and_blue_kickoff_alignment` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.16`. The repository version is in `package.json` as `20.56.16`. The browser title is `Sandbox v20.56.16`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.17`. The repository version is in `package.json` as `20.56.17`. The browser title is `Sandbox v20.56.17`.
 
 ## Current release
 
-v20.56.16 implements Single Player Prep `Adjust`: it automatically places
+v20.56.17 is a narrow runtime hotfix for v20.56.16: the Adjust zone overlay no
+longer reads a later uninitialized value during React render. v20.56.16 implements Single Player Prep `Adjust`: it automatically places
 starters in distinct central cells inside their card-role zones, highlights all
 active zones, and permits subsequent manual placement only inside that
 player's highlighted role zone. Blue kick-off now exactly mirrors Red and the

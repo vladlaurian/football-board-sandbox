@@ -58,6 +58,9 @@ test("Adjust stays Single Player Prep-only and Blue kick-off mirrors Red", () =>
   assert.match(prepSource, /adjustActive/);
   assert.match(source, /adjustZoneCells=\{adjustZoneOverlays\}/);
   assert.match(source, /ADJUST_OUTSIDE_ROLE_ZONE/);
+  const overlayStart = source.indexOf("const adjustZoneOverlays = useMemo");
+  const overlayEnd = source.indexOf("const passPreview = useMemo", overlayStart);
+  assert.doesNotMatch(source.slice(overlayStart, overlayEnd), /interactionState\.activePieceId/);
   const kickoffStart = source.indexOf("function prepareNewGamePieces(team)");
   const kickoffEnd = source.indexOf("function startTrackedGame(team)", kickoffStart);
   const kickoff = source.slice(kickoffStart, kickoffEnd);
