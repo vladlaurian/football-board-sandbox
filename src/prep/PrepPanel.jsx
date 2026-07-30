@@ -43,6 +43,7 @@ export function PrepPanel({
   onFormationChange,
   adjustActive,
   onAdjust,
+  onResetAdjust,
   onReady,
   readyValid,
   selectionSummaries,
@@ -87,6 +88,7 @@ export function PrepPanel({
             <button disabled title="Substitution waits for the canonical interruption/restart lifecycle.">Substitution</button>
             <button className={`prep-ready-button ${readyValid ? "is-valid" : ""}`} onClick={onReady}>Ready</button>
           </div>
+          {adjustActive && <button className="prep-reset-adjust" onClick={onResetAdjust}>Reset {teamName} default layout</button>}
           <div className="prep-selection-statuses" ref={selectionSummaryRef}>
             <SelectionStatus summary={selectionSummaries.blue} />
             <SelectionStatus summary={selectionSummaries.red} />

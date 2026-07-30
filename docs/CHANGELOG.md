@@ -2,6 +2,18 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.18 — Role-aware Adjust layout and prepared-layout persistence
+
+- Replaces centroid-only Adjust placement with explicit `card.position` role
+  anchors and a validated complete plan. CB starters use ±2 rows; CDM and CM
+  use ±3 rows. ST defaults remain inside K–S on the approved central column.
+- Reopening Adjust preserves existing manual positions. A visible per-team
+  reset action deliberately regenerates only that team's default role layout.
+- Ready now exits Adjust and removes highlights without moving pieces. The
+  persisted Workspace prepared-layout marker makes Start New retain adjusted
+  positions instead of reapplying that team's formation template.
+- Manual Multiplayer and Firebase are unchanged.
+
 ## v20.56.17 — Adjust runtime hotfix
 
 - Fixes the v20.56.16 React initialization error that could render a black

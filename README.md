@@ -6,22 +6,22 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.17` |
-| Git/package version | `20.56.17` |
-| Build name | `Final_Board_v20_56_17_adjust_runtime_hotfix` |
-| Base build | `Final_Board_v20_56_16_adjust_and_blue_kickoff_alignment` |
+| Sandbox version | `v20.56.18` |
+| Git/package version | `20.56.18` |
+| Build name | `Final_Board_v20_56_18_adjust_role_layout_and_persistence` |
+| Base build | `Final_Board_v20_56_17_adjust_runtime_hotfix` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.17`. The repository version is in `package.json` as `20.56.17`. The browser title is `Sandbox v20.56.17`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.18`. The repository version is in `package.json` as `20.56.18`. The browser title is `Sandbox v20.56.18`.
 
 ## Current release
 
-v20.56.17 is a narrow runtime hotfix for v20.56.16: the Adjust zone overlay no
-longer reads a later uninitialized value during React render. v20.56.16 implements Single Player Prep `Adjust`: it automatically places
-starters in distinct central cells inside their card-role zones, highlights all
-active zones, and permits subsequent manual placement only inside that
-player's highlighted role zone. Blue kick-off now exactly mirrors Red and the
-ball remains on the starting ST. Manual Multiplayer/Firebase remain frozen.
+v20.56.18 makes Adjust role-aware and persistent as Match preparation. Its
+default layout separates CB by two rows and CDM/CM by three rows, keeps ST
+defaults on K–S, rejects any invalid card-role plan, and never resets an
+existing adjustment merely by reopening Adjust. Ready removes highlights while
+retaining positions; Start New uses a prepared layout. Manual
+Multiplayer/Firebase remain frozen.
 
 v20.56.12 established the Ready acknowledgement flow. v20.56.11 established
 the underlying Prep and Selection Rules foundation. v20.56.10 is its

@@ -720,7 +720,25 @@ Blue Start New Game now uses the exact centre-adjacent mirror of Red's opening
 cell, with the ball in the same cell as the starting ST. Manual Multiplayer and
 Firebase remain unchanged.
 
-### Deferred after v20.56.16 — Prep lifecycle and restart-dependent work
+### v20.56.18 — Role-aware Adjust layout and prepared-layout persistence
+
+**Status:** Complete.
+
+Adjust now creates a validated complete plan from `card.position` only. It
+uses explicit role anchors, separates CB at ±2 and CDM/CM at ±3, and preserves
+the approved wider ST move zone while constraining ST default placement to K–S.
+An invalid card role rejects the entire plan rather than allowing a player to
+enter another role's zone. Reopening Adjust only restores the highlight/edit
+mode; an explicit per-team reset is required to regenerate defaults.
+
+Ready exits Adjust without moving pieces. WorkspaceSnapshot v3 persists the
+per-team prepared-layout marker; Start New preserves those adjusted teams and
+continues to reapply the selected formation for any unadjusted team. This is
+still workspace preparation, not a gameplay Engine command. Timeline retains
+the existing board-position snapshots; AI export and Manual Multiplayer/Firebase
+are unchanged.
+
+### Deferred after v20.56.18 — Prep lifecycle and restart-dependent work
 
 Do not implement this as an incidental correction. The current live Prep
 Formation application is required for visible formation/card setup, but it can

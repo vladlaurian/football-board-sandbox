@@ -15,6 +15,9 @@
 - Selection Rules policy for the full eighteen-card team roster (Free
   Selection,
   Total Stars Cap and Maximum X Players at Y Stars);
+- the per-team prepared Adjust-layout marker: it records that the current
+  board coordinates for Blue and/or Red are deliberate pre-Match adjustments,
+  so Start New preserves them rather than reapplying that team's formation;
 - preferred die type and Tracker settings defaults;
 - persisted display preferences: touch mode, coordinates and Tracker visibility.
 
@@ -29,9 +32,9 @@
 - pending Pass, interception, delayed resolution and Bonus Action;
 - die results.
 
-Prep-panel geometry and Ready confirmation/success-dialog state are deliberately
-transient UI state. A Ready acknowledgement is not a gameplay event and is not
-persisted into a Match recording or Timeline.
+Prep-panel geometry, active Adjust highlighting and Ready confirmation/success-dialog
+state are deliberately transient UI state. A Ready acknowledgement is not a
+gameplay event and is not persisted into a Match recording or Timeline.
 
 Selection Rules are editable only in Editor Mode. Match Mode reads the saved
 Workspace policy for visual inspection without allowing mutation.

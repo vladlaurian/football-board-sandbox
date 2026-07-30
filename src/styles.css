@@ -7956,6 +7956,7 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
 }
 
 .adjust-zone-cell{position:absolute;width:var(--cell);height:var(--cell);background:rgba(255,220,70,.15);outline:1px solid rgba(255,225,90,.34);pointer-events:none;z-index:2}.adjust-zone-cell.selected{background:rgba(255,220,70,.32);outline:2px solid rgba(255,238,130,.9);z-index:3}
+.prep-reset-adjust{width:100%;margin:8px 0 2px}
 
 /* v20.46 — individual defensive-area ownership. */
 .match-ball-icon {

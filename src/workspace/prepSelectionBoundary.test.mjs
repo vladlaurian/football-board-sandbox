@@ -67,3 +67,15 @@ test("Adjust stays Single Player Prep-only and Blue kick-off mirrors Red", () =>
   assert.match(kickoff, /team === "blue" \? centerX : centerX - 1/);
   assert.match(kickoff, /piece\.team === "BALL"\) return \{ \.\.\.piece, x: strikerX, y: centerY \}/);
 });
+
+test("Ready exits Adjust and Start New preserves an explicitly prepared layout", () => {
+  const readyStart = source.indexOf("function confirmPrepReady()");
+  const readyEnd = source.indexOf("function buildTrackerSnapshot", readyStart);
+  assert.match(source.slice(readyStart, readyEnd), /setAdjustActive\(false\)/);
+  const kickoffStart = source.indexOf("function prepareNewGamePieces(team)");
+  const kickoffEnd = source.indexOf("function startTrackedGame(team)", kickoffStart);
+  const kickoff = source.slice(kickoffStart, kickoffEnd);
+  assert.match(kickoff, /prepLayoutState\.adjustedTeams\.A/);
+  assert.match(kickoff, /prepLayoutState\.adjustedTeams\.B/);
+  assert.match(prepSource, /Reset \{teamName\} default layout/);
+});

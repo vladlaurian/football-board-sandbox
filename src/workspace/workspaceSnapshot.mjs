@@ -1,6 +1,16 @@
 import { normalizeSelectionRules } from "./selectionRules.mjs";
 
-export const WORKSPACE_SNAPSHOT_VERSION = 2;
+export const WORKSPACE_SNAPSHOT_VERSION = 3;
+
+export function normalizePrepLayoutState(raw = {}) {
+  return {
+    version: 1,
+    adjustedTeams: {
+      A: Boolean(raw?.adjustedTeams?.A),
+      B: Boolean(raw?.adjustedTeams?.B),
+    },
+  };
+}
 
 /**
  * Serializable future-Match setup. It deliberately excludes all live Match
@@ -22,6 +32,7 @@ export function createWorkspaceSnapshot({
   cardState,
   trackerSettings,
   selectionRules,
+  prepLayoutState,
   preferences = {},
 } = {}) {
   return {
@@ -41,6 +52,7 @@ export function createWorkspaceSnapshot({
     cardState,
     trackerSettings,
     selectionRules: normalizeSelectionRules(selectionRules),
+    prepLayoutState: normalizePrepLayoutState(prepLayoutState),
     preferences: {
       touchMode: Boolean(preferences.touchMode),
       showCoordinates: Boolean(preferences.showCoordinates),
@@ -81,6 +93,7 @@ export function readWorkspaceSnapshot(raw = {}) {
     cardState: source.cardState,
     trackerSettings: source.trackerSettings || legacyTracker.settings,
     selectionRules: normalizeSelectionRules(source.selectionRules),
+    prepLayoutState: normalizePrepLayoutState(source.prepLayoutState),
     preferences: {
       touchMode: preferences.touchMode ?? source.touchMode,
       showCoordinates: preferences.showCoordinates ?? source.showCoordinates,

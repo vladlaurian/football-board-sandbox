@@ -52,7 +52,7 @@ import {
 } from "./board/boardGeometry.mjs";
 import { diagonalCostForDistance, getMovementGeometry, normalizeMovementState } from "./board/movementState.mjs";
 import { createDefaultScenarioSlots, normalizeScenarioSlots } from "./board/scenarioUtils.mjs";
-import { createWorkspaceSnapshot, readWorkspaceSnapshot } from "./workspace/workspaceSnapshot.mjs";
+import { createWorkspaceSnapshot, normalizePrepLayoutState, readWorkspaceSnapshot } from "./workspace/workspaceSnapshot.mjs";
 import {
   normalizeSelectionRules,
   selectionRulesWithPatch,
@@ -195,7 +195,7 @@ import { CardEditorPanel, CardStarMenuEditor } from "./cards/CardEditorPanel.jsx
 import { CardsPanel } from "./cards/CardsPanel.jsx";
 import { AssignCardModal } from "./cards/AssignCardModal.jsx";
 import { PrepPanel } from "./prep/PrepPanel.jsx";
-import { adjustZoneCells, autoAdjustStarters } from "./prep/adjustZones.mjs";
+import { adjustZoneCells, planAutoAdjustStarters } from "./prep/adjustZones.mjs";
 import "./styles.css";
 
 const firebaseConfig = {
@@ -215,7 +215,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.17";
+const APP_VERSION = "v20.56.18";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2091,6 +2091,7 @@ function App() {
   const [trackerVisible, setTrackerVisible] = useState(false);
   const [prepVisible, setPrepVisible] = useState(false);
   const [adjustActive, setAdjustActive] = useState(false);
+  const [prepLayoutState, setPrepLayoutState] = useState(() => normalizePrepLayoutState());
   const [prepMinimized, setPrepMinimized] = useState(false);
   const [prepSelectedTeam, setPrepSelectedTeam] = useState("A");
   const [prepReadyConfirmationOpen, setPrepReadyConfirmationOpen] = useState(false);
@@ -2585,6 +2586,7 @@ function App() {
         cardState: stripCardsFromCardState(effectiveCardState),
         trackerSettings,
         selectionRules,
+        prepLayoutState,
         preferences: {
           touchMode,
           showCoordinates,
@@ -2643,6 +2645,7 @@ function App() {
       setTrackerSettingsDraft(restoredSettings);
     }
     if (workspace.selectionRules) setSelectionRules(normalizeSelectionRules(workspace.selectionRules));
+    setPrepLayoutState(normalizePrepLayoutState(workspace.prepLayoutState));
     if (workspace.cardState) setCardState(nextCardState);
     return true;
   }
@@ -4675,6 +4678,10 @@ function App() {
       logSnapshot(`${team === "A" ? "Blue" : "Red"} formation: ${formation.name}`, next);
       return next;
     });
+    setPrepLayoutState(current => ({
+      ...current,
+      adjustedTeams: { ...current.adjustedTeams, [team]: false },
+    }));
     return true;
   }
 
@@ -9331,6 +9338,7 @@ function App() {
   }
   function confirmPrepReady() {
     setPrepReadyConfirmationOpen(false);
+    setAdjustActive(false);
     setPrepVisible(false);
     setPrepReadySuccessOpen(true);
   }
@@ -11444,8 +11452,12 @@ function App() {
       sanitizePieces: nextPieces => sanitizePiecesCardIds(nextPieces, cardStateRef.current, settingsRef.current),
       stripPuckLabels: true,
     });
-    const withBlueFormation = applyForTeam(sourcePieces, "A", blueFormation);
-    const withFormations = applyForTeam(withBlueFormation, "B", redFormation);
+    const withBlueFormation = prepLayoutState.adjustedTeams.A
+      ? sourcePieces
+      : applyForTeam(sourcePieces, "A", blueFormation);
+    const withFormations = prepLayoutState.adjustedTeams.B
+      ? withBlueFormation
+      : applyForTeam(withBlueFormation, "B", redFormation);
     const starterTeam = team === "blue" ? "A" : "B";
     const striker = withFormations.find(piece => piece.team === starterTeam
       && !isBenchReservePiece(piece)
@@ -12730,15 +12742,46 @@ function App() {
             setAdjustActive(false);
             return;
           }
-          const nextPieces = autoAdjustStarters({
+          const teamsToArrange = ["A", "B"].filter(team => !prepLayoutState.adjustedTeams[team]);
+          if (teamsToArrange.length) {
+            const plan = planAutoAdjustStarters({
+              pieces: piecesRef.current || pieces,
+              cardsById: cardById,
+              cols: settingsRef.current.cols,
+              teams: teamsToArrange,
+            });
+            if (!plan.accepted) {
+              setPrepReadyIssues(plan.issues);
+              return;
+            }
+            piecesRef.current = plan.pieces;
+            setPieces(plan.pieces);
+            logSnapshot("Adjust starter positions", plan.pieces, { type: "ADJUST_STARTED" });
+            setPrepLayoutState(current => ({
+              ...current,
+              adjustedTeams: teamsToArrange.reduce((next, team) => ({ ...next, [team]: true }), current.adjustedTeams),
+            }));
+          }
+          setAdjustActive(true);
+        }}
+        onResetAdjust={() => {
+          const plan = planAutoAdjustStarters({
             pieces: piecesRef.current || pieces,
             cardsById: cardById,
             cols: settingsRef.current.cols,
+            teams: [prepSelectedTeam],
           });
-          piecesRef.current = nextPieces;
-          setPieces(nextPieces);
-          logSnapshot("Adjust starter positions", nextPieces, { type: "ADJUST_STARTED" });
-          setAdjustActive(true);
+          if (!plan.accepted) {
+            setPrepReadyIssues(plan.issues);
+            return;
+          }
+          piecesRef.current = plan.pieces;
+          setPieces(plan.pieces);
+          logSnapshot(`Reset ${prepSelectedTeam === "A" ? "Blue" : "Red"} Adjust layout`, plan.pieces, { type: "ADJUST_RESET" });
+          setPrepLayoutState(current => ({
+            ...current,
+            adjustedTeams: { ...current.adjustedTeams, [prepSelectedTeam]: true },
+          }));
         }}
         onReady={requestPrepReady}
         readyValid={prepReadyValidation.valid}
