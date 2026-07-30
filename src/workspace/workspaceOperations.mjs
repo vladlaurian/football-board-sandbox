@@ -41,6 +41,7 @@ export function planWorkspaceFormationApplication({
   createInitialPieces,
   sanitizePieces,
   stripPuckLabels = false,
+  cardIdsByStarterIndex = null,
 } = {}) {
   const ball = (pieces || []).find(piece => piece.team === "BALL");
   const others = (pieces || []).filter(piece => piece.team !== team && piece.team !== "BALL");
@@ -55,7 +56,7 @@ export function planWorkspaceFormationApplication({
   ).filter(piece => piece.team === team);
   // A formation changes coordinates only. Stable puck identity, assigned card
   // and Manual Multiplayer's legacy label must survive that repositioning.
-  const nextTeamPieces = positionedTeamPieces.map(positioned => {
+  const nextTeamPieces = positionedTeamPieces.map((positioned, index) => {
     const existing = existingById.get(String(positioned.id));
     if (!existing) return { ...positioned, label: stripPuckLabels ? "" : positioned.label };
     return {
@@ -65,6 +66,8 @@ export function planWorkspaceFormationApplication({
       x: positioned.x,
       y: positioned.y,
       label: stripPuckLabels ? "" : existing.label,
+      ...(cardIdsByStarterIndex && Object.prototype.hasOwnProperty.call(cardIdsByStarterIndex, index)
+        ? { cardId: cardIdsByStarterIndex[index] || null } : {}),
     };
   });
   return sanitizePieces([...others, ...nextTeamPieces, ball].filter(Boolean));

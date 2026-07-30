@@ -39,6 +39,7 @@ import {
   normalizeFormationPlayers,
   normalizeFormationSlots,
 } from "./board/formationUtils.mjs";
+import { STANDARD_FORMATIONS, formationById } from "./board/standardFormations.mjs";
 import {
   buildBoardApi,
   clampBoardXForY,
@@ -59,6 +60,7 @@ import {
   analyzeTeamSelection,
   validateReadySelection,
 } from "./workspace/selectionRules.mjs";
+import { planFormationRoleAssignment, suggestedCompatibleFormations } from "./workspace/formationCompatibility.mjs";
 import {
   planWorkspaceBoardSetting,
   planWorkspaceCardAssignment,
@@ -215,7 +217,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.18";
+const APP_VERSION = "v20.56.19";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -1803,45 +1805,10 @@ function ensureBenchReserveCount(pieces, settingsLike = DEFAULT_SETTINGS, reserv
   return normalizePiecesForBoard([...normalized, ...additions], localSettings);
 }
 
-const FORMATION_SLOTS = [
-  {
-    id: 1,
-    name: "4-4-2",
-    players: [
-      "O1", "G8", "L7", "R7", "W8",
-      "D16", "L13", "R13", "Z16",
-      "M16", "Q16"
-    ]
-  },
-  {
-    id: 2,
-    name: "4-2-3-1",
-    players: [
-      "O1", "Y8", "R7", "L7", "E8",
-      "M11", "Q11", "C19", "O16", "AA19",
-      "O19"
-    ]
-  },
-  {
-    id: 3,
-    name: "3-5-2 (1)",
-    players: [
-      "O1", "K7", "O7", "S7",
-      "D16", "K13", "O13", "S13", "Z16",
-      "M16", "Q16"
-    ]
-  },
-  ...Array.from({ length: 12 }, (_, i) => ({ id: i + 4, name: `Slot ${i + 4} - 4-4-2`, players: ["O1", "G8", "L7", "R7", "W8", "D16", "L13", "R13", "Z16", "M16", "Q16"] }))
-];
+const FORMATION_SLOTS = STANDARD_FORMATIONS;
 
 function loadStoredFormations() {
-  try {
-    const raw = localStorage.getItem("football-board-formations-v18");
-    if (!raw) return FORMATION_SLOTS;
-    return normalizeFormationSlots(JSON.parse(raw), FORMATION_SLOTS);
-  } catch {
-    return FORMATION_SLOTS;
-  }
+  return FORMATION_SLOTS;
 }
 
 const DEFAULT_GAME_SITUATIONS = createDefaultScenarioSlots(12);
@@ -1976,7 +1943,7 @@ function DraggableActionPrompt({ promptKey, className = "", children }) {
 
 function App() {
   const [settings, setSettings] = useState(() => normalizeSettingsForApp(DEFAULT_SETTINGS));
-  const [formations, setFormations] = useState(() => loadStoredFormations());
+  const [formations] = useState(() => loadStoredFormations());
   const [blueFormationId, setBlueFormationId] = useState(1);
   const [redFormationId, setRedFormationId] = useState(2);
   const [gameSituations, setGameSituations] = useState(() => loadStoredGameSituations());
@@ -2606,7 +2573,8 @@ function App() {
       : sanitizePiecesCardIds(pieces, nextCardState, nextSettings);
 
     if (workspace.settings) setSettings(nextSettings);
-    if (workspace.formations) setFormations(normalizeFormationSlots(workspace.formations, FORMATION_SLOTS));
+    // v20.56.19: the formation library is the fixed standard catalog; old
+    // custom coordinate slots are intentionally not reintroduced from Workspace.
     const nextScenarios = workspace.gameSituations
       ? normalizeScenarioSlots(workspace.gameSituations, DEFAULT_GAME_SITUATIONS)
       : gameSituations;
@@ -4653,12 +4621,13 @@ function App() {
   }
 
   function getFormationById(id) {
-    const formation = formations.find(f => f.id === Number(id)) || formations[0] || FORMATION_SLOTS[0];
+    const formation = formations.find(f => f.id === Number(id)) || formationById(id);
     return { ...formation, players: normalizeFormationPlayers(formation.players) };
   }
 
   function applyFormation(team, formationId) {
     const formation = getFormationById(formationId);
+    const rolePlan = planFormationRoleAssignment({ pieces: piecesRef.current || pieces, cardsById: cardById, team, formation });
     pushHistory();
     setPieces(prev => {
       const next = planWorkspaceFormationApplication({
@@ -4673,6 +4642,7 @@ function App() {
         // Manual Multiplayer keeps its established puck-label behavior.
         // Single Player formations intentionally clear legacy role labels.
         stripPuckLabels: !sessionCode,
+        cardIdsByStarterIndex: !sessionCode ? rolePlan.cardIdsByStarterIndex : null,
       });
       piecesRef.current = next;
       logSnapshot(`${team === "A" ? "Blue" : "Red"} formation: ${formation.name}`, next);
@@ -4683,37 +4653,6 @@ function App() {
       adjustedTeams: { ...current.adjustedTeams, [team]: false },
     }));
     return true;
-  }
-
-  function saveCurrentAsFormation(team, slotId) {
-    if (singlePlayerMatchWorkspaceLocked) return;
-    const slot = formations.find(f => f.id === Number(slotId));
-    const defaultName = slot?.name?.startsWith("Slot ") ? "" : slot?.name;
-    const name = window.prompt(`Nume formație pentru slotul ${slotId}:`, defaultName || `Formație ${slotId}`);
-    if (name === null) return;
-
-    const teamPieces = (piecesRef.current || pieces)
-      .filter(p => p.team === team && !isBenchReservePiece(p))
-      .slice(0, 11)
-      .map(p => {
-        const x = team === "A" ? Math.round(p.x) : settings.cols - 1 - Math.round(p.x);
-        const y = Math.round(p.y);
-        return normalizeGridPosition(x, y, settings).coord;
-      });
-
-    const nextFormations = planWorkspaceFormationSave({
-      formations,
-      slotId,
-      name,
-      players: teamPieces,
-      normalizeFormationSlots,
-      baseSlots: FORMATION_SLOTS,
-    });
-
-    setFormations(nextFormations);
-    localStorage.setItem("football-board-formations-v18", JSON.stringify(nextFormations));
-    saveCloudState({ formations: nextFormations }, `Formation ${slotId} saved`);
-    alert(`Formația a fost salvată în slotul ${slotId}.`);
   }
 
   function createCurrentSnapshot() {
@@ -6873,7 +6812,27 @@ function App() {
     pieces,
     cardsById: cardById,
     selectionRules,
-  }), [pieces, cardById, selectionRules]);
+    blueFormation: formationById(blueFormationId),
+    redFormation: formationById(redFormationId),
+  }), [pieces, cardById, selectionRules, blueFormationId, redFormationId]);
+  const prepSelectionSummaries = useMemo(() => {
+    const enrich = (summary, team, formation) => {
+      const plan = planFormationRoleAssignment({ pieces, cardsById: cardById, team, formation });
+      return {
+        ...summary,
+        formation: { ...summary.formation, slotProblems: plan.slotProblems },
+        suggestedFormationNames: suggestedCompatibleFormations({ formations, pieces, cardsById: cardById, team }).map(item => item.name),
+      };
+    };
+    return {
+      blue: enrich(prepReadyValidation.blue, "A", formationById(blueFormationId)),
+      red: enrich(prepReadyValidation.red, "B", formationById(redFormationId)),
+    };
+  }, [prepReadyValidation, pieces, cardById, formations, blueFormationId, redFormationId]);
+  const formationRoleProblemsByPieceId = useMemo(() => Object.fromEntries([
+    ...(prepSelectionSummaries.blue.formation?.slotProblems || []),
+    ...(prepSelectionSummaries.red.formation?.slotProblems || []),
+  ].map(problem => [problem.pieceId, problem])), [prepSelectionSummaries]);
   const libraryPositionOptions = useMemo(() => Array.from(new Set((cardState.cards || []).map(card => card.position).filter(Boolean))).sort((a, b) => {
     const rankA = CARD_POSITION_OPTIONS.indexOf(a);
     const rankB = CARD_POSITION_OPTIONS.indexOf(b);
@@ -11481,6 +11440,12 @@ function App() {
   function startTrackedGame(team) {
     if (trackerReadOnly) return;
     if (!sessionCode && gameMode === "match") {
+      const completeRosters = prepReadyValidation.blue.assignedCount === 18 && prepReadyValidation.red.assignedCount === 18;
+      if (trackerStartIntent === "new" && completeRosters && !prepReadyValidation.valid) {
+        setPrepReadyIssues(prepReadyValidation.issues);
+        setTrackerStartChoiceOpen(false);
+        return;
+      }
       const current = currentTimelineGameStateSnapshot() || captureTimelineGameState();
       const continuing = trackerStartIntent === "continue";
       const prepared = continuing ? { accepted: true, pieces: current.pieces } : prepareNewGamePieces(team);
@@ -12130,7 +12095,6 @@ function App() {
           }}>
             {formations.map(f => <option key={f.id} value={f.id}>{f.id}. {f.name}</option>)}
           </select>
-          <button disabled={singlePlayerMatchWorkspaceLocked} onClick={() => saveCurrentAsFormation("A", blueFormationId)}>Save</button>
         </div>
 
         <div className="formation-control red">
@@ -12142,7 +12106,6 @@ function App() {
           }}>
             {formations.map(f => <option key={f.id} value={f.id}>{f.id}. {f.name}</option>)}
           </select>
-          <button disabled={singlePlayerMatchWorkspaceLocked} onClick={() => saveCurrentAsFormation("B", redFormationId)}>Save</button>
         </div>
 
         {!isSessionGuest && (
@@ -12247,6 +12210,7 @@ function App() {
         rulerMarkers={rulerMarkers}
         defensiveAreaOverlays={defensiveAreaOverlays}
         adjustZoneCells={adjustZoneOverlays}
+        formationRoleProblemsByPieceId={formationRoleProblemsByPieceId}
         passPreview={passPreview}
         passTargeting={["pass", "through-ball", "lofted-through-ball"].includes(actionResolution?.kind) && actionResolution.status === "targeting" && canControlActiveResolution(actionResolution)}
         passActive={(passActive || ["through-ball", "lofted-through-ball"].includes(actionResolution?.kind)) && canControlActiveResolution(actionResolution)}
@@ -12785,7 +12749,8 @@ function App() {
         }}
         onReady={requestPrepReady}
         readyValid={prepReadyValidation.valid}
-        selectionSummaries={{ blue: prepReadyValidation.blue, red: prepReadyValidation.red }}
+        selectionSummaries={prepSelectionSummaries}
+        adjustDisabled={!((prepSelectedTeam === "A" ? prepSelectionSummaries.blue : prepSelectionSummaries.red)?.formation?.exact)}
       />}
 
       <TrackerPanel

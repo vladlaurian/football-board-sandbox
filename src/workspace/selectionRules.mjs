@@ -1,4 +1,5 @@
 import { isBenchReservePiece } from "../board/formationUtils.mjs";
+import { analyzeFormationCompatibility } from "./formationCompatibility.mjs";
 
 export const SELECTION_RULES_VERSION = 1;
 export const SELECTION_RULE_DEFAULTS = Object.freeze({
@@ -69,7 +70,7 @@ function positionCount(cards, position) {
   return cards.filter(card => card.role === position).length;
 }
 
-export function analyzeTeamSelection({ pieces, cardsById, team, selectionRules } = {}) {
+export function analyzeTeamSelection({ pieces, cardsById, team, selectionRules, formation } = {}) {
   const rules = normalizeSelectionRules(selectionRules);
   const cardMap = cardsById instanceof Map ? cardsById : new Map(Object.entries(cardsById || {}));
   const teamPieces = (Array.isArray(pieces) ? pieces : []).filter(piece => piece?.team === team);
@@ -122,36 +123,12 @@ export function analyzeTeamSelection({ pieces, cardsById, team, selectionRules }
   if (reserveGoalkeepers !== 1) issues.push(issue("reserve-goalkeeper", `${teamName(team)} needs exactly one reserve GK; found ${reserveGoalkeepers}.`, "reserves"));
   if (reserveOutfield !== 6) issues.push(issue("reserve-outfield", `${teamName(team)} needs exactly six outfield reserves; found ${reserveOutfield}.`, "reserves"));
 
-  const groupedLimits = [
-    [["RB", "RWB"], 1],
-    [["LB", "LWB"], 1],
-    [["LM", "LW"], 1],
-    [["RM", "RW"], 1],
-    [["CB"], 3],
-    [["CDM"], 2],
-    [["CM"], 3],
-    [["CAM"], 2],
-    [["ST"], 2],
-  ];
-  groupedLimits.forEach(([roles, maximum]) => {
-    const count = starterCards.filter(entry => roles.includes(entry.role)).length;
-    if (count > maximum) issues.push(issue("starter-position-limit", `${teamName(team)} may use at most ${maximum} ${roles.join("/")}; found ${count}.`, "starters"));
-  });
-  const starterCdm = positionCount(starterCards, "CDM");
-  const starterCm = positionCount(starterCards, "CM");
-  const starterCam = positionCount(starterCards, "CAM");
-  const starterSt = positionCount(starterCards, "ST");
-  const starterCb = positionCount(starterCards, "CB");
-  const starterLeftWide = starterCards.filter(entry => ["LM", "LW"].includes(entry.role)).length;
-  const starterRightWide = starterCards.filter(entry => ["RM", "RW"].includes(entry.role)).length;
-  const starterCentralMidfield = starterCdm + starterCm + starterCam;
-  if (starterSt < 1) issues.push(issue("starter-st-minimum", `${teamName(team)} needs at least one starting ST; found ${starterSt}.`, "starters"));
-  if (starterCb < 2) issues.push(issue("starter-cb-minimum", `${teamName(team)} needs at least two starting CB; found ${starterCb}.`, "starters"));
-  if (starterCentralMidfield < 2) issues.push(issue("starter-central-midfield-minimum", `${teamName(team)} needs at least two central midfielders (CDM/CM/CAM); found ${starterCentralMidfield}.`, "starters"));
-  if (starterLeftWide < 1) issues.push(issue("starter-left-wide-minimum", `${teamName(team)} needs at least one LM/LW; found ${starterLeftWide}.`, "starters"));
-  if (starterRightWide < 1) issues.push(issue("starter-right-wide-minimum", `${teamName(team)} needs at least one RM/RW; found ${starterRightWide}.`, "starters"));
-  if (starterCdm === 2 && starterCm === 3) {
-    issues.push(issue("starter-cdm-cm-conflict", `${teamName(team)} cannot use 2 CDM together with 3 CM.`, "starters"));
+  const formationAnalysis = analyzeFormationCompatibility({ pieces, cardsById, team, formation });
+  if (formation && !formationAnalysis.recipe.length) {
+    issues.push(issue("formation-missing", `${teamName(team)} needs a valid selected standard formation.`, "formation"));
+  } else if (formationAnalysis.recipe.length) {
+    formationAnalysis.missing.forEach(role => issues.push(issue("formation-role-missing", `${teamName(team)} ${formation.name} needs one more ${role}.`, "formation")));
+    formationAnalysis.excess.forEach(role => issues.push(issue("formation-role-excess", `${teamName(team)} ${formation.name} has one excess ${role}.`, "formation")));
   }
 
   if (rules.totalStarsCap.enabled && totalStars > rules.totalStarsCap.value) {
@@ -177,13 +154,14 @@ export function analyzeTeamSelection({ pieces, cardsById, team, selectionRules }
     assignedCount: validAssigned.length,
     totalStars,
     atMaximumStars,
+    formation: formationAnalysis,
     issues,
     valid: issues.length === 0,
   };
 }
 
 export function validateReadySelection(input = {}) {
-  const blue = analyzeTeamSelection({ ...input, team: "A" });
-  const red = analyzeTeamSelection({ ...input, team: "B" });
+  const blue = analyzeTeamSelection({ ...input, team: "A", formation: input.blueFormation });
+  const red = analyzeTeamSelection({ ...input, team: "B", formation: input.redFormation });
   return { blue, red, issues: [...blue.issues, ...red.issues], valid: blue.valid && red.valid };
 }

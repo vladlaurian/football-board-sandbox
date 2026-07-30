@@ -1085,6 +1085,8 @@ input[type="number"] {
   box-shadow: 0 1px 3px rgba(0,48,22,.72), 0 0 5px rgba(92,255,154,.58);
 }
 .piece.has-card { box-shadow: 0 0 0 2px rgba(255,255,255,.72), 0 0 12px rgba(255,255,255,.45); }
+.piece.formation-role-mismatch { box-shadow: 0 0 0 3px #ff4444, 0 0 14px rgba(255, 55, 55, .85); }
+.formation-role-warning { position:absolute; right:-5px; top:-6px; width:14px; height:14px; border-radius:50%; background:#d71920; color:#fff; font:800 11px/14px sans-serif; text-align:center; }
 .piece-card-icon { display:none; }
 
 .cards-panel {

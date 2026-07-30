@@ -23,7 +23,9 @@ restores the mode boundary and makes the Blue/Red Selection summaries permanent
 inside Prep. v20.56.15 keeps Prep available throughout Single Player Match
 Mode and applies a selected formation immediately to the live board while
 retaining card links. v20.56.18 makes Adjust role-aware and persists its
-prepared layout for Start New, while substitutions remain future work. Manual Multiplayer remains a
+prepared layout for Start New. v20.56.19 replaces editable formation slots with
+the approved standard catalogue and validates each selected formation's exact
+starter-role recipe, while substitutions remain future work. Manual Multiplayer remains a
 frozen legacy path and keeps its existing puck-label behavior.
 
 ## 1. One authority for a player's role
@@ -43,18 +45,36 @@ only. It is not a Single Player role source.
 
 ## 2. Formation templates
 
-A formation is a list of up to eleven board coordinates for the stable eleven
-starter puck identities. It is not a list of positions.
+A standard formation contains eleven board coordinates plus an ordered
+`starterRoleRecipe`. The recipe is a requirement of the formation's neutral
+starter slots, not an authority for a player role; a player's role remains
+exclusively `card.position`.
 
 Applying a formation:
 
 - moves the relevant starter pucks to the template coordinates;
-- keeps their assigned cards attached;
-- therefore never changes the players' actual roles;
-- does not assign, detach, replace or infer a card.
+- keeps every card in its team and never alters `card.position`;
+- maps matching assigned cards into matching neutral formation slots;
+- retains unmatched assigned cards in remaining temporary slots rather than
+  detaching them; those slots are visibly red and cannot become Ready;
+- never infers or changes a player's actual role.
 
-The old pair form `[label, coordinate]` remains import-compatible, but its
-first element is discarded. Newly saved formations store coordinates only.
+The standard catalogue is fixed: the old Formation `Save` controls are removed.
+Adjust is the approved mechanism for personalising a selected formation's
+starting coordinates. Old pair form `[label, coordinate]` remains readable for
+legacy import compatibility, but no longer becomes a selectable custom slot.
+
+### Standard formation catalogue
+
+`4-4-2 (2 CM)`, `4-4-2 (2 CDM)`, `4-4-2 (2 CAM)`, `4-4-1-1`,
+`4-2-3-1 Wide`, `4-2-1-3 ATT`, `4-3-3 Holding`, `4-3-3 Attack`,
+`4-3-3 Double Pivot`, `4-1-4-1`, `4-5-1`, `4-1-3-2`, `4-2-4`,
+`3-4-3 Wide`, `3-4-1-2`, `5-4-1`, `4-2-2-2`,
+`4-1-2-1-2 Narrow`, `4-3-2-1`, `3-5-2 Double Pivot`,
+`3-5-2 Balanced`, and `3-5-2 Midfield Control` are the only selectable
+standard formations. Their exact role recipes are centralized in
+`src/board/standardFormations.mjs` and tested there through the pure
+compatibility planner.
 
 ## 3. Roster and legal composition
 
@@ -67,28 +87,16 @@ At Ready validation, each team must have:
 Every starter and reserve has an assigned card. There can be at most eleven
 players and at most one goalkeeper on the board for a team.
 
-The Ready validator reads card roles only and enforces:
+The Ready validator reads card roles only and requires the eleven starter roles
+to match exactly the selected formation's `starterRoleRecipe`. The old generic
+starter minima, maxima and wide-player requirements no longer apply.
 
-- minimum one `ST`;
-- minimum two `CB`;
-- minimum two combined `CDM`, `CM` or `CAM`;
-- minimum one `LM` or `LW`;
-- minimum one `RM` or `RW`;
-
-- maximum one of `RB` or `RWB`;
-- maximum one of `LB` or `LWB`;
-- maximum one of `LM` or `LW`;
-- maximum one of `RM` or `RW`;
-- maximum three `CB`;
-- maximum two `CDM`;
-- maximum three `CM`;
-- maximum two `CAM`;
-- maximum two `ST`;
-- `2 CDM` and `3 CM` cannot coexist.
-
-Starting-form names such as 4-4-2, 4-2-3-1 and 3-5-2 are spatial guides, not
-hard roster restrictions. Any assigned card may occupy a starter puck, but
-the resulting eleven must pass the role validator.
+When a different formation is selected, it is always displayed live. If the
+already assigned starter roles do not fit its recipe, Prep reports each missing
+and excess role, marks the affected slots red, and lists all standard
+formations that can contain the currently assigned roles. Card assignment and
+formation switching remain available for correction; Adjust, Ready and Start
+New are blocked once a complete roster still has a formation mismatch.
 
 ## 4. Future substitutions
 

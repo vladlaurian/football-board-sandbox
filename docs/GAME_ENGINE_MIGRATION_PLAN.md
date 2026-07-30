@@ -738,7 +738,18 @@ still workspace preparation, not a gameplay Engine command. Timeline retains
 the existing board-position snapshots; AI export and Manual Multiplayer/Firebase
 are unchanged.
 
-### Deferred after v20.56.18 — Prep lifecycle and restart-dependent work
+### v20.56.19 — Standard formations and recipe-based preparation
+
+**Status:** Complete.
+
+The fixed 22-formation catalogue is Workspace presentation data. Its slot
+recipes validate only future-Match preparation; they do not replace
+`card.position`. An incompatible assignment remains visible and correctable,
+but cannot pass Ready or invoke Adjust. No Engine command, MatchContext,
+Timeline entry or AI-export event is created by formation selection or by the
+compatibility presentation. Manual Multiplayer and Firebase are unchanged.
+
+### Deferred after v20.56.19 — Prep lifecycle and restart-dependent work
 
 Do not implement this as an incidental correction. The current live Prep
 Formation application is required for visible formation/card setup, but it can

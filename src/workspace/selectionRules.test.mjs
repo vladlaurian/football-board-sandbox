@@ -103,42 +103,16 @@ test("Ready reports invalid starter and reserve goalkeeper structure", () => {
   assert.equal(summary.blue.issues.some(item => item.code === "reserve-outfield"), true);
 });
 
-test("Ready reports every approved starter-position limit including the 2 CDM plus 3 CM conflict", () => {
+test("Ready validates starter roles against the selected formation recipe", () => {
   const { pieces, cardsById } = legalRoster();
   const starterIds = pieces.filter(piece => piece.team === "A" && !piece.id.includes("-R-")).map(piece => piece.cardId);
-  ["RB", "RWB", "LB", "LWB", "LM", "LW", "RM", "RW", "CB", "CB", "CB"].forEach((position, index) => {
+  const formation = { id: 99, name: "Test 4-3-3", starterRoleRecipe: ["GK", "LB", "CB", "CB", "RB", "CDM", "CM", "CM", "LW", "RW", "ST"] };
+  ["GK", "LB", "CB", "CB", "RB", "CDM", "CDM", "CAM", "LW", "RW", "ST"].forEach((position, index) => {
     cardsById[starterIds[index]].position = position;
   });
-  const summary = analyzeTeamSelection({ pieces, cardsById, team: "A" });
-  assert.equal(summary.issues.filter(item => item.code === "starter-position-limit").length, 4);
-
-  ["GK", "CDM", "CDM", "CM", "CM", "CM", "LB", "RB", "LM", "RM", "ST"].forEach((position, index) => {
-    cardsById[starterIds[index]].position = position;
-  });
-  const conflict = analyzeTeamSelection({ pieces, cardsById, team: "A" });
-  assert.equal(conflict.issues.some(item => item.code === "starter-cdm-cm-conflict"), true);
-});
-
-test("Ready enforces the approved minimum starter structure without requiring full-backs", () => {
-  const { pieces, cardsById } = legalRoster();
-  const starterIds = pieces.filter(piece => piece.team === "A" && !piece.id.includes("-R-")).map(piece => piece.cardId);
-  ["GK", "CB", "CB", "CDM", "CM", "LM", "RM", "ST", "CAM", "CB", "ST"].forEach((position, index) => {
-    cardsById[starterIds[index]].position = position;
-  });
-  assert.equal(analyzeTeamSelection({ pieces, cardsById, team: "A" }).valid, true);
-
-  ["GK", "CB", "LB", "RB", "CDM", "CM", "LM", "RM", "LW", "RW", "CAM"].forEach((position, index) => {
-    cardsById[starterIds[index]].position = position;
-  });
-  const withoutStriker = analyzeTeamSelection({ pieces, cardsById, team: "A" });
-  assert.equal(withoutStriker.issues.some(item => item.code === "starter-st-minimum"), true);
-
-  ["GK", "CB", "LB", "RB", "LM", "RM", "ST", "LW", "RW", "LWB", "RWB"].forEach((position, index) => {
-    cardsById[starterIds[index]].position = position;
-  });
-  const withoutCentralPair = analyzeTeamSelection({ pieces, cardsById, team: "A" });
-  assert.equal(withoutCentralPair.issues.some(item => item.code === "starter-central-midfield-minimum"), true);
-  assert.equal(withoutCentralPair.issues.some(item => item.code === "starter-cb-minimum"), true);
+  const summary = analyzeTeamSelection({ pieces, cardsById, team: "A", formation });
+  assert.equal(summary.issues.filter(item => item.code === "formation-role-missing").length, 2);
+  assert.equal(summary.issues.filter(item => item.code === "formation-role-excess").length, 2);
 });
 
 test("Ready analysis is pure and changes neither pieces nor cards", () => {

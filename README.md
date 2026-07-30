@@ -6,22 +6,24 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.18` |
-| Git/package version | `20.56.18` |
-| Build name | `Final_Board_v20_56_18_adjust_role_layout_and_persistence` |
-| Base build | `Final_Board_v20_56_17_adjust_runtime_hotfix` |
+| Sandbox version | `v20.56.19` |
+| Git/package version | `20.56.19` |
+| Build name | `Final_Board_v20_56_19_standard_formations_and_role_validation` |
+| Base build | `Final_Board_v20_56_18_adjust_role_layout_and_persistence` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.18`. The repository version is in `package.json` as `20.56.18`. The browser title is `Sandbox v20.56.18`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.19`. The repository version is in `package.json` as `20.56.19`. The browser title is `Sandbox v20.56.19`.
 
 ## Current release
 
-v20.56.18 makes Adjust role-aware and persistent as Match preparation. Its
-default layout separates CB by two rows and CDM/CM by three rows, keeps ST
-defaults on K–S, rejects any invalid card-role plan, and never resets an
-existing adjustment merely by reopening Adjust. Ready removes highlights while
-retaining positions; Start New uses a prepared layout. Manual
-Multiplayer/Firebase remain frozen.
+v20.56.19 replaces editable coordinate slots with the approved fixed library
+of 22 standard formations. Each template has a separate starter-role recipe;
+the card remains the sole role authority. Formation selection always applies
+live without detaching cards. Mismatched cards are visibly red, explained in
+Prep, and receive compatible-formation suggestions. Ready validates the exact
+selected recipe instead of generic positional minima/maxima; an incompatible
+complete roster cannot Start New or Adjust. Engine, Timeline, AI export,
+Manual Multiplayer and Firebase remain unchanged.
 
 v20.56.12 established the Ready acknowledgement flow. v20.56.11 established
 the underlying Prep and Selection Rules foundation. v20.56.10 is its

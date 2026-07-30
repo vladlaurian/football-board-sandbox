@@ -2,6 +2,21 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.19 — Standard formations and recipe-based selection
+
+- Replaces editable formation slots with the approved 22-template standard
+  catalogue, including the three 3-5-2 profiles.
+- A formation now carries an ordered starter-role recipe solely as a slot
+  requirement. `card.position` remains the only player-role authority.
+- Selecting a formation always keeps every assigned card. Matching cards are
+  placed in matching slots; unmatched cards remain visibly red in temporary
+  incompatible slots, with missing/excess roles and compatible formations in
+  Prep.
+- Ready uses the exact selected formation recipe instead of the former generic
+  starter min/max position rules. Adjust is disabled for an incompatible team;
+  Start New rejects an incompatible complete roster. Manual Multiplayer,
+  Engine, Timeline and AI export are unchanged.
+
 ## v20.56.18 — Role-aware Adjust layout and prepared-layout persistence
 
 - Replaces centroid-only Adjust placement with explicit `card.position` role

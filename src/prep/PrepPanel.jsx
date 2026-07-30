@@ -16,6 +16,15 @@ function SelectionStatus({ summary }) {
       )}
       <div><strong>Total Stars:</strong> {summary.totalStars}</div>
       <div><strong>Assigned cards:</strong> {summary.assignedCount}/18</div>
+      <div className={summary.formation?.exact ? "selection-current-valid" : "selection-problem"}>
+        <strong>{summary.formation?.formation?.name || "Formation"}:</strong> {summary.formation?.exact ? "starter roles match." : "starter roles need correction."}
+      </div>
+      {!summary.formation?.exact && <>
+        {summary.formation?.missing?.length > 0 && <div className="selection-problem"><strong>Missing:</strong> {summary.formation.missing.join(" · ")}</div>}
+        {summary.formation?.excess?.length > 0 && <div className="selection-problem"><strong>Excess:</strong> {summary.formation.excess.join(" · ")}</div>}
+        {summary.formation?.slotProblems?.length > 0 && <ul className="selection-issues">{summary.formation.slotProblems.map(problem => <li key={`${problem.index}-${problem.cardId}`}>Slot {problem.index + 1}: expected {problem.expectedRole} · assigned {problem.actualRole} — {problem.cardName}</li>)}</ul>}
+        {summary.suggestedFormationNames?.length > 0 && <div><strong>Compatible formations:</strong> {summary.suggestedFormationNames.join(" · ")}</div>}
+      </>}
       <div className={summary.valid ? "selection-current-valid" : "selection-problem"}>{summary.valid ? "Current selection is legal." : "Selection needs correction."}</div>
       {summary.issues.length > 0 && <ul className="selection-issues">{summary.issues.map((item, index) => <li key={`${item.code}-${index}`}>{item.message}</li>)}</ul>}
     </section>
@@ -47,6 +56,7 @@ export function PrepPanel({
   onReady,
   readyValid,
   selectionSummaries,
+  adjustDisabled,
 }) {
   const selectionSummaryRef = useRef(null);
   if (!visible || lockUI) return null;
@@ -84,7 +94,7 @@ export function PrepPanel({
           </section>
           <div className="prep-action-grid">
             <button onClick={() => selectionSummaryRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })}>Selection</button>
-            <button className={adjustActive ? "active" : ""} onClick={onAdjust} title="Highlight role zones and adjust starter positions.">Adjust</button>
+            <button disabled={adjustDisabled} className={adjustActive ? "active" : ""} onClick={onAdjust} title={adjustDisabled ? "Correct the selected formation's starter roles before Adjust." : "Highlight role zones and adjust starter positions."}>Adjust</button>
             <button disabled title="Substitution waits for the canonical interruption/restart lifecycle.">Substitution</button>
             <button className={`prep-ready-button ${readyValid ? "is-valid" : ""}`} onClick={onReady}>Ready</button>
           </div>
