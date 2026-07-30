@@ -6,21 +6,29 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.9` |
-| Git/package version | `20.56.9` |
-| Build name | `Final_Board_v20_56_9_card_role_authority` |
-| Base build | `Final_Board_v20_56_8_penalty_rules_documentation` |
+| Sandbox version | `v20.56.11` |
+| Git/package version | `20.56.11` |
+| Build name | `Final_Board_v20_56_11_prep_selection_rules` |
+| Base build | `Final_Board_v20_56_10_prep_selection_rules_documentation` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.9`. The repository version is in `package.json` as `20.56.9`. The browser title is `Sandbox v20.56.9`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.11`. The repository version is in `package.json` as `20.56.11`. The browser title is `Sandbox v20.56.11`.
 
 ## Current release
 
-v20.56.9 makes the assigned card the only Single Player authority for a
-player's football role. Pucks are neutral board identities and formations are
-coordinate-only templates; applying one preserves card assignment rather than
-recreating the player. Old labelled formations migrate by retaining only their
-coordinates. Manual Multiplayer retains its frozen legacy puck-label path.
+v20.56.11 implements the narrow Single Player pre-match Workspace foundation:
+the movable Prep panel, Team/Formation/Selection/Ready flow and persisted
+Selection Rules. It summarizes and validates all eighteen assigned cards,
+while formation application continues to preserve card assignment. Ready only
+locks Prep controls after confirmation; Tracker Start Game remains independently
+available. Adjust and Substitution are visible but disabled for their approved
+future scopes. This build adds no Engine, Timeline or AI-export event, and
+Manual Multiplayer/Firebase retain their frozen legacy paths.
+
+v20.56.10 is the documentation-only contract base for this release. v20.56.9
+makes the assigned card the only Single Player authority for a player's
+football role; pucks remain neutral board identities and formations are
+coordinate-only templates.
 
 v20.56.8 is the immediately preceding documentation-only Penalty contract:
 Match Penalty clearance, pure roll, goalkeeper catch, Natural effects, hidden
@@ -71,6 +79,7 @@ src/
   engine/       pure command-driven Game Engine kernel and gateway
   game/         shared game-state helpers
   match/        action resolution, continuations, delayed execution
+  prep/         Single Player future-Match Prep panel
   multiplayer/  retained legacy authority, session Timeline and tracing
   rules/        Pass, Interception and Rule Set engines
   timeline/     Timeline, recording and AI Analysis export

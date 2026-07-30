@@ -2,11 +2,12 @@
 
 This is the canonical rule and technical contract for player roles, the match
 roster, formation templates, positional zones and substitutions. It separates
-the agreed future Match rules from the limited v20.56.9 implementation.
+the agreed future Match rules from the implemented v20.56.11 Workspace
+foundation.
 
 ## Status
 
-v20.56.9 implements only the ownership boundary below:
+v20.56.9 established the ownership boundary below:
 
 - a football role belongs exclusively to a player card;
 - Single Player pucks and formation templates no longer own a role;
@@ -15,10 +16,12 @@ v20.56.9 implements only the ownership boundary below:
 - old formations stored as `[legacyLabel, coordinate]` remain readable and
   migrate by retaining their coordinate only.
 
-The roster validation, substitutions and central-restart placement rules in
-this document are agreed rules for a later, separately approved Match build.
-They are not implemented gameplay behavior yet. Manual Multiplayer remains a
-frozen legacy path and keeps its existing puck-label behavior.
+v20.56.11 implements the pre-match Workspace portion only: Single Player
+Prep, Selection Rules persistence, full-roster selection analysis and Ready
+validation. Its Ready confirmation locks Prep controls but neither starts nor
+changes a Match. Adjust, substitutions and central-restart placement remain
+future scopes. Manual Multiplayer remains a frozen legacy path and keeps its
+existing puck-label behavior.
 
 ## 1. One authority for a player's role
 
@@ -50,9 +53,9 @@ Applying a formation:
 The old pair form `[label, coordinate]` remains import-compatible, but its
 first element is discarded. Newly saved formations store coordinates only.
 
-## 3. Future match roster and legal composition
+## 3. Roster and legal composition
 
-At Match start, each team has:
+At Ready validation, each team must have:
 
 - 11 starters on the board;
 - one goalkeeper reserve;
@@ -61,7 +64,7 @@ At Match start, each team has:
 Every starter and reserve has an assigned card. There can be at most eleven
 players and at most one goalkeeper on the board for a team.
 
-The future Match validator reads card roles only and enforces:
+The Ready validator reads card roles only and enforces:
 
 - maximum one of `RB` or `RWB`;
 - maximum one of `LB` or `LWB`;
@@ -100,7 +103,110 @@ time. There is no sixth substitution.
 - The coach may place the incoming player in any free board cell, provided
   the completed team remains legal under the roster validator.
 
-## 5. Positional zones for future central restarts
+## 5. Prep and Selection Rules
+
+`Prep` is a movable, resizable, minimizable and closable panel in the second
+application bar, immediately before `Tracker`. It is a pre-match setup
+surface; it does not itself start a Match.
+
+The panel always exposes these controls:
+
+`Team` · `Formation` · `Selection` · `Adjust` · `Substitution` · `Ready`
+
+### 5.1 Team and Formation
+
+- `Team` selects Blue or Red as the team currently being prepared.
+- `Formation` selects a spatial formation template for that team. The board
+  updates immediately, using the existing stable puck identities and keeping
+  their assigned cards. This is functional in v20.56.11.
+
+### 5.2 Selection
+
+`Selection` allows card assignment to every puck in the full eighteen-player
+roster: eleven starter pucks, the goalkeeper reserve and six outfield
+reserves. The existing card-inspection/assignment affordance remains the card
+selection surface; Prep adds a live information popup for the selected team.
+
+The popup always shows the current total stars for the full eighteen-player
+roster. When an active Selection Rule is violated, the affected fact is red.
+`Ready` refuses to lock an illegal selection and states the exact failed
+criterion. This summary and validation are functional in v20.56.11; it never
+automatically assigns, detaches or replaces a card.
+
+### 5.3 Selection Rules
+
+`Selection Rules` is a dedicated Editor menu placed before `Rules`. It is a
+team-construction policy, not a gameplay Rule Set. Its selected values are
+saved in Workspace. It does not alter the gameplay Rule Set frozen in
+MatchContext when a Match starts.
+
+There are three checkbox-controlled modes:
+
+1. **Total Stars Cap** — if checked, the configured maximum total stars is
+   enforced across all eighteen cards. If unchecked, its value is disabled and
+   has no effect.
+2. **Maximum X Players at Y Stars** — if checked, the configured player-star
+   cap is enforced across all eighteen cards: no card may have more than `Y`
+   stars and at most `X` cards may have `Y` stars. If unchecked, both values
+   are disabled and have no effect.
+3. **Free Mode** — if checked, it automatically unchecks and disables both
+   constrained criteria. If unchecked, those criteria become available and
+   can be enabled independently or together. If both constrained criteria are
+   unchecked, Free Mode checks itself automatically.
+
+Therefore the state is always either Free Mode, or at least one active
+selection criterion.
+
+In Free Mode the Prep popup shows only the current total stars. With one or
+both criteria active, it also shows every active limit and, where relevant,
+the current number of `Y`-star cards.
+
+### 5.4 Adjust
+
+`Adjust` will first place each starter as centrally as possible in the zone of its
+assigned card role, separating same-role players as far as the zone permits.
+All active role zones are highlighted. A coach may then move a player only
+inside that card's own role zone; it may not freely place the player elsewhere
+on the board.
+
+The Ready validator checks roster composition and all other setup legality.
+Adjust itself will not change card roles or card assignment. In v20.56.11,
+the control is intentionally disabled pending v20.56.12.
+
+### 5.5 Ready and Match start
+
+Before the Match starts, `Ready` validates the full roster, active Selection
+Rules and legal composition. On success, it asks:
+
+`Are you sure you are ready to start the Match?`
+
+- `No` changes nothing.
+- `Yes` locks Prep setup controls. It does **not** start the Match.
+
+`Start Game` remains a Tracker command. It may start a Match from the current
+board placement even if Prep has never been used or confirmed.
+
+### 5.6 Substitution control
+
+`Substitution` is present in Prep from its first implementation, but remains
+visibly disabled until the canonical interruption/restart lifecycle exists.
+It must not create a local manual interruption.
+
+After that later lifecycle is implemented, it becomes the only substitution
+entrance:
+
+- it may be armed before a stoppage and opens automatically at the first
+  eligible interruption;
+- it may also be opened while the Match is already interrupted;
+- the panel remains open until `Ready` confirms resumption;
+- the coach moves an outgoing starter puck to the reserve line and an
+  assigned reserve puck into a chosen free field cell;
+- every attempted change is validated against the substitution limits and
+  roster rules, with an explicit explanatory rejection when illegal;
+- the post-substitution `Ready` requires confirmation and resumes the pending
+  interruption only after confirmation.
+
+## 6. Positional zones for future central restarts
 
 At a match start, start of a half or extra-time half, and after a goal, the
 future central-restart system reads each card role and automatically places
@@ -112,35 +218,31 @@ increasing column numbers. Red is mirrored in depth using `n → 45 − n`.
 
 | Card role | Blue columns | Blue rows | Red columns |
 |---|---:|---|---:|
-| GK | 1–5 | M–Q | 40–44 |
-| LB | 6–12 | A–K | 33–39 |
-| CB | 6–10 | L–R | 35–39 |
-| RB | 6–12 | S–AC | 33–39 |
-| LWB | 13–17 | A–I | 28–32 |
-| RWB | 13–17 | U–AC | 28–32 |
-| CDM | 13–16 | J–T | 29–32 |
-| CM | 17–19 | I–U | 26–28 |
-| LM | 20–22 | A–I | 23–25 |
-| RM | 20–22 | U–AC | 23–25 |
-| CAM | 23–25 | I–U | 20–22 |
-| LW | 26–30 | A–I | 15–19 |
-| RW | 26–30 | U–AC | 15–19 |
-| ST | 26–30 | J–T | 15–19 |
+| GK | 1 | O | 44 |
+| LB | 6–10 | E–G | 35–39 |
+| CB | 5–9 | I–U | 36–40 |
+| RB | 6–10 | W–Y | 35–39 |
+| LWB | 11–14 | A–D | 31–34 |
+| RWB | 11–14 | Z–AC | 31–34 |
+| CDM | 10–13 | J–T | 32–35 |
+| CM | 14–16 | I–U | 29–31 |
+| LM | 15–18 | D–F | 27–30 |
+| RM | 15–18 | X–Z | 27–30 |
+| CAM | 17–18 | K–S | 27–28 |
+| LW | 19–22 | A–C | 23–26 |
+| RW | 19–22 | AA–AC | 23–26 |
+| ST | column 18 on A–AC; plus K19, L19, K20, R19, S19, S20 | see Blue columns | column 27 on A–AC; plus K26, L26, K25, R26, S26, S25 |
 
-This map intentionally keeps the following depth bands separate:
-
-- `LB/RB` may be up to two columns ahead of `CB`, but all begin on the same
-  defensive line;
-- `LWB/RWB` begin immediately after `LB/RB`, with no depth overlap;
-- `CDM → CM → CAM → ST` do not overlap in depth;
-- `LM/RM` sit between `CM` and `CAM`;
-- `LW/RW` share the forward band with `ST`, but not the depth of `LM/RM`.
+The ST corridor intentionally overlaps the CAM zone. The map also contains
+other spatial overlaps where distinct role rows or coach adjustment preserve
+legal placement. The future automatic placement rule must select distinct
+free cells within the applicable zones.
 
 The automatic placement/collision-resolution algorithm remains to be defined
 when central restarts are implemented. Changing a zone boundary later must be
 a centralized data edit, not a rewrite of roster or Match rules.
 
-## 6. Architecture boundary
+## 7. Architecture boundary
 
 Future roster validation, substitutions and central-restart placement are
 Match rules. Their legal state, pending coach choices, action resets and

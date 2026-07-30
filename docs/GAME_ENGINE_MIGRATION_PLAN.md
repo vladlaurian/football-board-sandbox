@@ -622,6 +622,30 @@ The direct-contact priority, crossed-cell Long eligibility and Engine-owned segm
 
 Offline Single Player now preserves a canonical one-second result hold after `DICE_ROLLED` and before an automatic consequence. The shared delayed-resolution descriptor is the only timer boundary; Pass/Interception no longer resolves directly from the Dice animation callback. Future automatic pending-roll actions inherit the same scheduler by using `createSinglePlayerRollResultHold(...)` and their action-specific Engine resolution adapter. Extra Roll and frozen Manual Multiplayer remain outside this automatic-consequence hold.
 
+### v20.56.11 — Workspace Prep and Selection Rules
+
+**Status:** Complete.
+
+This is a narrow future-Match Workspace build, not a Match-engine migration.
+`src/prep/PrepPanel.jsx` provides the Single Player-only Prep surface;
+`src/workspace/selectionRules.mjs` owns normalization, roster-star analysis and
+Ready validation; and `src/workspace/workspaceSnapshot.mjs` persists the
+selection policy. Formation application continues to use the established
+coordinate-only mechanism, retaining stable puck/card links. Ready checks the
+full eighteen-card roster, starter/reserve/GK structure, starter role limits
+and active selection criteria, then only locks Prep controls after the
+approved confirmation. Tracker Start Game remains independent.
+
+No Engine command, MatchState field, Timeline event, Undo/Redo behavior,
+Replay state or AI export is added: Selection Rules and Ready are pre-match
+Workspace state, not gameplay. Static boundary coverage protects the absent
+`sessionCode` Manual Multiplayer path; Manual Multiplayer and Firebase are
+unchanged. Automated coverage is in `selectionRules.test.mjs`,
+`workspaceSnapshot.test.mjs`, `workspaceOperations.test.mjs`,
+`formationUtils.test.mjs` and `prepSelectionBoundary.test.mjs`, in addition to
+the full regression suite. v20.56.12 remains the separately approved Adjust
+scope and is not implemented here.
+
 ## Required update after every implementation build
 
 - mark only completed items complete;

@@ -54,6 +54,12 @@ import { diagonalCostForDistance, getMovementGeometry, normalizeMovementState } 
 import { createDefaultScenarioSlots, normalizeScenarioSlots } from "./board/scenarioUtils.mjs";
 import { createWorkspaceSnapshot, readWorkspaceSnapshot } from "./workspace/workspaceSnapshot.mjs";
 import {
+  normalizeSelectionRules,
+  selectionRulesWithPatch,
+  analyzeTeamSelection,
+  validateReadySelection,
+} from "./workspace/selectionRules.mjs";
+import {
   planWorkspaceBoardSetting,
   planWorkspaceCardAssignment,
   planWorkspaceCardDetachment,
@@ -188,6 +194,7 @@ import { CardVisualCanvas } from "./cards/CardVisualCanvas.jsx";
 import { CardEditorPanel, CardStarMenuEditor } from "./cards/CardEditorPanel.jsx";
 import { CardsPanel } from "./cards/CardsPanel.jsx";
 import { AssignCardModal } from "./cards/AssignCardModal.jsx";
+import { PrepPanel } from "./prep/PrepPanel.jsx";
 import "./styles.css";
 
 const firebaseConfig = {
@@ -207,7 +214,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.9";
+const APP_VERSION = "v20.56.11";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -1979,6 +1986,9 @@ function App() {
   const [ruleSetSelectionId, setRuleSetSelectionId] = useState(() => loadStoredActiveRuleSet(loadStoredRuleSets()).id);
   const [ruleSetDraft, setRuleSetDraft] = useState(() => loadStoredActiveRuleSet(loadStoredRuleSets()));
   const [rulesPanelOpen, setRulesPanelOpen] = useState(false);
+  const [selectionRules, setSelectionRules] = useState(() => normalizeSelectionRules());
+  const [selectionRulesOpen, setSelectionRulesOpen] = useState(false);
+  const [selectionRulesConstraintDraftOpen, setSelectionRulesConstraintDraftOpen] = useState(false);
   const [pieces, setPieces] = useState(() => normalizePiecesForBoard(createInitialPieces(DEFAULT_SETTINGS.cols, DEFAULT_SETTINGS.rows, FORMATION_SLOTS[0], FORMATION_SLOTS[1]), DEFAULT_SETTINGS));
   const [selectedId, setSelectedId] = useState(null);
   const [hoveredCell, setHoveredCell] = useState(null);
@@ -2078,6 +2088,23 @@ function App() {
   const [rulerPanelDragging, setRulerPanelDragging] = useState(null);
   const [rulerPanelResizing, setRulerPanelResizing] = useState(null);
   const [trackerVisible, setTrackerVisible] = useState(false);
+  const [prepVisible, setPrepVisible] = useState(false);
+  const [prepMinimized, setPrepMinimized] = useState(false);
+  const [prepSelectedTeam, setPrepSelectedTeam] = useState("A");
+  const [prepSelectionOpen, setPrepSelectionOpen] = useState(false);
+  const [prepReady, setPrepReady] = useState(false);
+  const [prepReadyConfirmationOpen, setPrepReadyConfirmationOpen] = useState(false);
+  const [prepReadyIssues, setPrepReadyIssues] = useState([]);
+  const [prepPosition, setPrepPosition] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("football-board-prep-position-v1")) || { x: 430, y: 420 }; }
+    catch { return { x: 430, y: 420 }; }
+  });
+  const [prepSize, setPrepSize] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("football-board-prep-size-v1")) || { w: 360, h: 300 }; }
+    catch { return { w: 360, h: 300 }; }
+  });
+  const [prepDragging, setPrepDragging] = useState(null);
+  const [prepResizing, setPrepResizing] = useState(null);
   const [trackerMinimized, setTrackerMinimized] = useState(false);
   const [trackerSettingsOpen, setTrackerSettingsOpen] = useState(false);
   const [trackerSettings, setTrackerSettings] = useState(() => {
@@ -2189,6 +2216,8 @@ function App() {
   const dicePanelResizeRef = useRef(null);
   const trackerDragRef = useRef(null);
   const trackerResizeRef = useRef(null);
+  const prepDragRef = useRef(null);
+  const prepResizeRef = useRef(null);
   const trackerSharedEnabledRef = useRef(false);
   const diceNoticeTimerRef = useRef(null);
   const diceCooldownTimerRef = useRef(null);
@@ -2552,6 +2581,7 @@ function App() {
         dieType,
         cardState: stripCardsFromCardState(effectiveCardState),
         trackerSettings,
+        selectionRules,
         preferences: {
           touchMode,
           showCoordinates,
@@ -2609,6 +2639,7 @@ function App() {
       setTrackerSettings(restoredSettings);
       setTrackerSettingsDraft(restoredSettings);
     }
+    if (workspace.selectionRules) setSelectionRules(normalizeSelectionRules(workspace.selectionRules));
     if (workspace.cardState) setCardState(nextCardState);
     return true;
   }
@@ -6804,6 +6835,12 @@ function App() {
     if (sessionCode) return { ...localCards, ...libraryCards, ...sessionCardsById };
     return { ...sessionCardsById, ...localCards };
   }, [cardState.cards, sessionCardsById, sessionLibraryCards, sessionCode]);
+  const prepSelectionSummary = useMemo(() => analyzeTeamSelection({
+    pieces,
+    cardsById: cardById,
+    team: prepSelectedTeam,
+    selectionRules,
+  }), [pieces, cardById, prepSelectedTeam, selectionRules]);
   const libraryPositionOptions = useMemo(() => Array.from(new Set((cardState.cards || []).map(card => card.position).filter(Boolean))).sort((a, b) => {
     const rankA = CARD_POSITION_OPTIONS.indexOf(a);
     const rankB = CARD_POSITION_OPTIONS.indexOf(b);
@@ -9156,6 +9193,12 @@ function App() {
   useEffect(() => {
     localStorage.setItem("football-board-tracker-size-v1", JSON.stringify(trackerSize));
   }, [trackerSize]);
+  useEffect(() => {
+    localStorage.setItem("football-board-prep-position-v1", JSON.stringify(prepPosition));
+  }, [prepPosition]);
+  useEffect(() => {
+    localStorage.setItem("football-board-prep-size-v1", JSON.stringify(prepSize));
+  }, [prepSize]);
 
   function onTrackerPointerDown(e) {
     e.preventDefault();
@@ -9195,6 +9238,62 @@ function App() {
     trackerResizeRef.current = null;
     setTrackerDragging(null);
     setTrackerResizing(null);
+  }
+
+  function onPrepPointerDown(e) {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const drag = { startX: e.clientX, startY: e.clientY, originX: prepPosition.x, originY: prepPosition.y };
+    prepDragRef.current = drag;
+    setPrepDragging(drag);
+  }
+  function onPrepPointerMove(e) {
+    const drag = prepDragRef.current;
+    if (!drag) return;
+    setPrepPosition({
+      x: clamp(drag.originX + e.clientX - drag.startX, 0, window.innerWidth - 80),
+      y: clamp(drag.originY + e.clientY - drag.startY, 0, window.innerHeight - 50),
+    });
+  }
+  function onPrepResizeDown(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const resize = { startX: e.clientX, startY: e.clientY, originW: prepSize.w, originH: prepSize.h };
+    prepResizeRef.current = resize;
+    setPrepResizing(resize);
+  }
+  function onPrepResizeMove(e) {
+    const resize = prepResizeRef.current;
+    if (!resize) return;
+    const maximumWidth = Math.max(300, window.innerWidth - prepPosition.x - 8);
+    const maximumHeight = Math.max(180, window.innerHeight - prepPosition.y - 8);
+    setPrepSize({
+      w: clamp(resize.originW + e.clientX - resize.startX, 300, maximumWidth),
+      h: clamp(resize.originH + e.clientY - resize.startY, 180, maximumHeight),
+    });
+  }
+  function onPrepPointerUp() {
+    prepDragRef.current = null;
+    prepResizeRef.current = null;
+    setPrepDragging(null);
+    setPrepResizing(null);
+  }
+  function updateSelectionRules(patch) {
+    setSelectionRules(current => selectionRulesWithPatch(current, patch));
+  }
+  function requestPrepReady() {
+    const ready = validateReadySelection({ pieces, cardsById, selectionRules });
+    if (!ready.valid) {
+      setPrepReadyIssues(ready.issues);
+      return;
+    }
+    setPrepReadyConfirmationOpen(true);
+  }
+  function confirmPrepReady() {
+    setPrepReady(true);
+    setPrepReadyConfirmationOpen(false);
+    setPrepSelectionOpen(false);
   }
   function buildTrackerSnapshot(overrides = {}) {
     return {
@@ -11875,6 +11974,13 @@ function App() {
           Import Match
           <input type="file" accept="application/json" disabled={Boolean(sessionCode)} onChange={e => { importMatchRecording(e.target.files?.[0]); e.target.value = ""; }} />
         </label>
+        {!sessionCode && <button
+          disabled={singlePlayerMatchWorkspaceLocked || prepReady}
+          title={singlePlayerMatchWorkspaceLocked ? "Selection Rules are locked after an offline Match starts." : prepReady ? "Prep is ready. Its Selection Rules are locked." : "Manage future-Match team-selection rules."}
+          onClick={() => setSelectionRulesOpen(true)}
+        >
+          Selection Rules
+        </button>}
         <button
           className={ruleSetEditingLocked ? "rules-locked" : ""}
           onClick={() => {
@@ -11972,6 +12078,14 @@ function App() {
         <button className={defAreaMode ? "toggle-on" : ""} onClick={() => setDefAreaMode(v => (v + 1) % 3)}>
           {defAreaButtonLabel}
         </button>
+        {!sessionCode && <button
+          className={prepVisible ? "toggle-on" : ""}
+          disabled={singlePlayerMatchWorkspaceLocked}
+          title={singlePlayerMatchWorkspaceLocked ? "Prep is available only before an offline Match starts." : "Open pre-match team preparation."}
+          onClick={() => { setPrepVisible(visible => !visible); if (!prepVisible) setPrepMinimized(false); }}
+        >
+          Prep
+        </button>}
         <button
           className={trackerVisible ? "toggle-on" : ""}
           onClick={() => setTrackerEnabledForSession(!trackerVisible)}
@@ -12485,6 +12599,32 @@ function App() {
         </div>
       )}
 
+      {!sessionCode && !singlePlayerMatchWorkspaceLocked && <PrepPanel
+        visible={prepVisible}
+        lockUI={lockUI}
+        minimized={prepMinimized}
+        position={prepPosition}
+        size={prepSize}
+        onPointerMove={event => { onPrepPointerMove(event); onPrepResizeMove(event); }}
+        onPointerUp={onPrepPointerUp}
+        onTitlePointerDown={onPrepPointerDown}
+        onResizeDown={onPrepResizeDown}
+        onMinimize={() => setPrepMinimized(value => !value)}
+        onClose={() => setPrepVisible(false)}
+        selectedTeam={prepSelectedTeam}
+        onSelectedTeam={setPrepSelectedTeam}
+        formations={formations}
+        formationId={prepSelectedTeam === "A" ? blueFormationId : redFormationId}
+        onFormationChange={id => {
+          if (prepSelectedTeam === "A") setBlueFormationId(id);
+          else setRedFormationId(id);
+          applyFormation(prepSelectedTeam, id);
+        }}
+        onOpenSelection={() => setPrepSelectionOpen(true)}
+        onReady={requestPrepReady}
+        readyLocked={prepReady}
+      />}
+
       <TrackerPanel
         visible={trackerVisible}
         lockUI={lockUI}
@@ -12526,6 +12666,90 @@ function App() {
       )}
 
       <AssignCardModal controller={buildAssignCardModalController()} />
+
+      {selectionRulesOpen && !sessionCode && (
+        <div className="modal-backdrop" onPointerDown={() => { setSelectionRulesOpen(false); setSelectionRulesConstraintDraftOpen(false); }}>
+          <div className="modal selection-rules-modal" onPointerDown={event => event.stopPropagation()}>
+            <div className="modal-title"><strong>Selection Rules</strong><button className="icon-btn" onClick={() => { setSelectionRulesOpen(false); setSelectionRulesConstraintDraftOpen(false); }}>×</button></div>
+            <p className="rules-lock-note">This is a future-Match squad-building policy. It is separate from gameplay Rule Sets.</p>
+            <label className="selection-rule-checkbox">
+              <input type="checkbox" checked={selectionRules.freeMode} onChange={event => {
+                if (event.target.checked) {
+                  updateSelectionRules({ freeMode: true, totalStarsCap: { enabled: false }, maximumPlayersAtStars: { enabled: false } });
+                  setSelectionRulesConstraintDraftOpen(false);
+                } else setSelectionRulesConstraintDraftOpen(true);
+              }} />
+              Free Mode
+            </label>
+            <section className="selection-rule-section">
+              <label className="selection-rule-checkbox">
+                <input type="checkbox" disabled={selectionRules.freeMode && !selectionRulesConstraintDraftOpen} checked={selectionRules.totalStarsCap.enabled} onChange={event => {
+                  setSelectionRulesConstraintDraftOpen(false);
+                  updateSelectionRules({ freeMode: false, totalStarsCap: { enabled: event.target.checked } });
+                }} />
+                Total Stars Cap
+              </label>
+              <label>Total stars
+                <input type="number" min="0" max="180" step="1" disabled={!selectionRules.totalStarsCap.enabled} value={selectionRules.totalStarsCap.value} onChange={event => updateSelectionRules({ totalStarsCap: { value: event.target.value } })} />
+              </label>
+            </section>
+            <section className="selection-rule-section">
+              <label className="selection-rule-checkbox">
+                <input type="checkbox" disabled={selectionRules.freeMode && !selectionRulesConstraintDraftOpen} checked={selectionRules.maximumPlayersAtStars.enabled} onChange={event => {
+                  setSelectionRulesConstraintDraftOpen(false);
+                  updateSelectionRules({ freeMode: false, maximumPlayersAtStars: { enabled: event.target.checked } });
+                }} />
+                Maximum X Players at Y Stars
+              </label>
+              <label>Maximum players
+                <input type="number" min="0" max="18" step="1" disabled={!selectionRules.maximumPlayersAtStars.enabled} value={selectionRules.maximumPlayersAtStars.maxPlayers} onChange={event => updateSelectionRules({ maximumPlayersAtStars: { maxPlayers: event.target.value } })} />
+              </label>
+              <label>Stars
+                <input type="number" min="0" max="10" step="1" disabled={!selectionRules.maximumPlayersAtStars.enabled} value={selectionRules.maximumPlayersAtStars.stars} onChange={event => updateSelectionRules({ maximumPlayersAtStars: { stars: event.target.value } })} />
+              </label>
+            </section>
+          </div>
+        </div>
+      )}
+
+      {prepSelectionOpen && !sessionCode && (
+        <div className="modal-backdrop" onPointerDown={() => setPrepSelectionOpen(false)}>
+          <div className="modal prep-selection-modal" onPointerDown={event => event.stopPropagation()}>
+            <div className="modal-title"><strong>{prepSelectionSummary.teamName} Selection</strong><button className="icon-btn" onClick={() => setPrepSelectionOpen(false)}>×</button></div>
+            <div className="prep-selection-summary">
+              <div><strong>Total Stars:</strong> {prepSelectionSummary.totalStars}</div>
+              {!selectionRules.freeMode && <>
+                {selectionRules.totalStarsCap.enabled && <div className={prepSelectionSummary.issues.some(item => item.code === "total-stars-cap") ? "selection-problem" : ""}>Total cap: {selectionRules.totalStarsCap.value}</div>}
+                {selectionRules.maximumPlayersAtStars.enabled && <div className={prepSelectionSummary.issues.some(item => item.code === "individual-stars-cap" || item.code === "maximum-stars-player-count") ? "selection-problem" : ""}>Maximum {selectionRules.maximumPlayersAtStars.maxPlayers} player(s) at {selectionRules.maximumPlayersAtStars.stars} stars · current: {prepSelectionSummary.atMaximumStars}</div>}
+              </>}
+              <div>Assigned cards: {prepSelectionSummary.assignedCount}/18</div>
+              {prepSelectionSummary.issues.length > 0 && <ul className="selection-issues">{prepSelectionSummary.issues.map((item, index) => <li key={`${item.code}-${index}`}>{item.message}</li>)}</ul>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {prepReadyIssues.length > 0 && (
+        <div className="modal-backdrop" onPointerDown={() => setPrepReadyIssues([])}>
+          <div className="modal prep-ready-issues-modal" onPointerDown={event => event.stopPropagation()}>
+            <div className="modal-title"><strong>Cannot mark Prep as ready</strong><button className="icon-btn" onClick={() => setPrepReadyIssues([])}>×</button></div>
+            <ul className="selection-issues">{prepReadyIssues.map((item, index) => <li key={`${item.code}-${index}`}>{item.message}</li>)}</ul>
+          </div>
+        </div>
+      )}
+
+      {prepReadyConfirmationOpen && (
+        <div className="modal-backdrop" onPointerDown={() => setPrepReadyConfirmationOpen(false)}>
+          <div className="modal prep-ready-confirm-modal" onPointerDown={event => event.stopPropagation()}>
+            <div className="modal-title"><strong>Ready</strong></div>
+            <div className="turn-confirm-message">Are you sure you are ready to start the Match?</div>
+            <div className="modal-actions turn-confirm-actions">
+              <button onClick={() => setPrepReadyConfirmationOpen(false)}>No</button>
+              <button onClick={confirmPrepReady}>Yes</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {matchExitConfirmationOpen && (
         <div className="modal-backdrop match-exit-backdrop">

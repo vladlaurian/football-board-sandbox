@@ -7,12 +7,14 @@ test("Workspace Snapshot excludes live Match Runtime while retaining future-Matc
     settings: { cols: 44 },
     pieces: [{ id: "ball" }],
     trackerSettings: { attackActions: 5 },
+    selectionRules: { freeMode: false, totalStarsCap: { enabled: true, value: 55 } },
     preferences: { touchMode: true, trackerVisible: true },
   });
 
   assert.equal(snapshot.settings.cols, 44);
   assert.equal(snapshot.trackerSettings.attackActions, 5);
   assert.equal(snapshot.preferences.touchMode, true);
+  assert.deepEqual(snapshot.selectionRules.totalStarsCap, { enabled: true, value: 55 });
   assert.equal("gameMode" in snapshot, false);
   assert.equal("movementStateByPieceId" in snapshot, false);
   assert.equal("trackerState" in snapshot, false);
@@ -39,4 +41,5 @@ test("Workspace Snapshot reads legacy flat persistence without reviving Match Ru
   assert.equal("gameMode" in workspace, false);
   assert.equal("movementStateByPieceId" in workspace, false);
   assert.equal("dieResult" in workspace, false);
+  assert.equal(workspace.selectionRules.freeMode, true);
 });

@@ -1,4 +1,6 @@
-export const WORKSPACE_SNAPSHOT_VERSION = 1;
+import { normalizeSelectionRules } from "./selectionRules.mjs";
+
+export const WORKSPACE_SNAPSHOT_VERSION = 2;
 
 /**
  * Serializable future-Match setup. It deliberately excludes all live Match
@@ -19,6 +21,7 @@ export function createWorkspaceSnapshot({
   dieType,
   cardState,
   trackerSettings,
+  selectionRules,
   preferences = {},
 } = {}) {
   return {
@@ -37,6 +40,7 @@ export function createWorkspaceSnapshot({
     dieType,
     cardState,
     trackerSettings,
+    selectionRules: normalizeSelectionRules(selectionRules),
     preferences: {
       touchMode: Boolean(preferences.touchMode),
       showCoordinates: Boolean(preferences.showCoordinates),
@@ -76,6 +80,7 @@ export function readWorkspaceSnapshot(raw = {}) {
     dieType: source.dieType,
     cardState: source.cardState,
     trackerSettings: source.trackerSettings || legacyTracker.settings,
+    selectionRules: normalizeSelectionRules(source.selectionRules),
     preferences: {
       touchMode: preferences.touchMode ?? source.touchMode,
       showCoordinates: preferences.showCoordinates ?? source.showCoordinates,

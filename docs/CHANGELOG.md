@@ -2,6 +2,39 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.11 — Prep and Selection Rules
+
+- Implements the Single Player-only movable, resizable, minimizable Prep panel
+  immediately before Tracker, with Team, Formation, Selection and Ready
+  functional. Adjust and Substitution remain visibly disabled with their
+  approved future-scope explanations.
+- Reuses the coordinate-only formation mechanism, so applying a formation
+  moves the stable starter pucks and preserves every assigned card.
+- Adds persisted Workspace Selection Rules: exclusive Free Mode, optional
+  Total Stars Cap, and optional Maximum X Players at Y Stars.
+- Adds pure full-roster analysis and Ready validation for all eighteen cards,
+  plus starter/reserve/GK structure and starter-only positional composition.
+  Ready confirms with the approved text and locks Prep controls only; it does
+  not start a Match or write a Timeline event.
+- Keeps Tracker Start Game independent of Prep/Ready. Engine, MatchState,
+  Timeline, Undo/Redo, Replay and AI export require no change because this is
+  pre-match Workspace state, not a gameplay command.
+- Manual Multiplayer and automated Multiplayer/Firebase are unchanged.
+
+## v20.56.10 — Prep and Selection Rules documentation
+
+- Replaces the approved future Blue/Red positional-zone map, including the
+  intentional ST/CAM overlap and the exact Red mirror cells.
+- Defines Prep as a Tracker-like second-bar panel with Team, Formation,
+  Selection, Adjust, Substitution and Ready controls.
+- Defines the independent, checkbox-driven Selection Rules state for all
+  eighteen cards: Total Stars Cap, Maximum X Players at Y Stars and exclusive
+  Free Mode.
+- Defines pre-match Ready validation/locking, preserves Tracker Start Game as
+  the sole Match-start command and records Substitution as visibly disabled
+  until canonical interruptions/restarts exist.
+- No runtime source changed. Manual Multiplayer remains unchanged.
+
 ## v20.56.9 — Card-role authority and coordinate-only formations
 
 - Makes `card.position` the only Single Player authority for a player's football role. New starter and reserve pucks are neutral; role labels are no longer created, displayed as a fallback or exported by the offline path.
