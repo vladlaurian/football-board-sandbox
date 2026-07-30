@@ -6,25 +6,24 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.13` |
-| Git/package version | `20.56.13` |
-| Build name | `Final_Board_v20_56_13_prep_mode_boundary_and_summary` |
-| Base build | `Final_Board_v20_56_12_prep_ready_feedback` |
+| Sandbox version | `v20.56.14` |
+| Git/package version | `20.56.14` |
+| Build name | `Final_Board_v20_56_14_match_start_continue_lifecycle` |
+| Base build | `Final_Board_v20_56_13_prep_mode_boundary_and_summary` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.13`. The repository version is in `package.json` as `20.56.13`. The browser title is `Sandbox v20.56.13`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.14`. The repository version is in `package.json` as `20.56.14`. The browser title is `Sandbox v20.56.14`.
 
 ## Current release
 
-v20.56.13 restores the approved mode boundary: Prep is available only in
-Single Player Match Mode before Start Game, while its Editor button is visibly
-blocked. Selection Rules remain editable in Editor but are view-only as soon
-as Match Mode is entered. Prep permanently shows the live Blue and Red
-selection summaries together, including Free Selection/active limits, totals,
-assignment count and exact violations; the detached right-side panel is gone.
-Adjust and Substitution remain disabled. This build adds no Engine, Timeline or
-AI-export event, and Manual Multiplayer/Firebase retain their frozen legacy
-paths.
+v20.56.14 separates Tracker lifecycle into Start New Game and Continue Game.
+Start New Game reapplies the selected formations without deassigning cards,
+resets the ball to centre and places the starting ST in the adjacent opponent
+half; Continue Game preserves the current board while resetting all Match
+runtime. Leaving Match Mode for Editor also clears runtime while retaining board
+positions and assignments. Prep remains available throughout Single Player
+Match Mode; Selection Rules remain view-only there. Ready now also enforces the
+approved minimum starter structure. Manual Multiplayer/Firebase remain frozen.
 
 v20.56.12 established the Ready acknowledgement flow. v20.56.11 established
 the underlying Prep and Selection Rules foundation. v20.56.10 is its

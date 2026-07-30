@@ -2,6 +2,24 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.14 — Match start / continue lifecycle and minimum formation structure
+
+- Replaces Tracker Start Game with equal-width `Start New Game` and `Continue
+  Game` controls. New Game reapplies selected formations, preserves cards,
+  resets the ball to centre and places the starting ST one cell into the
+  opponent half; Continue Game preserves the current board while resetting all
+  Match runtime.
+- Prep is available throughout offline Single Player Match Mode. A formation
+  selected while a Match is active is staged for the next New Game and cannot
+  silently rewrite the live board.
+- Leaving Match Mode for Editor preserves pieces/card assignment but resets
+  Tracker, actions, movement, pending resolution, Bonus Action, 3/2,
+  modifiers and displayed die results.
+- Ready now requires among the eleven starters: at least one ST, two CB, two
+  combined CDM/CM/CAM, one LM/LW and one RM/RW. Full-backs remain optional;
+  existing maxima remain active.
+- Manual Multiplayer and Firebase are unchanged.
+
 ## v20.56.13 — Prep mode boundary and permanent Selection summary
 
 - Restores Prep as a Single Player Match Mode-only pre-start panel. Its Editor

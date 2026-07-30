@@ -506,6 +506,27 @@ Restart uses the same canonical lifecycle reset as Match start, but deliberately
 - A later dedicated Editor Workspace ↔ Match boundary audit may formalize setup and snapshot behavior; it must not migrate unrestricted editor manipulation into Match Engine by default.
 - Manual Multiplayer remains unchanged.
 
+## ADR-052 — New Match setup is distinct from continuing a Match
+
+**Status:** Active
+
+**Decision:** Offline Single Player Tracker distinguishes `Start New Game` from
+`Continue Game`. Continue Game uses the existing canonical restart transition:
+it preserves board coordinates but clears Match runtime and begins turn one.
+Start New Game is a future-Match Workspace boundary before `MATCH_STARTED`: it
+reapplies selected coordinate-only formations while preserving card links,
+performs the central opening placement, then creates a fresh Timeline and
+MatchContext. Leaving Match Mode for Editor clears Match runtime but preserves
+the Workspace board and card assignment.
+
+**Consequences:**
+
+- a former Match Timeline cannot leak into a newly started Match;
+- active-match formation selection may stage a future New Game but may not
+  silently mutate the canonical live board;
+- the Engine remains authority for Continue Game runtime reset and Match start;
+- Manual Multiplayer retains its frozen lifecycle.
+
 ## ADR-032 — Pass begins and cancels through canonical action resolution
 
 **Status:** Active

@@ -22,7 +22,8 @@
 
 - Timeline and active cursor;
 - MatchContext;
-- active Match mode and Tracker progress;
+- active Match mode and Tracker progress; returning to Editor clears this
+  runtime while preserving the Workspace board positions and card assignment;
 - action log, current phase and consumed actions;
 - movement authorization/state;
 - pending Pass, interception, delayed resolution and Bonus Action;

@@ -1,5 +1,6 @@
 import { normalizeRuleSet } from "../rules/ruleSets.mjs";
 import { normalizeTrackerActionLog } from "../tracker/trackerState.mjs";
+import { createEmptyTrackerTurnState } from "../tracker/actionRules.mjs";
 import { normalizeRollModifierOpportunities } from "../engine/rollModifierOpportunities.mjs";
 
 export const GAME_STATE_SCHEMA_VERSION = 2;
@@ -111,7 +112,7 @@ export function mergeGameState(baseState, overrides = {}) {
  */
 export function createEditorStateAfterMatchExit(rawState) {
   const state = createGameState(rawState);
-  const current = state.tracker.matchActionState || {};
+  const emptyTurn = createEmptyTrackerTurnState();
   return createGameState({
     ...state,
     gameMode: "editor",
@@ -123,29 +124,16 @@ export function createEditorStateAfterMatchExit(rawState) {
     threeTwoOpportunity: null,
     tracker: {
       ...state.tracker,
-      // Personal-action values belong to the Match that is being closed.
-      // Editor keeps its own manual marker, so it starts clean and may then
-      // be marked manually without inheriting completed Match activity.
-      personalActionsByPieceId: {},
-      matchActionState: {
-        ...current,
-        freeMode: { active: false, pieceId: null, team: null, timelineGroupId: null },
-        groupMove: {
-          active: false,
-          team: null,
-          timelineGroupId: null,
-          zoneStartX: null,
-          zoneLength: 0,
-          maxPlayers: 0,
-          maxOrthogonalDistance: 0,
-          maxDiagonalDistance: 0,
-          sameDirectionOnly: true,
-          movedPieceIds: [],
-          direction: null,
-        },
-        activeMovement: { active: false, kind: null, pieceId: null, team: null, timelineGroupId: null },
-      },
+      // Editor is a new future-Match workspace, never a paused Match.
+      gameStarted: false,
+      currentTurn: 0,
+      usedActions: emptyTurn.usedActions,
+      actionLog: emptyTurn.actionLog,
+      personalActionsByPieceId: emptyTurn.personalActionsByPieceId,
+      matchActionState: emptyTurn.matchActionState,
+      turnPhase: "attack",
     },
+    dice: { ...state.dice, blueResult: null, redResult: null },
   });
 }
 

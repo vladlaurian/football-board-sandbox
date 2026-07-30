@@ -214,7 +214,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.13";
+const APP_VERSION = "v20.56.14";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2128,6 +2128,7 @@ function App() {
   const [trackerDragging, setTrackerDragging] = useState(null);
   const [trackerResizing, setTrackerResizing] = useState(null);
   const [trackerStartChoiceOpen, setTrackerStartChoiceOpen] = useState(false);
+  const [trackerStartIntent, setTrackerStartIntent] = useState("new");
   const [trackerGameStarted, setTrackerGameStarted] = useState(false);
   const [trackerStartingTeam, setTrackerStartingTeam] = useState("red");
   const [trackerCurrentTurn, setTrackerCurrentTurn] = useState(0);
@@ -4652,7 +4653,9 @@ function App() {
   }
 
   function applyFormation(team, formationId) {
-    if (singlePlayerMatchWorkspaceLocked) return;
+    // During a live Match, Prep may select the formation for the next
+    // Start New Game, but it must not silently rewrite the active board.
+    if (singlePlayerMatchWorkspaceLocked) return false;
     const formation = getFormationById(formationId);
     pushHistory();
     setPieces(prev => {
@@ -4673,6 +4676,7 @@ function App() {
       logSnapshot(`${team === "A" ? "Blue" : "Red"} formation: ${formation.name}`, next);
       return next;
     });
+    return true;
   }
 
   function saveCurrentAsFormation(team, slotId) {
@@ -6036,6 +6040,7 @@ function App() {
     else if (result.reason === "GROUP_MOVE_DIRECTION") primary = <>All Group Move players must follow the first movement direction.</>;
     else if (result.reason === "movement-ended") primary = <>This player has no legal movement remaining during the current turn.</>;
     else if (result.reason === "match-not-started") primary = <>Start the match in Tracker before moving players.</>;
+    else if (result.reason === "STARTING_ST_REQUIRED") primary = <>The team that starts needs at least one starting ST for kick-off.</>;
     else if (result.reason === "move-not-authorized") primary = <>Press MOVE, GROUP MOVE or FREE MOVE before moving this player, or advance to next turn.</>;
     else if (result.reason === "pass-origin-blocked") primary = <>This execution corner is blocked by an adjacent player.</>;
     else if (result.reason === "pass-goalkeeper-blocked") primary = <>A pass route cannot cross a goalkeeper.</>;
@@ -11394,35 +11399,96 @@ function App() {
     commitEndBonusAction(continuation);
   }
 
+  function prepareNewGamePieces(team) {
+    const blueFormation = getFormationById(blueFormationId);
+    const redFormation = getFormationById(redFormationId);
+    const sourcePieces = piecesRef.current || pieces;
+    const applyForTeam = (currentPieces, formationTeam, formation) => planWorkspaceFormationApplication({
+      pieces: currentPieces,
+      team: formationTeam,
+      formation,
+      blueFormation,
+      redFormation,
+      settings: settingsRef.current,
+      createInitialPieces,
+      sanitizePieces: nextPieces => sanitizePiecesCardIds(nextPieces, cardStateRef.current, settingsRef.current),
+      stripPuckLabels: true,
+    });
+    const withBlueFormation = applyForTeam(sourcePieces, "A", blueFormation);
+    const withFormations = applyForTeam(withBlueFormation, "B", redFormation);
+    const starterTeam = team === "blue" ? "A" : "B";
+    const striker = withFormations.find(piece => piece.team === starterTeam
+      && !isBenchReservePiece(piece)
+      && cardById[String(piece.cardId || "")]?.position === "ST");
+    if (!striker) return { accepted: false, reason: "STARTING_ST_REQUIRED" };
+    const centerX = Math.floor(Number(settingsRef.current?.cols) / 2);
+    const centerY = Math.floor(Number(settingsRef.current?.rows) / 2);
+    const strikerX = team === "blue" ? centerX + 1 : centerX - 1;
+    return {
+      accepted: true,
+      pieces: withFormations.map(piece => {
+        if (piece.team === "BALL") return { ...piece, x: centerX, y: centerY };
+        if (piece.id === striker.id) return { ...piece, x: strikerX, y: centerY };
+        return piece;
+      }),
+    };
+  }
+
   function startTrackedGame(team) {
     if (trackerReadOnly) return;
     if (!sessionCode && gameMode === "match") {
-      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
-      const restarting = normalizeTrackerSnapshot(before.tracker).gameStarted;
+      const current = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const continuing = trackerStartIntent === "continue";
+      const prepared = continuing ? { accepted: true, pieces: current.pieces } : prepareNewGamePieces(team);
+      if (!prepared.accepted) {
+        setIllegalMoveNotice({ reason: prepared.reason });
+        return;
+      }
+      const emptyTurn = createEmptyTrackerTurnState();
+      const before = continuing ? current : createGameState({
+        ...current,
+        pieces: prepared.pieces,
+        movementStateByPieceId: {},
+        actionResolution: null,
+        actionContinuation: null,
+        threeTwoOpportunity: null,
+        rollModifierOpportunities: [],
+        tracker: {
+          ...current.tracker,
+          gameStarted: false,
+          currentTurn: 0,
+          usedActions: emptyTurn.usedActions,
+          actionLog: emptyTurn.actionLog,
+          personalActionsByPieceId: emptyTurn.personalActionsByPieceId,
+          matchActionState: emptyTurn.matchActionState,
+          turnPhase: "attack",
+        },
+        dice: { ...current.dice, blueResult: null, redResult: null },
+      });
       const context = createMatchContext({
-        id: gameTimelineRef.current?.recordingId || `single-player-${Date.now()}`,
+        id: continuing ? (gameTimelineRef.current?.recordingId || `single-player-${Date.now()}`) : `single-player-${Date.now()}`,
         ruleSet: before.ruleSet,
         boardSettings: before.settings,
         gameplayCards: captureAvailableMatchCards(),
       });
       const command = {
-        id: createActionEventId(`${restarting ? "match_restart" : "match_start"}_${team}`),
-        type: restarting ? GAME_COMMAND_TYPE.MATCH_RESTARTED : GAME_COMMAND_TYPE.MATCH_STARTED,
+        id: createActionEventId(`${continuing ? "match_restart" : "match_start"}_${team}`),
+        type: continuing ? GAME_COMMAND_TYPE.MATCH_RESTARTED : GAME_COMMAND_TYPE.MATCH_STARTED,
         payload: { team },
       };
-      const dispatched = restarting
+      const dispatched = continuing
         ? dispatchSinglePlayerGameCommand({
             timeline: gameTimelineRef.current,
             state: before,
             context,
             command,
-            label: `Match restarted: ${team === "blue" ? "Blue" : "Red"} attacks`,
+            label: `Game continued: ${team === "blue" ? "Blue" : "Red"} attacks`,
           })
         : dispatchSinglePlayerMatchStart({
             state: before,
             context,
             command,
-            label: `Match started: ${team === "blue" ? "Blue" : "Red"} attacks`,
+            label: `New game started: ${team === "blue" ? "Blue" : "Red"} attacks`,
           });
       if (!dispatched.result.accepted) {
         if (dispatched.result.reason) setIllegalMoveNotice({ reason: dispatched.result.reason });
@@ -11431,6 +11497,7 @@ function App() {
       matchContextRef.current = context;
       matchPlayableStartEstablishedRef.current = true;
       setTrackerStartChoiceOpen(false);
+      setTrackerStartIntent("new");
       return;
     }
     const beforeTimeline = captureTimelineGameState();
@@ -12083,8 +12150,8 @@ function App() {
         </button>
         {!sessionCode && <button
           className={prepVisible ? "toggle-on" : ""}
-          disabled={gameMode !== "match" || singlePlayerMatchWorkspaceLocked}
-          title={gameMode !== "match" ? "Enter Match Mode to prepare the squads." : singlePlayerMatchWorkspaceLocked ? "Prep is available only before an offline Match starts." : "Open pre-match team preparation."}
+        disabled={gameMode !== "match"}
+          title={gameMode !== "match" ? "Enter Match Mode to prepare the squads." : "Open team preparation."}
           onClick={() => { setPrepVisible(visible => !visible); if (!prepVisible) setPrepMinimized(false); }}
         >
           Prep
@@ -12602,7 +12669,7 @@ function App() {
         </div>
       )}
 
-      {!sessionCode && gameMode === "match" && !singlePlayerMatchWorkspaceLocked && <PrepPanel
+      {!sessionCode && gameMode === "match" && <PrepPanel
         visible={prepVisible}
         lockUI={lockUI}
         minimized={prepMinimized}
@@ -12641,7 +12708,8 @@ function App() {
         onMinimize={() => setTrackerMinimized(v => !v)}
         onClose={() => setTrackerEnabledForSession(false)}
         gameStarted={trackerGameStarted}
-        onStartOrRestart={() => setTrackerStartChoiceOpen(true)}
+        onStartNewGame={() => { setTrackerStartIntent("new"); setTrackerStartChoiceOpen(true); }}
+        onContinueGame={() => { setTrackerStartIntent("continue"); setTrackerStartChoiceOpen(true); }}
         onChangePossession={changeTrackerPossession}
         onReset={resetTrackerActions}
         trackerSettings={trackerSettings}
@@ -12741,7 +12809,7 @@ function App() {
         <div className="modal-backdrop" onPointerDown={() => setPrepReadySuccessOpen(false)}>
           <div className="modal prep-ready-success-modal" onPointerDown={event => event.stopPropagation()}>
             <div className="modal-title"><strong>Prep complete</strong></div>
-            <div className="turn-confirm-message">Everything is ready. Press Start Game in Tracker to start the Match.</div>
+            <div className="turn-confirm-message">Everything is ready. Press Start New Game in Tracker to start the Match.</div>
             <div className="modal-actions turn-confirm-actions"><button className="save-switch" onClick={() => setPrepReadySuccessOpen(false)}>OK</button></div>
           </div>
         </div>
@@ -13237,9 +13305,9 @@ function App() {
       )}
 
       {trackerStartChoiceOpen && (
-        <div className="modal-backdrop" onPointerDown={() => setTrackerStartChoiceOpen(false)}>
+        <div className="modal-backdrop" onPointerDown={() => { setTrackerStartChoiceOpen(false); setTrackerStartIntent("new"); }}>
           <div className="modal tracker-start-modal" onPointerDown={e => e.stopPropagation()}>
-            <div className="modal-title"><strong>Who starts?</strong><button className="icon-btn" onClick={() => setTrackerStartChoiceOpen(false)}>×</button></div>
+            <div className="modal-title"><strong>{trackerStartIntent === "continue" ? "Who continues?" : "Who starts?"}</strong><button className="icon-btn" onClick={() => { setTrackerStartChoiceOpen(false); setTrackerStartIntent("new"); }}>×</button></div>
             <p>Choose the team that attacks first.</p>
             <div className="tracker-start-choices">
               <button className="blue-choice" onClick={() => startTrackedGame("blue")}>Blue Team</button>

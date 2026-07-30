@@ -15,7 +15,8 @@ export function TrackerPanel({
   onMinimize,
   onClose,
   gameStarted,
-  onStartOrRestart,
+  onStartNewGame,
+  onContinueGame,
   onChangePossession,
   onReset,
   trackerSettings,
@@ -52,7 +53,8 @@ export function TrackerPanel({
       {!minimized && (
         <div className="tracker-panel-body">
           <div className="tracker-main-actions">
-            <button className="tracker-primary-button tracker-start-button" onClick={onStartOrRestart} disabled={readOnly}>Start Game</button>
+            <button className="tracker-primary-button tracker-start-button" onClick={onStartNewGame} disabled={readOnly}>Start New Game</button>
+            <button className="tracker-primary-button tracker-continue-button" onClick={onContinueGame} disabled={readOnly || !gameStarted}>Continue Game</button>
             <button className="tracker-change-possession-button" onClick={onChangePossession} disabled={readOnly || !gameStarted}>Change Possession</button>
             <button className="tracker-reset-button" onClick={onReset} disabled={readOnly || !gameStarted}>Reset Trackers</button>
           </div>

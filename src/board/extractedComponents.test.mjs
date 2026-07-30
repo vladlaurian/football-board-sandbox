@@ -140,7 +140,8 @@ test("extracted Board, History, Tracker, Prep, and shared Card Preview JSX compo
       onMinimize: noop,
       onClose: noop,
       gameStarted: true,
-      onStartOrRestart: noop,
+      onStartNewGame: noop,
+      onContinueGame: noop,
       onChangePossession: noop,
       onReset: noop,
       trackerSettings: { attackActions: 5, defenseActions: 4, turns: 20 },
@@ -188,6 +189,8 @@ test("extracted Board, History, Tracker, Prep, and shared Card Preview JSX compo
   assert.match(prepMarkup, /Red Selection/);
   assert.match(prepMarkup, /Free Selection enabled/);
   assert.match(trackerMarkup, /MV/);
+  assert.match(trackerMarkup, /Start New Game/);
+  assert.match(trackerMarkup, /Continue Game/);
 
   const cardRenderContext = {
     appTheme: "Style 1",

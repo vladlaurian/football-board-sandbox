@@ -139,6 +139,17 @@ export function analyzeTeamSelection({ pieces, cardsById, team, selectionRules }
   });
   const starterCdm = positionCount(starterCards, "CDM");
   const starterCm = positionCount(starterCards, "CM");
+  const starterCam = positionCount(starterCards, "CAM");
+  const starterSt = positionCount(starterCards, "ST");
+  const starterCb = positionCount(starterCards, "CB");
+  const starterLeftWide = starterCards.filter(entry => ["LM", "LW"].includes(entry.role)).length;
+  const starterRightWide = starterCards.filter(entry => ["RM", "RW"].includes(entry.role)).length;
+  const starterCentralMidfield = starterCdm + starterCm + starterCam;
+  if (starterSt < 1) issues.push(issue("starter-st-minimum", `${teamName(team)} needs at least one starting ST; found ${starterSt}.`, "starters"));
+  if (starterCb < 2) issues.push(issue("starter-cb-minimum", `${teamName(team)} needs at least two starting CB; found ${starterCb}.`, "starters"));
+  if (starterCentralMidfield < 2) issues.push(issue("starter-central-midfield-minimum", `${teamName(team)} needs at least two central midfielders (CDM/CM/CAM); found ${starterCentralMidfield}.`, "starters"));
+  if (starterLeftWide < 1) issues.push(issue("starter-left-wide-minimum", `${teamName(team)} needs at least one LM/LW; found ${starterLeftWide}.`, "starters"));
+  if (starterRightWide < 1) issues.push(issue("starter-right-wide-minimum", `${teamName(team)} needs at least one RM/RW; found ${starterRightWide}.`, "starters"));
   if (starterCdm === 2 && starterCm === 3) {
     issues.push(issue("starter-cdm-cm-conflict", `${teamName(team)} cannot use 2 CDM together with 3 CM.`, "starters"));
   }

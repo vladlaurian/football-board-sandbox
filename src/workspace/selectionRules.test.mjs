@@ -119,6 +119,28 @@ test("Ready reports every approved starter-position limit including the 2 CDM pl
   assert.equal(conflict.issues.some(item => item.code === "starter-cdm-cm-conflict"), true);
 });
 
+test("Ready enforces the approved minimum starter structure without requiring full-backs", () => {
+  const { pieces, cardsById } = legalRoster();
+  const starterIds = pieces.filter(piece => piece.team === "A" && !piece.id.includes("-R-")).map(piece => piece.cardId);
+  ["GK", "CB", "CB", "CDM", "CM", "LM", "RM", "ST", "CAM", "CB", "ST"].forEach((position, index) => {
+    cardsById[starterIds[index]].position = position;
+  });
+  assert.equal(analyzeTeamSelection({ pieces, cardsById, team: "A" }).valid, true);
+
+  ["GK", "CB", "LB", "RB", "CDM", "CM", "LM", "RM", "LW", "RW", "CAM"].forEach((position, index) => {
+    cardsById[starterIds[index]].position = position;
+  });
+  const withoutStriker = analyzeTeamSelection({ pieces, cardsById, team: "A" });
+  assert.equal(withoutStriker.issues.some(item => item.code === "starter-st-minimum"), true);
+
+  ["GK", "CB", "LB", "RB", "LM", "RM", "ST", "LW", "RW", "LWB", "RWB"].forEach((position, index) => {
+    cardsById[starterIds[index]].position = position;
+  });
+  const withoutCentralPair = analyzeTeamSelection({ pieces, cardsById, team: "A" });
+  assert.equal(withoutCentralPair.issues.some(item => item.code === "starter-central-midfield-minimum"), true);
+  assert.equal(withoutCentralPair.issues.some(item => item.code === "starter-cb-minimum"), true);
+});
+
 test("Ready analysis is pure and changes neither pieces nor cards", () => {
   const { pieces, cardsById } = legalRoster();
   const before = structuredClone({ pieces, cardsById });

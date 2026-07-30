@@ -20,10 +20,11 @@ v20.56.11 implements the pre-match Workspace portion only: Single Player
 Prep, Selection Rules persistence, full-roster selection analysis and Ready
 validation. v20.56.12 adds the explicit Ready acknowledgement. v20.56.13
 restores the mode boundary and makes the Blue/Red Selection summaries permanent
-inside Prep: confirmation closes Prep and directs the user to Tracker Start
-Game, but does not start or change a Match. Prep is available only after entry
-to Single Player Match Mode and before Start Game. Adjust, substitutions and
-central-restart placement remain future scopes. Manual Multiplayer remains a
+inside Prep. v20.56.14 keeps Prep available throughout Single Player Match
+Mode: a formation selected during an active Match is staged for the next Start
+New Game rather than rewriting the live board. Start New Game now performs the
+documented central opening placement. Adjust and substitutions remain future
+scopes. Manual Multiplayer remains a
 frozen legacy path and keeps its existing puck-label behavior.
 
 ## 1. One authority for a player's role
@@ -68,6 +69,12 @@ Every starter and reserve has an assigned card. There can be at most eleven
 players and at most one goalkeeper on the board for a team.
 
 The Ready validator reads card roles only and enforces:
+
+- minimum one `ST`;
+- minimum two `CB`;
+- minimum two combined `CDM`, `CM` or `CAM`;
+- minimum one `LM` or `LW`;
+- minimum one `RM` or `RW`;
 
 - maximum one of `RB` or `RWB`;
 - maximum one of `LB` or `LWB`;
@@ -177,8 +184,8 @@ inside that card's own role zone; it may not freely place the player elsewhere
 on the board.
 
 The Ready validator checks roster composition and all other setup legality.
-Adjust itself will not change card roles or card assignment. In v20.56.13,
-the control is intentionally disabled pending v20.56.14.
+Adjust itself will not change card roles or card assignment. In v20.56.14,
+the control remains intentionally disabled pending its separate implementation.
 
 ### 5.5 Ready and Match start
 
@@ -188,11 +195,17 @@ Rules and legal composition. On success, it asks:
 `Are you sure you are ready to start the Match?`
 
 - `No` changes nothing.
-- `Yes` closes Prep and confirms that the user must press `Start Game` in
+- `Yes` closes Prep and confirms that the user must press `Start New Game` in
   Tracker. It does **not** start the Match or leave a persistent Prep lock.
 
-`Start Game` remains a Tracker command. It may start a Match from the current
-board placement even if Prep has never been used or confirmed.
+`Start New Game` reapplies both selected formation templates without changing
+`cardId`, resets the ball to centre and places the selected starting team's
+first stable starter `ST` in the adjacent cell on the opponent half with
+possession. It starts a fresh Timeline and frozen MatchContext. `Continue
+Game` preserves all board coordinates but resets all Match runtime and starts
+turn one through the canonical restart command. The selected starting team must
+have a starter `ST`; otherwise Start New Game is rejected explicitly. Start New
+Game may be used without Prep or Ready.
 
 ### 5.6 Substitution control
 

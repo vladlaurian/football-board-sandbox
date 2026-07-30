@@ -7946,7 +7946,8 @@ label.grid-adjust-slider:last-child { margin-bottom: 0 !important; }
   border-radius: 9px;
   color: #fff;
 }
-.match-ui-presentation .tracker-main-actions .tracker-start-button {
+.match-ui-presentation .tracker-main-actions .tracker-start-button,
+.match-ui-presentation .tracker-main-actions .tracker-continue-button {
   font-weight: 800;
 }
 .match-ui-presentation .tracker-main-actions .tracker-change-possession-button,

@@ -665,19 +665,34 @@ Manual Multiplayer and Firebase are unchanged.
 
 **Status:** Complete.
 
-Prep is now a pre-start Single Player Match Mode surface only: its Editor button
-is visibly blocked, its panel closes on Match exit, and it remains absent after
-Start Game. Selection Rules are editable in Editor but view-only from the
-instant Match Mode is entered. The UI and the `updateSelectionRules` command
-both enforce that boundary.
+Prep is a Single Player Match Mode surface: its Editor button is visibly
+blocked and its panel closes on Match exit. Selection Rules are editable in
+Editor but view-only from the instant Match Mode is entered.
 
 The detached Selection popup is removed. `PrepPanel` renders the same pure
 full-roster analysis permanently for Blue and Red in that order, showing Free
 Selection or active limits, stars, assignments and violations. This stays
 outside Engine, MatchState, Timeline, Undo/Redo, Replay and AI export because
 it is Workspace presentation only. Manual Multiplayer and Firebase are
-unchanged. v20.56.14 is the next separate Adjust scope; Adjust is not
-implemented in this build.
+unchanged.
+
+### v20.56.14 — Match start / continue lifecycle and minimum formation structure
+
+**Status:** Complete.
+
+Prep remains available throughout offline Single Player Match Mode, but a live
+Match formation choice is staged for Start New Game so no Workspace control can
+silently rewrite canonical Match board state. Tracker separates Start New Game
+from Continue Game. New Game reapplies the selected coordinate templates while
+retaining card links, creates a fresh Timeline/MatchContext and performs the
+documented central opening placement. Continue Game uses the existing canonical
+restart transition and preserves the live board while clearing Match runtime.
+
+Leaving Match Mode resets all runtime in the future-Match Editor Workspace but
+keeps board coordinates and card assignments. Ready adds the approved minimum
+starter composition checks. Timeline and AI use the existing `MATCH_STARTED`
+vocabulary, with restart metadata for Continue Game; Manual Multiplayer and
+Firebase remain unchanged. Adjust remains a later separate scope.
 
 ## Required update after every implementation build
 

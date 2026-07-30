@@ -13,9 +13,17 @@ test("Tracker Start Game remains independent of Prep, Ready and Selection Rules"
   assert.doesNotMatch(implementation, /selectionRules|prepReady|validateReadySelection/);
 });
 
-test("Prep and Selection Rules are explicitly excluded from the Manual Multiplayer branch", () => {
+test("Prep remains Single Player-only throughout Match Mode and Selection Rules exclude Manual Multiplayer", () => {
   assert.match(source, /\{!sessionCode && <button[\s\S]*?Selection Rules[\s\S]*?<\/button>\}/);
-  assert.match(source, /\{!sessionCode && gameMode === "match" && !singlePlayerMatchWorkspaceLocked && <PrepPanel/);
+  assert.match(source, /\{!sessionCode && gameMode === "match" && <PrepPanel/);
+  assert.doesNotMatch(source, /gameMode !== "match" \|\| singlePlayerMatchWorkspaceLocked/);
+});
+
+test("Tracker exposes separate Start New Game and Continue Game lifecycle commands", () => {
+  assert.match(source, /onStartNewGame=\{\(\) => \{ setTrackerStartIntent\("new"\); setTrackerStartChoiceOpen\(true\); \}\}/);
+  assert.match(source, /onContinueGame=\{\(\) => \{ setTrackerStartIntent\("continue"\); setTrackerStartChoiceOpen\(true\); \}\}/);
+  assert.match(source, /function prepareNewGamePieces\(team\)/);
+  assert.match(source, /STARTING_ST_REQUIRED/);
 });
 
 test("Ready acknowledgement closes Prep without creating a persistent preparation lock", () => {
