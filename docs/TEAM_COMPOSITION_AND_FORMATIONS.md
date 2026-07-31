@@ -29,9 +29,11 @@ starter-role recipe. v20.56.21 corrects that catalogue so every default starter
 remains in its own half and outside the centre circle, and replaces role-wide
 Adjust zones with local formation-slot adjustment. v20.56.22 gives Prep's
 mutable controls an explicit selected-team boundary and requires a separate
-transient Ready confirmation from both teams before Start New. Substitutions
-remain future work. Manual Multiplayer remains a frozen legacy path and keeps
-its existing puck-label behavior.
+transient Ready confirmation from both teams before Start New. v20.56.23
+records the future separation between Workspace formation, active Match tactic
+and live board coordinates. Substitutions remain future work. Manual
+Multiplayer remains a frozen legacy path and keeps its existing puck-label
+behavior.
 
 ## 1. One authority for a player's role
 
@@ -280,6 +282,26 @@ entrance:
   roster rules, with an explicit explanatory rejection when illegal;
 - the post-substitution `Ready` requires confirmation and resumes the pending
   interruption only after confirmation.
+
+### 5.8 Future active-Match tactic
+
+The selected Workspace formation is only a future-Match setup value. It is not
+the mutable tactical state of a Match already under way.
+
+At an eligible canonical interruption, the coach will create a tactical draft:
+
+- selecting a new formation shows its lineup on a separate tactical preview;
+- it validates the actual eleven cards, including a proposed substitution when
+  one is part of the same draft;
+- confirmation changes an Engine-owned active tactical formation in MatchState
+  and creates a semantic Timeline/AI fact;
+- confirmation does **not** move any live player or ball coordinate;
+- a later restart that expressly permits formation placement uses the active
+  Match tactic, while all other board positions remain physical game state.
+
+The active-Match Formation control must never reuse the pre-Match live template
+application path. Until this lifecycle exists, no local tactical-change or
+substitution substitute is permitted.
 
 ## 6. Positional zones
 

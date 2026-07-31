@@ -6,25 +6,26 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.22` |
-| Git/package version | `20.56.22` |
-| Build name | `Final_Board_v20_56_22_prep_team_ownership_and_ready_gate` |
-| Base build | `Final_Board_v20_56_21_formation_half_pitch_and_local_adjust` |
+| Sandbox version | `v20.56.24` |
+| Git/package version | `20.56.24` |
+| Documentation build | `v20.56.24` |
+| Build name | `Final_Board_v20_56_24_canonical_modifier_tracker` |
+| Base build | `Final_Board_v20_56_23_rules_extraction_and_roadmap` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.22`. The repository version is in `package.json` as `20.56.22`. The browser title is `Sandbox v20.56.22`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.24`. The repository version is in `package.json` as `20.56.24`. The browser title is `Sandbox v20.56.24`.
 
 ## Current release
 
-v20.56.22 gives Prep an explicit selected-team ownership boundary: while Prep
-is open, only the selected team may use its Adjust movement or change card
-assignment; the other team remains inspectable. Ready is now an independent,
-transient acknowledgement per team. A setup mutation invalidates only that
-team's acknowledgement. `Start New Game` is allowed only after both Blue and
-Red are Ready and otherwise gives the exact Prep instruction; `Continue Game`
-remains independent. WorkspaceSnapshot, card authority, live card-preserving
-formation application, Engine, Timeline, AI export, Manual Multiplayer and
-Firebase remain unchanged.
+v20.56.24 implements the canonical Single Player team modifier Tracker.
+MatchState owns complete AV/AVM/DV/DVM tokens with same-tier cancellation,
+per-team capacity, roll scope and expiry. The selected Tracker capacity is
+persisted for future Matches and frozen in MatchContext at Match start.
+Interception and Lofted Through retain their accepted AV/AVM behavior through
+this model; existing formula-local modifiers remain local formula facts.
+Tracker projects token rows beneath team actions and above turns. Timeline,
+Undo/Redo, Replay and AI Export use the same canonical token state. Manual
+Multiplayer and Firebase remain unchanged.
 
 v20.56.12 established the Ready acknowledgement flow. v20.56.11 established
 the underlying Prep and Selection Rules foundation. v20.56.10 is its
@@ -107,6 +108,9 @@ docs/
 | [`WORKSPACE_PERSISTENCE.md`](docs/WORKSPACE_PERSISTENCE.md) | Future-Match WorkspaceSnapshot and structural Workspace-operation boundary. |
 | [`ACTION_RESOLUTION_ENGINE.md`](docs/ACTION_RESOLUTION_ENGINE.md) | Generic automated-action lifecycle. |
 | [`INTERCEPTION_ENGINE.md`](docs/INTERCEPTION_ENGINE.md) | Interception resolver and its boundary with Pass. |
+| [`PASS_AND_INTERCEPTION_RULES.md`](docs/PASS_AND_INTERCEPTION_RULES.md) | Player-rule contract for implemented Short Pass, Long Pass and Interception. |
+| [`THROUGH_BALL_RULES.md`](docs/THROUGH_BALL_RULES.md) | Player-rule contract for implemented Through Ball. |
+| [`LOFTED_THROUGH_BALL_RULES.md`](docs/LOFTED_THROUGH_BALL_RULES.md) | Player-rule contract for implemented Lofted Through Ball. |
 | [`GAMEPLAY_RULES_FOUNDATIONS.md`](docs/GAMEPLAY_RULES_FOUNDATIONS.md) | Canonical shared board-game rules: proximity, possession, inactive state, reactions, result vocabulary and Offside. |
 | [`CROSS_RULES.md`](docs/CROSS_RULES.md) | Canonical Cross rule: eligibility, interception order, Cross Claim, Aerial Duel and Header finalisation. |
 | [`MODIFIERS_AND_TRACKER_RULES.md`](docs/MODIFIERS_AND_TRACKER_RULES.md) | Agreed future modifier capacity, cancellation, expiry and canonical Tracker contract. |

@@ -50,12 +50,12 @@ export function endBonusAction(state, command) {
       };
       metadata = { ...metadata, nextPhase: "complete", matchComplete: true };
     } else {
-      const expiredRollBonuses = expiredRollModifierOpportunities(state.rollModifierOpportunities, requestedTurn);
+      const expiredRollBonuses = expiredRollModifierOpportunities(state.teamModifierTokens, requestedTurn);
       const emptyTurn = createEmptyTrackerTurnState();
       nextState = {
         ...nextState,
         movementStateByPieceId: {},
-        rollModifierOpportunities: pruneRollModifierOpportunities(state.rollModifierOpportunities, requestedTurn),
+        teamModifierTokens: pruneRollModifierOpportunities(state.teamModifierTokens, requestedTurn),
         tracker: {
           ...state.tracker,
           startingTeam: nextTeam,

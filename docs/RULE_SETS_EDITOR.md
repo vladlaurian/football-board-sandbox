@@ -1,5 +1,11 @@
 # Rule Sets Editor
 
+The player-facing rules controlled by these values are documented separately:
+[`PASS_AND_INTERCEPTION_RULES.md`](PASS_AND_INTERCEPTION_RULES.md),
+[`THROUGH_BALL_RULES.md`](THROUGH_BALL_RULES.md) and
+[`LOFTED_THROUGH_BALL_RULES.md`](LOFTED_THROUGH_BALL_RULES.md). This document
+owns only Rule Set availability, normalization and editor behavior.
+
 ## Purpose and availability
 
 The Rule Sets Editor is the visual configuration surface for gameplay rules represented by the Rule Set model. It is available from **Rules → Rule Sets** and can be edited only in **Editor Mode**. Match Mode reads the active saved Rule Set and does not expose live rule editing.

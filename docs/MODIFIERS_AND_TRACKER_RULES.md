@@ -3,9 +3,9 @@
 ## Status and scope
 
 This document is the agreed gameplay contract for team roll modifiers and their
-Tracker representation. It is documentation only at this stage. The current
-runtime has a narrower legacy implementation and must not be treated as having
-implemented this full contract until an approved engine build does so.
+Tracker representation. v20.56.24 implements this contract for Single Player
+MatchState, Tracker projection and the currently implemented D20 mechanics.
+Future mechanics must use the same token model rather than create local state.
 
 ## Two distinct limits
 
@@ -17,8 +17,10 @@ The game has two separate modifier limits:
 - The existing Rule Set `diceModifiers.stackCap` remains a separate numeric cap
   applied to a final roll modifier. It is not the Tracker token capacity.
 
-The selected team modifier capacity is frozen in `MatchContext` when the Match
-starts. It is not changed by later Tracker Settings or Rule Set edits.
+The capacity is editable as **Team Modifier Capacity** in Tracker Settings,
+saved in `WorkspaceSnapshot`, and frozen in `MatchContext` when Start New Game
+or Continue Game creates the playable Match. It is not changed by later
+Tracker Settings or Rule Set edits.
 
 ## Modifier types and values
 
@@ -88,9 +90,9 @@ condition.
 
 ## Canonical state and Tracker projection
 
-The Engine/MatchState is the authority for each active modifier token. A token
-must carry enough canonical information to determine its type, owning team,
-granting mechanic, eligible roll scope and expiry condition.
+The Engine/MatchState is the authority for each active modifier token. In the
+runtime this is `teamModifierTokens`; each token carries its type, owning team,
+granting mechanic, source action, eligible roll scope and turn window.
 
 The Tracker displays that canonical state. It does not independently calculate
 or retain modifiers. Timeline, Undo/Redo, Replay and AI Export therefore use
@@ -99,9 +101,15 @@ the same state and preserve the same expiry behaviour.
 For future manual or automated multiplayer, modifier ownership belongs to a
 team in canonical MatchState, never to a local UI instance.
 
-## Current implementation note
+## Implemented scope and remaining sources
 
-The current v20.56.3 runtime exposes only legacy positive roll opportunities
-(AV/AVM) and does not yet implement this complete token-capacity,
-cancellation, DV/DVM, lifecycle or Tracker model. A future approved engine
-build must migrate it without introducing UI-local gameplay authority.
+The established Natural 20 effects for Interception and Lofted Through now
+grant AV/AVM through `teamModifierTokens` and preserve their former eligibility
+windows. The current implemented mechanics do not grant DV/DVM as team tokens
+yet, but the Engine, Tracker, cancellation, capacity and roll selection support
+them fully for the first approved mechanic that does.
+
+Execution facts such as a non-preferred foot, crossed defensive areas,
+interceptor order, or Interception Natural 1's next-interceptor penalty remain
+components of that particular action formula. They are not team-held Tracker
+tokens and must not consume capacity or be transferred to another roll.

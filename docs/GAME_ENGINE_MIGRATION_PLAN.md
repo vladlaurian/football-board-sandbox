@@ -776,13 +776,98 @@ only its own team; `Start New Game` requires both acknowledgements, while
 states only: no WorkspaceSnapshot field, Engine command, MatchContext field,
 Timeline entry, AI-export event, Manual Multiplayer or Firebase path changes.
 
+### v20.56.23 — Implemented rules extraction and roadmap consolidation
+
+**Status:** Complete (documentation only; runtime remains v20.56.22).
+
+The accepted Engine behavior for Short Pass, Long Pass, Interception, Through
+Ball and Lofted Through Ball is now extracted into permanent player-rule
+contracts. This ends their dependence on scattered implementation, test and
+release-history wording. The technical Pass, Interception, action-resolution
+and Rule Set documents retain their existing ownership boundaries.
+
+#### Documentation traceability audit
+
+| Mechanic / concern | Runtime state | Player-rule home | Technical home / next dependency |
+|---|---|---|---|
+| Short Pass, Long Pass, Interception | Implemented | `PASS_AND_INTERCEPTION_RULES.md` | Pass Engine, Interception Engine, Action Resolution and Rule Set docs |
+| Through Ball | Implemented | `THROUGH_BALL_RULES.md` | Through Ball Engine; shared 3/2 contract |
+| Lofted Through Ball | Implemented | `LOFTED_THROUGH_BALL_RULES.md` | Lofted Through Engine; shared roll/continuation contract |
+| Cross | Rule agreed, not implemented | `CROSS_RULES.md` | requires modifiers and Goal/Goal Kick/Corner routing |
+| Marking | Rule agreed, not implemented | `MARKING_RULES.md` | requires canonical movement reaction state |
+| Dribbling | Rule agreed, not implemented | `DRIBBLING_RULES.md` | follows Marking; uses restart routing for its outcomes |
+| Tackling | Rule agreed, not implemented | `TACKLING_RULES.md` | follows Marking, inactive state, modifiers and Foul/Free Kick/Penalty routing |
+| Shot / restarts / Penalty | Rule agreed, not implemented | `SHOOTING_RULES.md`, `FINALISATION_AND_RESTARTS_RULES.md` | first restart vertical slice is Shot + Goal/Goal Kick/Corner/Kick-off |
+| Prep, formations, tactics, substitutions | Prep implemented; tactics/substitutions deferred | `TEAM_COMPOSITION_AND_FORMATIONS.md` | requires canonical interruption/restart lifecycle |
+
+No code/document contradiction was resolved silently in this audit. The one
+necessary future alignment is explicit: Kick-off now refers to an active Match
+tactic, whose runtime implementation remains deferred to the Tactical Change
+slice.
+
+### v20.56.24 — Canonical Modifier Tracker
+
+**Status:** Complete.
+
+Single Player MatchState now owns `teamModifierTokens`, a complete AV/AVM/DV/DVM
+token model with same-tier opposite cancellation, per-team capacity, explicit
+owned-D20 scope and turn expiry. Tracker Settings persists the future-Match
+capacity and MatchContext freezes it when a playable Match starts. Interception
+and Lofted Through use this model for their existing Natural-20 AV/AVM effects;
+their action-formula modifiers remain intentionally separate. Tracker, Timeline,
+Undo/Redo, Replay and AI export project the same canonical token state. Manual
+Multiplayer and Firebase are unchanged.
+
+### Post-v20.56.24 implementation order
+
+The following is the active dependency order. Each row is a separate approved
+build or a separately approved vertical slice; it is not permission to bundle
+the rows.
+
+1. **Shot plus its necessary restart vertical slice** — Goal, score,
+   Goal Kick, Corner and Kick-off through canonical restart state. Do not claim
+   every restart as implemented in that slice.
+2. **Tactical Change during an existing canonical interruption** — a tactical
+   draft and preview may change the active Match tactic but never live board
+   coordinates. It replaces active-Match live Formation application as the
+   tactical path.
+3. **Substitution during an existing canonical interruption** — the incoming
+   reserve may be placed in a chosen free cell, subject to roster and window
+   rules; it extends the same tactical/restart draft rather than introducing a
+   parallel panel.
+4. **Cross** — after its modifier and Goal/Goal Kick/Corner consequences are
+   available.
+5. **Marking**, then **Dribbling** — Dribbling uses defensive-area and Marking
+   concepts.
+6. **Tackling plus Foul / Free Kick / Penalty** — Tackling depends on Marking,
+   inactive-player state, modifiers and restart routing; Free Kick/Penalty are
+   its cohesive result vertical slice.
+7. **Remaining restart and Match lifecycle work** — Throw-in, remaining
+   restart entrances, halves/extra time, penalty shoot-out and score-history
+   completion, each as narrow canonical slices.
+
+#### Future tactical-state boundary
+
+This is a decided future contract, not a current runtime feature:
+
+```text
+Workspace selected formation = preparation of a new Match
+MatchState active tactical formation = declared system during an active Match
+Live board coordinates = physical position in the current phase
+```
+
+Only an authorised restart placement may move board pieces because of a tactical
+decision. A Tactical Change itself must be an Engine command and Timeline/AI
+fact. It must not apply a Workspace formation template to the live board.
+
 ### Deferred after v20.56.19 — Prep lifecycle and restart-dependent work
 
 Do not implement this as an incidental correction. The current live Prep
 Formation application is required for visible formation/card setup, but it can
 also disturb an active Match if selected accidentally. A future approved scope
 must design a distinct New Match preparation flow around the existing Adjust
-surface, rather than adding another hidden lock.
+surface and the active-tactical-formation contract above, rather than adding
+another hidden lock.
 
 Substitution remains later than Adjust. It depends on the canonical
 interruption/restart lifecycle (goal, goal kick, throw-in, corner, free kick,

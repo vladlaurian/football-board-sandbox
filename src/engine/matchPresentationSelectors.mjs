@@ -11,7 +11,7 @@ import { evaluateGroupMovePieceEligibility, evaluateGroupMovePlayer } from "./gr
 import { evaluateBonusMove } from "./bonusMoveRules.mjs";
 import { canUseTrackerActionForPiece, canUseTrackerFreeModeForPiece, hasGroupMoveAuthorization, isTeamActiveForTrackerPhase, movementAuthorizationForPiece, personalActionStatusForPiece, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { cardStat, interceptorChoiceCandidates, teamKeyForPiece } from "../rules/passEngine.mjs";
-import { activeRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
+import { activeTeamModifierTokens } from "./rollModifierOpportunities.mjs";
 import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { BONUS_ACTION_IMPLEMENTED_TYPES } from "./bonusActionCapabilities.mjs";
 import { naturalRollOutcomeLine } from "./rollOutcomeEffects.mjs";
@@ -199,7 +199,7 @@ export function selectSinglePlayerTeamActionPresentation(state, { team } = {}) {
 // Presentation only: the Engine owns granting, consuming and expiring these tokens.
 export function selectSinglePlayerRollModifierTokenPresentation(state, { team } = {}) {
   const turn = Number(state?.tracker?.currentTurn) || 1;
-  return activeRollModifierOpportunities(state?.rollModifierOpportunities, team, turn);
+  return activeTeamModifierTokens(state?.teamModifierTokens, team, turn);
 }
 
 // The UI may choose a token type, but this Engine selector owns the resulting
@@ -213,7 +213,7 @@ export function selectSinglePlayerRollPromptPresentation(state, context, { team,
       ? pending?.rollPresentation
       : null;
   if (!base) return null;
-  const token = activeRollModifierOpportunities(state?.rollModifierOpportunities, team, state?.tracker?.currentTurn)
+  const token = activeTeamModifierTokens(state?.teamModifierTokens, team, state?.tracker?.currentTurn)
     .find(item => item.modifierType === selectedModifierType) || null;
   if (!token) return base;
   const value = resolveDiceModifierStacks(context?.ruleSet?.diceModifiers, token.modifierType);
@@ -229,7 +229,7 @@ export function selectSinglePlayerRollPromptPresentation(state, context, { team,
     totalBonus: (Number(base.totalBonus ?? base.modifier) || 0) + (modifier - (Number(base.modifier) || 0)),
     modifierSources: [
       ...(Array.isArray(base.modifierSources) ? base.modifierSources : []),
-      { label: token.modifierType === "majorAdvantage" ? "Major Advantage" : "Advantage", value, source: "bonus-roll-token", detail: "earned roll bonus" },
+      { label: ({ advantage: "Advantage", majorAdvantage: "Major Advantage", disadvantage: "Disadvantage", majorDisadvantage: "Major Disadvantage" })[token.modifierType], value, source: "team-modifier-token", detail: "earned team modifier" },
     ],
   };
 }

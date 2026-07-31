@@ -108,6 +108,9 @@ Each fact must have one authoritative home. Other documents should link to that 
 | Historical multiplayer fixes and rejected approaches | `MULTIPLAYER_CHANGELOG.md` |
 | Generic action-resolution lifecycle | `ACTION_RESOLUTION_ENGINE.md` |
 | Interception resolver contract | `INTERCEPTION_ENGINE.md` |
+| Implemented Short Pass, Long Pass and Interception player rules | `PASS_AND_INTERCEPTION_RULES.md` |
+| Implemented Through Ball player rules | `THROUGH_BALL_RULES.md` |
+| Implemented Lofted Through Ball player rules | `LOFTED_THROUGH_BALL_RULES.md` |
 | Shared board-game rules: proximity, possession, inactive state, reactions, result vocabulary and Offside | `GAMEPLAY_RULES_FOUNDATIONS.md` |
 | Cross rule: eligibility, interception order, Cross Claim, Aerial Duel and Header finalisation | `CROSS_RULES.md` |
 | Team modifier capacity, cancellation, expiry and canonical Tracker contract | `MODIFIERS_AND_TRACKER_RULES.md` |

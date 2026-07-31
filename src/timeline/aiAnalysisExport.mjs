@@ -114,6 +114,16 @@ function compactState(state, cardsById, options = {}) {
       pieceId: state.actionContinuation.pieceId || null,
       transaction: compactActionTransaction(state.actionContinuation.transaction),
     } : null,
+    teamModifierTokens: (Array.isArray(state?.teamModifierTokens) ? state.teamModifierTokens : []).map(token => ({
+      id: String(token?.id || ""),
+      team: token?.team === "blue" ? "blue" : token?.team === "red" ? "red" : null,
+      modifierType: String(token?.modifierType || ""),
+      source: String(token?.source || "gameplay"),
+      sourceActionId: token?.sourceActionId || null,
+      rollScope: String(token?.rollScope || "owned-d20"),
+      availableFromTurn: Math.max(1, Number(token?.availableFromTurn) || 1),
+      expiresAfterTurn: Math.max(1, Number(token?.expiresAfterTurn) || 1),
+    })),
   };
 }
 

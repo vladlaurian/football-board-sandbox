@@ -7,7 +7,7 @@ import { resolveInterception } from "../rules/interceptionEngine.mjs";
 import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { activateTrackerAction, createEmptyTrackerTurnState, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
-import { consumeRollModifierOpportunity, expiredRollModifierOpportunities, grantRollModifierOpportunity, pruneRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
+import { consumeTeamModifierToken, expiredTeamModifierTokens, grantTeamModifierToken, pruneTeamModifierTokens } from "./rollModifierOpportunities.mjs";
 import { naturalRollOutcome } from "./rollOutcomeEffects.mjs";
 
 function pieceForCommand(state, command) {
@@ -525,9 +525,9 @@ export function submitPassInterceptionRoll(state, context, command) {
   }
   const createdAt = Number(command.payload?.createdAt);
   if (!Number.isFinite(createdAt) || createdAt < 0) return { accepted: false, reason: "PASS_INTERCEPTION_ROLL_TIME_INVALID" };
-  const modifierType = command.payload?.bonusModifierType === "advantage" || command.payload?.bonusModifierType === "majorAdvantage"
+  const modifierType = ["advantage", "majorAdvantage", "disadvantage", "majorDisadvantage"].includes(command.payload?.bonusModifierType)
     ? command.payload.bonusModifierType : null;
-  const token = consumeRollModifierOpportunity(state.rollModifierOpportunities, { team, turn: normalizeTrackerSnapshot(state.tracker).currentTurn, modifierType });
+  const token = consumeTeamModifierToken(state.teamModifierTokens, { team, turn: normalizeTrackerSnapshot(state.tracker).currentTurn, modifierType });
   if (!token.accepted) return { accepted: false, reason: "ROLL_MODIFIER_NOT_AVAILABLE" };
   const resolutionTransaction = {
     id: `resolution_${pending.id}_${command.id}`,
@@ -565,7 +565,7 @@ export function submitPassInterceptionRoll(state, context, command) {
   };
   return {
     accepted: true,
-    nextState: { ...state, actionResolution: nextResolution, dice, rollModifierOpportunities: token.opportunities },
+    nextState: { ...state, actionResolution: nextResolution, dice, teamModifierTokens: token.tokens },
     event: {
       type: "DICE_ROLLED",
       team,
@@ -741,14 +741,14 @@ function completeNormalInterception(state, pending, interceptor, { directHit = f
   const tracker = normalizeTrackerSnapshot(state.tracker);
   const emptyTurn = createEmptyTrackerTurnState();
   const nextTurn = Math.min(tracker.settings.turns, Math.max(1, tracker.currentTurn + 1));
-  const expiredRollBonuses = expiredRollModifierOpportunities(state.rollModifierOpportunities, nextTurn);
+  const expiredRollBonuses = expiredTeamModifierTokens(state.teamModifierTokens, nextTurn);
   return {
     accepted: true,
     nextState: {
       ...state,
       pieces,
       movementStateByPieceId: {},
-      rollModifierOpportunities: pruneRollModifierOpportunities(state.rollModifierOpportunities, nextTurn),
+      teamModifierTokens: pruneTeamModifierTokens(state.teamModifierTokens, nextTurn),
       actionResolution: null,
       actionContinuation: null,
       tracker: {
@@ -776,7 +776,7 @@ function completeNormalInterception(state, pending, interceptor, { directHit = f
   };
 }
 
-function completeNaturalTwentyInterception(state, pending, interceptor) {
+function completeNaturalTwentyInterception(state, context, pending, interceptor) {
   const bonusTeam = teamKeyForPiece(interceptor);
   const pieces = moveBallTo(state, interceptor.x, interceptor.y);
   if (!bonusTeam || !pieces) return { accepted: false, reason: "PASS_INTERCEPTION_CONSEQUENCE_INVALID" };
@@ -788,14 +788,14 @@ function completeNaturalTwentyInterception(state, pending, interceptor) {
     if (!normal.accepted) return normal;
     const tracker = normalizeTrackerSnapshot(state.tracker);
     const modifierType = naturalTwentyEffect === "next-turn-roll-major-advantage" ? "majorAdvantage" : naturalTwentyEffect === "next-turn-roll-advantage" ? "advantage" : null;
-    const opportunities = modifierType ? grantRollModifierOpportunity(normal.nextState.rollModifierOpportunities, {
+    const grant = modifierType ? grantTeamModifierToken(normal.nextState.teamModifierTokens, {
       id: `roll_bonus_pass_${pending.id}_${pending.lastRollEvent.id}`,
       team: bonusTeam, modifierType, availableFromTurn: Math.max(1, tracker.currentTurn + 1), expiresAfterTurn: Math.max(1, tracker.currentTurn + 1), source: "natural-20-interception", sourceActionId: pending.id,
-    }) : normal.nextState.rollModifierOpportunities;
+    }, { capacity: context.teamModifierCapacity }) : null;
     return {
       ...normal,
-      nextState: { ...normal.nextState, rollModifierOpportunities: opportunities },
-      event: { type: "PASS_NATURAL_20", team: bonusTeam, metadata: passTimelineMetadata(pending, { passId: pending.id, interceptorId: interceptor.id, naturalTwentyEffect, naturalOutcome: naturalRollOutcome({ mechanic: "interception", natural: 20, effect: naturalTwentyEffect, team: bonusTeam }) }) },
+      nextState: { ...normal.nextState, teamModifierTokens: grant ? grant.tokens : normal.nextState.teamModifierTokens },
+      event: { type: "PASS_NATURAL_20", team: bonusTeam, metadata: passTimelineMetadata(pending, { passId: pending.id, interceptorId: interceptor.id, naturalTwentyEffect, naturalOutcome: naturalRollOutcome({ mechanic: "interception", natural: 20, effect: naturalTwentyEffect, team: bonusTeam }), modifierTokenTransition: grant ? { kind: grant.kind || "rejected", granted: grant.granted, cancelled: grant.cancelled, reason: grant.reason || null } : null }) },
     };
   }
   const continuation = createBonusCardActionContinuation({
@@ -893,7 +893,7 @@ export function applyPassConsequence(state, context, command) {
     const interceptor = pending.plan?.interceptors?.[pending.interceptorIndex]?.defender;
     const defender = state.pieces.find(piece => String(piece?.id || "") === String(interceptor?.id || "")) || null;
     if (!defender) return { accepted: false, reason: "PASS_INTERCEPTION_CONSEQUENCE_INVALID" };
-    return completeNaturalTwentyInterception(state, pending, defender);
+    return completeNaturalTwentyInterception(state, context, pending, defender);
   }
   if (outcome === "interception") {
     const interceptor = pending.plan?.interceptors?.[pending.interceptorIndex]?.defender;

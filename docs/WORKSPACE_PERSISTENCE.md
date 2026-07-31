@@ -19,7 +19,8 @@
 - the per-team prepared Adjust-layout marker: it records that the current
   board coordinates for Blue and/or Red are deliberate pre-Match adjustments,
   so Start New preserves them rather than reapplying that team's formation;
-- preferred die type and Tracker settings defaults;
+- preferred die type and Tracker settings defaults, including Team Modifier
+  Capacity for future Matches;
 - persisted display preferences: touch mode, coordinates and Tracker visibility.
 
 ## Excluded Match Runtime
@@ -28,7 +29,7 @@
 - MatchContext;
 - active Match mode and Tracker progress; returning to Editor clears this
   runtime while preserving the Workspace board positions and card assignment;
-- action log, current phase and consumed actions;
+- action log, current phase, consumed actions and active team modifier tokens;
 - movement authorization/state;
 - pending Pass, interception, delayed resolution and Bonus Action;
 - die results.

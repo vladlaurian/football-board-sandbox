@@ -78,10 +78,12 @@ Kick-off occurs:
   team; the other team starts the second extra-time half;
 - after each Goal, by the team that conceded it.
 
-At every kick-off, both teams return to the default formation of the system
-currently selected for that team. Repositioning a formation must retain every
-card assignment: selecting a different formation or restoring the default
-formation never deassigns cards from players.
+At every kick-off, both teams return to their active Match tactical formation.
+Before the Match begins, that tactic is initialized from the selected Workspace
+formation. A later Tactical Change may alter the active Match tactic only
+through its canonical interruption command; it does not move the live board
+when confirmed. Repositioning at kick-off retains every card assignment:
+changing or restoring a formation never deassigns cards from players.
 
 One attacker is placed in the cell adjacent to the centre point with the ball
 in that player's cell. That player must play one Short Pass backwards. This

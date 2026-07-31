@@ -122,6 +122,7 @@ export function normalizeTrackerSnapshot(raw = {}) {
     attackActions: clamp(Number(rawSettings.attackActions) || 5, 1, 30),
     defenseActions: clamp(Number(rawSettings.defenseActions) || 4, 1, 30),
     turns: clamp(Number(rawSettings.turns) || 20, 1, 100),
+    teamModifierCapacity: clamp(Number(rawSettings.teamModifierCapacity) || 3, 1, 12),
   };
   const startingTeam = raw.startingTeam === "blue" ? "blue" : "red";
   const redLimit = startingTeam === "red" ? settings.attackActions : settings.defenseActions;

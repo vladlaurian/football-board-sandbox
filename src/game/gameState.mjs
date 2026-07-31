@@ -1,9 +1,9 @@
 import { normalizeRuleSet } from "../rules/ruleSets.mjs";
 import { normalizeTrackerActionLog } from "../tracker/trackerState.mjs";
 import { createEmptyTrackerTurnState } from "../tracker/actionRules.mjs";
-import { normalizeRollModifierOpportunities } from "../engine/rollModifierOpportunities.mjs";
+import { normalizeTeamModifierTokens } from "../engine/rollModifierOpportunities.mjs";
 
-export const GAME_STATE_SCHEMA_VERSION = 2;
+export const GAME_STATE_SCHEMA_VERSION = 3;
 
 export function cloneGameState(value) {
   if (value === undefined) return undefined;
@@ -37,7 +37,9 @@ export function createGameState(raw = {}) {
     threeTwoOpportunity: raw.threeTwoOpportunity && typeof raw.threeTwoOpportunity === "object"
       ? raw.threeTwoOpportunity
       : raw.throughBallOpportunity && typeof raw.throughBallOpportunity === "object" ? raw.throughBallOpportunity : null,
-    rollModifierOpportunities: normalizeRollModifierOpportunities(raw.rollModifierOpportunities),
+    // v20.56.24 replaces the positive-only opportunity list with complete
+    // team-owned tokens. Old recordings normalize at this one state boundary.
+    teamModifierTokens: normalizeTeamModifierTokens(raw.teamModifierTokens ?? raw.rollModifierOpportunities),
     tracker: {
       gameStarted: Boolean(tracker.gameStarted),
       startingTeam: tracker.startingTeam === "blue" ? "blue" : "red",
@@ -83,7 +85,7 @@ export function mergeGameState(baseState, overrides = {}) {
     actionResolution: stateOverride(overrides, "actionResolution", base.actionResolution),
     actionContinuation: stateOverride(overrides, "actionContinuation", base.actionContinuation),
     threeTwoOpportunity: stateOverride(overrides, "threeTwoOpportunity", stateOverride(overrides, "throughBallOpportunity", base.threeTwoOpportunity)),
-    rollModifierOpportunities: stateOverride(overrides, "rollModifierOpportunities", base.rollModifierOpportunities),
+    teamModifierTokens: stateOverride(overrides, "teamModifierTokens", stateOverride(overrides, "rollModifierOpportunities", base.teamModifierTokens)),
     tracker: {
       gameStarted: stateOverride(overrides, "trackerGameStarted", base.tracker.gameStarted),
       startingTeam: stateOverride(overrides, "trackerStartingTeam", base.tracker.startingTeam),
@@ -120,7 +122,7 @@ export function createEditorStateAfterMatchExit(rawState) {
     actionContinuation: null,
     // Roll bonuses and 3/2 grants are Match-runtime opportunities. They must
     // never leak into the unrestricted Editor workspace.
-    rollModifierOpportunities: [],
+    teamModifierTokens: [],
     threeTwoOpportunity: null,
     tracker: {
       ...state.tracker,

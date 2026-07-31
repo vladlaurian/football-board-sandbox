@@ -19,13 +19,13 @@ export function endTrackerPhase(state, command) {
   if (tracker.turnPhase === "defense" && tracker.currentTurn < tracker.settings.turns) {
     const emptyTurn = createEmptyTrackerTurnState();
     const nextTurn = tracker.currentTurn + 1;
-    const expiredRollBonuses = expiredRollModifierOpportunities(state.rollModifierOpportunities, nextTurn);
+    const expiredRollBonuses = expiredRollModifierOpportunities(state.teamModifierTokens, nextTurn);
     return {
       accepted: true,
       nextState: {
         ...state,
         movementStateByPieceId: {}, threeTwoOpportunity: null,
-        rollModifierOpportunities: pruneRollModifierOpportunities(state.rollModifierOpportunities, nextTurn),
+        teamModifierTokens: pruneRollModifierOpportunities(state.teamModifierTokens, nextTurn),
         tracker: {
           ...baseTracker,
           currentTurn: nextTurn,

@@ -1,5 +1,9 @@
 # v20 — Separate Interception Engine
 
+The player-facing Short Pass, Long Pass and Interception contract is
+[`PASS_AND_INTERCEPTION_RULES.md`](PASS_AND_INTERCEPTION_RULES.md). This file
+owns only the resolver, frozen settings and technical integration boundary.
+
 ## Purpose
 
 v20 separates **who may attempt an interception** from **how an interception roll is resolved**.

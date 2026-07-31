@@ -784,7 +784,7 @@ While Free Move is active, no other offline Match Mode action may proceed. Its s
 
 **Decision:** Offline Bonus Action has one Engine-owned capability list. Only an implemented action type may transition a ready continuation to an active action; its ordinary typed command then carries the mechanic through Timeline. The UI may disable or present those capabilities but cannot create a local BA action or reinterpret Tracker state. Free Move remains an explicitly permitted administrative Engine action while BA is pending.
 
-AV/AVM opportunities are canonical MatchState records. The Engine resolves a selected token into the pending-roll projection and consumes it with the submitted roll. A token earned during a Bonus Action with an advance-turn resume policy is assigned to that resumed numbered turn, not to the transient BA boundary. Each Engine turn advance prunes expired opportunities and records the loss in event metadata.
+The pre-v20.56.24 AV/AVM opportunity wording is superseded by ADR-057's canonical complete team-token model. The Engine resolves a selected eligible token into the pending-roll projection and consumes it with the submitted roll. A token earned during a Bonus Action with an advance-turn resume policy is assigned to that resumed numbered turn, not to the transient BA boundary. Each Engine turn advance prunes expired tokens and records the loss in event metadata.
 
 ## ADR-054 — Natural-roll consequences are structured Engine facts
 
@@ -820,3 +820,42 @@ card-to-puck link.
   label;
 - Manual Multiplayer's existing label compatibility path remains unchanged
   and is not an authorization to extend that system.
+
+## ADR-056 — Active-Match tactics are distinct from Workspace formations
+
+**Status:** Accepted for the future interruption/restart vertical slice; not
+implemented in v20.56.23.
+
+**Decision:** A selected Workspace formation prepares a future new Match. An
+active Match instead owns a separate tactical formation in MatchState. A
+tactical change is an Engine command recorded in Timeline and AI export, but
+it does not itself move a player or ball on the live board. Only the explicitly
+authorised placement phase of a canonical restart may reposition pieces.
+
+**Consequences:**
+
+- the active-Match tactical selector must not call the Workspace live-template
+  application path;
+- a tactical preview is presentation only, while the confirmed tactic is a
+  canonical gameplay fact;
+- a substitution may extend the same interruption draft, validate the proposed
+  eleven and place its incoming reserve in a chosen legal free cell;
+- Kick-off initializes from the Workspace formation for a new Match and later
+  uses the active Match tactic;
+- Manual Multiplayer remains outside this future feature.
+
+## ADR-057 — Team modifier tokens are canonical MatchState facts
+
+**Status:** Active.
+
+**Decision:** Single Player stores team-owned AV, AVM, DV and DVM as canonical
+`teamModifierTokens` in MatchState. Tokens declare their team, type, granting
+source, action source, eligible roll scope and turn expiry. Same-tier opposites
+cancel on receipt; capacity is frozen from Tracker Settings into MatchContext.
+Tracker is a projection only. Action-specific numeric components remain action
+formula facts unless they are explicitly granted as a team token.
+
+**Consequences:** Timeline, Undo/Redo, Replay and AI export reconstruct the
+same token state. Existing Interception and Lofted Through AV/AVM effects use
+the model without changing their rule outcome. Manual Multiplayer and Firebase
+do not consume or publish this Single Player feature.

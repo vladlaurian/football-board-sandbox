@@ -218,7 +218,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.22";
+const APP_VERSION = "v20.56.24";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2088,8 +2088,9 @@ function App() {
         attackActions: clamp(Number(saved?.attackActions) || 5, 1, 30),
         defenseActions: clamp(Number(saved?.defenseActions) || 4, 1, 30),
         turns: clamp(Number(saved?.turns) || 20, 1, 100),
+        teamModifierCapacity: clamp(Number(saved?.teamModifierCapacity) || 3, 1, 12),
       };
-    } catch { return { attackActions: 5, defenseActions: 4, turns: 20 }; }
+    } catch { return { attackActions: 5, defenseActions: 4, turns: 20, teamModifierCapacity: 3 }; }
   });
   const [trackerSettingsDraft, setTrackerSettingsDraft] = useState(trackerSettings);
   const [trackerPosition, setTrackerPosition] = useState(() => {
@@ -2159,7 +2160,9 @@ function App() {
   const [pendingThreeTwoMove, setPendingThreeTwoMove] = useState(null);
   const [pendingRollModifierType, setPendingRollModifierType] = useState(null);
   const [rollModifierChoice, setRollModifierChoice] = useState(null);
-  const [rollModifierOpportunities, setRollModifierOpportunities] = useState([]);
+  // React mirrors the Timeline cursor for rendering only; MatchState owns the
+  // tokens and every command republishes this projection from that cursor.
+  const [teamModifierTokens, setTeamModifierTokens] = useState([]);
   const [groupMoveZoneDraft, setGroupMoveZoneDraft] = useState(null);
   const [touchMode, setTouchMode] = useState(() => navigator.maxTouchPoints > 0);
   const [lockUI, setLockUI] = useState(false);
@@ -2233,7 +2236,7 @@ function App() {
   const processedFreeModeIntentIdsRef = useRef(new Set());
   const processedFreeBallMoveIntentIdsRef = useRef(new Set());
   const actionContinuationRef = useRef(actionContinuation);
-  const rollModifierOpportunitiesRef = useRef(rollModifierOpportunities);
+  const teamModifierTokensRef = useRef(teamModifierTokens);
   const delayedResolutionTimerRef = useRef(null);
   const delayedResolutionEntryIdRef = useRef("");
   const delayedResolutionExecutionRef = useRef(createResolutionExecutionRegistry());
@@ -2276,7 +2279,7 @@ function App() {
     }
   }, [actionResolution]);
   useEffect(() => { actionContinuationRef.current = actionContinuation; }, [actionContinuation]);
-  useEffect(() => { rollModifierOpportunitiesRef.current = rollModifierOpportunities; }, [rollModifierOpportunities]);
+  useEffect(() => { teamModifierTokensRef.current = teamModifierTokens; }, [teamModifierTokens]);
   useEffect(() => {
     const pendingRoll = actionResolution?.pendingRoll || null;
     if (!pendingRoll) return;
@@ -4412,7 +4415,7 @@ function App() {
       ruleSet: normalizeRuleSet(activeRuleSetRef.current),
       actionResolution: actionResolutionRef.current,
       actionContinuation: actionContinuationRef.current,
-      rollModifierOpportunities: rollModifierOpportunitiesRef.current,
+      teamModifierTokens: teamModifierTokensRef.current,
       tracker: {
         gameStarted: trackerGameStarted,
         startingTeam: trackerStartingTeam,
@@ -4491,6 +4494,7 @@ function App() {
       id: gameTimelineRef.current?.recordingId || "single-player-compatibility-context",
       ruleSet: activeRuleSetRef.current,
       boardSettings: settingsRef.current,
+      teamModifierCapacity: trackerSettings.teamModifierCapacity,
       gameplayCards: captureAvailableMatchCards(),
     });
     matchContextRef.current = context;
@@ -5293,8 +5297,8 @@ function App() {
     actionContinuationRef.current = nextActionContinuation;
     setActionResolution(nextActionResolution);
     setActionContinuation(nextActionContinuation);
-    rollModifierOpportunitiesRef.current = state.rollModifierOpportunities || [];
-    setRollModifierOpportunities(rollModifierOpportunitiesRef.current);
+    teamModifierTokensRef.current = state.teamModifierTokens || [];
+    setTeamModifierTokens(teamModifierTokensRef.current);
     setTrackerSettings(nextTracker.settings);
     setTrackerSettingsDraft(nextTracker.settings);
     setTrackerGameStarted(nextTracker.gameStarted);
@@ -6063,8 +6067,8 @@ function App() {
       setPendingAutoMove(null);
       setPendingThreeTwoMove(null);
       setGroupMoveZoneDraft(null);
-      rollModifierOpportunitiesRef.current = nextState.rollModifierOpportunities || [];
-      setRollModifierOpportunities(rollModifierOpportunitiesRef.current);
+      teamModifierTokensRef.current = nextState.teamModifierTokens || [];
+      setTeamModifierTokens(teamModifierTokensRef.current);
       setPendingRollModifierType(null);
       setRollModifierChoice(null);
       setPrepReadyConfirmationOpen(false);
@@ -6093,6 +6097,7 @@ function App() {
           id: timeline.recordingId,
           ruleSet: nextState.ruleSet,
           boardSettings: nextState.settings,
+          teamModifierCapacity: trackerSettings.teamModifierCapacity,
           gameplayCards: captureAvailableMatchCards(),
         });
       }
@@ -10361,14 +10366,14 @@ function App() {
   }
 
   function renderRollModifierChoice(team) {
-    const tokens = selectSinglePlayerRollModifierTokenPresentation({ rollModifierOpportunities, tracker: { currentTurn: trackerCurrentTurn } }, { team });
+    const tokens = selectSinglePlayerRollModifierTokenPresentation({ teamModifierTokens, tracker: { currentTurn: trackerCurrentTurn } }, { team });
     if (!tokens.length) return null;
     const selectedTokenId = rollModifierChoice?.kind === "token" ? rollModifierChoice.tokenId : null;
     const selected = rollModifierChoice?.kind === "token" ? rollModifierChoice.modifierType : null;
     const saved = rollModifierChoice?.kind === "save";
     return <div className="roll-token-choice" data-prompt-interactive="true">
-      <span>{selected ? `${selected === "majorAdvantage" ? "AVM" : "AV"} selected — roll D20 to use it.` : saved ? "Roll normally selected — team bonus is saved." : "Team roll bonus available:"}</span>
-      {tokens.map(token => <button type="button" key={token.id} className={`roll-choice-button ${selectedTokenId === token.id ? "active" : ""}`} onClick={() => { setPendingRollModifierType(token.modifierType); setRollModifierChoice({ kind: "token", tokenId: token.id, modifierType: token.modifierType }); }}>{token.modifierType === "majorAdvantage" ? "Use AVM" : "Use AV"}</button>)}
+      <span>{selected ? `${({ advantage: "AV", majorAdvantage: "AVM", disadvantage: "DV", majorDisadvantage: "DVM" })[selected]} selected — roll D20 to use it.` : saved ? "Roll normally selected — team modifier is saved." : "Team modifier available:"}</span>
+      {tokens.map(token => <button type="button" key={token.id} className={`roll-choice-button ${selectedTokenId === token.id ? "active" : ""}`} onClick={() => { setPendingRollModifierType(token.modifierType); setRollModifierChoice({ kind: "token", tokenId: token.id, modifierType: token.modifierType }); }}>Use {({ advantage: "AV", majorAdvantage: "AVM", disadvantage: "DV", majorDisadvantage: "DVM" })[token.modifierType]}</button>)}
       <button type="button" className={`roll-choice-button ${saved ? "active" : ""}`} onClick={() => { setPendingRollModifierType(null); setRollModifierChoice({ kind: "save" }); }}>Roll normally — save</button>
     </div>;
   }
@@ -11523,7 +11528,7 @@ function App() {
         actionResolution: null,
         actionContinuation: null,
         threeTwoOpportunity: null,
-        rollModifierOpportunities: [],
+        teamModifierTokens: [],
         tracker: {
           ...current.tracker,
           gameStarted: false,
@@ -11540,6 +11545,7 @@ function App() {
         id: continuing ? (gameTimelineRef.current?.recordingId || `single-player-${Date.now()}`) : `single-player-${Date.now()}`,
         ruleSet: before.ruleSet,
         boardSettings: before.settings,
+        teamModifierCapacity: trackerSettings.teamModifierCapacity,
         gameplayCards: captureAvailableMatchCards(),
       });
       const command = {
@@ -11606,6 +11612,7 @@ function App() {
         id: gameTimelineRef.current?.recordingId || `single-player-${Date.now()}`,
         ruleSet: playableStart.ruleSet,
         boardSettings: playableStart.settings,
+        teamModifierCapacity: trackerSettings.teamModifierCapacity,
         gameplayCards: captureAvailableMatchCards(),
       });
     }
@@ -12813,10 +12820,12 @@ function App() {
         turnsReadOnly={!sessionCode && gameMode === "match"}
         onSelectTurn={selectTrackerTurn}
         onResizeDown={onTrackerResizeDown}
-        rollModifierOpportunities={{
-          blue: selectSinglePlayerRollModifierTokenPresentation({ rollModifierOpportunities, tracker: { currentTurn: trackerCurrentTurn } }, { team: "blue" }),
-          red: selectSinglePlayerRollModifierTokenPresentation({ rollModifierOpportunities, tracker: { currentTurn: trackerCurrentTurn } }, { team: "red" }),
-        }}
+          teamModifierTokens={{
+          blue: selectSinglePlayerRollModifierTokenPresentation({ teamModifierTokens, tracker: { currentTurn: trackerCurrentTurn } }, { team: "blue" }),
+          red: selectSinglePlayerRollModifierTokenPresentation({ teamModifierTokens, tracker: { currentTurn: trackerCurrentTurn } }, { team: "red" }),
+          }}
+          teamModifierCapacity={(!sessionCode && gameMode === "match" && trackerGameStarted ? matchContextRef.current?.teamModifierCapacity : null) || trackerSettings.teamModifierCapacity}
+          showTeamModifiers={!sessionCode && gameMode === "match"}
       />
 
       {diceNotice && (
@@ -13383,6 +13392,7 @@ function App() {
             <label>Attack Actions<input disabled={singlePlayerMatchWorkspaceLocked} type="number" min="1" max="30" value={trackerSettingsDraft.attackActions} onChange={e => setTrackerSettingsDraft(v => ({ ...v, attackActions: clamp(Number(e.target.value) || 1, 1, 30) }))} /></label>
             <label>Defense Actions<input disabled={singlePlayerMatchWorkspaceLocked} type="number" min="1" max="30" value={trackerSettingsDraft.defenseActions} onChange={e => setTrackerSettingsDraft(v => ({ ...v, defenseActions: clamp(Number(e.target.value) || 1, 1, 30) }))} /></label>
             <label>Turns<input disabled={singlePlayerMatchWorkspaceLocked} type="number" min="1" max="100" value={trackerSettingsDraft.turns} onChange={e => setTrackerSettingsDraft(v => ({ ...v, turns: clamp(Number(e.target.value) || 1, 1, 100) }))} /></label>
+            <label>Team Modifier Capacity<input disabled={singlePlayerMatchWorkspaceLocked} type="number" min="1" max="12" value={trackerSettingsDraft.teamModifierCapacity} onChange={e => setTrackerSettingsDraft(v => ({ ...v, teamModifierCapacity: clamp(Number(e.target.value) || 1, 1, 12) }))} /></label>
             <button className="save-label" disabled={singlePlayerMatchWorkspaceLocked} onClick={() => {
               if (trackerReadOnly || singlePlayerMatchWorkspaceLocked) return;
               const beforeTimeline = captureTimelineGameState();

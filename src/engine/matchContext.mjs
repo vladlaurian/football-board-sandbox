@@ -1,5 +1,6 @@
 import { normalizeRuleSet } from "../rules/ruleSets.mjs";
 import { compactGameplayCard } from "../cards/gameplayCard.mjs";
+import { normalizeTeamModifierCapacity } from "./rollModifierOpportunities.mjs";
 
 export const MATCH_CONTEXT_SCHEMA_VERSION = 1;
 
@@ -73,6 +74,7 @@ export function createMatchContext(raw = {}) {
     id: String(source.id || "").trim(),
     ruleSet,
     boardSettings: clonePlain(source.boardSettings && typeof source.boardSettings === "object" ? source.boardSettings : {}),
+    teamModifierCapacity: normalizeTeamModifierCapacity(source.teamModifierCapacity ?? source.trackerSettings?.teamModifierCapacity),
     gameplayCardsById,
   });
 }

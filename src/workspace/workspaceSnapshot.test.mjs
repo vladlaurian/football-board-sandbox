@@ -6,7 +6,7 @@ test("Workspace Snapshot excludes live Match Runtime while retaining future-Matc
   const snapshot = createWorkspaceSnapshot({
     settings: { cols: 44 },
     pieces: [{ id: "ball" }],
-    trackerSettings: { attackActions: 5 },
+    trackerSettings: { attackActions: 5, teamModifierCapacity: 3 },
     selectionRules: { freeMode: false, totalStarsCap: { enabled: true, value: 55 } },
     prepLayoutState: { adjustedTeams: { A: true, B: false } },
     preferences: { touchMode: true, trackerVisible: true },
@@ -14,6 +14,7 @@ test("Workspace Snapshot excludes live Match Runtime while retaining future-Matc
 
   assert.equal(snapshot.settings.cols, 44);
   assert.equal(snapshot.trackerSettings.attackActions, 5);
+  assert.equal(snapshot.trackerSettings.teamModifierCapacity, 3);
   assert.equal(snapshot.preferences.touchMode, true);
   assert.deepEqual(snapshot.selectionRules.totalStarsCap, { enabled: true, value: 55 });
   assert.deepEqual(snapshot.prepLayoutState.adjustedTeams, { A: true, B: false });

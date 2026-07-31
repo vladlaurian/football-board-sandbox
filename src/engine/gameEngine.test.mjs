@@ -291,7 +291,7 @@ test("MATCH_STARTED creates the canonical playable first turn and clears stale i
   assert.deepEqual(result.nextState.movementStateByPieceId, {});
   assert.equal(result.nextState.actionResolution, null);
   assert.equal(result.nextState.actionContinuation, null);
-  assert.deepEqual(result.nextState.rollModifierOpportunities, []);
+  assert.deepEqual(result.nextState.teamModifierTokens, []);
   assert.equal(result.nextState.threeTwoOpportunity, null);
   assert.equal(result.events[0].type, "MATCH_STARTED");
   assert.deepEqual(result.events[0].metadata, { startingTeam: "blue", startedTurn: 1, restarted: false });
@@ -330,7 +330,7 @@ test("MATCH_RESTARTED restarts an existing Match without moving any board piece"
   assert.deepEqual(result.nextState.movementStateByPieceId, {});
   assert.equal(result.nextState.actionResolution, null);
   assert.equal(result.nextState.actionContinuation, null);
-  assert.deepEqual(result.nextState.rollModifierOpportunities, []);
+  assert.deepEqual(result.nextState.teamModifierTokens, []);
   assert.equal(result.nextState.threeTwoOpportunity, null);
   assert.equal(result.events[0].type, "MATCH_STARTED");
   assert.equal(result.events[0].metadata.restarted, true);

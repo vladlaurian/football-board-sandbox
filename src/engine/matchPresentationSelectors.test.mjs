@@ -403,7 +403,7 @@ test("selected AV is included in the interception prompt total, including the ca
   const preview = selectSinglePlayerRollPromptPresentation(state, context, { team: "blue", selectedModifierType: "advantage" });
   assert.equal(preview.modifier, 2);
   assert.equal(preview.totalBonus, 4);
-  assert.equal(preview.modifierSources.at(-1).source, "bonus-roll-token");
+  assert.equal(preview.modifierSources.at(-1).source, "team-modifier-token");
 });
 
 test("Free Move and Free Ball projections use the same Engine validation as their commits", () => {

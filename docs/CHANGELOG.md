@@ -2,6 +2,36 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.24 — Canonical Modifier Tracker
+
+- Implements canonical Single Player `teamModifierTokens` in MatchState,
+  replacing the positive-only legacy roll-opportunity state while accepting it
+  on old-recording normalization.
+- Supports AV, AVM, DV and DVM; exact opposite tokens cancel only at the same
+  tier, and each team has a frozen MatchContext capacity (default 3).
+- Migrates implemented Interception and Lofted Through roll-token selection,
+  consumption and expiry without changing their accepted rules or formula-local
+  modifiers.
+- Adds Tracker Settings persistence for team modifier capacity and displays
+  canonical modifier rows below team actions and above turns.
+- Adds canonical token data and transition metadata to AI analysis state.
+- Manual Multiplayer, Firebase authority and gameplay Rule Set semantics are
+  unchanged.
+
+## v20.56.23 — Implemented rules extraction and roadmap consolidation
+
+- Documentation-only build from the accepted v20.56.22 archive; runtime,
+  package, Engine, Timeline, AI export, WorkspaceSnapshot, Manual Multiplayer
+  and Firebase are unchanged.
+- Adds permanent player-rule contracts for the implemented Short/Long Pass and
+  Interception family, Through Ball and Lofted Through Ball. Their technical
+  sources remain the Pass/Interception Engine, Action Resolution Engine and
+  Rule Set editor documents.
+- Consolidates the dependency-ordered post-v20.56.22 roadmap. It records the
+  future tactical/substitution boundary: Workspace formation prepares a new
+  Match, MatchState owns an active in-Match tactic, and live coordinates remain
+  physical board state until an authorised restart placement changes them.
+
 ## v20.56.22 — Prep team ownership and Ready gate
 
 - While offline Single Player Prep is open, the selected Prep team is the only

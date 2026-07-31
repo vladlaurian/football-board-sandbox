@@ -1,5 +1,11 @@
 # Action Resolution Engine — integration contract
 
+Player-rule contracts for the implemented passing family are
+[`PASS_AND_INTERCEPTION_RULES.md`](PASS_AND_INTERCEPTION_RULES.md),
+[`THROUGH_BALL_RULES.md`](THROUGH_BALL_RULES.md) and
+[`LOFTED_THROUGH_BALL_RULES.md`](LOFTED_THROUGH_BALL_RULES.md). This document
+remains the technical command/decision/roll/Timeline lifecycle contract.
+
 ## Purpose
 
 This document is the canonical contract for automated Match Mode actions. Read it before implementing Pass, Dribble, Tackle, Shot, Cross, or any future action that contains user decisions, manual rolls, reactions, deterministic resolution, or bonus continuation.
