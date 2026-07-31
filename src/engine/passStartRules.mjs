@@ -2,7 +2,6 @@ import { beginContinuationAction, completeContinuationAction, createBonusCardAct
 import { ACTION_TRANSACTION_UNDO_MODE, createActionTransaction, transactionForActionState } from "../match/actionTransaction.mjs";
 import { consumeActionEvent, createPendingDecision, createPendingRoll, createRollEvent, withPendingDecision, withPendingRoll } from "../match/actionResolutionEngine.mjs";
 import { PASS_CORNERS, applyInterceptorChoice, buildPassPlan, cardStat, interceptorChoiceCandidates, passRequiresInterceptionSequence, teamKeyForPiece } from "../rules/passEngine.mjs";
-import { createSinglePlayerRollResultHold } from "../match/delayedResolution.mjs";
 import { resolveInterception } from "../rules/interceptionEngine.mjs";
 import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { activateTrackerAction, createEmptyTrackerTurnState, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
@@ -534,19 +533,6 @@ export function submitPassInterceptionRoll(state, context, command) {
     source: "roll-resolution",
     undoMode: "atomic",
   };
-  const delayedResolution = createSinglePlayerRollResultHold({
-    kind: "pass-interception",
-    actionId: pending.id,
-    team,
-    value: rollEvent.natural,
-    createdAt,
-    payload: {
-      defenderId,
-      interceptorIndex,
-      rollEvent,
-      undoTransaction: resolutionTransaction,
-    },
-  });
   const nextResolution = {
     ...consumed,
     status: "awaiting-interception-resolution",
@@ -573,7 +559,6 @@ export function submitPassInterceptionRoll(state, context, command) {
         rollSource: rollEvent.source,
         rollEvent,
         chosenResult: rollEvent.source === "CHOSEN" ? rollEvent.natural : null,
-        delayedResolution,
         undoTransaction: resolutionTransaction,
         bonusModifier: token.consumed ? { type: token.consumed.modifierType, source: token.consumed.source, tokenId: token.consumed.id } : null,
       },

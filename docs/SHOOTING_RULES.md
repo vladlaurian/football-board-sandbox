@@ -3,9 +3,9 @@
 ## Status and scope
 
 This document is the agreed gameplay contract for **Shot** (Șut), including
-direct Shot from a Free Kick and Corner. It is documentation only. Shot is not
-implemented in the current runtime and must pass the Mechanic Integration Gate
-before any Engine build begins.
+direct Shot from a Free Kick and Corner. v20.56.26 implements the normal
+offline Single Player Shot path; direct Free Kick and Corner Shot remain future
+restart extensions.
 
 Goal, goal kick, Corner, kick-off, wall placement and restart setup remain in
 [FINALISATION_AND_RESTARTS_RULES.md](FINALISATION_AND_RESTARTS_RULES.md). This

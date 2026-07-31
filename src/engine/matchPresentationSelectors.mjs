@@ -16,7 +16,7 @@ import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { BONUS_ACTION_IMPLEMENTED_TYPES } from "./bonusActionCapabilities.mjs";
 import { naturalRollOutcomeLine } from "./rollOutcomeEffects.mjs";
 
-const OFFLINE_IMPLEMENTED_ACTION_TYPES = Object.freeze(["MOVE", "GROUP_MOVE", ...BONUS_ACTION_IMPLEMENTED_TYPES]);
+const OFFLINE_IMPLEMENTED_ACTION_TYPES = Object.freeze(["MOVE", "GROUP_MOVE", "SHOT", ...BONUS_ACTION_IMPLEMENTED_TYPES]);
 
 export function selectNaturalRollOutcomePresentation(outcome) {
   return naturalRollOutcomeLine(outcome, { teamName: outcome?.team === "blue" ? "Blue" : outcome?.team === "red" ? "Red" : null });

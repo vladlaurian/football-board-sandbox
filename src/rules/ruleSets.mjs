@@ -1,4 +1,4 @@
-export const RULE_SET_SCHEMA_VERSION = 12;
+export const RULE_SET_SCHEMA_VERSION = 13;
 export const DEFAULT_RULE_SET_ID = "default-rules";
 
 function cleanText(value, fallback = "") {
@@ -61,6 +61,12 @@ export function createDefaultRuleSet() {
         maxDiagonalDistance: 4,
         sameDirectionOnly: true,
       },
+      shot: {
+        status: "configured",
+        longShotNormalRangeMax: 11,
+        maximumRange: 16,
+        distantRangePenalty: "disadvantage",
+      },
     },
   };
 }
@@ -94,6 +100,7 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
   const throughBall = source.actions?.throughBall && typeof source.actions.throughBall === "object" ? source.actions.throughBall : {};
   const loftedThroughBall = source.actions?.loftedThroughBall && typeof source.actions.loftedThroughBall === "object" ? source.actions.loftedThroughBall : {};
   const threeTwo = source.actions?.threeTwo && typeof source.actions.threeTwo === "object" ? source.actions.threeTwo : {};
+  const shot = source.actions?.shot && typeof source.actions.shot === "object" ? source.actions.shot : {};
   const fallbackInterception = fallbackSet.actions?.interception || createDefaultRuleSet().actions.interception;
   // Schema v6 changes only Group Move's stored distance shape.  A v4/v5
   // Rule Set already has explicit action configuration, so it must not gain
@@ -163,6 +170,12 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
         maxOrthogonalDistance: Math.max(1, Math.min(100, Math.floor(Number(groupMove.maxOrthogonalDistance ?? groupMove.maxDistance) || 6))),
         maxDiagonalDistance: Math.max(1, Math.min(100, Math.floor(Number(groupMove.maxDiagonalDistance ?? groupMove.maxDistance) || 4))),
         sameDirectionOnly: groupMove.sameDirectionOnly !== false,
+      },
+      shot: {
+        status: usesPreActionConfigurationDefaults || shot.status === "configured" ? "configured" : "not-configured",
+        longShotNormalRangeMax: Math.max(1, Math.floor(Number(shot.longShotNormalRangeMax) || 11)),
+        maximumRange: Math.max(Math.max(1, Math.floor(Number(shot.longShotNormalRangeMax) || 11)), Math.floor(Number(shot.maximumRange) || 16)),
+        distantRangePenalty: shot.distantRangePenalty === "major-disadvantage" ? "major-disadvantage" : "disadvantage",
       },
     },
   };

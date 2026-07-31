@@ -620,7 +620,10 @@ The direct-contact priority, crossed-cell Long eligibility and Engine-owned segm
 
 ### v20.56.2 — Generic gameplay-roll result hold
 
-Offline Single Player now preserves a canonical one-second result hold after `DICE_ROLLED` and before an automatic consequence. The shared delayed-resolution descriptor is the only timer boundary; Pass/Interception no longer resolves directly from the Dice animation callback. Future automatic pending-roll actions inherit the same scheduler by using `createSinglePlayerRollResultHold(...)` and their action-specific Engine resolution adapter. Extra Roll and frozen Manual Multiplayer remain outside this automatic-consequence hold.
+Superseded by v20.56.26: Offline Single Player has no post-animation
+one-second result hold. Pass/Interception resolves through its canonical Engine
+command as soon as the retained visible Dice animation ends. The frozen Manual
+Multiplayer scheduler remains outside this contract.
 
 ### v20.56.11 — Workspace Prep and Selection Rules
 

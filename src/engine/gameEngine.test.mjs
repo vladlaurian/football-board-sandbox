@@ -1464,7 +1464,7 @@ test("PASS_INTERCEPTOR_SELECTED stays atomic and outside Tracker economy for Bon
   assert.equal(result.nextState.actionResolution.pendingRoll.subjectId, "red-2");
 });
 
-test("PASS_INTERCEPTION_ROLL_SUBMITTED consumes the exact pending roll and starts only the canonical delayed handoff", () => {
+test("PASS_INTERCEPTION_ROLL_SUBMITTED consumes the exact pending roll without an artificial post-roll hold", () => {
   const rollState = createGameState({
     ...normalMoveState(),
     pieces: [...normalMoveState().pieces, { id: "red-1", team: "B", cardId: "card-red-1", x: 5, y: 7 }],
@@ -1492,8 +1492,7 @@ test("PASS_INTERCEPTION_ROLL_SUBMITTED consumes the exact pending roll and start
   assert.equal(result.nextState.actionResolution.lastRollEvent.id, "roll-event-1");
   assert.deepEqual(result.nextState.actionResolution.consumedEventIds, ["roll-event-1"]);
   assert.equal(result.nextState.dice.redResult, 13);
-  assert.equal(result.events[0].metadata.delayedResolution.payload.defenderId, "red-1");
-  assert.equal(result.events[0].metadata.delayedResolution.resolveAt, 2000);
+  assert.equal(result.events[0].metadata.delayedResolution, undefined);
   assert.deepEqual(result.nextState.tracker, before.tracker);
   assert.deepEqual(result.nextState.pieces, before.pieces);
   const submittedBefore = structuredClone(result.nextState);
@@ -1509,6 +1508,34 @@ test("PASS_INTERCEPTION_ROLL_SUBMITTED consumes the exact pending roll and start
     },
   }), { accepted: false, reason: "PASS_NOT_INTERCEPTION_ROLLING" });
   assert.deepEqual(result.nextState, submittedBefore);
+});
+
+test("SHOT is a canonical target, route, roll and goal-restart sequence", () => {
+  const context = createMatchContext({
+    boardSettings: { cols: 20, rows: 12, goalWidth: 4, boxDepth: 5 },
+    gameplayCards: [
+      { id: "shooter", position: "ST", passiveAttributes: [{ id: "finish", name: "Finishing", value: 4 }] },
+      { id: "keeper", position: "GK", passiveAttributes: [{ id: "reflex", name: "Reflexes", value: 2 }] },
+    ],
+  });
+  const state = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 15, y: 5 },
+      { id: "blue-1", team: "A", cardId: "shooter", x: 15, y: 5 },
+      { id: "red-gk", team: "B", cardId: "keeper", x: 19, y: 5 },
+    ],
+  });
+  const started = applyGameCommand({ state, context, command: { id: "shot-start", type: "SHOT_STARTED", payload: { pieceId: "blue-1", shotId: "shot-1" } } });
+  const targeted = applyGameCommand({ state: started.nextState, context, command: { id: "shot-target", type: "SHOT_TARGET_SELECTED", payload: { shotId: "shot-1", target: { x: 20, y: 5 } } } });
+  const routed = applyGameCommand({ state: targeted.nextState, context, command: { id: "shot-route", type: "SHOT_ROUTE_CONFIRMED", payload: { shotId: "shot-1", cornerId: "top-left" } } });
+  const pendingRoll = routed.nextState.actionResolution.pendingRoll;
+  const rolled = applyGameCommand({ state: routed.nextState, context, command: { id: "shot-roll", type: "GAMEPLAY_ROLL_SUBMITTED", payload: { rollEvent: { id: "shot-roll-event", requestId: pendingRoll.requestId, actionId: "shot-1", team: "blue", dieType: 20, natural: 20, source: "RANDOM", subjectId: "blue-1" } } } });
+  const resolved = applyGameCommand({ state: rolled.nextState, context, command: { id: "shot-resolve", type: "SHOT_RESOLUTION_DUE", payload: { shotId: "shot-1" } } });
+  assert.equal(resolved.accepted, true);
+  assert.equal(resolved.nextState.score.blue, 1);
+  assert.equal(resolved.nextState.restart.kind, "kickoff");
+  assert.equal(resolved.nextState.restart.entitledTeam, "red");
 });
 
 test("GAMEPLAY_ROLL_SUBMITTED routes a canonical pending Pass roll without UI mechanic branching", () => {

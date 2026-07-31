@@ -14,6 +14,8 @@ function playableFirstTurn(state, team, { restarted = false } = {}) {
       movementStateByPieceId: {},
       actionResolution: null,
       actionContinuation: null,
+      restart: null,
+      score: restarted ? state.score : { blue: 0, red: 0 },
       // A newly started/restarted Match never inherits temporary opportunities
       // from an earlier Match lifecycle.
       teamModifierTokens: [],

@@ -41,7 +41,7 @@ The generic engine is in `src/match/actionResolutionEngine.mjs`. Action-specific
 - animation, focus, hover, cursor and cosmetic suspense;
 - result dialogs.
 
-UI presentation is not a Timeline step and must never be required to reconstruct gameplay. A Single Player gameplay roll with an automatic consequence persists a canonical delayed-resolution deadline: after the die face is revealed, the consequence cannot run for the fixed `1000 ms` result-hold interval. The timer is projection-only, but its `createdAt`/`resolveAt` descriptor is Timeline data, so Undo/Redo/replay never invent a second result or resolve an old roll. New automatic actions must create this shared hold through `createSinglePlayerRollResultHold(...)` and register their Engine resolution with the common delayed-resolution adapter; they must not add a mechanic-local timer. A roll with no automatic consequence (for example Extra Roll) has no artificial wait.
+UI presentation is not a Timeline step and must never be required to reconstruct gameplay. Offline Single Player retains only the visible 800 ms Dice animation and submits the canonical automatic consequence immediately afterwards; no `1000 ms` post-roll hold exists. Manual Multiplayer retains its isolated compatibility scheduler.
 
 ## Canonical flow
 
@@ -52,7 +52,6 @@ start action
 → pendingDecision (when a choice is required)
 → pendingRoll (when a manual roll is required)
 → unique RollEvent
-→ canonical 1000 ms result hold (when the consequence is automatic)
 → deterministic action-specific resolution
 → next decision/roll OR completion OR continuation
 ```

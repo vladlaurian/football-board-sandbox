@@ -3,7 +3,7 @@ import { normalizeTrackerActionLog } from "../tracker/trackerState.mjs";
 import { createEmptyTrackerTurnState } from "../tracker/actionRules.mjs";
 import { normalizeTeamModifierTokens } from "../engine/rollModifierOpportunities.mjs";
 
-export const GAME_STATE_SCHEMA_VERSION = 3;
+export const GAME_STATE_SCHEMA_VERSION = 4;
 
 export function cloneGameState(value) {
   if (value === undefined) return undefined;
@@ -34,6 +34,13 @@ export function createGameState(raw = {}) {
     actionContinuation: raw.actionContinuation && typeof raw.actionContinuation === "object"
       ? raw.actionContinuation
       : null,
+    // Restarts are gameplay state. They are never a UI-only modal, so a
+    // recording, Undo/Redo and any later authority all observe the same setup.
+    score: {
+      blue: Math.max(0, Math.floor(Number(raw.score?.blue) || 0)),
+      red: Math.max(0, Math.floor(Number(raw.score?.red) || 0)),
+    },
+    restart: raw.restart && typeof raw.restart === "object" ? raw.restart : null,
     threeTwoOpportunity: raw.threeTwoOpportunity && typeof raw.threeTwoOpportunity === "object"
       ? raw.threeTwoOpportunity
       : raw.throughBallOpportunity && typeof raw.throughBallOpportunity === "object" ? raw.throughBallOpportunity : null,
@@ -84,6 +91,8 @@ export function mergeGameState(baseState, overrides = {}) {
     ruleSet: stateOverride(overrides, "ruleSet", base.ruleSet),
     actionResolution: stateOverride(overrides, "actionResolution", base.actionResolution),
     actionContinuation: stateOverride(overrides, "actionContinuation", base.actionContinuation),
+    score: stateOverride(overrides, "score", base.score),
+    restart: stateOverride(overrides, "restart", base.restart),
     threeTwoOpportunity: stateOverride(overrides, "threeTwoOpportunity", stateOverride(overrides, "throughBallOpportunity", base.threeTwoOpportunity)),
     teamModifierTokens: stateOverride(overrides, "teamModifierTokens", stateOverride(overrides, "rollModifierOpportunities", base.teamModifierTokens)),
     tracker: {
@@ -120,6 +129,7 @@ export function createEditorStateAfterMatchExit(rawState) {
     gameMode: "editor",
     actionResolution: null,
     actionContinuation: null,
+    restart: null,
     // Roll bonuses and 3/2 grants are Match-runtime opportunities. They must
     // never leak into the unrestricted Editor workspace.
     teamModifierTokens: [],
