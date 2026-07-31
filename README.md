@@ -6,23 +6,16 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.26` |
-| Git/package version | `20.56.26` |
-| Documentation build | `v20.56.26` |
-| Build name | `Final_Board_v20_56_26_shot_goal_restarts` |
-| Base build | `Final_Board_v20_56_25_continue_game_scope_lock` |
+| Sandbox version | `v20.56.25` |
+| Git/package version | `20.56.25` |
+| Documentation build | `v20.56.25` |
+| Build name | `Final_Board_v20_56_25_continue_game_scope_lock` |
+| Base build | `Final_Board_v20_56_24_canonical_modifier_tracker` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.26`. The repository version is in `package.json` as `20.56.26`. The browser title is `Sandbox v20.56.26`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.25`. The repository version is in `package.json` as `20.56.25`. The browser title is `Sandbox v20.56.25`.
 
 ## Current release
-
-v20.56.26 adds the first canonical Shot slice for offline Single Player:
-target and route selection, frozen range settings, D20 resolution, score and
-Goal/Goal Kick/Corner/Kick-off restart state. The Tracker projects the score.
-The only retained dice wait is the 800 ms visible animation; the former extra
-one-second Single Player Pass/Interception hold has been removed. Manual
-Multiplayer and its legacy scheduler are unchanged.
 
 v20.56.25 restores the agreed Continue Game contract for offline Single Player
 Match Mode. Continue Game is available without a preceding Start New Game or

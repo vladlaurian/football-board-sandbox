@@ -218,7 +218,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.26";
+const APP_VERSION = "v20.56.25";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5602,29 +5602,9 @@ function App() {
         // The generic Engine descriptor holds the final canonical die face
         // before an automatic consequence. It is one scheduler for every
         // present/future pending-roll action, never an action-local Pass timer.
-        if (delayedResolution && pending?.kind !== "pass") {
+        if (delayedResolution) {
           const diceEntry = dispatched.timeline?.entries?.[(dispatched.timeline?.cursor || 0) - 1];
           scheduleDelayedResolution({ ...delayedResolution, entryId: String(diceEntry?.id || "") });
-        }
-        // The old Single Player Pass hold is not gameplay. Resolve directly
-        // after the retained visible D20 animation; Manual Multiplayer remains
-        // on its legacy scheduler above.
-        if (pending?.kind === "pass") {
-          const interceptor = dispatched.state.actionResolution?.plan?.interceptors?.[dispatched.state.actionResolution?.interceptorIndex];
-          applyDelayedActionResolution({ kind: "pass-interception", actionId: pending.id, team, value: result, payload: { defenderId: interceptor?.defender?.id, interceptorIndex: dispatched.state.actionResolution?.interceptorIndex, rollEvent } }, dispatched.state.actionResolution);
-        }
-        if (pending?.kind === "shot") {
-          const resolved = dispatchSinglePlayerGameCommand({
-            timeline: gameTimelineRef.current,
-            state: dispatched.state,
-            context: singlePlayerMatchContext(),
-            command: { id: createActionEventId(`shot_resolution_${pending.id}`), type: GAME_COMMAND_TYPE.SHOT_RESOLUTION_DUE, payload: { shotId: pending.id } },
-            label: `${pending.team === "blue" ? "Blue" : "Red"} shot result`,
-          });
-          if (resolved.result.accepted) {
-            const outcome = resolved.entry?.type === "GOAL_SCORED" ? "Goal" : resolved.entry?.type === "GOAL_KICK_STARTED" ? "Goal kick" : resolved.entry?.type === "CORNER_STARTED" ? "Corner" : "Goalkeeper retains the ball";
-            setPassResultNotice({ id: `shot_${Date.now()}`, title: "Shot", lines: [outcome] });
-          }
         }
         return;
       }
@@ -11073,18 +11053,6 @@ function App() {
       beginLoftedThroughBallTargeting(piece);
       return;
     }
-    if (type === "SHOT" && !sessionCode) {
-      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
-      const dispatched = dispatchSinglePlayerGameCommand({
-        timeline: gameTimelineRef.current,
-        state: before,
-        context: singlePlayerMatchContext(),
-        command: { id: createActionEventId(`shot_start_${piece.id}`), type: GAME_COMMAND_TYPE.SHOT_STARTED, payload: { pieceId: piece.id } },
-        label: `${pieceTeamKey(piece) === "blue" ? "Blue" : "Red"} Shot: ${getPieceDisplayLabel(piece)}`,
-      });
-      if (!dispatched.result.accepted && dispatched.result.reason) setIllegalMoveNotice({ reason: dispatched.result.reason });
-      return;
-    }
     if (type === "MOVE" && sessionCode && isSessionGuest) {
       void requestHostActionStart({ mode: "normal-move", actionType: "MOVE", piece });
       return;
@@ -12863,7 +12831,6 @@ function App() {
           }}
           teamModifierCapacity={(!sessionCode && gameMode === "match" && trackerGameStarted ? matchContextRef.current?.teamModifierCapacity : null) || trackerSettings.teamModifierCapacity}
           showTeamModifiers={!sessionCode && gameMode === "match"}
-          score={!sessionCode && gameMode === "match" ? (currentTimelineGameStateSnapshot() || captureTimelineGameState()).score : null}
       />
 
       {diceNotice && (
@@ -13084,36 +13051,6 @@ function App() {
           {preview && <span><strong>{passTargetLabel(actionResolution.plan)}</strong></span>}
           {!sessionCode && gameMode === "match" && renderRollModifierChoice(defenseTeam)}
         </DraggableActionPrompt>;
-      })()}
-
-      {actionResolution?.kind === "shot" && ["targeting", "route-selection"].includes(actionResolution.status) && (() => {
-        const shot = actionResolution;
-        const cols = Number(settings.cols) || 44;
-        const goalWidth = Number(settings.goalWidth) || 5;
-        const top = Math.floor(((Number(settings.rows) || 29) - goalWidth) / 2);
-        const submit = command => {
-          const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
-          const dispatched = dispatchSinglePlayerGameCommand({ timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(), command, label: "Shot setup" });
-          if (!dispatched.result.accepted && dispatched.result.reason) setIllegalMoveNotice({ reason: dispatched.result.reason });
-        };
-        return <div className="modal-backdrop pass-result-backdrop"><div className={`modal pass-result-modal ${shot.team}`} role="dialog" aria-modal="true">
-          <div className="modal-title"><strong>Shot</strong>{renderBlockingGameplayHistoryControls()}</div>
-          {shot.status === "targeting" && <><p>Select the goal cell.</p><div className="modal-actions">{Array.from({ length: goalWidth }, (_, i) => <button key={i} onClick={() => submit({ id: createActionEventId(`shot_target_${shot.id}`), type: GAME_COMMAND_TYPE.SHOT_TARGET_SELECTED, payload: { shotId: shot.id, target: { x: shot.team === "blue" ? cols : -1, y: top + i } } })}>{toCoord(shot.team === "blue" ? cols : -1, top + i)}</button>)}</div></>}
-          {shot.status === "route-selection" && <><p>Choose the execution corner.</p><div className="modal-actions">{["top-left", "top-right", "bottom-left", "bottom-right"].map(cornerId => <button key={cornerId} onClick={() => submit({ id: createActionEventId(`shot_route_${shot.id}`), type: GAME_COMMAND_TYPE.SHOT_ROUTE_CONFIRMED, payload: { shotId: shot.id, cornerId } })}>{cornerId}</button>)}</div></>}
-        </div></div>;
-      })()}
-
-      {!sessionCode && gameMode === "match" && (() => {
-        const restart = (currentTimelineGameStateSnapshot() || captureTimelineGameState()).restart;
-        if (!restart) return null;
-        const title = restart.kind === "kickoff" ? "Kick-off" : restart.kind === "goal-kick" ? "Goal kick" : "Corner";
-        const teamName = restart.entitledTeam === "blue" ? "Blue" : "Red";
-        const complete = () => {
-          const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
-          const dispatched = dispatchSinglePlayerGameCommand({ timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(), command: { id: createActionEventId(`restart_complete_${restart.id}`), type: GAME_COMMAND_TYPE.RESTART_COMPLETED, payload: { restartId: restart.id } }, label: `${title} completed` });
-          if (!dispatched.result.accepted && dispatched.result.reason) setIllegalMoveNotice({ reason: dispatched.result.reason });
-        };
-        return <div className="modal-backdrop pass-result-backdrop"><div className={`modal pass-result-modal ${restart.entitledTeam}`} role="dialog" aria-modal="true"><div className="modal-title"><strong>{title}</strong>{renderBlockingGameplayHistoryControls()}</div><p>{teamName} is entitled to restart play.</p><p>Arrange the restart on the board, then confirm it before using the normal action menu.</p><div className="modal-actions"><button className="save-label" onClick={complete}>Restart ready</button></div></div></div>;
       })()}
 
       {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "awaiting-roll" && (() => {

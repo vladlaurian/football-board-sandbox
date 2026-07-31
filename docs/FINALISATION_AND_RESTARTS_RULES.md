@@ -4,10 +4,8 @@
 
 This document is the agreed game-rule contract for results that interrupt or
 restart play: Goal, goal kick, throw-in, corner, free kick, penalty and kick-
-off. v20.56.26 implements the first offline Single Player routing slice:
-normal Shot records Goal, Goal Kick or Corner in canonical MatchState and Goal
-updates the canonical score. Detailed placement/repositioning restrictions
-remain the next restart-setup slice; they are not silently implemented by UI.
+off. It is documentation only. It does not claim that these procedures are
+implemented in the current runtime.
 
 It owns restart setup, possession, action-economy treatment and the required
 canonical state. The mechanism that creates a result remains responsible for

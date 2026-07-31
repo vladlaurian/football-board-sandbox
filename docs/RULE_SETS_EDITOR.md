@@ -116,10 +116,7 @@ Long Pass always uses the global statistic named `Long Pass`. It is not an edita
 
 ### Resolution Delay
 
-Offline Single Player has no artificial post-roll hold. It retains only the
-visible 800 ms Dice animation, then submits the canonical result immediately.
-The retained Rule Set timing field belongs only to the frozen Manual
-Multiplayer compatibility path.
+Offline Single Player uses one fixed global result hold of `1000 ms` between revealing a final gameplay die face and applying an automatic consequence. It is not an editable Rule Set value: every present and future action using the generic pending-roll/automatic-resolution contract inherits it. Extra Roll has no automatic consequence and therefore no artificial wait. The retained Rule Set field belongs only to the frozen Manual Multiplayer timing path.
 
 ## Interception settings
 

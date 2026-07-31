@@ -2,17 +2,6 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
-## v20.56.26 — Shot and restart foundation
-
-- Adds canonical offline Single Player Shot target, corner-route, D20 and
-  result commands, frozen Shot Rule Set values, score state and Tracker score
-  projection.
-- Goal, Goal Kick and Corner now enter canonical MatchState restart state;
-  restart completion is Timeline-owned rather than a UI-only dismissal.
-- Removes the obsolete additional one-second post-animation hold from offline
-  Pass/Interception. The visible 800 ms die animation remains. Manual
-  Multiplayer/Firebase timing is unchanged.
-
 ## v20.56.25 — Continue Game restoration and scope lock
 
 - Restores offline Single Player `Continue Game` without a Prep/Ready gate or

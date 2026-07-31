@@ -35,7 +35,6 @@ export function TrackerPanel({
   teamModifierTokens = {},
   teamModifierCapacity = 3,
   showTeamModifiers = false,
-  score = null,
 }) {
   if (!visible || lockUI) return null;
 
@@ -48,7 +47,7 @@ export function TrackerPanel({
       onPointerCancel={onPointerUp}
     >
       <div className="tracker-panel-title" onPointerDown={onTitlePointerDown}>
-        <strong>TRACKER{readOnly ? " — VIEW ONLY" : ""}{score ? `  BLUE ${Number(score.blue) || 0} — ${Number(score.red) || 0} RED` : ""}</strong>
+        <strong>TRACKER{readOnly ? " — VIEW ONLY" : ""}</strong>
         <div className="tracker-panel-actions">
           <button onPointerDown={e => e.stopPropagation()} onClick={onMinimize}>{minimized ? "□" : "—"}</button>
           <button onPointerDown={e => e.stopPropagation()} onClick={onClose}>×</button>

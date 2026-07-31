@@ -15,7 +15,6 @@ import { changePieceActivity, changeTrackerPossession, declareManualAction, decl
 import { cancelThroughBall, cancelThroughBallRoute, commitThroughBall, confirmThroughBallRecovery, selectThroughBallRecoverer, selectThroughBallTarget, startThroughBall } from "./throughBallRules.mjs";
 import { cancelLoftedThroughBall, cancelLoftedThroughBallRoute, commitLoftedThroughBall, confirmLoftedThroughBallRecovery, resolveLoftedThroughBall, selectLoftedThroughBallRecoverer, selectLoftedThroughBallTarget, startLoftedThroughBall, submitLoftedThroughBallRoll } from "./loftedThroughBallRules.mjs";
 import { isBonusActionCommand, isPendingBonusActionRollSubmission } from "./bonusActionCapabilities.mjs";
-import { confirmShotRoute, resolveShot, selectShotTarget, startShot, submitShotRoll } from "./shotRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -113,11 +112,6 @@ export function applyGameCommand({ state, context, command } = {}) {
   const groupMoveActive = Boolean(currentState.tracker?.matchActionState?.groupMove?.active);
   const bonusActionActive = currentState.actionContinuation?.kind === "bonus-card-action";
   const normalMoveInteractionActive = Boolean(currentState.tracker?.matchActionState?.activeMovement?.active);
-  if (currentState.restart && ![
-    GAME_COMMAND_TYPE.MATCH_STARTED,
-    GAME_COMMAND_TYPE.MATCH_RESTARTED,
-    GAME_COMMAND_TYPE.RESTART_COMPLETED,
-  ].includes(normalizedCommand.type)) return rejected("RESTART_ACTIVE");
   if (freeMoveActive && ![
     GAME_COMMAND_TYPE.MATCH_STARTED,
     GAME_COMMAND_TYPE.MATCH_RESTARTED,
@@ -281,45 +275,14 @@ export function applyGameCommand({ state, context, command } = {}) {
           ...normalizedCommand,
           payload: { ...(normalizedCommand.payload || {}), passId: resolution.id },
         })
-        : resolution?.kind === "lofted-through-ball"
+      : resolution?.kind === "lofted-through-ball"
         ? submitLoftedThroughBallRoll(currentState, matchContext, normalizedCommand)
-        : resolution?.kind === "shot"
-          ? submitShotRoll(currentState, matchContext, normalizedCommand)
         : { accepted: false, reason: "GAMEPLAY_ROLL_NOT_REQUESTED" };
     if (!transition.accepted) return rejected(transition.reason);
     return accepted(createGameState(transition.nextState), [createGameEvent({
       ...transition.event,
       commandId: normalizedCommand.id,
     })], transition.timeline);
-  }
-  if (normalizedCommand.type === GAME_COMMAND_TYPE.SHOT_STARTED) {
-    const transition = startShot(currentState, normalizedCommand);
-    if (!transition.accepted) return rejected(transition.reason);
-    return accepted(createGameState(transition.nextState), [createGameEvent({ ...transition.event, commandId: normalizedCommand.id })], transition.timeline);
-  }
-  if (normalizedCommand.type === GAME_COMMAND_TYPE.SHOT_TARGET_SELECTED) {
-    const transition = selectShotTarget(currentState, matchContext, normalizedCommand);
-    if (!transition.accepted) return rejected(transition.reason);
-    return accepted(createGameState(transition.nextState), [createGameEvent({ ...transition.event, commandId: normalizedCommand.id })], transition.timeline);
-  }
-  if (normalizedCommand.type === GAME_COMMAND_TYPE.SHOT_ROUTE_CONFIRMED) {
-    const transition = confirmShotRoute(currentState, matchContext, normalizedCommand);
-    if (!transition.accepted) return rejected(transition.reason);
-    return accepted(createGameState(transition.nextState), [createGameEvent({ ...transition.event, commandId: normalizedCommand.id })], transition.timeline);
-  }
-  if (normalizedCommand.type === GAME_COMMAND_TYPE.SHOT_RESOLUTION_DUE) {
-    const transition = resolveShot(currentState, matchContext, normalizedCommand);
-    if (!transition.accepted) return rejected(transition.reason);
-    return accepted(createGameState(transition.nextState), [createGameEvent({ ...transition.event, commandId: normalizedCommand.id })], transition.timeline);
-  }
-  if (normalizedCommand.type === GAME_COMMAND_TYPE.RESTART_COMPLETED) {
-    if (!currentState.restart) return rejected("RESTART_NOT_ACTIVE");
-    return accepted(createGameState({ ...currentState, restart: null }), [createGameEvent({
-      type: `${String(currentState.restart.kind || "restart").toUpperCase()}_COMPLETED`,
-      commandId: normalizedCommand.id,
-      team: currentState.restart.entitledTeam,
-      metadata: { restartId: currentState.restart.id, kind: currentState.restart.kind },
-    })], { groupId: currentState.restart.id, undoMode: "step", allowNoop: false });
   }
   if (normalizedCommand.type === GAME_COMMAND_TYPE.PASS_INTERCEPTION_ROLL_SUBMITTED) {
     const transition = submitPassInterceptionRoll(currentState, matchContext, normalizedCommand);
