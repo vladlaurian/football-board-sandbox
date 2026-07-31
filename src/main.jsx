@@ -27,6 +27,8 @@ import {
   selectSinglePlayerNormalMoveContinuationPresentation,
   selectSinglePlayerNormalMovePresentation,
   selectSinglePlayerPassPresentation,
+  selectSinglePlayerShotPresentation,
+  selectSinglePlayerShotTargetPresentation,
   selectSinglePlayerPieceActionPresentation,
   selectSinglePlayerTeamActionPresentation,
   selectSinglePlayerRollModifierTokenPresentation,
@@ -82,6 +84,7 @@ import {
   findRuleSet,
   normalizeRuleSet,
   normalizeRuleSets,
+  resolveDiceModifierStacks,
 } from "./rules/ruleSets.mjs";
 import {
   PASS_CORNERS,
@@ -218,7 +221,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.25";
+const APP_VERSION = "v20.56.28";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -5765,7 +5768,7 @@ function App() {
     </div>;
   }
 
-  function gridPointFromClient(clientX, clientY, { clampToBoard = true } = {}) {
+  function gridPointFromClient(clientX, clientY, { clampToBoard = true, allowGoalGrid = false } = {}) {
     const pitch = pitchRef.current;
     if (!pitch) return null;
     const rect = pitch.getBoundingClientRect();
@@ -5775,7 +5778,9 @@ function App() {
     const rawY = Math.floor(localY / settings.cellSize);
 
     if (!clampToBoard) {
-      if (rawX < 0 || rawX >= settings.cols || rawY < 0 || rawY >= settings.rows) return null;
+      const minX = allowGoalGrid ? -Number(settings.goalDepth) : 0;
+      const maxX = allowGoalGrid ? Number(settings.cols) + Number(settings.goalDepth) : Number(settings.cols);
+      if (rawX < minX || rawX >= maxX || rawY < 0 || rawY >= settings.rows) return null;
       return { x: rawX, y: rawY };
     }
 
@@ -6017,6 +6022,7 @@ function App() {
     else if (result.reason === "pass-max-distance-exceeded") primary = <>The maximum Pass distance is {result.maxPassDistance ?? 32} squares.</>;
     else if (result.reason === "pass-long-stat-not-configured") primary = <>The global Long Pass statistic is required before starting this Match.</>;
     else if (result.reason === "pass-requires-ball") primary = <>Only the player who has the ball can start a pass in Match Mode.</>;
+    else if (result.reason === "shot-target-must-be-opponent-goal") primary = <>Please select a cell inside the opponent&apos;s goal.</>;
     else if (result.reason === "THROUGH_BALL_MAX_DISTANCE") primary = <>This Through Ball exceeds the frozen maximum distance for this Match.</>;
     else if (result.reason === "free-ball-required") primary = <>Press FREE BALL before moving the ball in Match Mode.</>;
     else if (result.reason === "team-exhausted") primary = <>Wait for opponent team or advance to next turn.</>;
@@ -6648,7 +6654,8 @@ function App() {
       } else cancelPassTargeting();
       return;
     }
-    if (["pass", "through-ball", "lofted-through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "targeting" && canControlActiveResolution(actionResolutionRef.current)) {
+    if (["pass", "through-ball", "lofted-through-ball", "shot"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "targeting" && canControlActiveResolution(actionResolutionRef.current)) {
+      if (actionResolutionRef.current.kind === "shot") { chooseShotTarget({ x: piece.x, y: piece.y }); return; }
       if (actionResolutionRef.current.kind === "lofted-through-ball") { chooseLoftedThroughBallTarget(piece.x, piece.y); return; }
       if (actionResolutionRef.current.kind === "through-ball") { chooseThroughBallTarget(piece.x, piece.y); return; }
       choosePassTarget(piece.x, piece.y);
@@ -6656,7 +6663,7 @@ function App() {
     }
     // Pass state blocks gameplay actions, not inspection. The non-controlling
     // client may always select any puck while the active player resolves Pass.
-    if (["pass", "through-ball", "lofted-through-ball"].includes(actionResolutionRef.current?.kind)) {
+    if (["pass", "through-ball", "lofted-through-ball", "shot"].includes(actionResolutionRef.current?.kind)) {
       setSelectedId(pieceId);
       setHoveredCell(null);
       return;
@@ -7174,6 +7181,40 @@ function App() {
 
   const passPreview = useMemo(() => {
     const pending = actionResolution;
+    if (pending?.kind === "shot" && pending.shooterId && (pending.target || pending.attemptedTarget)) {
+      const presentation = selectSinglePlayerShotPresentation({ actionResolution: pending });
+      const goalTop = Math.floor((Number(settings.rows) - Number(settings.goalWidth)) / 2);
+      const targetX = pending.target
+        ? pending.target.side === "right" ? Number(settings.cols) + Number(pending.target.depth) : -Number(settings.goalDepth) + Number(pending.target.depth)
+        : Number(pending.attemptedTarget.x);
+      const targetY = pending.target ? goalTop + Number(pending.target.y) : Number(pending.attemptedTarget.y);
+      const target = pending.status === "route-selection" || pending.targetInvalidReason
+        ? { ...(pending.target || pending.attemptedTarget), renderX: targetX, renderY: targetY }
+        : null;
+      return {
+        extendsGoals: true,
+        plans: pending.routes || [],
+        selectedPlan: presentation?.selectedRoute || null,
+        target,
+        targetStatus: pending.targetInvalidReason ? "blocked" : "clear",
+        visibleCells: [],
+        blockedCells: [],
+        lines: (presentation?.routes || []).map(route => ({
+          id: route.cornerId,
+          origin: route.origin,
+          endpoint: route.endpoint,
+          status: route.status,
+          selected: route.cornerId === pending.plan?.cornerId,
+        })),
+        routes: (pending.status === "route-selection" || pending.targetInvalidReason) ? (presentation?.routes || []).map(route => ({
+          ...route,
+          id: route.cornerId,
+          foot: route.foot?.foot === "Left" ? "LF" : route.foot?.foot === "Right" ? "RF" : "BF",
+          modifier: route.modifierLabel,
+          actionLabel: "SHOT",
+        })) : [],
+      };
+    }
     if (pending?.kind === "lofted-through-ball" && pending.passerId && pending.target) {
       const routes = pending.routes || [];
       return {
@@ -7294,14 +7335,29 @@ function App() {
   );
 
   const passActive = actionResolution?.kind === "pass" && ["targeting", "route-selection", "awaiting-interceptor-choice", "awaiting-interception-roll", "awaiting-interception-resolution", "interception-resolved"].includes(actionResolution.status);
+  const shotTargetPresentation = useMemo(
+    () => !sessionCode && gameMode === "match"
+      ? selectSinglePlayerShotTargetPresentation({ actionResolution }, singlePlayerMatchContext())
+      : { targetOptions: [] },
+    [actionResolution, gameMode, sessionCode, gameTimeline?.cursor],
+  );
   const pendingGameplayRoll = actionResolution?.pendingRoll || null;
   const passTargetDistance = useMemo(() => {
     const pending = actionResolution;
-    if (!["pass", "through-ball", "lofted-through-ball"].includes(pending?.kind) || pending.status !== "targeting" || !hoveredCell) return null;
-    if (hoveredCell.x < 0 || hoveredCell.y < 0 || hoveredCell.x >= settings.cols || hoveredCell.y >= settings.rows) return null;
-    const passer = pieces.find(piece => piece.id === pending.passerId);
+    if (!["pass", "through-ball", "lofted-through-ball", "shot"].includes(pending?.kind) || pending.status !== "targeting" || !hoveredCell) return null;
+    const isShot = pending.kind === "shot";
+    if (hoveredCell.y < 0 || hoveredCell.y >= settings.rows || (!isShot && (hoveredCell.x < 0 || hoveredCell.x >= settings.cols))) return null;
+    const passer = pieces.find(piece => piece.id === (isShot ? pending.shooterId : pending.passerId));
     if (!passer) return null;
     const distance = Math.hypot((hoveredCell.x + .5) - (passer.x + .5), (hoveredCell.y + .5) - (passer.y + .5));
+    if (isShot) {
+      const shotRules = matchContextRef.current?.ruleSet?.actions?.shot || {};
+      const normalMax = Number(shotRules.longShotNormalRangeMax) || 11;
+      const maximum = Number(shotRules.shotMaximumRange) || 16;
+      const insidePenalty = Number(passer.x) < Number(settings.boxDepth) || Number(passer.x) >= Number(settings.cols) - Number(settings.boxDepth);
+      const label = distance > maximum ? "MAX" : insidePenalty ? "FIN" : distance <= normalMax ? "LS" : "DLS";
+      return { x: hoveredCell.x, y: hoveredCell.y, label: `${distance.toFixed(2)} ${label}` };
+    }
     if (pending.kind === "through-ball") {
       const maximum = Number(matchContextRef.current?.ruleSet?.actions?.throughBall?.maxDistance) || 16;
       return { x: hoveredCell.x, y: hoveredCell.y, label: `${distance.toFixed(2)} ${distance > maximum ? "MAX" : "TB"}` };
@@ -7318,7 +7374,7 @@ function App() {
       y: hoveredCell.y,
       label: `${distance.toFixed(2)} ${distance > maxPassDistance ? "MAX" : distance > longPassThreshold ? "LP" : "SP"}`,
     };
-  }, [actionResolution, hoveredCell, pieces, settings.cols, settings.rows, gameTimeline?.cursor]);
+  }, [actionResolution, hoveredCell, pieces, settings.cols, settings.rows, settings.boxDepth, gameTimeline?.cursor]);
 
   const defAreaButtonLabel = defAreaMode === 0 ? "D.A OFF" : defAreaMode === 1 ? "D.A.1" : "D.A.2";
   useEffect(() => {
@@ -9083,10 +9139,10 @@ function App() {
 
   function moveBoardPan(e) {
     const pass = actionResolutionRef.current;
-    if (["pass", "through-ball"].includes(pass?.kind) && pass.status !== "targeting") {
+    if (["pass", "through-ball", "shot"].includes(pass?.kind) && pass.status !== "targeting") {
       setHoveredCell(null);
     } else if ((selectedId || activeInteractionPieceId) && e.pointerType !== "touch") {
-      setHoveredCell(gridPointFromClient(e.clientX, e.clientY, { clampToBoard: false }));
+      setHoveredCell(gridPointFromClient(e.clientX, e.clientY, { clampToBoard: false, allowGoalGrid: pass?.kind === "shot" && pass.status === "targeting" }));
     }
 
     const pan = boardPanRef.current;
@@ -9115,7 +9171,9 @@ function App() {
 
     // Route badges are the only allowed board click after a pass target is set.
     // This prevents the underlying square from being treated as a player move.
-    const point = gridPointFromClient(e.clientX, e.clientY);
+    const pendingAction = actionResolutionRef.current;
+    const shotTargeting = pendingAction?.kind === "shot" && pendingAction.status === "targeting";
+    const point = gridPointFromClient(e.clientX, e.clientY, { clampToBoard: !shotTargeting, allowGoalGrid: shotTargeting });
     if (!point) return;
     if (["pass", "through-ball", "lofted-through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "route-selection") {
       const pending = actionResolutionRef.current;
@@ -9128,7 +9186,13 @@ function App() {
       }
       return;
     }
+    if (pendingAction?.kind === "shot" && pendingAction.status === "route-selection") return;
     if (groupMoveZoneDraft) return;
+    if (shotTargeting) {
+      if (!canControlActiveResolution(pendingAction)) return;
+      chooseShotTarget(point);
+      return;
+    }
     if (["pass", "through-ball", "lofted-through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "targeting") {
       if (!canControlActiveResolution(actionResolutionRef.current)) return;
       if (actionResolutionRef.current.kind === "lofted-through-ball") { chooseLoftedThroughBallTarget(point.x, point.y); return; }
@@ -10060,6 +10124,74 @@ function App() {
     return commitPassTargetSelection(x, y, pending);
   }
 
+  // Shot has the same board-first entrance as Pass. The UI sends no geometry
+  // or legal verdict: target cells and route truth come back from the Engine.
+  function beginShotTargeting(piece) {
+    if (sessionCode || gameMode !== "match" || !playerHasBall(piece)) return null;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const shotId = createActionEventId(`shot_start_${piece.id}`);
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true,
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: {
+        id: createActionEventId(`shot_start_command_${piece.id}`),
+        type: GAME_COMMAND_TYPE.SHOT_STARTED,
+        payload: { pieceId: piece.id, shotId },
+      },
+      label: `${pieceTeamKey(piece) === "blue" ? "Blue" : "Red"} SHOT: choose a goal cell for ${getPieceDisplayLabel(piece)}`,
+    });
+    if (!dispatched.result.accepted) { setIllegalMoveNotice({ reason: dispatched.result.reason }); return null; }
+    setSelectedId(piece.id);
+    setHoveredCell(null);
+    return dispatched.state.actionResolution;
+  }
+
+  function chooseShotTarget(target) {
+    const pending = actionResolutionRef.current;
+    if (sessionCode || pending?.kind !== "shot" || pending.status !== "targeting" || !canControlActiveResolution(pending)) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true,
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: {
+        id: createActionEventId(`shot_target_${pending.id}`),
+        type: GAME_COMMAND_TYPE.SHOT_TARGET_SELECTED,
+        payload: { shotId: pending.id, target },
+      },
+      label: `Shot target selected: ${Number(target.x) + 1}/${Number(target.y) + 1}`,
+    });
+    if (!dispatched.result.accepted) { setIllegalMoveNotice({ reason: dispatched.result.reason }); return false; }
+    if (dispatched.state.actionResolution?.targetInvalidReason === "SHOT_TARGET_MUST_BE_OPPONENT_GOAL") setIllegalMoveNotice({ reason: "shot-target-must-be-opponent-goal" });
+    else setIllegalMoveNotice(null);
+    setHoveredCell(null);
+    return true;
+  }
+
+  function confirmShotRoute(cornerId) {
+    const pending = actionResolutionRef.current;
+    if (sessionCode || pending?.kind !== "shot" || pending.status !== "route-selection" || !canControlActiveResolution(pending)) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true,
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: {
+        id: createActionEventId(`shot_route_${pending.id}`),
+        type: GAME_COMMAND_TYPE.SHOT_ROUTE_CONFIRMED,
+        payload: { shotId: pending.id, cornerId },
+      },
+      label: `Shot route confirmed: ${cornerId}`,
+    });
+    if (!dispatched.result.accepted) { setIllegalMoveNotice({ reason: dispatched.result.reason }); return false; }
+    setIllegalMoveNotice(null);
+    return true;
+  }
+
   function activatePassRoute(cornerId) {
     const pending = actionResolutionRef.current;
     if (pending?.kind !== "pass" || pending.status !== "route-selection" || !pending.target) return null;
@@ -10914,7 +11046,7 @@ function App() {
       }
       return;
     }
-    if (["PASS", "THROUGH_BALL"].includes(type) && gameMode === "match" && !playerHasBall(piece)) {
+    if (!sessionCode && ["PASS", "THROUGH_BALL", "SHOT"].includes(type) && gameMode === "match" && !playerHasBall(piece)) {
       setIllegalMoveNotice({ reason: "pass-requires-ball" });
       return;
     }
@@ -10976,6 +11108,9 @@ function App() {
         beginLoftedThroughBallTargeting(piece);
         return;
       }
+      // This vertical slice is deliberately normal-play Shot only. A Bonus
+      // Action cannot silently fall back to the old manual declaration path.
+      if (!sessionCode && type === "SHOT") return;
       if (!sessionCode && ["SHOT", "CROSS", "DRIBBLE", "TACKLING"].includes(type)) {
         const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
         const dispatched = dispatchSinglePlayerGameCommand({
@@ -11053,6 +11188,15 @@ function App() {
       beginLoftedThroughBallTargeting(piece);
       return;
     }
+    if (!sessionCode && type === "SHOT") {
+      if (gameMode === "match") {
+        if (!isTeamPhaseActive(team)) { setIllegalMoveNotice({ reason: phaseBlockReason() }); return; }
+        if (getTeamActionStatus(team).exhausted) { setIllegalMoveNotice({ reason: "actions-complete-end-turn" }); return; }
+      }
+      cancelFreeBall();
+      beginShotTargeting(piece);
+      return;
+    }
     if (type === "MOVE" && sessionCode && isSessionGuest) {
       void requestHostActionStart({ mode: "normal-move", actionType: "MOVE", piece });
       return;
@@ -11061,7 +11205,7 @@ function App() {
       commitNormalMoveStart(piece);
       return;
     }
-    if (!sessionCode && ["SHOT", "CROSS", "DRIBBLE", "TACKLING"].includes(type)) {
+    if (!sessionCode && ["CROSS", "DRIBBLE", "TACKLING"].includes(type)) {
       const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
       const dispatched = dispatchSinglePlayerGameCommand({
         timeline: gameTimelineRef.current,
@@ -11906,11 +12050,15 @@ function App() {
       if (!gesture.moved && Date.now() >= multiTouchUntilRef.current) {
         if (measureMode && gesture.point) {
           applyRulerPoint(gesture.point);
+        } else if (actionResolutionRef.current?.kind === "shot" && actionResolutionRef.current.status === "targeting") {
+          if (!canControlActiveResolution(actionResolutionRef.current)) return;
+          const point = gridPointFromClient(gesture.startX, gesture.startY, { clampToBoard: false, allowGoalGrid: true });
+          if (point) chooseShotTarget(point);
         } else if (actionResolutionRef.current?.kind === "pass" && actionResolutionRef.current.status === "targeting") {
           if (!canControlActiveResolution(actionResolutionRef.current)) return;
           const point = gridPointFromClient(gesture.startX, gesture.startY);
           if (point) choosePassTarget(point.x, point.y);
-        } else if (actionResolutionRef.current?.kind === "pass") {
+        } else if (["pass", "shot"].includes(actionResolutionRef.current?.kind)) {
           // After target selection, touch input is reserved for a route badge
           // or for two-finger panning; it cannot become a board movement.
           return;
@@ -12285,11 +12433,13 @@ function App() {
         adjustZoneCells={adjustZoneOverlays}
         formationRoleProblemsByPieceId={formationRoleProblemsByPieceId}
         passPreview={passPreview}
-        passTargeting={["pass", "through-ball", "lofted-through-ball"].includes(actionResolution?.kind) && actionResolution.status === "targeting" && canControlActiveResolution(actionResolution)}
-        passActive={(passActive || ["through-ball", "lofted-through-ball"].includes(actionResolution?.kind)) && canControlActiveResolution(actionResolution)}
+        passTargeting={["pass", "through-ball", "lofted-through-ball", "shot"].includes(actionResolution?.kind) && actionResolution.status === "targeting" && canControlActiveResolution(actionResolution)}
+        passActive={(passActive || ["through-ball", "lofted-through-ball", "shot"].includes(actionResolution?.kind)) && canControlActiveResolution(actionResolution)}
         passTargetDistance={passTargetDistance}
-        passRouteInteractive={["pass", "through-ball", "lofted-through-ball"].includes(actionResolution?.kind) && actionResolution.status === "route-selection" && canControlActiveResolution(actionResolution)}
-        onSelectPassRoute={cornerId => actionResolution?.kind === "lofted-through-ball" ? commitLoftedThroughBallRoute(cornerId) : actionResolution?.kind === "through-ball" ? commitThroughBallRoute(cornerId) : confirmPassRoute(cornerId)}
+        passRouteInteractive={["pass", "through-ball", "lofted-through-ball", "shot"].includes(actionResolution?.kind) && actionResolution.status === "route-selection" && canControlActiveResolution(actionResolution)}
+        onSelectPassRoute={cornerId => actionResolution?.kind === "shot" ? confirmShotRoute(cornerId) : actionResolution?.kind === "lofted-through-ball" ? commitLoftedThroughBallRoute(cornerId) : actionResolution?.kind === "through-ball" ? commitThroughBallRoute(cornerId) : confirmPassRoute(cornerId)}
+        shotTargetOptions={canControlActiveResolution(actionResolution) ? shotTargetPresentation.targetOptions : []}
+        onSelectShotTarget={chooseShotTarget}
         groupMoveZone={groupMoveZoneDraft
           ? { ...groupMoveZoneDraft, confirmable: true }
           : null}
@@ -13066,6 +13216,72 @@ function App() {
         </DraggableActionPrompt>;
       })()}
 
+      {actionResolution?.kind === "shot" && actionResolution.status === "awaiting-roll" && (() => {
+        const shooter = pieces.find(piece => piece.id === actionResolution.shooterId);
+        const goalkeeper = pieces.find(piece => piece.id === actionResolution.goalkeeperId);
+        const plan = actionResolution.plan || {};
+        const attackerLabel = actionResolution.statId === "stat:finishing" ? "Finishing" : "Long Shot";
+        const goalkeeperLabel = actionResolution.goalkeeperStatId === "stat:reflexes" ? "Reflexes" : "Diving Saves";
+        const target = actionResolution.target || {};
+        const targetLabel = `${target.side === "right" ? "right" : "left"} goal cell ${Number(target.depth) + 1}/${Number(target.y) + 1}`;
+        const sources = plan.modifierSources || [];
+        const selectedModifier = pendingRollModifierType
+          ? resolveDiceModifierStacks(singlePlayerMatchContext().ruleSet.diceModifiers, pendingRollModifierType)
+          : 0;
+        const modifier = (Number(plan.modifier) || 0) + selectedModifier;
+        const selectedModifierLabel = pendingRollModifierType
+          ? `${({ advantage: "AV", majorAdvantage: "AVM", disadvantage: "DV", majorDisadvantage: "DVM" })[pendingRollModifierType]} ${selectedModifier >= 0 ? "+" : ""}${selectedModifier}`
+          : "no selected Tracker token";
+        const describeSource = source => {
+          if (!source.defenderId) return source.reason;
+          const defender = pieces.find(piece => String(piece.id) === String(source.defenderId));
+          const card = singlePlayerMatchContext().gameplayCardsById[String(defender?.cardId)] || {};
+          const identity = [card.position, card.name].filter(Boolean).join(" ") || "Unknown defender";
+          return `Defensive area: ${identity} — ${teamKeyForPiece(defender) === "blue" ? "Blue" : "Red"}`;
+        };
+        return <DraggableActionPrompt promptKey="shot-roll" className="warning">
+          <strong>Shot roll required</strong>
+          <span>{getPieceIdentity(shooter)} ({actionResolution.team === "blue" ? "Blue" : "Red"}) rolls D20. Target: {targetLabel}; distance {Number(plan.distance || 0).toFixed(2)} — {plan.band === "finishing" ? "Finishing" : plan.band === "long-shot" ? "Long Shot" : "Distant Long Shot"}.</span>
+          <span>{attackerLabel} {cardStat(cardById[shooter?.cardId], actionResolution.statId)} vs {getPieceIdentity(goalkeeper)} fixed {goalkeeperLabel} {cardStat(cardById[goalkeeper?.cardId], actionResolution.goalkeeperStatId)}.</span>
+          <span>{sources.length ? sources.map(source => `${describeSource(source)} ${Number(source.value) >= 0 ? "+" : ""}${Number(source.value)}`).join(" · ") : "No route modifier."}</span>
+          <span><strong>Total modifier {modifier >= 0 ? "+" : ""}{modifier} ({selectedModifierLabel}). Roll {actionResolution.team.toUpperCase()}.</strong></span>
+          {!sessionCode && gameMode === "match" && renderRollModifierChoice(actionResolution.team)}
+        </DraggableActionPrompt>;
+      })()}
+
+      {actionResolution?.kind === "shot" && actionResolution.status === "result-display" && (() => {
+        const shooter = pieces.find(piece => piece.id === actionResolution.shooterId);
+        const goalkeeper = pieces.find(piece => piece.id === actionResolution.goalkeeperId);
+        const result = actionResolution.result || {};
+        const outcomes = {
+          goal: "GOAL",
+          "goal-kick": "GOAL KICK",
+          corner: "CORNER",
+          "goalkeeper-retains": "GOALKEEPER RETAINS",
+        };
+        const attackerLabel = actionResolution.statId === "stat:finishing" ? "Finishing" : "Long Shot";
+        const goalkeeperLabel = actionResolution.goalkeeperStatId === "stat:reflexes" ? "Reflexes" : "Diving Saves";
+        const describeSource = source => {
+          if (!source.defenderId) return source.reason;
+          const defender = pieces.find(piece => String(piece.id) === String(source.defenderId));
+          const card = singlePlayerMatchContext().gameplayCardsById[String(defender?.cardId)] || {};
+          const identity = [card.position, card.name].filter(Boolean).join(" ") || "Unknown defender";
+          return `Defensive area: ${identity} — ${teamKeyForPiece(defender) === "blue" ? "Blue" : "Red"}`;
+        };
+        return <div className="modal-backdrop pass-result-backdrop">
+          <div className={`modal pass-result-modal ${actionResolution.team || ""}`} role="dialog" aria-modal="true" aria-label="Shot resolution checkpoint">
+            <div className="modal-title"><strong>Shot resolution</strong>{renderBlockingGameplayHistoryControls()}</div>
+            <div className="pass-result-lines">
+              <p><strong>{outcomes[result.outcome] || "SHOT RESULT"}</strong></p>
+              <p>{getPieceIdentity(shooter)}: D20 {Number(result.natural)} + {attackerLabel} {Number(result.attackerStat)} + modifiers {Number(result.modifier) >= 0 ? "+" : ""}{Number(result.modifier)} = <strong>{Number(result.total)}</strong> vs {getPieceIdentity(goalkeeper)} {goalkeeperLabel} <strong>{Number(result.goalkeeperStat)}</strong>.</p>
+              {(result.modifierSources || []).map((source, index) => <p key={`${source.reason}-${index}`}>{describeSource(source)}: {Number(source.value) >= 0 ? "+" : ""}{Number(source.value)}</p>)}
+              <p>Shot result recorded. Score, ball, possession, turn and restart remain unchanged at this checkpoint.</p>
+              <p>Use Timeline Undo/Redo or New Game to test another result.</p>
+            </div>
+          </div>
+        </div>;
+      })()}
+
       {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "roll-resolved" && <div className="modal-backdrop pass-result-backdrop"><div className={`modal pass-result-modal ${actionResolution.team || ""}`} role="dialog" aria-modal="true"><div className="modal-title"><strong>Lofted Through Ball result</strong>{renderBlockingGameplayHistoryControls()}</div><div className="pass-result-lines">{renderRollBreakdown(actionResolution.result, `Difficulty ${actionResolution.plan?.difficultyThreshold}`)}{Number(actionResolution.result?.natural) === 20 && <p>{selectNaturalRollOutcomePresentation(actionResolution.result?.naturalOutcome)}</p>}<p>{actionResolution.result?.succeeds ? "Lofted Through Ball succeeds." : "Lofted Through Ball fails."}</p></div><div className="modal-actions"><button className="save-label" onClick={confirmLoftedThroughBallResolution}>Continue</button></div></div></div>}
 
       {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "awaiting-recoverer-choice" && (() => {
@@ -13298,6 +13514,36 @@ function App() {
                 <input disabled={ruleSetEditingLocked} type="number" min="0" max="5000" step="100" value={ruleSetDraft.actions?.pass?.resolutionDelayMs ?? 1500} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, pass: { ...draft.actions?.pass, resolutionDelayMs: clamp(Math.floor(Number(e.target.value) || 0), 0, 5000) } } }))} />
               </label>
               <span className="rule-manual-pill">Dice: manual roll only</span>
+            </section>
+            <section className="rule-action-card">
+              <div><strong>Shot</strong><span>v20.56.28: normal-play resolution checkpoint</span></div>
+              <p>Goal cells are selected on the board. Routes always use the approved corner-to-centre presentation. A D20 result is canonical, but this build deliberately applies no Goal, Goal Kick, Corner or goalkeeper-retains consequence.</p>
+              <label>Normal Long Shot range (whole squares)
+                <input disabled={ruleSetEditingLocked} type="number" min="1" step="1" value={ruleSetDraft.actions?.shot?.longShotNormalRangeMax ?? 11} onChange={e => setRuleSetDraft(draft => {
+                  const normal = e.target.value === "" ? "" : Math.max(1, Math.floor(Number(e.target.value) || 1));
+                  const maximum = draft.actions?.shot?.shotMaximumRange === "" ? "" : Math.max(Number(normal) || 1, Math.floor(Number(draft.actions?.shot?.shotMaximumRange) || 16));
+                  return { ...draft, actions: { ...draft.actions, shot: { ...draft.actions?.shot, longShotNormalRangeMax: normal, shotMaximumRange: maximum } } };
+                })} onBlur={() => setRuleSetDraft(draft => {
+                  const normal = Math.max(1, Math.floor(Number(draft.actions?.shot?.longShotNormalRangeMax)) || 11);
+                  const maximum = Math.max(normal, Math.floor(Number(draft.actions?.shot?.shotMaximumRange)) || 16);
+                  return { ...draft, actions: { ...draft.actions, shot: { ...draft.actions?.shot, longShotNormalRangeMax: normal, shotMaximumRange: maximum } } };
+                })} />
+              </label>
+              <label>Shot maximum range (whole squares)
+                <input disabled={ruleSetEditingLocked} type="number" min={Math.max(1, Math.floor(Number(ruleSetDraft.actions?.shot?.longShotNormalRangeMax)) || 11)} step="1" value={ruleSetDraft.actions?.shot?.shotMaximumRange ?? 16} onChange={e => setRuleSetDraft(draft => {
+                  const normal = Math.max(1, Math.floor(Number(draft.actions?.shot?.longShotNormalRangeMax)) || 11);
+                  return { ...draft, actions: { ...draft.actions, shot: { ...draft.actions?.shot, shotMaximumRange: e.target.value === "" ? "" : Math.max(normal, Math.floor(Number(e.target.value) || normal)) } } };
+                })} onBlur={() => setRuleSetDraft(draft => {
+                  const normal = Math.max(1, Math.floor(Number(draft.actions?.shot?.longShotNormalRangeMax)) || 11);
+                  const maximum = Math.max(normal, Math.floor(Number(draft.actions?.shot?.shotMaximumRange)) || 16);
+                  return { ...draft, actions: { ...draft.actions, shot: { ...draft.actions?.shot, longShotNormalRangeMax: normal, shotMaximumRange: maximum } } };
+                })} />
+              </label>
+              <label>Distant Long Shot modifier
+                <select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.shot?.distantBandModifier || "disadvantage"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, shot: { ...draft.actions?.shot, distantBandModifier: e.target.value } } }))}>
+                  <option value="disadvantage">DV</option><option value="majorDisadvantage">DVM</option>
+                </select>
+              </label>
             </section>
             <section className="rule-action-card">
               <div><strong>Through Ball</strong><span>Configured automation — no roll</span></div>

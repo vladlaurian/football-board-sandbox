@@ -89,6 +89,8 @@ export function BoardCanvas({
   passTargetDistance,
   passRouteInteractive = true,
   onSelectPassRoute,
+  shotTargetOptions = [],
+  onSelectShotTarget,
   groupMoveZone = null,
   onConfirmGroupMoveZone,
   onGroupMoveZoneDragStart,
@@ -199,6 +201,8 @@ export function BoardCanvas({
   const boxTop = Math.floor((settings.rows - settings.boxWidth) / 2);
   const smallTop = Math.floor((settings.rows - settings.smallWidth) / 2);
   const goalTop = Math.floor((settings.rows - settings.goalWidth) / 2);
+  const routeGoalPadding = passPreview?.extendsGoals ? Number(settings.goalDepth) : 0;
+  const routeViewBox = `${-routeGoalPadding} 0 ${Number(settings.cols) + routeGoalPadding * 2} ${settings.rows}`;
   const centerX = settings.cols / 2;
   const centerY = settings.rows / 2;
   const centerDotY = Math.floor(settings.rows / 2);
@@ -307,6 +311,20 @@ export function BoardCanvas({
 
           <div className="goal left-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }}><GoalGrid side="left" settings={settings} /></div>
           <div className="goal right-goal" style={{ top: `calc(${goalTop} * var(--cell))`, width: `calc(${settings.goalDepth} * var(--cell))`, height: `calc(${settings.goalWidth} * var(--cell))` }}><GoalGrid side="right" settings={settings} /></div>
+          {shotTargetOptions.map(target => {
+            const x = target.side === "right" ? settings.cols + Number(target.depth) : -Number(settings.goalDepth) + Number(target.depth);
+            const y = goalTop + Number(target.y);
+            return <button
+              key={`shot-target-${target.side}-${target.depth}-${target.y}`}
+              type="button"
+              className="shot-goal-target"
+              style={{ left: `calc(${x} * var(--cell))`, top: `calc(${y} * var(--cell))` }}
+              aria-label={`Shot target ${target.side} goal ${Number(target.depth) + 1}, ${Number(target.y) + 1}`}
+              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }}
+              onPointerUp={event => { event.preventDefault(); event.stopPropagation(); }}
+              onClick={event => { event.preventDefault(); event.stopPropagation(); onSelectShotTarget?.({ x: Number(target.x), y: Number(target.boardY) }); }}
+            />;
+          })}
           <div className="penalty-dot penalty-dot-line" style={{ left: `calc(${leftPenaltyX} * var(--cell) - var(--cell) * .08)`, top: `calc((${penaltyY} + .5) * var(--cell) - var(--cell) * .08)` }} />
           <div className="penalty-dot penalty-dot-line" style={{ left: `calc(${rightPenaltyX} * var(--cell) - var(--cell) * .08)`, top: `calc((${penaltyY} + .5) * var(--cell) - var(--cell) * .08)` }} />
           <div className="arc-mask" style={leftArc.mask}><div className="arc-circle" style={leftArc.circle} /></div>
@@ -339,14 +357,14 @@ export function BoardCanvas({
           </> : defensiveAreaOverlays.map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
           {adjustZoneCells.map(cell => <div key={cell.id} className={`adjust-zone-cell ${cell.team === "A" ? "blue" : "red"} ${cell.selected ? "selected" : ""}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
 
-          {passPreview?.lines?.length > 0 && <svg className="pass-preview-svg" viewBox={`0 0 ${settings.cols} ${settings.rows}`} preserveAspectRatio="none">
+          {passPreview?.lines?.length > 0 && <svg className="pass-preview-svg" viewBox={routeViewBox} preserveAspectRatio="none" style={routeGoalPadding ? { left: `calc(${-routeGoalPadding} * var(--cell))`, right: "auto", width: `calc((${settings.cols} + ${routeGoalPadding * 2}) * var(--cell))` } : null}>
             {passPreview.lines.map(line => <g key={line.id} className={`pass-preview-line ${line.status || (line.risk ? "risk" : "clear")} ${line.selected ? "route-selected" : ""}`}>
               {(line.segments || [{ origin: line.origin, endpoint: line.endpoint, status: line.status }]).map((segment, index) => <line key={index} className={segment.status || "clear"} x1={(segment.origin || line.origin).x} y1={(segment.origin || line.origin).y} x2={segment.endpoint.x} y2={segment.endpoint.y} />)}
               <circle cx={line.origin.x} cy={line.origin.y} r=".13" />
               <circle cx={line.endpoint.x} cy={line.endpoint.y} r=".13" />
             </g>)}
           </svg>}
-          {passPreview?.target && <div className={`piece-hitbox ball-hitbox pass-target-ball ${passPreview.targetStatus || "clear"}`} style={{ left: `calc(${passPreview.target.x} * var(--cell) + var(--cell) * .25)`, top: `calc(${passPreview.target.y} * var(--cell) + var(--cell) * .25)` }} aria-hidden="true">
+          {passPreview?.target && <div className={`piece-hitbox ball-hitbox pass-target-ball ${passPreview.targetStatus || "clear"}`} style={{ left: `calc(${passPreview.target.renderX ?? passPreview.target.x} * var(--cell) + var(--cell) * .25)`, top: `calc(${passPreview.target.renderY ?? passPreview.target.y} * var(--cell) + var(--cell) * .25)` }} aria-hidden="true">
             <div className="piece ball pass-target-ghost"><MatchBallIcon className="board-ball-icon" /></div>
           </div>}
           {passPreview?.routes?.map(route => <button
@@ -361,9 +379,9 @@ export function BoardCanvas({
             disabled={!passRouteInteractive || route.disabled}
             aria-disabled={!passRouteInteractive || route.disabled}
             onClick={event => { event.preventDefault(); event.stopPropagation(); if (passRouteInteractive && !route.disabled) onSelectPassRoute?.(route.cornerId); }}
-            title={`${route.foot} ${route.modifier}${route.modifierType === "disadvantage" ? " · Execution disadvantage" : ""} · ${route.isLong ? "Long Pass" : "Short Pass"}`}
+            title={`${route.foot} ${route.modifier}${route.modifierType === "disadvantage" ? " · Execution disadvantage" : ""} · ${route.actionLabel || (route.isLong ? "Long Pass" : "Short Pass")}`}
           >
-            <span>{route.foot} {route.modifier}</span><small>{route.isLong ? "LONG" : "SHORT"}</small>
+            <span>{route.foot} {route.modifier}</span><small>{route.actionLabel || (route.isLong ? "LONG" : "SHORT")}</small>
           </button>)}
 
           {pieces.map(piece => {

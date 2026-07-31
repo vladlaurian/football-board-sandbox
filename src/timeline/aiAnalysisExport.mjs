@@ -5,7 +5,7 @@ import { normalizeRuleSet } from "../rules/ruleSets.mjs";
 import { normalizeTimeline, timelineStateAt } from "./timelineEngine.mjs";
 
 export const AI_ANALYSIS_EXPORT_TYPE = "football-board-ai-analysis";
-export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 9;
+export const AI_ANALYSIS_EXPORT_SCHEMA_VERSION = 10;
 
 export function analysisCoord(piece) {
   if (!piece || !Number.isFinite(Number(piece.x)) || !Number.isFinite(Number(piece.y))) return null;
@@ -144,6 +144,13 @@ function compactRuleSet(ruleSet) {
         longPassAttackerStatId: normalized.actions.pass.longPassAttackerStatId || null,
         requireFieldPlayerTarget: normalized.actions.pass.requireFieldPlayerTarget !== false,
         resolutionDelayMs: normalized.actions.pass.resolutionDelayMs,
+      },
+      shot: {
+        status: normalized.actions.shot.status,
+        longShotNormalRangeMax: normalized.actions.shot.longShotNormalRangeMax,
+        shotMaximumRange: normalized.actions.shot.shotMaximumRange,
+        distantBandModifier: normalized.actions.shot.distantBandModifier,
+        consequencePolicy: "RESULT_ONLY_V20_56_27",
       },
       throughBall: {
         maxDistance: normalized.actions.throughBall.maxDistance,
@@ -301,6 +308,12 @@ function semanticEvent(entry, sequence, cardsById, options = {}) {
       ? before.actionResolution
       : null;
   const passPlan = passResolution?.plan || null;
+  const shotResolution = after?.actionResolution?.kind === "shot"
+    ? after.actionResolution
+    : before?.actionResolution?.kind === "shot"
+      ? before.actionResolution
+      : null;
+  const shotPlan = shotResolution?.plan || null;
   const interceptionResolution = entry.metadata?.interceptionResolution
     || entry.metadata?.delayedResolution?.payload?.interceptionResolution
     || passResolution?.lastResolution
@@ -355,6 +368,23 @@ function semanticEvent(entry, sequence, cardsById, options = {}) {
         defenderWins: typeof throughBallMetadata.defenderWins === "boolean" ? throughBallMetadata.defenderWins : null,
         recovererId: throughBallMetadata.recovererId || null,
         startedTurn: Number.isInteger(Number(throughBallMetadata.startedTurn)) ? Number(throughBallMetadata.startedTurn) : null,
+      },
+    } : shotPlan ? {
+      status: String(shotResolution.status || "UNKNOWN").toUpperCase(),
+      rollMode: "MANUAL",
+      shot: {
+        shooterId: shotResolution.shooterId || null,
+        goalkeeperId: shotResolution.goalkeeperId || null,
+        target: shotResolution.target || null,
+        distance: Number.isFinite(Number(shotPlan.distance)) ? Number(shotPlan.distance) : null,
+        band: shotPlan.band || null,
+        origin: shotPlan.origin || null,
+        endpoint: shotPlan.endpoint || null,
+        statId: shotResolution.statId || null,
+        goalkeeperStatId: shotResolution.goalkeeperStatId || null,
+        routeModifierSources: shotPlan.modifierSources || [],
+        result: shotResolution.result || null,
+        consequenceApplied: false,
       },
     } : entry.metadata?.manualResolutionRequired ? {
       status: "MANUAL_DECLARATION",
@@ -441,7 +471,7 @@ function semanticEvent(entry, sequence, cardsById, options = {}) {
       pieceId: entry.metadata?.bonusAction?.pieceId || null,
       continuationId: String(entry.metadata?.continuationId || "") || null,
     } : null,
-    explicitOutcome: entry.metadata?.manualResolutionRequired ? "MANUAL_RESOLUTION_REQUIRED" : entry.type === "PASS_INTERCEPTION_RESOLVED" ? "INTERCEPTION_ROLL_RESOLVED" : entry.type === "PASS_INTERCEPTION_MISSED" ? "INTERCEPTION_MISSED" : entry.type === "PASS_COMPLETED" ? "PASS_COMPLETED" : entry.type === "PASS_INTERCEPTED" ? "INTERCEPTED" : entry.type === "PASS_NATURAL_20" ? "NATURAL_20_INTERCEPTION" : entry.type === "BONUS_ACTION_ENDED" ? "BONUS_ACTION_ENDED" : entry.type === "BONUS_ACTION_DECLINED" ? "BONUS_ACTION_DECLINED" : "NOT_DECLARED",
+    explicitOutcome: entry.type === "SHOT_RESOLVED" ? `SHOT_${String(entry.metadata?.outcome || "RESULT").replace(/-/g, "_").toUpperCase()}` : entry.metadata?.manualResolutionRequired ? "MANUAL_RESOLUTION_REQUIRED" : entry.type === "PASS_INTERCEPTION_RESOLVED" ? "INTERCEPTION_ROLL_RESOLVED" : entry.type === "PASS_INTERCEPTION_MISSED" ? "INTERCEPTION_MISSED" : entry.type === "PASS_COMPLETED" ? "PASS_COMPLETED" : entry.type === "PASS_INTERCEPTED" ? "INTERCEPTED" : entry.type === "PASS_NATURAL_20" ? "NATURAL_20_INTERCEPTION" : entry.type === "BONUS_ACTION_ENDED" ? "BONUS_ACTION_ENDED" : entry.type === "BONUS_ACTION_DECLINED" ? "BONUS_ACTION_DECLINED" : "NOT_DECLARED",
   };
 }
 

@@ -2,6 +2,36 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.28 — Shot board targeting and origin defensive-area correction
+
+- Keeps the v20.56.27 Shot result checkpoint, but makes targeting match Pass:
+  every visible board cell can be attempted, invalid cells persist a grey
+  canonical preview and no goal grid receives a yellow target highlight.
+- Adds live centre-to-centre Shot distance/band feedback on the board.
+- Counts the shooter's occupied defensive area regardless of selected corner,
+  then deduplicates each defending player to one DV. Defensive-area labels use
+  frozen player identity (name, post, team), never internal defender IDs.
+- Aligns Shot prompt/result information hierarchy with existing roll/result
+  presentation without adding any acknowledgement or restart control.
+- Manual Multiplayer, Firebase/Automated Multiplayer and Shot consequences
+  remain untouched.
+
+## v20.56.27 — Shot resolution checkpoint
+
+- Clean implementation from v20.56.25; rejected v20.56.26 code is not reused.
+- Adds offline Single Player normal-play Shot only: actual GoalGrid target
+  selection, four Pass-style corner-to-centre paths, shared-origin body blocks,
+  route verdict projection, canonical D20 and frozen Rule Set/MatchContext
+  calculation.
+- Persists a hard-blocking `result-display` state for Goal, Goal Kick, Corner
+  or goalkeeper retains. The result intentionally has no physical consequence:
+  score, ball, possession, turn and restart remain unchanged.
+- Adds Timeline/Undo/Redo and AI export facts for every Shot step. Rule Set
+  schema is v13; Shot normal Long Shot range, maximum range and distant DV/DVM
+  are editable only in Editor and frozen at Match start.
+- Manual Multiplayer, Firebase/Automated Multiplayer and Pass/Interception
+  timing are unchanged.
+
 ## v20.56.25 — Continue Game restoration and scope lock
 
 - Restores offline Single Player `Continue Game` without a Prep/Ready gate or

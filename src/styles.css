@@ -1431,6 +1431,8 @@ select option {
 .pass-target-ball.blocked .pass-target-ghost { opacity:.42; filter:grayscale(1) brightness(1.12); box-shadow:0 0 0 2px rgba(188,198,208,.5), 0 0 11px rgba(130,145,160,.55); }
 .pass-target-distance { position:absolute; z-index:21; pointer-events:none; transform:translate(-50%,-50%); color:#eaf9ff; text-shadow:0 2px 4px #001018; }
 .pass-target-distance strong { position:absolute; top:10px; left:12px; padding:5px 9px; border:2px solid rgba(176,241,255,.92); border-radius:7px; background:rgba(6,24,35,.92); white-space:nowrap; font-size:clamp(14px, calc(var(--cell) * .34), 22px); line-height:1; }
+.shot-goal-target { position:absolute; width:var(--cell); height:var(--cell); z-index:22; border:0; background:transparent; box-shadow:none; cursor:crosshair!important; padding:0; }
+.shot-goal-target:focus-visible { outline:2px solid white; outline-offset:-3px; }
 .pass-action-prompt { position: fixed; z-index: 80; left: 50%; top: 138px; transform: translateX(-50%); min-width: 320px; max-width: min(560px, calc(100vw - 30px)); padding: 12px 16px; border: 1px solid #d9ad35; border-radius: 10px; background: rgba(20, 29, 44, .96); box-shadow: 0 10px 30px rgba(0,0,0,.35); color: #fff5ca; display: grid; gap: 5px; text-align: center; }
 .pass-action-prompt strong { color: #ffe16c; }
 .pass-action-prompt span { font-size: .9rem; color: #d9e1eb; }

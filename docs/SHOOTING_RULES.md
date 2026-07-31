@@ -3,13 +3,32 @@
 ## Status and scope
 
 This document is the agreed gameplay contract for **Shot** (Șut), including
-direct Shot from a Free Kick and Corner. It is documentation only. Shot is not
-implemented in the current runtime and must pass the Mechanic Integration Gate
-before any Engine build begins.
+direct Shot from a Free Kick and Corner. v20.56.28 implements only the narrow
+normal-play **resolution checkpoint** described below. Direct Free Kick/Corner
+Shot and every physical consequence remain future work.
 
 Goal, goal kick, Corner, kick-off, wall placement and restart setup remain in
 [FINALISATION_AND_RESTARTS_RULES.md](FINALISATION_AND_RESTARTS_RULES.md). This
 document fixes Shot resolution only.
+
+### v20.56.28 implemented boundary
+
+Offline Single Player normal play has: active Shot, a board-first attempted
+target on any pitch or goal-grid cell, four corner-to-centre routes,
+Pass-identical shared-corner body blocking, canonical D20 and immutable result
+display. Only an opponent GoalGrid cell is a valid Shot target. Any other board
+cell persists a grey, non-selectable route preview and reports “Please select a
+cell inside the opponent's goal.” without a Tracker cost. Goal cells receive no
+special target fill. The live pointer label displays centre-to-centre distance
+and FIN/LS/DLS/MAX band. Green means legal with no route DV/DVM, red means legal
+with one or more route DV/DVM, and grey means blocked. A route is selected by
+clicking its origin corner on the board.
+
+The result values `goal`, `goal-kick`, `corner` and `goalkeeper-retains` are
+canonical MatchState/Timeline facts only. v20.56.27 applies no score, ball,
+possession, turn, goalkeeper placement or restart consequence and exposes no
+fake acknowledgement/restart action. Undo/Redo or New Game is the intentional
+test exit. Manual Multiplayer is excluded.
 
 ## 1. Normal Shot eligibility and physical route
 
@@ -28,9 +47,12 @@ A body contact makes that origin route invalid; it is not a deflection,
 interception or later recovery event. The selected corner changes physical
 route validity but never the regulatory centre-to-centre distance.
 
-A Shot may cross defensive areas. Each distinct defending player's defensive
-area crossed by the normal Shot route adds one DV, no matter how many cells of
-that same area the route crosses. If the Shot uses the non-dominant foot, it
+A shooter occupying a defending player's defensive area receives that owner's
+DV independently of the selected origin corner. A Shot may then cross defensive
+areas: each other distinct defending player's defensive area crossed by the
+normal Shot route adds one DV, no matter how many cells of that same area the
+route crosses. The origin owner and a crossed owner are deduplicated, so one
+defender contributes at most one DV. If the Shot uses the non-dominant foot, it
 also receives DVM.
 
 ## 2. Frozen distance settings

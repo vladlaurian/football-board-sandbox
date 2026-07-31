@@ -14,6 +14,24 @@ The broader ownership boundary is defined in [`GAME_ENGINE_ARCHITECTURE.md`](GAM
 
 The generic engine is in `src/match/actionResolutionEngine.mjs`. Action-specific rule modules remain separate (for example `src/rules/passEngine.mjs`). UI code must not become a second rules engine.
 
+## Shot checkpoint (v20.56.28)
+
+`SHOT_STARTED`, `SHOT_TARGET_SELECTED`, `SHOT_ROUTE_CONFIRMED` and generic
+`GAMEPLAY_ROLL_SUBMITTED` are normal offline Engine commands. `shotRules.mjs`
+owns attempted board-target legality, Pass-compatible corner route physics, route
+modifiers, Tracker cost, stat comparison and immutable result calculation.
+`matchPresentationSelectors.mjs` projects the goal cells and persisted route
+facts; the board never calculates a route or moves a piece locally. A rejected
+board target is an accepted canonical targeting preview with grey routes and a
+persisted rejection reason; it has no Tracker cost.
+
+After the roll, Shot enters `result-display`, with the consumed RollEvent and
+result persisted in MatchState and Timeline. This is intentionally terminal in
+v20.56.28: it has no delayed consequence, acknowledgement command or restart
+command. Timeline Undo/Redo changes the canonical state; UI has no "ready"
+button. Future Goal/Goal Kick/Corner/goalkeeper-retains work must extend this
+state with explicit Engine consequences rather than bypassing it.
+
 ## Ownership boundary
 
 ### Generic engine owns

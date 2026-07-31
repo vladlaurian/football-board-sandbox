@@ -3,7 +3,8 @@
 The player-facing rules controlled by these values are documented separately:
 [`PASS_AND_INTERCEPTION_RULES.md`](PASS_AND_INTERCEPTION_RULES.md),
 [`THROUGH_BALL_RULES.md`](THROUGH_BALL_RULES.md) and
-[`LOFTED_THROUGH_BALL_RULES.md`](LOFTED_THROUGH_BALL_RULES.md). This document
+[`LOFTED_THROUGH_BALL_RULES.md`](LOFTED_THROUGH_BALL_RULES.md) and
+[`SHOOTING_RULES.md`](SHOOTING_RULES.md). This document
 owns only Rule Set availability, normalization and editor behavior.
 
 ## Purpose and availability
@@ -15,6 +16,16 @@ A Rule Set is normalized before use, persisted with project and match state, and
 Player stat definitions and values are not owned by Rule Sets. Stats are selected by stable global IDs from the global back-card schema; each card supplies its individual numeric value. `Show` affects rendering only.
 
 ## v20 action configuration
+
+### v20.56.27 — Shot
+
+Schema v13 adds `actions.shot`: `longShotNormalRangeMax` (default `11`),
+`shotMaximumRange` (default `16`, never below the normal range), and
+`distantBandModifier` (`disadvantage` or `majorDisadvantage`). The editor
+exposes these fields only in Editor Mode. They freeze as part of MatchContext.
+The only implemented consumer is the v20.56.27 normal-play Shot resolution
+checkpoint; no Rule Set field permits a local restart or changes Manual
+Multiplayer.
 
 ### v20.54.0 — Through Ball and triggered 3/2
 
