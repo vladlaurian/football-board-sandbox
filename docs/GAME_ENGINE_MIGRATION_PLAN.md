@@ -836,25 +836,30 @@ The following is the active dependency order. Each row is a separate approved
 build or a separately approved vertical slice; it is not permission to bundle
 the rows.
 
-1. **Shot plus its necessary restart vertical slice** — Goal, score,
-   Goal Kick, Corner and Kick-off through canonical restart state. Do not claim
-   every restart as implemented in that slice.
-2. **Tactical Change during an existing canonical interruption** — a tactical
+1. **Shot resolution checkpoint (completed v20.56.27)** — normal-play Shot is
+   now usable through actual goal-cell selection, physical route choice, manual
+   roll and a canonical hard-blocking result. This release intentionally does
+   not apply Goal, Goal Kick, Corner or goalkeeper-retains consequences.
+2. **Shot consequence vertical slice (next)** — extend the persisted result
+   into Goal/score/Kick-off, Goal Kick, Corner and goalkeeper-retains only when
+   each physical setup is complete; it must not replace the v20.56.27 result
+   checkpoint with a local modal.
+3. **Tactical Change during an existing canonical interruption** — a tactical
    draft and preview may change the active Match tactic but never live board
    coordinates. It replaces active-Match live Formation application as the
    tactical path.
-3. **Substitution during an existing canonical interruption** — the incoming
+4. **Substitution during an existing canonical interruption** — the incoming
    reserve may be placed in a chosen free cell, subject to roster and window
    rules; it extends the same tactical/restart draft rather than introducing a
    parallel panel.
-4. **Cross** — after its modifier and Goal/Goal Kick/Corner consequences are
+5. **Cross** — after its modifier and Goal/Goal Kick/Corner consequences are
    available.
-5. **Marking**, then **Dribbling** — Dribbling uses defensive-area and Marking
+6. **Marking**, then **Dribbling** — Dribbling uses defensive-area and Marking
    concepts.
-6. **Tackling plus Foul / Free Kick / Penalty** — Tackling depends on Marking,
+7. **Tackling plus Foul / Free Kick / Penalty** — Tackling depends on Marking,
    inactive-player state, modifiers and restart routing; Free Kick/Penalty are
    its cohesive result vertical slice.
-7. **Remaining restart and Match lifecycle work** — Throw-in, remaining
+8. **Remaining restart and Match lifecycle work** — Throw-in, remaining
    restart entrances, halves/extra time, penalty shoot-out and score-history
    completion, each as narrow canonical slices.
 

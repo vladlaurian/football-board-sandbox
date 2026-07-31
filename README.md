@@ -6,16 +6,25 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.25` |
-| Git/package version | `20.56.25` |
-| Documentation build | `v20.56.25` |
-| Build name | `Final_Board_v20_56_25_continue_game_scope_lock` |
-| Base build | `Final_Board_v20_56_24_canonical_modifier_tracker` |
+| Sandbox version | `v20.56.27` |
+| Git/package version | `20.56.27` |
+| Documentation build | `v20.56.27` |
+| Build name | `Final_Board_v20_56_27_shot_resolution` |
+| Base build | `Final_Board_v20_56_25_continue_game_scope_lock` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.25`. The repository version is in `package.json` as `20.56.25`. The browser title is `Sandbox v20.56.25`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.27`. The repository version is in `package.json` as `20.56.27`. The browser title is `Sandbox v20.56.27`.
 
 ## Current release
+
+v20.56.27 is the first deliberately narrow, playable Shot vertical slice. In
+offline Single Player normal play, Shot uses actual opponent GoalGrid cells,
+Pass-style corner-to-centre routes selected on the board, one canonical D20
+prompt and a canonical result screen. It records Goal, Goal Kick, Corner or
+goalkeeper-retains as a result only. It deliberately does **not** change score,
+ball, possession, turn or restart state; the result screen blocks play until
+Timeline Undo/Redo or a new match. Rule Set Shot range/band values freeze in
+MatchContext. Manual Multiplayer and Firebase are unchanged.
 
 v20.56.25 restores the agreed Continue Game contract for offline Single Player
 Match Mode. Continue Game is available without a preceding Start New Game or

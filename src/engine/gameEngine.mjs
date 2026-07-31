@@ -15,6 +15,7 @@ import { changePieceActivity, changeTrackerPossession, declareManualAction, decl
 import { cancelThroughBall, cancelThroughBallRoute, commitThroughBall, confirmThroughBallRecovery, selectThroughBallRecoverer, selectThroughBallTarget, startThroughBall } from "./throughBallRules.mjs";
 import { cancelLoftedThroughBall, cancelLoftedThroughBallRoute, commitLoftedThroughBall, confirmLoftedThroughBallRecovery, resolveLoftedThroughBall, selectLoftedThroughBallRecoverer, selectLoftedThroughBallTarget, startLoftedThroughBall, submitLoftedThroughBallRoll } from "./loftedThroughBallRules.mjs";
 import { isBonusActionCommand, isPendingBonusActionRollSubmission } from "./bonusActionCapabilities.mjs";
+import { confirmShotRoute, selectShotTarget, startShot, submitShotRoll } from "./shotRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -277,12 +278,23 @@ export function applyGameCommand({ state, context, command } = {}) {
         })
       : resolution?.kind === "lofted-through-ball"
         ? submitLoftedThroughBallRoll(currentState, matchContext, normalizedCommand)
+        : resolution?.kind === "shot"
+          ? submitShotRoll(currentState, matchContext, normalizedCommand)
         : { accepted: false, reason: "GAMEPLAY_ROLL_NOT_REQUESTED" };
     if (!transition.accepted) return rejected(transition.reason);
     return accepted(createGameState(transition.nextState), [createGameEvent({
       ...transition.event,
       commandId: normalizedCommand.id,
     })], transition.timeline);
+  }
+  if ([GAME_COMMAND_TYPE.SHOT_STARTED, GAME_COMMAND_TYPE.SHOT_TARGET_SELECTED, GAME_COMMAND_TYPE.SHOT_ROUTE_CONFIRMED].includes(normalizedCommand.type)) {
+    const transition = normalizedCommand.type === GAME_COMMAND_TYPE.SHOT_STARTED
+      ? startShot(currentState, normalizedCommand)
+      : normalizedCommand.type === GAME_COMMAND_TYPE.SHOT_TARGET_SELECTED
+        ? selectShotTarget(currentState, matchContext, normalizedCommand)
+        : confirmShotRoute(currentState, matchContext, normalizedCommand);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({ ...transition.event, commandId: normalizedCommand.id })], transition.timeline);
   }
   if (normalizedCommand.type === GAME_COMMAND_TYPE.PASS_INTERCEPTION_ROLL_SUBMITTED) {
     const transition = submitPassInterceptionRoll(currentState, matchContext, normalizedCommand);

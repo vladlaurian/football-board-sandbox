@@ -15,8 +15,9 @@ import { activeTeamModifierTokens } from "./rollModifierOpportunities.mjs";
 import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { BONUS_ACTION_IMPLEMENTED_TYPES } from "./bonusActionCapabilities.mjs";
 import { naturalRollOutcomeLine } from "./rollOutcomeEffects.mjs";
+import { goalCellsForTeam } from "./shotRules.mjs";
 
-const OFFLINE_IMPLEMENTED_ACTION_TYPES = Object.freeze(["MOVE", "GROUP_MOVE", ...BONUS_ACTION_IMPLEMENTED_TYPES]);
+const OFFLINE_IMPLEMENTED_ACTION_TYPES = Object.freeze(["MOVE", "GROUP_MOVE", "SHOT", ...BONUS_ACTION_IMPLEMENTED_TYPES]);
 
 export function selectNaturalRollOutcomePresentation(outcome) {
   return naturalRollOutcomeLine(outcome, { teamName: outcome?.team === "blue" ? "Blue" : outcome?.team === "red" ? "Red" : null });
@@ -47,6 +48,34 @@ export function selectSinglePlayerPassPresentation(state) {
     selectedRoute,
     rollPrompt: pending.status === "awaiting-interception-roll" ? pending.rollPresentation || null : null,
   };
+}
+
+// This is a pure label projection of the persisted Shot route plan.  The UI
+// never recreates its geometry, legal verdict, band or modifier facts.
+export function selectSinglePlayerShotPresentation(state) {
+  const pending = state?.actionResolution;
+  if (!pending || pending.kind !== "shot") return null;
+  const routes = (pending.routes || []).map(route => ({
+    ...route,
+    status: !route.legal ? "blocked" : route.modifierSources?.length ? "risk" : "clear",
+    disabled: !route.legal,
+    modifierLabel: formatSigned(route.modifier),
+  }));
+  return {
+    status: pending.status,
+    target: pending.target || null,
+    routes,
+    selectedRoute: routes.find(route => route.cornerId === pending.plan?.cornerId) || null,
+    result: pending.status === "result-display" ? pending.result || null : null,
+  };
+}
+
+// Goal-grid cells are an Engine-owned target domain. The board only renders
+// this projection and forwards the selected cell as a command payload.
+export function selectSinglePlayerShotTargetPresentation(state, context) {
+  const pending = state?.actionResolution;
+  if (!pending || pending.kind !== "shot" || pending.status !== "targeting") return { targetOptions: [] };
+  return { targetOptions: goalCellsForTeam(context?.boardSettings || {}, pending.team) };
 }
 
 function previewCommand(type, piece, x, y) {
@@ -356,7 +385,7 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
                 || piece?.inactive
                 || current.freeMode?.active
                 || current.groupMove?.active
-                || (["PASS", "THROUGH_BALL", "LOFTED_THROUGH_BALL"].includes(type) && !pieceHasBall(state, piece))
+                || (["PASS", "THROUGH_BALL", "LOFTED_THROUGH_BALL", "SHOT"].includes(type) && !pieceHasBall(state, piece))
               )
             : Boolean(
                 !implementedOfflineAction
@@ -368,7 +397,7 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
                 || personalBlocked
                 || current.freeMode?.active
                 || current.groupMove?.active
-                || (["PASS", "THROUGH_BALL", "LOFTED_THROUGH_BALL"].includes(type) && !pieceHasBall(state, piece))
+                || (["PASS", "THROUGH_BALL", "LOFTED_THROUGH_BALL", "SHOT"].includes(type) && !pieceHasBall(state, piece))
                 || (type === "MOVE" && pieceState.moveUsed && !normalHasRemaining)
                 || (type === "GROUP_MOVE" && control.actionStatus.remaining !== 1 && !trackerComplete)
               );

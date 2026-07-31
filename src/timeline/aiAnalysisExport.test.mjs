@@ -326,6 +326,23 @@ test("AI export identifies an Engine-owned missed interception consequence", () 
   assert.equal(exported.semanticTimeline[0].explicitOutcome, "INTERCEPTION_MISSED");
 });
 
+test("AI export retains a Shot result checkpoint without inventing a restart consequence", () => {
+  const plan = {
+    origin: { x: 10, y: 8 }, endpoint: { x: 44.5, y: 8.5 }, distance: 12.2, band: "distant-long-shot",
+    modifierSources: [{ type: "disadvantage", value: -1, reason: "Distant Long Shot band" }],
+  };
+  const before = state({ actionResolution: { kind: "shot", status: "awaiting-roll", shooterId: "A-1", goalkeeperId: "B-1", target: { side: "right", depth: 0, y: 2 }, plan } });
+  const after = state({ actionResolution: { ...before.actionResolution, status: "result-display", result: { natural: 20, attackerStat: 12, goalkeeperStat: 10, modifier: -1, total: 31, outcome: "goal" } } });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, { id: "shot-result", type: "SHOT_RESOLVED", label: "Shot result", team: "blue", metadata: { outcome: "goal", consequenceApplied: false }, before, after });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  const event = exported.semanticTimeline[0];
+  assert.equal(event.explicitOutcome, "SHOT_GOAL");
+  assert.equal(event.resolution.shot.result.outcome, "goal");
+  assert.equal(event.resolution.shot.consequenceApplied, false);
+  assert.equal(event.possessionBefore.ballCarrierId, event.possessionAfter.ballCarrierId);
+});
+
 test("AI export retains a pending bonus-action continuation without adding Tracker economy", () => {
   const before = state();
   const after = state({
@@ -358,7 +375,7 @@ test("AI export retains a pending bonus-action continuation without adding Track
     after,
   });
   const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
-  assert.equal(exported.schemaVersion, 9);
+  assert.equal(exported.schemaVersion, 10);
   assert.equal(exported.semanticTimeline[0].continuation.kind, "bonus-card-action");
   assert.equal(exported.semanticTimeline[0].continuation.resumePolicy.nextTurn, 2);
   assert.equal(exported.semanticTimeline[0].continuation.resumePolicy.type, "advance-turn");

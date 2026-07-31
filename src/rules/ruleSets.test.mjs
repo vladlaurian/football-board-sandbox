@@ -19,6 +19,15 @@ test("a Rule Set always keeps dice resolution manual", () => {
   assert.equal(normalized.actions.pass.rollMode, "manual");
 });
 
+test("Rule Set migration configures Shot for pre-v13 saved matches without overriding current explicit status", () => {
+  const legacy = normalizeRuleSet({ id: "legacy-shot", schemaVersion: 12, actions: { pass: { status: "configured" } } });
+  assert.deepEqual(legacy.actions.shot, {
+    status: "configured", longShotNormalRangeMax: 11, shotMaximumRange: 16, distantBandModifier: "disadvantage",
+  });
+  const current = normalizeRuleSet({ id: "current-shot", schemaVersion: 13, actions: { shot: { status: "not-configured" } } });
+  assert.equal(current.actions.shot.status, "not-configured");
+});
+
 test("Rule Set library has a stable default and unique duplicate ids", () => {
   const defaultRuleSet = createDefaultRuleSet();
   const library = normalizeRuleSets([]);

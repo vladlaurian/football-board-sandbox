@@ -90,10 +90,11 @@ A command is an attempted action. An event is a confirmed gameplay fact emitted 
 | Tracker | `TRACKER_PHASE_ENDED`, temporary administrative `TRACKER_ACTIONS_RESET`, `TRACKER_POSSESSION_CHANGED` |
 | Match administration | `PIECE_ACTIVITY_CHANGED`; temporary manual declarations `MANUAL_ACTION_DECLARED`, `BONUS_MANUAL_ACTION_DECLARED` |
 | Pass | `PASS_STARTED`, `PASS_CANCELLED`, `PASS_TARGET_SELECTED`, `PASS_ROUTE_CONFIRMED`, `PASS_INTERCEPTOR_SELECTED` |
+| Shot (v20.56.27 result checkpoint) | `SHOT_STARTED`, `SHOT_TARGET_SELECTED`, `SHOT_ROUTE_CONFIRMED`, generic `GAMEPLAY_ROLL_SUBMITTED` |
 | Dice and resolution | canonical `GAMEPLAY_ROLL_SUBMITTED`; compatibility `PASS_INTERCEPTION_ROLL_SUBMITTED`; `PASS_INTERCEPTION_RESOLUTION_DUE`, `RESOLUTION_DUE`, `EXTRA_ROLL_SUBMITTED` |
 | Bonus Action | `BONUS_ACTION_STARTED`, `BONUS_ACTION_ENDED`; typed movement: `BONUS_MOVE_STARTED`, `BONUS_MOVE_CANCELLED`, `BONUS_MOVE_COMMITTED` |
 
-Future Dribble, Shot, Tackle, and Cross commands use this same contract; they must not introduce separate UI, Timeline, Dice, or Firebase gameplay paths.
+Future Dribble, Tackle, and Cross commands use this same contract; they must not introduce separate UI, Timeline, Dice, or Firebase gameplay paths. Shot's v20.56.27 result checkpoint is offline-only and has no restart consequence yet.
 
 ### Bonus Action capability and one-roll token contract
 

@@ -1,4 +1,4 @@
-export const RULE_SET_SCHEMA_VERSION = 12;
+export const RULE_SET_SCHEMA_VERSION = 13;
 export const DEFAULT_RULE_SET_ID = "default-rules";
 
 function cleanText(value, fallback = "") {
@@ -32,6 +32,12 @@ export function createDefaultRuleSet() {
         maxPassDistance: 32,
         requireFieldPlayerTarget: true,
         resolutionDelayMs: 2000,
+      },
+      shot: {
+        status: "configured",
+        longShotNormalRangeMax: 11,
+        shotMaximumRange: 16,
+        distantBandModifier: "disadvantage",
       },
       throughBall: { status: "configured", maxDistance: 16 },
       loftedThroughBall: {
@@ -89,6 +95,7 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
   const source = raw && typeof raw === "object" ? raw : fallback;
   const fallbackSet = fallback && typeof fallback === "object" ? fallback : createDefaultRuleSet();
   const pass = source.actions?.pass && typeof source.actions.pass === "object" ? source.actions.pass : {};
+  const shot = source.actions?.shot && typeof source.actions.shot === "object" ? source.actions.shot : {};
   const interception = source.actions?.interception && typeof source.actions.interception === "object" ? source.actions.interception : {};
   const groupMove = source.actions?.groupMove && typeof source.actions.groupMove === "object" ? source.actions.groupMove : {};
   const throughBall = source.actions?.throughBall && typeof source.actions.throughBall === "object" ? source.actions.throughBall : {};
@@ -99,6 +106,7 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
   // Rule Set already has explicit action configuration, so it must not gain
   // configured actions merely because its Group Move value is migrated.
   const usesPreActionConfigurationDefaults = Number(source.schemaVersion || 0) < 4;
+  const usesPreShotConfigurationDefaults = Number(source.schemaVersion || 0) < 13;
   const pathMode = pass.pathMode === "center-to-center" ? "center-to-center" : "corner-to-center";
   const legacyModifierCap = Number.isFinite(Number(pass.modifierCap)) ? Number(pass.modifierCap) : undefined;
   const migratedModifierCap = Number.isFinite(Number(interception.modifierCap))
@@ -129,6 +137,15 @@ export function normalizeRuleSet(raw, fallback = createDefaultRuleSet()) {
         maxPassDistance: normalizedMaxPassDistance,
         requireFieldPlayerTarget: pass.requireFieldPlayerTarget !== false,
         resolutionDelayMs: Math.max(0, Math.min(5000, Math.floor(Number(pass.resolutionDelayMs) || 2000))),
+      },
+      shot: {
+        status: usesPreShotConfigurationDefaults || shot.status === "configured" ? "configured" : "not-configured",
+        longShotNormalRangeMax: Math.max(1, Math.floor(Number(shot.longShotNormalRangeMax) || 11)),
+        shotMaximumRange: Math.max(
+          Math.max(1, Math.floor(Number(shot.longShotNormalRangeMax) || 11)),
+          Math.floor(Number(shot.shotMaximumRange) || 16),
+        ),
+        distantBandModifier: shot.distantBandModifier === "majorDisadvantage" ? "majorDisadvantage" : "disadvantage",
       },
       throughBall: {
         status: usesPreActionConfigurationDefaults || throughBall.status === "configured" ? "configured" : "not-configured",

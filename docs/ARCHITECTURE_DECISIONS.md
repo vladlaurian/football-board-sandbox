@@ -26,6 +26,26 @@ README records the current release. Changelogs record implementation history. Th
 
 **Decision:** Dialog visibility, hover, focus, Dice animation and suspense timers are derived/local presentation. Pending decisions, pending rolls, action flow and continuations are persistent gameplay state.
 
+## ADR-058 — A partial mechanic may stop only at an explicit canonical checkpoint
+
+**Status:** Active
+
+**Decision:** v20.56.27 Shot is allowed as a deliberately partial vertical
+slice because its endpoint is a persisted, hard-blocking `result-display`
+state, not a pseudo-restart. The Engine has recorded the exact D20 calculation
+and outcome, while score, board coordinates, possession, turn and restart
+state remain intentionally unchanged.
+
+**Consequences:**
+
+- a result dialog has no acknowledge, close, continue or `Restart ready`
+  control; Timeline Undo/Redo or a new match is the only exit in this release;
+- follow-up Goal/Goal Kick/Corner/goalkeeper-retains work must be Engine
+  commands that consume this state and create physical canonical transitions;
+- Board target selection and route choice remain selector-projected Engine
+  facts, so a future consequence cannot depend on UI-local geometry;
+- Manual Multiplayer/Firebase retain no knowledge of this offline checkpoint.
+
 ## ADR-049 — Offline Match projection has one Engine-backed read boundary
 
 **Status:** Active

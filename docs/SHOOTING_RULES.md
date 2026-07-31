@@ -3,13 +3,27 @@
 ## Status and scope
 
 This document is the agreed gameplay contract for **Shot** (Șut), including
-direct Shot from a Free Kick and Corner. It is documentation only. Shot is not
-implemented in the current runtime and must pass the Mechanic Integration Gate
-before any Engine build begins.
+direct Shot from a Free Kick and Corner. v20.56.27 implements only the narrow
+normal-play **resolution checkpoint** described below. Direct Free Kick/Corner
+Shot and every physical consequence remain future work.
 
 Goal, goal kick, Corner, kick-off, wall placement and restart setup remain in
 [FINALISATION_AND_RESTARTS_RULES.md](FINALISATION_AND_RESTARTS_RULES.md). This
 document fixes Shot resolution only.
+
+### v20.56.27 implemented boundary
+
+Offline Single Player normal play has: active Shot, actual opponent GoalGrid
+cell selection, four corner-to-centre routes, Pass-identical shared-corner body
+blocking, canonical D20 and immutable result display. Green means legal with
+no route DV/DVM, red means legal with one or more route DV/DVM, and grey means
+blocked. A route is selected by clicking its origin corner on the board.
+
+The result values `goal`, `goal-kick`, `corner` and `goalkeeper-retains` are
+canonical MatchState/Timeline facts only. v20.56.27 applies no score, ball,
+possession, turn, goalkeeper placement or restart consequence and exposes no
+fake acknowledgement/restart action. Undo/Redo or New Game is the intentional
+test exit. Manual Multiplayer is excluded.
 
 ## 1. Normal Shot eligibility and physical route
 
