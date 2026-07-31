@@ -43,6 +43,16 @@ Stop only for a genuine unresolved ambiguity that materially changes the approve
 ## 4. Scope control
 
 - Implement only the approved scope.
+- An approved scope is a scope lock: do not introduce a restriction, gate,
+  lifecycle/default change, or UI availability change because it appears more
+  consistent, defensive, or convenient. Such a change requires its own
+  explicit user approval before implementation.
+- The implementation plan must name the protected behaviours that are not
+  allowed to change. Before delivery, verify those behaviours with a targeted
+  regression test or an exact manual check and report that evidence.
+- A problem discovered outside the approved scope is reported, not silently
+  corrected. If it touches a protected behaviour, stop and obtain a new scope
+  decision instead of bundling it into the current build.
 - Do not change game design or rules unless explicitly requested.
 - Do not modify unrelated engines, modes, interfaces, or documentation.
 - Do not refactor stable systems merely because another design is possible.

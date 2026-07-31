@@ -818,6 +818,18 @@ their action-formula modifiers remain intentionally separate. Tracker, Timeline,
 Undo/Redo, Replay and AI export project the same canonical token state. Manual
 Multiplayer and Firebase are unchanged.
 
+### v20.56.25 — Continue Game restoration
+
+**Status:** Complete.
+
+Offline Single Player `Continue Game` is intentionally independent of the
+Prep/Ready requirement for `Start New Game`. With no active canonical Match it
+starts from the current physical board through `MATCH_STARTED`; with an active
+Match it uses `MATCH_RESTARTED`, clearing canonical action/tracker state while
+preserving the board layout. This is a controller routing correction only: it
+does not change Engine command semantics, MatchContext, Timeline, AI export,
+or Manual Multiplayer.
+
 ### Post-v20.56.24 implementation order
 
 The following is the active dependency order. Each row is a separate approved

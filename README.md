@@ -6,16 +6,25 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.24` |
-| Git/package version | `20.56.24` |
-| Documentation build | `v20.56.24` |
-| Build name | `Final_Board_v20_56_24_canonical_modifier_tracker` |
-| Base build | `Final_Board_v20_56_23_rules_extraction_and_roadmap` |
+| Sandbox version | `v20.56.25` |
+| Git/package version | `20.56.25` |
+| Documentation build | `v20.56.25` |
+| Build name | `Final_Board_v20_56_25_continue_game_scope_lock` |
+| Base build | `Final_Board_v20_56_24_canonical_modifier_tracker` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.24`. The repository version is in `package.json` as `20.56.24`. The browser title is `Sandbox v20.56.24`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.25`. The repository version is in `package.json` as `20.56.25`. The browser title is `Sandbox v20.56.25`.
 
 ## Current release
+
+v20.56.25 restores the agreed Continue Game contract for offline Single Player
+Match Mode. Continue Game is available without a preceding Start New Game or
+Prep/Ready acknowledgement: it starts from the current board if no tracked Match
+exists, or resets canonical action/tracker state while preserving the board if a
+Match exists. Start New Game remains the separately gated new-match path.
+Manual Multiplayer retains its existing Continue availability. The development
+workflow now treats every approved scope as a scope lock, including protected
+behaviours that must not be changed without explicit approval.
 
 v20.56.24 implements the canonical Single Player team modifier Tracker.
 MatchState owns complete AV/AVM/DV/DVM tokens with same-tier cancellation,

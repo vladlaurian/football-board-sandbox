@@ -192,6 +192,40 @@ test("extracted Board, History, Tracker, Prep, and shared Card Preview JSX compo
   assert.match(trackerMarkup, /Start New Game/);
   assert.match(trackerMarkup, /Continue Game/);
 
+  const unstartedSinglePlayerContinueMarkup = renderToStaticMarkup(
+    React.createElement(TrackerPanel, {
+      visible: true,
+      lockUI: false,
+      minimized: false,
+      readOnly: false,
+      position: { x: 0, y: 0 },
+      size: { w: 390, h: 390 },
+      onPointerMove: noop,
+      onPointerUp: noop,
+      onTitlePointerDown: noop,
+      onMinimize: noop,
+      onClose: noop,
+      gameStarted: false,
+      allowUnstartedContinue: true,
+      onStartNewGame: noop,
+      onContinueGame: noop,
+      onChangePossession: noop,
+      onReset: noop,
+      trackerSettings: { attackActions: 5, defenseActions: 4, turns: 20 },
+      trackerRoleFor: () => "waiting",
+      trackerActionCountFor: () => 5,
+      usedActions: { blue: 0, red: 0 },
+      gameMode: "match",
+      actionLog: { blue: [], red: [] },
+      onToggleAction: noop,
+      onRemoveLastAction: noop,
+      currentTurn: 1,
+      onSelectTurn: noop,
+      onResizeDown: noop,
+    }),
+  );
+  assert.doesNotMatch(unstartedSinglePlayerContinueMarkup, /tracker-continue-button"[^>]*disabled/);
+
   const cardRenderContext = {
     appTheme: "Style 1",
     customCardTheme: "Custom",

@@ -218,7 +218,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.24";
+const APP_VERSION = "v20.56.25";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -11515,6 +11515,10 @@ function App() {
       }
       const current = currentTimelineGameStateSnapshot() || captureTimelineGameState();
       const continuing = trackerStartIntent === "continue";
+      // Continue starts directly from the current board when no tracked Match
+      // exists yet; only an already-started Match uses the restart command.
+      // It deliberately has no Prep/Ready gate and never reapplies a formation.
+      const restartingExistingMatch = continuing && Boolean(current.tracker?.gameStarted);
       const prepared = continuing ? { accepted: true, pieces: current.pieces } : prepareNewGamePieces(team);
       if (!prepared.accepted) {
         setIllegalMoveNotice({ reason: prepared.reason });
@@ -11549,11 +11553,11 @@ function App() {
         gameplayCards: captureAvailableMatchCards(),
       });
       const command = {
-        id: createActionEventId(`${continuing ? "match_restart" : "match_start"}_${team}`),
-        type: continuing ? GAME_COMMAND_TYPE.MATCH_RESTARTED : GAME_COMMAND_TYPE.MATCH_STARTED,
+        id: createActionEventId(`${restartingExistingMatch ? "match_restart" : "match_start"}_${team}`),
+        type: restartingExistingMatch ? GAME_COMMAND_TYPE.MATCH_RESTARTED : GAME_COMMAND_TYPE.MATCH_STARTED,
         payload: { team },
       };
-      const dispatched = continuing
+      const dispatched = restartingExistingMatch
         ? dispatchSinglePlayerGameCommand({
             timeline: gameTimelineRef.current,
             state: before,
@@ -12804,6 +12808,7 @@ function App() {
         onMinimize={() => setTrackerMinimized(v => !v)}
         onClose={() => setTrackerEnabledForSession(false)}
         gameStarted={trackerGameStarted}
+        allowUnstartedContinue={!sessionCode && gameMode === "match"}
         onStartNewGame={requestStartNewGame}
         onContinueGame={() => { setTrackerStartIntent("continue"); setTrackerStartChoiceOpen(true); }}
         onChangePossession={changeTrackerPossession}

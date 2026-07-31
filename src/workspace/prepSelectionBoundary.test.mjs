@@ -79,6 +79,17 @@ test("Adjust stays Single Player Prep-only, local to the selected starter, and B
   assert.match(kickoff, /piece\.team === "BALL"\) return \{ \.\.\.piece, x: strikerX, y: centerY \}/);
 });
 
+test("Offline Continue starts an unstarted current board without Prep and preserves restart routing for an active Match", () => {
+  const start = source.indexOf("function startTrackedGame(team)");
+  const end = source.indexOf("function applyTrackerTurn(turn)", start);
+  const implementation = source.slice(start, end);
+  assert.match(implementation, /const restartingExistingMatch = continuing && Boolean\(current\.tracker\?\.gameStarted\)/);
+  assert.match(implementation, /const prepared = continuing \? \{ accepted: true, pieces: current\.pieces \}/);
+  assert.match(implementation, /type: restartingExistingMatch \? GAME_COMMAND_TYPE\.MATCH_RESTARTED : GAME_COMMAND_TYPE\.MATCH_STARTED/);
+  assert.match(implementation, /const dispatched = restartingExistingMatch/);
+  assert.match(source, /allowUnstartedContinue=\{!sessionCode && gameMode === "match"\}/);
+});
+
 test("Prep mutations are limited to the team selected in Prep", () => {
   assert.match(source, /function isPrepTeamMutationAllowed\(piece\)/);
   assert.match(source, /piece\?\.team === prepSelectedTeam/);

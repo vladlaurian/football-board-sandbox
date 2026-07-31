@@ -2,6 +2,18 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.25 — Continue Game restoration and scope lock
+
+- Restores offline Single Player `Continue Game` without a Prep/Ready gate or
+  a prior `Start New Game`: an unstarted tracker creates a normal Match from
+  the current board; an existing Match restarts its canonical action/tracker
+  state without changing current coordinates.
+- Keeps `Start New Game` as the only Prep/Ready-gated new-match path.
+- Keeps Manual Multiplayer's previous Continue availability unchanged.
+- Adds the permanent workflow scope-lock rule: unapproved gates, lifecycle or
+  default changes, and UI availability changes are prohibited; protected
+  behaviour needs named verification before delivery.
+
 ## v20.56.24 — Canonical Modifier Tracker
 
 - Implements canonical Single Player `teamModifierTokens` in MatchState,
