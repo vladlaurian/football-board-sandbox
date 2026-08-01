@@ -14,23 +14,41 @@ The broader ownership boundary is defined in [`GAME_ENGINE_ARCHITECTURE.md`](GAM
 
 The generic engine is in `src/match/actionResolutionEngine.mjs`. Action-specific rule modules remain separate (for example `src/rules/passEngine.mjs`). UI code must not become a second rules engine.
 
-## Shot checkpoint (v20.56.28)
+## Shot checkpoint (v20.56.28, roll parity in v20.56.29)
 
-`SHOT_STARTED`, `SHOT_TARGET_SELECTED`, `SHOT_ROUTE_CONFIRMED` and generic
-`GAMEPLAY_ROLL_SUBMITTED` are normal offline Engine commands. `shotRules.mjs`
-owns attempted board-target legality, Pass-compatible corner route physics, route
-modifiers, Tracker cost, stat comparison and immutable result calculation.
-`matchPresentationSelectors.mjs` projects the goal cells and persisted route
-facts; the board never calculates a route or moves a piece locally. A rejected
-board target is an accepted canonical targeting preview with grey routes and a
-persisted rejection reason; it has no Tracker cost.
+`SHOT_STARTED`, `SHOT_TARGET_SELECTED`, `SHOT_ROUTE_CONFIRMED`, generic
+`GAMEPLAY_ROLL_SUBMITTED` and `SHOT_RESOLUTION_DUE` are normal offline Engine
+commands. `shotRules.mjs` owns attempted board-target legality, Pass-compatible
+corner route physics, route modifiers, Tracker cost, stat comparison and
+immutable result calculation. `matchPresentationSelectors.mjs` projects the
+goal cells and persisted route facts; the board never calculates a route or
+moves a piece locally. A rejected board target is an accepted canonical
+targeting preview with grey routes and a persisted rejection reason; it has no
+Tracker cost.
 
-After the roll, Shot enters `result-display`, with the consumed RollEvent and
-result persisted in MatchState and Timeline. This is intentionally terminal in
-v20.56.28: it has no delayed consequence, acknowledgement command or restart
-command. Timeline Undo/Redo changes the canonical state; UI has no "ready"
-button. Future Goal/Goal Kick/Corner/goalkeeper-retains work must extend this
-state with explicit Engine consequences rather than bypassing it.
+As of v20.56.29, Shot follows the exact Pass/Lofted Through Ball roll
+contract: `GAMEPLAY_ROLL_SUBMITTED` consumes the RollEvent and any selected
+Tracker token, writes canonical `state.dice`, and opens the shared
+`createSinglePlayerRollResultHold({ kind: "shot" })` hold as `SHOT_ROLLED`. It
+calculates no outcome. `SHOT_RESOLUTION_DUE` performs the deterministic
+calculation afterward, validating the exact Shot and RollEvent identity, and
+emits `SHOT_RESOLVED`. `SHOT_ROLLED` and `SHOT_RESOLVED` share one atomic
+Timeline transaction (`metadata.undoTransaction`), so `undoAtomicTimelineTransaction`
+returns to `awaiting-roll` and Redo restores the same outcome in one step.
+Every roll modifier source (non-dominant foot, each distinct defensive area,
+the Distant Long Shot band, and a consumed Tracker AV/AVM/DV/DVM token) is
+summed and then capped symmetrically at the frozen `diceModifiers.stackCap`
+(default ±4) — the same rule Lofted Through Ball and Interception already
+apply. The pre-roll prompt and the result screen both read the shared
+`selectSinglePlayerRollPromptPresentation` / `renderRollBreakdown` conduit;
+`main.jsx` performs no Shot modifier arithmetic.
+
+After resolution, Shot enters `result-display`, with the consumed RollEvent
+and capped result persisted in MatchState and Timeline. This remains
+intentionally terminal: it has no delayed consequence, acknowledgement command
+or restart command. Timeline Undo/Redo changes the canonical state; UI has no
+"ready" button. Future Goal/Goal Kick/Corner/goalkeeper-retains work must
+extend this state with explicit Engine consequences rather than bypassing it.
 
 ## Ownership boundary
 

@@ -2,6 +2,28 @@
 
 This is the compact release history. Current architecture and rules are documented in their permanent contracts; it must not be used as a second specification.
 
+## v20.56.29 — Shot roll parity: canonical dice, shared hold, capped modifiers
+
+- `submitShotRoll` writes canonical `state.dice` for the rolling team only, in
+  the exact shape Lofted Through Ball already uses.
+- The new `SHOT_RESOLUTION_DUE` command performs the deterministic Shot
+  calculation only after the shared 1000 ms roll-result hold (`kind: "shot"`);
+  `SHOT_ROLLED` and `SHOT_RESOLVED` join one atomic Timeline transaction.
+- Every Shot roll modifier source (foot, each distinct defensive area, Distant
+  Long Shot band, consumed Tracker token) is summed and then capped
+  symmetrically at the frozen `diceModifiers.stackCap`, matching Lofted
+  Through Ball and Interception; the uncapped per-source facts remain in AI
+  Export's `routeModifierSources`.
+- The pre-roll prompt and result screen both read the shared
+  `selectSinglePlayerRollPromptPresentation` / `renderRollBreakdown` conduit;
+  `main.jsx` no longer computes Shot roll modifiers locally.
+- Removes the obsolete "Resolving interception…" prompt, which was Pass-only
+  dead UI during the shared hold.
+- Formula non-regression: the four documented v20.56.28 outcomes are
+  bit-identical because that fixture never exceeds the cap.
+- Manual Multiplayer, Firebase/Automated Multiplayer, Editor Mode and every
+  Shot consequence (Goal/Goal Kick/Corner/goalkeeper-retains) remain untouched.
+
 ## v20.56.28 — Shot board targeting and origin defensive-area correction
 
 - Keeps the v20.56.27 Shot result checkpoint, but makes targeting match Pass:

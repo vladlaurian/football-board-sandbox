@@ -168,7 +168,13 @@ Engine/MatchState must own:
 - the selected shooter, origin corner and goal-cell target;
 - physical-route validity, body-block facts and distinct defensive areas crossed;
 - regulatory distance, Shot band and frozen Rule Set values;
-- all applied modifiers, target goalkeeper statistic and the complete result;
+- all applied modifiers, target goalkeeper statistic and the complete result.
+  Shot roll modifiers (non-dominant foot, each distinct defensive area, the
+  Distant Long Shot band, and a consumed Tracker AV/AVM/DV/DVM token) sum, then
+  are capped symmetrically at the frozen `diceModifiers.stackCap` (default
+  ±4), the same rule Lofted Through Ball and Interception already apply. The
+  uncapped per-source route facts remain a separate canonical record for AI
+  Export;
 - goal, goal-kick, Corner or goalkeeper-retention result;
 - free-kick Shot wall count, its extra DV facts and Natural-1 receiver choice;
 - Corner Shot's selected curved physical route, mandatory DVM, distance-band

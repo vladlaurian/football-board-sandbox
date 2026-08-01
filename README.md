@@ -6,16 +6,37 @@ Interactive football board and match sandbox with card editing, Match Mode, Time
 
 | Field | Value |
 |---|---|
-| Sandbox version | `v20.56.28` |
-| Git/package version | `20.56.28` |
-| Documentation build | `v20.56.28` |
-| Build name | `Final_Board_v20_56_28_shot_targeting_origin_dv` |
-| Base build | `Final_Board_v20_56_25_continue_game_scope_lock` |
+| Sandbox version | `v20.56.29` |
+| Git/package version | `20.56.29` |
+| Documentation build | `v20.56.29` |
+| Build name | `Final_Board_v20_56_29_shot_roll_parity` |
+| Base build | `Final_Board_v20_56_28_shot_targeting_origin_dv` |
 | Modes | Editor Mode and Match Mode |
 
-The visible Sandbox label is defined in `src/main.jsx` as `v20.56.28`. The repository version is in `package.json` as `20.56.28`. The browser title is `Sandbox v20.56.28`.
+The visible Sandbox label is defined in `src/main.jsx` as `v20.56.29`. The repository version is in `package.json` as `20.56.29`. The browser title is `Sandbox v20.56.29`.
 
 ## Current release
+
+v20.56.29 gives Shot the same canonical roll contract already used by Lofted
+Through Ball. `submitShotRoll` writes canonical `state.dice` for the rolling
+team only and opens the shared 1000 ms result hold (`kind: "shot"`); the new
+`SHOT_RESOLUTION_DUE` command performs the deterministic calculation afterward
+as `SHOT_RESOLVED`. The pre-roll prompt and the result screen both read
+`plan.rollPreview` / `result` through the same `selectSinglePlayerRollPromptPresentation`
+and `renderRollBreakdown` conduit already used by Pass and Lofted Through Ball;
+`main.jsx` no longer computes Shot modifiers locally. Every Shot roll modifier
+source — non-dominant foot, each distinct defensive area, the Distant Long
+Shot band, and any consumed Tracker AV/AVM/DV/DVM token — sums and is then
+capped symmetrically at the frozen `diceModifiers.stackCap` (default ±4), the
+same rule Lofted Through Ball and Interception already apply; the uncapped
+per-source facts remain in AI Export's `routeModifierSources`. The obsolete
+"Resolving interception…" prompt, which was Pass-specific dead UI during the
+shared hold, is removed. `SHOT_ROLLED` and `SHOT_RESOLVED` share one atomic
+Timeline transaction, so Undo returns to `awaiting-roll` and Redo restores the
+same outcome in one step. The four documented v20.56.28 result cases remain
+bit-identical because their fixture never exceeds the cap. Goal, Goal Kick,
+Corner and goalkeeper-retains consequences remain out of scope; Manual
+Multiplayer, Firebase and Editor Mode are unchanged.
 
 v20.56.28 keeps the deliberately narrow Shot vertical slice and corrects its
 board-first selection contract. A Shot can be attempted on any visible pitch

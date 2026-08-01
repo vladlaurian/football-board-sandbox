@@ -343,6 +343,25 @@ test("AI export retains a Shot result checkpoint without inventing a restart con
   assert.equal(event.possessionBefore.ballCarrierId, event.possessionAfter.ballCarrierId);
 });
 
+test("AI export gives SHOT_ROLLED its own semantic identity, separate from SHOT_RESOLVED's SHOT_<OUTCOME>", () => {
+  const plan = { origin: { x: 10, y: 8 }, endpoint: { x: 44.5, y: 8.5 }, distance: 12.2, band: "finishing", modifierSources: [] };
+  const rollEvent = { id: "roll-1", requestId: "shot_roll_shot-1", actionId: "shot-1", team: "blue", dieType: 20, natural: 20, source: "RANDOM" };
+  const before = state({ actionResolution: { kind: "shot", status: "awaiting-roll", shooterId: "A-1", goalkeeperId: "B-1", target: { side: "right", depth: 0, y: 2 }, plan } });
+  const after = state({ actionResolution: { ...before.actionResolution, status: "awaiting-shot-resolution", lastRollEvent: rollEvent } });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, {
+    id: "shot-rolled", type: "SHOT_ROLLED", label: "Blue D20: 20 (SHOT)", team: "blue",
+    metadata: { rollSource: "RANDOM", rollEvent, delayedResolution: { actionId: "shot-1" } },
+    before, after,
+  });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  const event = exported.semanticTimeline[0];
+  assert.equal(event.type, "SHOT_ROLLED");
+  assert.equal(event.explicitOutcome, "SHOT_ROLL_RECORDED");
+  assert.equal(event.diceRoll.eventId, "roll-1");
+  assert.equal(event.diceRoll.requestId, "shot_roll_shot-1");
+});
+
 test("AI export retains a pending bonus-action continuation without adding Tracker economy", () => {
   const before = state();
   const after = state({

@@ -176,6 +176,11 @@ test("Single Player UI imports the presentation boundary, not direct gameplay ev
   assert.doesNotMatch(source, /from "\.\/engine\/(?:gameEngine|movementPathRules|normalMoveRules|threeTwoMoveRules|groupMoveRules|bonusMoveRules|freeMoveRules|passStartRules|matchAdministrationRules|matchLifecycleRules|trackerPhaseRules)\.mjs"/);
 });
 
+test("main.jsx no longer computes Shot roll modifiers locally", () => {
+  const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /resolveDiceModifierStacks/);
+});
+
 test("Manual Multiplayer retains its Bonus Action declaration path for Shot", () => {
   const source = fs.readFileSync(new URL("../main.jsx", import.meta.url), "utf8");
   assert.match(source, /if \(!sessionCode && type === "SHOT"\) return;/);

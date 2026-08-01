@@ -830,6 +830,38 @@ preserving the board layout. This is a controller routing correction only: it
 does not change Engine command semantics, MatchContext, Timeline, AI export,
 or Manual Multiplayer.
 
+### v20.56.29 — Shot roll parity
+
+**Status:** Complete.
+
+Shot's roll now follows the exact Pass/Lofted Through Ball contract instead of
+its own shortcut. `submitShotRoll` writes canonical `state.dice` for the
+rolling team only and opens the shared `createSinglePlayerRollResultHold({
+kind: "shot" })` hold as `SHOT_ROLLED`, calculating no outcome. The new
+`SHOT_RESOLUTION_DUE` command performs the deterministic calculation once the
+hold's exact Shot/RollEvent identity is revalidated, emitting `SHOT_RESOLVED`.
+Both share one atomic Timeline transaction, so Undo returns to `awaiting-roll`
+and Redo restores the same outcome in one step. `delayedResolutionAtCursor`
+and its diagnostics no longer branch on the `DICE_ROLLED` event name; any
+entry carrying a `metadata.delayedResolution` descriptor qualifies, which
+keeps Pass's own `DICE_ROLLED` behavior unchanged.
+
+Every Shot roll modifier source (non-dominant foot, each distinct defensive
+area, the Distant Long Shot band, and a consumed Tracker AV/AVM/DV/DVM token)
+is summed and then capped symmetrically at the frozen `diceModifiers.stackCap`
+(default ±4) — the same rule Lofted Through Ball and Interception already
+apply. The uncapped per-source facts remain in `plan.modifierSources` for AI
+Export's `routeModifierSources`; the capped `plan.rollPreview` is the new
+shared-shape roll/result projection. `selectSinglePlayerRollPromptPresentation`
+now accepts `kind: "shot"`; the pre-roll prompt and result screen both read it
+through the existing `renderRollBreakdown` conduit, and `main.jsx` no longer
+computes Shot roll modifiers locally. The obsolete "Resolving interception…"
+prompt, dead UI left over from before the shared hold existed for any
+non-Pass mechanic, is removed. The four documented v20.56.28 outcome cases
+remain bit-identical because that fixture never exceeds the cap. Manual
+Multiplayer, Firebase, Editor Mode and every Shot consequence (Goal/Goal
+Kick/Corner/goalkeeper-retains) remain untouched.
+
 ### Post-v20.56.24 implementation order
 
 The following is the active dependency order. Each row is a separate approved

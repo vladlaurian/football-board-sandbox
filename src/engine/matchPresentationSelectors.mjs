@@ -245,7 +245,7 @@ export function selectSinglePlayerRollModifierTokenPresentation(state, { team } 
 // one calculation contract.
 export function selectSinglePlayerRollPromptPresentation(state, context, { team, selectedModifierType = null } = {}) {
   const pending = state?.actionResolution;
-  const base = pending?.kind === "lofted-through-ball"
+  const base = pending?.kind === "lofted-through-ball" || pending?.kind === "shot"
     ? pending?.plan?.rollPreview
     : pending?.kind === "pass"
       ? pending?.rollPresentation

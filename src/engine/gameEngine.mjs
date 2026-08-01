@@ -15,7 +15,7 @@ import { changePieceActivity, changeTrackerPossession, declareManualAction, decl
 import { cancelThroughBall, cancelThroughBallRoute, commitThroughBall, confirmThroughBallRecovery, selectThroughBallRecoverer, selectThroughBallTarget, startThroughBall } from "./throughBallRules.mjs";
 import { cancelLoftedThroughBall, cancelLoftedThroughBallRoute, commitLoftedThroughBall, confirmLoftedThroughBallRecovery, resolveLoftedThroughBall, selectLoftedThroughBallRecoverer, selectLoftedThroughBallTarget, startLoftedThroughBall, submitLoftedThroughBallRoll } from "./loftedThroughBallRules.mjs";
 import { isBonusActionCommand, isPendingBonusActionRollSubmission } from "./bonusActionCapabilities.mjs";
-import { confirmShotRoute, selectShotTarget, startShot, submitShotRoll } from "./shotRules.mjs";
+import { confirmShotRoute, resolveShotResult, selectShotTarget, startShot, submitShotRoll } from "./shotRules.mjs";
 
 function rejected(reason) {
   return { accepted: false, reason };
@@ -293,6 +293,11 @@ export function applyGameCommand({ state, context, command } = {}) {
       : normalizedCommand.type === GAME_COMMAND_TYPE.SHOT_TARGET_SELECTED
         ? selectShotTarget(currentState, matchContext, normalizedCommand)
         : confirmShotRoute(currentState, matchContext, normalizedCommand);
+    if (!transition.accepted) return rejected(transition.reason);
+    return accepted(createGameState(transition.nextState), [createGameEvent({ ...transition.event, commandId: normalizedCommand.id })], transition.timeline);
+  }
+  if (normalizedCommand.type === GAME_COMMAND_TYPE.SHOT_RESOLUTION_DUE) {
+    const transition = resolveShotResult(currentState, matchContext, normalizedCommand);
     if (!transition.accepted) return rejected(transition.reason);
     return accepted(createGameState(transition.nextState), [createGameEvent({ ...transition.event, commandId: normalizedCommand.id })], transition.timeline);
   }

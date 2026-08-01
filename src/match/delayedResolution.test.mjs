@@ -95,7 +95,7 @@ test("diagnoses the exact canonical-request rejection without mutating gameplay"
 
   const laterEntry = { id: "later", type: "PLAYER_MOVED", after: { actionResolution: pendingPass } };
   const stale = diagnoseCanonicalDelayedResolution({ revision: 9, cursor: 2, entries: [rollEntry, laterEntry] }, "roll-1");
-  assert.equal(stale.reason, "cursor-entry-is-not-dice-roll");
+  assert.equal(stale.reason, "cursor-entry-has-no-delayed-resolution");
   assert.equal(stale.expectedEntryIndex, 0);
   assert.equal(stale.cursorEntryId, "later");
 

@@ -84,7 +84,6 @@ import {
   findRuleSet,
   normalizeRuleSet,
   normalizeRuleSets,
-  resolveDiceModifierStacks,
 } from "./rules/ruleSets.mjs";
 import {
   PASS_CORNERS,
@@ -221,7 +220,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.28";
+const APP_VERSION = "v20.56.29";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -2130,7 +2129,6 @@ function App() {
   const [freeBallMoveIntentPending, setFreeBallMoveIntentPending] = useState(false);
   const [actionContinuation, setActionContinuation] = useState(null);
   const [passResultNotice, setPassResultNotice] = useState(null);
-  const [liveDelayedResolutionEntryId, setLiveDelayedResolutionEntryId] = useState("");
   const [trackerSharedEnabled, setTrackerSharedEnabled] = useState(false);
   const [gameMode, setGameMode] = useState("editor");
   const [freeBallActive, setFreeBallActive] = useState(false);
@@ -3015,7 +3013,6 @@ function App() {
       delayedResolutionTimerRef.current = null;
     }
     delayedResolutionEntryIdRef.current = "";
-    setLiveDelayedResolutionEntryId("");
   }
 
   function scheduleDelayedResolution(request) {
@@ -3040,7 +3037,6 @@ function App() {
     }
     cancelDelayedResolutionTimer();
     delayedResolutionEntryIdRef.current = entryId;
-    setLiveDelayedResolutionEntryId(entryId);
     if (sessionCode && !sessionAuthorityRef.current.isHost) {
       multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "not host", { traceId, entryId, actionId: request.actionId, ownerUid: sessionAuthorityRef.current.ownerUid, userUid: sessionAuthorityRef.current.userUid });
       return;
@@ -3051,7 +3047,6 @@ function App() {
       if (sessionCode && !sessionAuthorityRef.current.isHost) {
         multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "host authority lost before timer fired", { traceId, entryId, actionId: request.actionId, ownerUid: sessionAuthorityRef.current.ownerUid, userUid: sessionAuthorityRef.current.userUid });
         delayedResolutionEntryIdRef.current = "";
-        setLiveDelayedResolutionEntryId("");
         return;
       }
       const currentTimeline = gameTimelineRef.current;
@@ -3065,7 +3060,6 @@ function App() {
           diagnosis,
         });
         delayedResolutionEntryIdRef.current = "";
-        setLiveDelayedResolutionEntryId("");
         return;
       }
       // The host resolves from the canonical Timeline cursor state. React refs
@@ -10771,6 +10765,38 @@ function App() {
 
   function applyDelayedActionResolution(request, canonicalActionResolution = null) {
     const traceId = String(request?.payload?.traceId || request?.payload?.rollEvent?.traceId || request?.traceId || actionTraceIdsRef.current.get(request?.actionId) || "");
+    if (request?.kind === "shot") {
+      const pending = canonicalActionResolution || actionResolutionRef.current;
+      if (
+        sessionCode
+        || pending?.kind !== "shot"
+        || pending.status !== "awaiting-shot-resolution"
+        || pending.id !== request.actionId
+        || String(pending.lastRollEvent?.id || "") !== String(request.payload?.rollEvent?.id || "")
+      ) {
+        multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "canonical shot action does not match roll request", {
+          traceId, actionId: request.actionId, pendingActionId: pending?.id || null, pendingStatus: pending?.status || null,
+        });
+        return;
+      }
+      cancelDelayedResolutionTimer();
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`shot_resolution_due_${pending.id}`),
+          type: GAME_COMMAND_TYPE.SHOT_RESOLUTION_DUE,
+          payload: { shotId: pending.id, rollEventId: pending.lastRollEvent.id },
+        },
+        label: "Shot result",
+      });
+      if (!dispatched.result.accepted) {
+        multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "engine rejected canonical shot result", { traceId, actionId: pending.id, reason: dispatched.result.reason });
+      }
+      return;
+    }
     if (request?.kind !== "pass-interception") {
       multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "unsupported delayed-resolution kind", { traceId, kind: request?.kind || null });
       return;
@@ -13220,61 +13246,37 @@ function App() {
         const shooter = pieces.find(piece => piece.id === actionResolution.shooterId);
         const goalkeeper = pieces.find(piece => piece.id === actionResolution.goalkeeperId);
         const plan = actionResolution.plan || {};
-        const attackerLabel = actionResolution.statId === "stat:finishing" ? "Finishing" : "Long Shot";
         const goalkeeperLabel = actionResolution.goalkeeperStatId === "stat:reflexes" ? "Reflexes" : "Diving Saves";
+        const goalkeeperStat = cardStat(cardById[goalkeeper?.cardId], actionResolution.goalkeeperStatId);
         const target = actionResolution.target || {};
         const targetLabel = `${target.side === "right" ? "right" : "left"} goal cell ${Number(target.depth) + 1}/${Number(target.y) + 1}`;
-        const sources = plan.modifierSources || [];
-        const selectedModifier = pendingRollModifierType
-          ? resolveDiceModifierStacks(singlePlayerMatchContext().ruleSet.diceModifiers, pendingRollModifierType)
-          : 0;
-        const modifier = (Number(plan.modifier) || 0) + selectedModifier;
-        const selectedModifierLabel = pendingRollModifierType
-          ? `${({ advantage: "AV", majorAdvantage: "AVM", disadvantage: "DV", majorDisadvantage: "DVM" })[pendingRollModifierType]} ${selectedModifier >= 0 ? "+" : ""}${selectedModifier}`
-          : "no selected Tracker token";
-        const describeSource = source => {
-          if (!source.defenderId) return source.reason;
-          const defender = pieces.find(piece => String(piece.id) === String(source.defenderId));
-          const card = singlePlayerMatchContext().gameplayCardsById[String(defender?.cardId)] || {};
-          const identity = [card.position, card.name].filter(Boolean).join(" ") || "Unknown defender";
-          return `Defensive area: ${identity} — ${teamKeyForPiece(defender) === "blue" ? "Blue" : "Red"}`;
-        };
+        const preview = !sessionCode && gameMode === "match"
+          ? selectSinglePlayerRollPromptPresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState(), singlePlayerMatchContext(), { team: actionResolution.team, selectedModifierType: pendingRollModifierType })
+          : plan.rollPreview;
         return <DraggableActionPrompt promptKey="shot-roll" className="warning">
           <strong>Shot roll required</strong>
           <span>{getPieceIdentity(shooter)} ({actionResolution.team === "blue" ? "Blue" : "Red"}) rolls D20. Target: {targetLabel}; distance {Number(plan.distance || 0).toFixed(2)} — {plan.band === "finishing" ? "Finishing" : plan.band === "long-shot" ? "Long Shot" : "Distant Long Shot"}.</span>
-          <span>{attackerLabel} {cardStat(cardById[shooter?.cardId], actionResolution.statId)} vs {getPieceIdentity(goalkeeper)} fixed {goalkeeperLabel} {cardStat(cardById[goalkeeper?.cardId], actionResolution.goalkeeperStatId)}.</span>
-          <span>{sources.length ? sources.map(source => `${describeSource(source)} ${Number(source.value) >= 0 ? "+" : ""}${Number(source.value)}`).join(" · ") : "No route modifier."}</span>
-          <span><strong>Total modifier {modifier >= 0 ? "+" : ""}{modifier} ({selectedModifierLabel}). Roll {actionResolution.team.toUpperCase()}.</strong></span>
+          {renderRollBreakdown(preview, `${getPieceIdentity(goalkeeper)} fixed ${goalkeeperLabel} ${goalkeeperStat}`)}
           {!sessionCode && gameMode === "match" && renderRollModifierChoice(actionResolution.team)}
         </DraggableActionPrompt>;
       })()}
 
       {actionResolution?.kind === "shot" && actionResolution.status === "result-display" && (() => {
-        const shooter = pieces.find(piece => piece.id === actionResolution.shooterId);
         const goalkeeper = pieces.find(piece => piece.id === actionResolution.goalkeeperId);
-        const result = actionResolution.result || {};
+        const result = selectSinglePlayerShotPresentation({ actionResolution })?.result || {};
         const outcomes = {
           goal: "GOAL",
           "goal-kick": "GOAL KICK",
           corner: "CORNER",
           "goalkeeper-retains": "GOALKEEPER RETAINS",
         };
-        const attackerLabel = actionResolution.statId === "stat:finishing" ? "Finishing" : "Long Shot";
         const goalkeeperLabel = actionResolution.goalkeeperStatId === "stat:reflexes" ? "Reflexes" : "Diving Saves";
-        const describeSource = source => {
-          if (!source.defenderId) return source.reason;
-          const defender = pieces.find(piece => String(piece.id) === String(source.defenderId));
-          const card = singlePlayerMatchContext().gameplayCardsById[String(defender?.cardId)] || {};
-          const identity = [card.position, card.name].filter(Boolean).join(" ") || "Unknown defender";
-          return `Defensive area: ${identity} — ${teamKeyForPiece(defender) === "blue" ? "Blue" : "Red"}`;
-        };
         return <div className="modal-backdrop pass-result-backdrop">
           <div className={`modal pass-result-modal ${actionResolution.team || ""}`} role="dialog" aria-modal="true" aria-label="Shot resolution checkpoint">
             <div className="modal-title"><strong>Shot resolution</strong>{renderBlockingGameplayHistoryControls()}</div>
             <div className="pass-result-lines">
               <p><strong>{outcomes[result.outcome] || "SHOT RESULT"}</strong></p>
-              <p>{getPieceIdentity(shooter)}: D20 {Number(result.natural)} + {attackerLabel} {Number(result.attackerStat)} + modifiers {Number(result.modifier) >= 0 ? "+" : ""}{Number(result.modifier)} = <strong>{Number(result.total)}</strong> vs {getPieceIdentity(goalkeeper)} {goalkeeperLabel} <strong>{Number(result.goalkeeperStat)}</strong>.</p>
-              {(result.modifierSources || []).map((source, index) => <p key={`${source.reason}-${index}`}>{describeSource(source)}: {Number(source.value) >= 0 ? "+" : ""}{Number(source.value)}</p>)}
+              {renderRollBreakdown(result, `${getPieceIdentity(goalkeeper)} fixed ${goalkeeperLabel} ${Number(result.goalkeeperStat)}`)}
               <p>Shot result recorded. Score, ball, possession, turn and restart remain unchanged at this checkpoint.</p>
               <p>Use Timeline Undo/Redo or New Game to test another result.</p>
             </div>
@@ -13329,10 +13331,6 @@ function App() {
 
       {actionResolution?.kind === "pass" && ["targeting", "route-selection"].includes(actionResolution.status) && passCancelIntentPending && (
         <DraggableActionPrompt promptKey="pass-cancel-pending" className="waiting"><strong>Cancelling pass…</strong><span>Waiting for host confirmation.</span></DraggableActionPrompt>
-      )}
-
-      {pendingDelayedResolution?.kind === "pass-interception" && liveDelayedResolutionEntryId === pendingDelayedResolution.entryId && (
-        <DraggableActionPrompt promptKey="interception-resolving" className="waiting"><strong>Resolving interception…</strong><span>Please wait.</span></DraggableActionPrompt>
       )}
 
       {bonusActionEndIntentPending && (
@@ -13516,8 +13514,8 @@ function App() {
               <span className="rule-manual-pill">Dice: manual roll only</span>
             </section>
             <section className="rule-action-card">
-              <div><strong>Shot</strong><span>v20.56.28: normal-play resolution checkpoint</span></div>
-              <p>Goal cells are selected on the board. Routes always use the approved corner-to-centre presentation. A D20 result is canonical, but this build deliberately applies no Goal, Goal Kick, Corner or goalkeeper-retains consequence.</p>
+              <div><strong>Shot</strong><span>v20.56.29: canonical roll parity</span></div>
+              <p>Goal cells are selected on the board. Routes always use the approved corner-to-centre presentation. The D20 roll and result use the same canonical dice, hold and modifier-cap contract as Lofted Through Ball, but this build deliberately applies no Goal, Goal Kick, Corner or goalkeeper-retains consequence.</p>
               <label>Normal Long Shot range (whole squares)
                 <input disabled={ruleSetEditingLocked} type="number" min="1" step="1" value={ruleSetDraft.actions?.shot?.longShotNormalRangeMax ?? 11} onChange={e => setRuleSetDraft(draft => {
                   const normal = e.target.value === "" ? "" : Math.max(1, Math.floor(Number(e.target.value) || 1));

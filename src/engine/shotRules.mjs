@@ -14,6 +14,7 @@ import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { consumeTeamModifierToken } from "./rollModifierOpportunities.mjs";
 import { activateTrackerAction, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
+import { createSinglePlayerRollResultHold } from "../match/delayedResolution.mjs";
 
 const oppositeTeam = team => team === "blue" ? "red" : "blue";
 
@@ -107,6 +108,52 @@ function executionModifierSources(ruleSet, foot, defensiveAreaCrossings, band) {
   return sources;
 }
 
+// Resolves the frozen "post + name — Team" identity used by both the roll
+// prompt and the result screen; no internal defender ID ever reaches either.
+function defenderIdentityLabel(state, context, defenderId) {
+  const defender = (state.pieces || []).find(piece => String(piece?.id) === String(defenderId));
+  const card = context.gameplayCardsById[String(defender?.cardId)] || {};
+  const identity = [card.position, card.name].filter(Boolean).join(" ") || "Unknown defender";
+  return `Defensive area: ${identity} — ${teamKeyForPiece(defender) === "blue" ? "Blue" : "Red"}`;
+}
+
+// Shared labelled-source list, mirroring Lofted Through Ball's rollPreview
+// shape. It excludes any bonus Tracker token, which is only known once a
+// roll is submitted; resolveShotResult appends that source afterward.
+function shotBaseModifierSources({ state, context, foot, defensiveAreaCrossings, band, attackerStat, attackerLabel }) {
+  const ruleSet = context.ruleSet;
+  const sources = [{ label: attackerLabel, value: Number(attackerStat) || 0, source: "card" }];
+  if (!foot.dominant) {
+    sources.push({ label: "Major Disadvantage", value: resolveDiceModifierStacks(ruleSet.diceModifiers, "majorDisadvantage"), source: "non-preferred-foot", detail: "non-preferred foot execution" });
+  }
+  defensiveAreaCrossings.forEach(crossing => {
+    sources.push({
+      label: "Disadvantage",
+      value: resolveDiceModifierStacks(ruleSet.diceModifiers, "disadvantage"),
+      source: "defensive-area",
+      detail: defenderIdentityLabel(state, context, crossing.defenderId),
+      defenderId: crossing.defenderId,
+    });
+  });
+  if (band === "distant-long-shot") {
+    const type = ruleSet.actions.shot.distantBandModifier;
+    sources.push({ label: type === "majorDisadvantage" ? "Major Disadvantage" : "Disadvantage", value: resolveDiceModifierStacks(ruleSet.diceModifiers, type), source: "shot-band", detail: "Distant Long Shot band" });
+  }
+  return sources;
+}
+
+// One shared, symmetric cap applies to every Shot roll modifier total,
+// exactly as Lofted Through Ball and Interception already cap theirs.
+function computeShotRollPreview(modifierSources, modifierCap, attackerStat) {
+  const rawModifier = modifierSources.reduce((total, source) => source.source === "card" ? total : total + Number(source.value || 0), 0);
+  const modifier = Math.max(-modifierCap, Math.min(modifierCap, rawModifier));
+  return {
+    modifier, rawModifier, modifierCap, capped: modifier !== rawModifier,
+    totalBonus: Number(attackerStat) + modifier,
+    modifierSources,
+  };
+}
+
 function defensiveAreaOwnersForShooter(state, context, shooter, defendingTeam) {
   return (state.pieces || [])
     .filter(piece => teamKeyForPiece(piece) === defendingTeam && !piece.inactive)
@@ -148,7 +195,18 @@ export function buildShotRoutePlan({ state, context, shooter, target, cornerId }
   const foot = footForPass(origin, endpoint, shooter, context.gameplayCardsById[String(shooter.cardId)]?.preferredFoot);
   const insidePenaltyArea = penaltyAreaContains(settings, shooter);
   const band = insidePenaltyArea ? "finishing" : distance <= Number(ruleSet.actions.shot.longShotNormalRangeMax) ? "long-shot" : "distant-long-shot";
+  // Internal, uncapped, type-based facts: unchanged shape, still the source
+  // for AI Export's routeModifierSources.
   const modifierSources = executionModifierSources(ruleSet, foot, defensiveAreaCrossings, band);
+  const statId = insidePenaltyArea ? "stat:finishing" : "stat:long-shot";
+  const attackerLabel = insidePenaltyArea ? "Finishing" : "Long Shot";
+  const attackerStat = cardStat(context.gameplayCardsById[String(shooter.cardId)], statId);
+  const modifierCap = Math.max(0, Number(ruleSet.diceModifiers?.stackCap) || 0);
+  const rollPreview = computeShotRollPreview(
+    shotBaseModifierSources({ state, context, foot, defensiveAreaCrossings, band, attackerStat, attackerLabel }),
+    modifierCap,
+    attackerStat,
+  );
   return {
     kind: "shot-route-plan",
     cornerId,
@@ -163,7 +221,10 @@ export function buildShotRoutePlan({ state, context, shooter, target, cornerId }
     bodyBlockers: bodyBlockers.map(piece => ({ pieceId: String(piece.id), team: teamKeyForPiece(piece) })),
     defensiveAreaCrossings,
     modifierSources,
-    modifier: modifierSources.reduce((total, source) => total + Number(source.value || 0), 0),
+    statId,
+    attackerStat,
+    rollPreview,
+    modifier: rollPreview.modifier,
     maxDistanceExceeded: distance > Number(ruleSet.actions.shot.shotMaximumRange),
     legal: !originBlocker && bodyBlockers.length === 0 && distance <= Number(ruleSet.actions.shot.shotMaximumRange),
   };
@@ -240,7 +301,7 @@ export function confirmShotRoute(state, context, command) {
         status: "awaiting-roll",
         plan,
         goalkeeperId: goalkeeper.id,
-        statId: plan.insidePenaltyArea ? "stat:finishing" : "stat:long-shot",
+        statId: plan.statId,
         goalkeeperStatId: plan.insidePenaltyArea ? "stat:reflexes" : "stat:diving-saves",
         trackerEntryId: trackerAction.entry.id,
         pendingRoll: { requestId: `shot_roll_${action.id}`, actionId: action.id, team: action.team, dieType: 20, subjectId: shooter.id, reactionIndex: 0, context: { actionType: "SHOT" } },
@@ -251,11 +312,23 @@ export function confirmShotRoute(state, context, command) {
   };
 }
 
+const BONUS_TOKEN_LABEL = Object.freeze({
+  advantage: "Advantage",
+  majorAdvantage: "Major Advantage",
+  disadvantage: "Disadvantage",
+  majorDisadvantage: "Major Disadvantage",
+});
+
+// Roll only: consumes the RollEvent and any selected Tracker token, writes
+// canonical state.dice in the same shape as Lofted Through Ball, and opens
+// the shared 1000 ms result hold. It calculates no outcome.
 export function submitShotRoll(state, context, command) {
   const action = state.actionResolution;
   const rollEvent = createRollEvent(command.payload?.rollEvent);
+  const createdAt = Number(command.payload?.createdAt);
   if (!action || action.kind !== "shot" || action.status !== "awaiting-roll" || !rollEvent || !action.pendingRoll
     || rollEvent.requestId !== action.pendingRoll.requestId || rollEvent.actionId !== action.id || rollEvent.team !== action.team) return { accepted: false, reason: "SHOT_ROLL_INVALID" };
+  if (!Number.isFinite(createdAt) || createdAt < 0) return { accepted: false, reason: "SHOT_ROLL_TIME_INVALID" };
   const consumed = consumeActionEvent(action, rollEvent);
   if (!consumed) return { accepted: false, reason: "SHOT_ROLL_DUPLICATE" };
   const selectedTokenType = command.payload?.bonusModifierType || null;
@@ -263,19 +336,84 @@ export function submitShotRoll(state, context, command) {
     ? consumeTeamModifierToken(state.teamModifierTokens, { team: action.team, turn: state.tracker.currentTurn, modifierType: selectedTokenType })
     : { accepted: true, tokens: state.teamModifierTokens || [], consumed: null };
   if (!token.accepted) return { accepted: false, reason: "SHOT_MODIFIER_TOKEN_INVALID" };
-  const shooter = pieceById(state, action.shooterId);
-  const goalkeeper = pieceById(state, action.goalkeeperId);
-  const tokenSources = token.consumed ? [{ type: token.consumed.modifierType, value: resolveDiceModifierStacks(context.ruleSet.diceModifiers, token.consumed.modifierType), reason: "Tracker modifier token", tokenId: token.consumed.id }] : [];
-  const modifierSources = [...(action.plan.modifierSources || []), ...tokenSources];
-  const modifier = modifierSources.reduce((total, source) => total + Number(source.value || 0), 0);
-  const attackerStat = cardStat(context.gameplayCardsById[String(shooter.cardId)], action.statId);
-  const goalkeeperStat = cardStat(context.gameplayCardsById[String(goalkeeper.cardId)], action.goalkeeperStatId);
-  const total = Number(rollEvent.natural) + attackerStat + modifier;
-  const outcome = rollEvent.natural === 20 ? "goal" : rollEvent.natural === 1 ? "goal-kick" : total > goalkeeperStat ? "goal" : total === goalkeeperStat ? "corner" : "goalkeeper-retains";
+  const resolutionTransaction = { id: `resolution_${action.id}_${command.id}`, source: "roll-resolution", undoMode: "atomic" };
+  const delayedResolution = createSinglePlayerRollResultHold({
+    kind: "shot",
+    actionId: action.id,
+    team: action.team,
+    value: rollEvent.natural,
+    createdAt,
+    payload: { rollEvent, undoTransaction: resolutionTransaction },
+  });
+  const dice = {
+    ...state.dice,
+    dieType: rollEvent.dieType,
+    blueResult: action.team === "blue" ? rollEvent.natural : state.dice?.blueResult,
+    redResult: action.team === "red" ? rollEvent.natural : state.dice?.redResult,
+    blueLastDieType: action.team === "blue" ? rollEvent.dieType : state.dice?.blueLastDieType,
+    redLastDieType: action.team === "red" ? rollEvent.dieType : state.dice?.redLastDieType,
+  };
   return {
     accepted: true,
-    nextState: { ...state, teamModifierTokens: token.tokens, actionResolution: { ...consumed, status: "result-display", result: { natural: rollEvent.natural, attackerStat, goalkeeperStat, modifier, modifierSources, total, outcome } } },
-    event: { type: "SHOT_RESOLVED", team: action.team, metadata: { shotId: action.id, natural: rollEvent.natural, attackerStat, goalkeeperStat, modifier, modifierSources, total, outcome, consequenceApplied: false } },
+    nextState: {
+      ...state,
+      dice,
+      teamModifierTokens: token.tokens,
+      actionResolution: {
+        ...consumed,
+        status: "awaiting-shot-resolution",
+        lastRollEvent: rollEvent,
+        bonusModifierType: token.consumed?.modifierType || null,
+        resolutionTransaction,
+      },
+    },
+    event: {
+      type: "SHOT_ROLLED",
+      team: action.team,
+      metadata: {
+        shotId: action.id,
+        rollEvent,
+        rollSource: rollEvent.source,
+        chosenResult: rollEvent.source === "CHOSEN" ? rollEvent.natural : null,
+        delayedResolution,
+        undoTransaction: resolutionTransaction,
+        bonusModifier: token.consumed ? { type: token.consumed.modifierType, source: token.consumed.source, tokenId: token.consumed.id } : null,
+      },
+    },
+    timeline: { groupId: action.trackerEntryId, undoMode: "step", allowNoop: true },
+  };
+}
+
+// SHOT_RESOLUTION_DUE: performs the deterministic Shot calculation only after
+// the roll and its hold have already been persisted. It applies exactly one
+// symmetric cap to the combined roll modifier, mirroring Lofted Through Ball.
+export function resolveShotResult(state, context, command) {
+  const action = state.actionResolution;
+  const rollEventId = String(command.payload?.rollEventId || "").trim();
+  if (!action || action.kind !== "shot" || action.status !== "awaiting-shot-resolution") return { accepted: false, reason: "SHOT_NOT_RESOLVING" };
+  if (String(command.payload?.shotId || "") !== String(action.id) || !rollEventId || rollEventId !== String(action.lastRollEvent?.id || "")
+    || !Array.isArray(action.consumedEventIds) || !action.consumedEventIds.includes(rollEventId)) return { accepted: false, reason: "SHOT_RESOLUTION_STALE" };
+  const shooter = pieceById(state, action.shooterId);
+  const goalkeeper = pieceById(state, action.goalkeeperId);
+  const attackerStat = cardStat(context.gameplayCardsById[String(shooter.cardId)], action.statId);
+  const goalkeeperStat = cardStat(context.gameplayCardsById[String(goalkeeper.cardId)], action.goalkeeperStatId);
+  const tokenSource = action.bonusModifierType
+    ? { label: BONUS_TOKEN_LABEL[action.bonusModifierType] || "Modifier", value: resolveDiceModifierStacks(context.ruleSet.diceModifiers, action.bonusModifierType), source: "team-modifier-token", detail: "earned team modifier" }
+    : null;
+  const modifierSources = [...(action.plan.rollPreview?.modifierSources || []), ...(tokenSource ? [tokenSource] : [])];
+  const preview = computeShotRollPreview(modifierSources, action.plan.rollPreview?.modifierCap, attackerStat);
+  const natural = Number(action.lastRollEvent.natural);
+  const total = natural + attackerStat + preview.modifier;
+  const outcome = natural === 20 ? "goal" : natural === 1 ? "goal-kick" : total > goalkeeperStat ? "goal" : total === goalkeeperStat ? "corner" : "goalkeeper-retains";
+  const result = { natural, attackerStat, goalkeeperStat, total, outcome, ...preview };
+  return {
+    accepted: true,
+    nextState: { ...state, actionResolution: { ...action, status: "result-display", result } },
+    event: {
+      type: "SHOT_RESOLVED",
+      team: action.team,
+      metadata: { shotId: action.id, ...result, consequenceApplied: false, undoTransaction: action.resolutionTransaction || null },
+    },
     timeline: { groupId: action.trackerEntryId, undoMode: "step", allowNoop: true },
   };
 }

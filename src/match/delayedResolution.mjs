@@ -47,7 +47,7 @@ export function delayedResolutionAtCursor(timeline, actionResolution) {
   const entry = timeline.entries[cursor - 1];
   const request = safeObject(entry?.metadata?.delayedResolution);
   const actionId = String(request.actionId || "").trim();
-  if (entry?.type !== "DICE_ROLLED" || !actionId) return null;
+  if (!actionId) return null;
   if (String(actionResolution?.id || "") !== actionId) return null;
   return {
     ...request,
@@ -83,10 +83,9 @@ export function diagnoseCanonicalDelayedResolution(timeline, expectedEntryId = "
   if (!cursor) reason = "cursor-is-zero";
   else if (cursor !== entries.length) reason = "cursor-not-at-live-edge";
   else if (!cursorEntry) reason = "cursor-entry-missing";
-  else if (cursorEntry.type !== "DICE_ROLLED") reason = "cursor-entry-is-not-dice-roll";
+  else if (!delayedActionId) reason = "cursor-entry-has-no-delayed-resolution";
   else if (!state) reason = "cursor-entry-after-state-missing";
   else if (!actionResolution) reason = "action-resolution-missing-from-after-state";
-  else if (!delayedActionId) reason = "delayed-resolution-metadata-missing";
   else if (!actionResolutionId) reason = "action-resolution-id-missing";
   else if (delayedActionId !== actionResolutionId) reason = "action-id-mismatch";
   else if (expected && String(cursorEntry.id || "") !== expected) reason = "expected-entry-is-not-cursor-entry";
