@@ -5,7 +5,7 @@ function validStartTeam(command) {
   return command.payload?.team === "blue" || command.payload?.team === "red" ? command.payload.team : null;
 }
 
-function playableFirstTurn(state, team, { restarted = false } = {}) {
+function playableFirstTurn(state, team, { restarted = false, blueFormationId = null, redFormationId = null } = {}) {
   const emptyTurn = createEmptyTrackerTurnState();
   return {
     accepted: true,
@@ -18,6 +18,15 @@ function playableFirstTurn(state, team, { restarted = false } = {}) {
       // from an earlier Match lifecycle.
       teamModifierTokens: [],
       threeTwoOpportunity: null,
+      score: { blue: 0, red: 0 },
+      pendingFormation: { blue: null, red: null },
+      tacticBlock: { blue: false, red: false },
+      // Continue Game is frozen: it never reapplies a formation, so the
+      // previously active tactic (if any) is left exactly as it was instead
+      // of being reset — there is nothing new to record.
+      activeFormation: restarted ? state.activeFormation : { blue: blueFormationId, red: redFormationId },
+      kickoffRestart: null,
+      goalkeeperRestartException: null,
       tracker: {
         ...state.tracker,
         gameStarted: true,
@@ -47,7 +56,9 @@ export function startMatch(state, command) {
   const tracker = normalizeTrackerSnapshot(state.tracker);
   if (!team) return { accepted: false, reason: "MATCH_START_TEAM_INVALID" };
   if (tracker.gameStarted) return { accepted: false, reason: "MATCH_ALREADY_STARTED" };
-  return playableFirstTurn(state, team);
+  const blueFormationId = command.payload?.blueFormationId ?? null;
+  const redFormationId = command.payload?.redFormationId ?? null;
+  return playableFirstTurn(state, team, { blueFormationId, redFormationId });
 }
 
 export function restartMatch(state, command) {

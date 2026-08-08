@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --test src/engine/shotRules.test.mjs)",
+      "Bash(node -e ' *)",
+      "Bash(node --test --test-name-pattern=\"prompt and result agree\" src/engine/shotRules.test.mjs)",
+      "Bash(node --test src/match/delayedResolution.test.mjs src/engine/matchPresentationSelectors.test.mjs src/timeline/aiAnalysisExport.test.mjs src/engine/gameEngine.test.mjs src/engine/singlePlayerController.test.mjs)",
+      "Bash(node --test src/timeline/aiAnalysisExport.test.mjs src/engine/matchPresentationSelectors.test.mjs)",
+      "Bash(npm test *)",
+      "Bash(node --test src/board/extractedComponents.test.mjs)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(unzip -t \"Final_Board_v20_56_29_shot_roll_parity.zip\")",
+      "Bash(unzip -l \"Final_Board_v20_56_29_shot_roll_parity.zip\")",
+      "PowerShell(Remove-Item -Recurse -Force \"$env:TEMP\\\\Final_Board_v20_56_29_stage\")",
+      "Bash(node --test src/rules/interceptionEngine.test.mjs)",
+      "Bash(node --test src/engine/gameEngine.test.mjs)",
+      "Bash(node --test src/engine/shotRules.test.mjs src/engine/matchPresentationSelectors.test.mjs src/rules/interceptionEngine.test.mjs src/rules/passEngine.test.mjs src/engine/singlePlayerController.test.mjs src/timeline/aiAnalysisExport.test.mjs src/multiplayer/actionStartAuthority.test.mjs src/multiplayer/freeToolsAuthority.test.mjs)",
+      "Bash(node --test src/engine/shotRules.test.mjs src/engine/matchPresentationSelectors.test.mjs)",
+      "Bash(node --test src/rules/rollModifierMath.test.mjs src/engine/matchPresentationSelectors.test.mjs src/engine/shotRules.test.mjs src/engine/gameEngine.test.mjs)",
+      "Bash(sort -t- -k2 -n -u)",
+      "Bash(unzip -t \"Final_Board_v20_56_30_shared_roll_cancel_contracts.zip\")",
+      "Bash(unzip -l \"Final_Board_v20_56_30_shared_roll_cancel_contracts.zip\")",
+      "Bash(node --test src/engine/gameEngine.test.mjs src/engine/matchPresentationSelectors.test.mjs)",
+      "Bash(unzip -l \"Final_Board_v20_56_31_pass_verdict_and_shot_cancel_fix.zip\")",
+      "Bash(unzip -t \"Final_Board_v20_56_31_pass_verdict_and_shot_cancel_fix.zip\")",
+      "Bash(node --test src/timeline/aiAnalysisExport.test.mjs)",
+      "Bash(unzip -t \"Final_Board_v20_56_32_uniform_hold_and_shared_components.zip\")",
+      "Bash(unzip -l \"Final_Board_v20_56_32_uniform_hold_and_shared_components.zip\")",
+      "Bash(node --test src/engine/*.test.mjs src/timeline/*.test.mjs src/match/*.test.mjs)",
+      "Bash(unzip -t \"Final_Board_v20_56_33_shot_goalkeeper_retains_consequence.zip\")",
+      "Bash(unzip -l \"Final_Board_v20_56_33_shot_goalkeeper_retains_consequence.zip\")",
+      "Bash(unzip -l Final_Board_v20_56_34_automatic_goal_kickoff.zip)",
+      "Bash(mkdir -p /tmp/zip34)",
+      "Bash(unzip -o -q Final_Board_v20_56_34_automatic_goal_kickoff.zip -d /tmp/zip34)",
+      "Read(//tmp/**)"
+    ]
+  }
+}

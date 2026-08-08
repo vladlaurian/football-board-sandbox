@@ -29,6 +29,7 @@ export function TrackerPanel({
   onToggleAction,
   onRemoveLastAction,
   currentTurn,
+  score = { blue: 0, red: 0 },
   turnsReadOnly = false,
   onSelectTurn,
   onResizeDown,
@@ -115,6 +116,11 @@ export function TrackerPanel({
                 >{turn}</button>
               ))}
             </div>
+          </div>
+          <div className="tracker-score-block">
+            <span className="tracker-score-team blue">BLUE</span>
+            <span className="tracker-score-value">{Number(score.blue) || 0} - {Number(score.red) || 0}</span>
+            <span className="tracker-score-team red">RED</span>
           </div>
         </div>
       )}

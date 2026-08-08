@@ -334,7 +334,7 @@ function semanticEvent(entry, sequence, cardsById, options = {}) {
     eventSource: eventSource(entry),
     type: semanticType(entry, trackerActions, movements),
     label: entry.label,
-    diceRoll: ["DICE_ROLLED", "SHOT_ROLLED", "EXTRA_ROLL"].includes(entry.type) ? {
+    diceRoll: ["DICE_ROLLED", "SHOT_ROLLED", "LOFTED_THROUGH_BALL_ROLLED", "EXTRA_ROLL"].includes(entry.type) ? {
       source: entry.metadata?.rollSource === "CHOSEN" ? "CHOSEN" : "RANDOM",
       chosenResult: entry.metadata?.rollSource === "CHOSEN" ? Number(entry.metadata?.chosenResult) || null : null,
       eventId: String(entry.metadata?.rollEvent?.id || "") || null,
@@ -471,7 +471,7 @@ function semanticEvent(entry, sequence, cardsById, options = {}) {
       pieceId: entry.metadata?.bonusAction?.pieceId || null,
       continuationId: String(entry.metadata?.continuationId || "") || null,
     } : null,
-    explicitOutcome: entry.type === "SHOT_RESOLVED" ? `SHOT_${String(entry.metadata?.outcome || "RESULT").replace(/-/g, "_").toUpperCase()}` : entry.type === "SHOT_ROLLED" ? "SHOT_ROLL_RECORDED" : entry.metadata?.manualResolutionRequired ? "MANUAL_RESOLUTION_REQUIRED" : entry.type === "PASS_INTERCEPTION_RESOLVED" ? "INTERCEPTION_ROLL_RESOLVED" : entry.type === "PASS_INTERCEPTION_MISSED" ? "INTERCEPTION_MISSED" : entry.type === "PASS_COMPLETED" ? "PASS_COMPLETED" : entry.type === "PASS_INTERCEPTED" ? "INTERCEPTED" : entry.type === "PASS_NATURAL_20" ? "NATURAL_20_INTERCEPTION" : entry.type === "BONUS_ACTION_ENDED" ? "BONUS_ACTION_ENDED" : entry.type === "BONUS_ACTION_DECLINED" ? "BONUS_ACTION_DECLINED" : "NOT_DECLARED",
+    explicitOutcome: entry.type === "SHOT_RESOLVED" ? `SHOT_${String(entry.metadata?.outcome || "RESULT").replace(/-/g, "_").toUpperCase()}` : entry.type === "SHOT_ROLLED" ? "SHOT_ROLL_RECORDED" : entry.type === "LOFTED_THROUGH_BALL_ROLLED" ? "LOFTED_THROUGH_BALL_ROLL_RECORDED" : entry.metadata?.manualResolutionRequired ? "MANUAL_RESOLUTION_REQUIRED" : entry.type === "PASS_INTERCEPTION_RESOLVED" ? "INTERCEPTION_ROLL_RESOLVED" : entry.type === "PASS_INTERCEPTION_MISSED" ? "INTERCEPTION_MISSED" : entry.type === "PASS_COMPLETED" ? "PASS_COMPLETED" : entry.type === "PASS_INTERCEPTED" ? "INTERCEPTED" : entry.type === "PASS_NATURAL_20" ? "NATURAL_20_INTERCEPTION" : entry.type === "BONUS_ACTION_ENDED" ? "BONUS_ACTION_ENDED" : entry.type === "BONUS_ACTION_DECLINED" ? "BONUS_ACTION_DECLINED" : "NOT_DECLARED",
   };
 }
 

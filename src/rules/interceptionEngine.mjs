@@ -7,10 +7,7 @@
  * interception invariants.
  */
 
-export function clampInterceptionModifier(value, cap) {
-  const safeCap = Math.max(0, Number.isFinite(Number(cap)) ? Number(cap) : 0);
-  return Math.max(-safeCap, Math.min(safeCap, Number(value) || 0));
-}
+import { sumAndCapRollModifier } from "./rollModifierMath.mjs";
 
 export function resolveInterception({
   natural,
@@ -24,11 +21,20 @@ export function resolveInterception({
   naturalOneEffect = "carry-disadvantage",
 } = {}) {
   const die = Number(natural);
-  const rawModifier = Number(defenderStatValue)
-    + Number(progressiveBonus)
-    + Number(standardModifier)
-    + Number(previousNaturalOnePenalty);
-  const cap = Math.max(0, Number.isFinite(Number(modifierCap)) ? Number(modifierCap) : 0);
+  // Only the situational sources (interceptor order, non-dominant-foot
+  // advantage, previous-Natural-1 penalty) are ever capped — never the
+  // defender's own Interception stat (confirmed live with the user; see
+  // rollModifierMath.mjs).
+  const situational = sumAndCapRollModifier([
+    { value: progressiveBonus },
+    { value: standardModifier },
+    { value: previousNaturalOnePenalty },
+  ], modifierCap);
+  const baseStat = Number(defenderStatValue) || 0;
+  const modifier = baseStat + situational.modifier;
+  const rawModifier = baseStat + situational.rawModifier;
+  const cap = situational.modifierCap;
+  const capped = situational.capped;
 
   if (die === 1) {
     return {
@@ -55,7 +61,6 @@ export function resolveInterception({
     };
   }
 
-  const modifier = clampInterceptionModifier(rawModifier, cap);
   const total = die + modifier;
   const target = Number(attackerTargetValue) || 0;
   const intercepts = equalRollOutcome === "interception" ? total >= target : total > target;
@@ -66,7 +71,7 @@ export function resolveInterception({
     modifier,
     rawModifier,
     modifierCap: cap,
-    capped: modifier !== rawModifier,
+    capped,
   };
 }
 

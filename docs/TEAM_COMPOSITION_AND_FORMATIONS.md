@@ -31,9 +31,13 @@ Adjust zones with local formation-slot adjustment. v20.56.22 gives Prep's
 mutable controls an explicit selected-team boundary and requires a separate
 transient Ready confirmation from both teams before Start New. v20.56.23
 records the future separation between Workspace formation, active Match tactic
-and live board coordinates. Substitutions remain future work. Manual
-Multiplayer remains a frozen legacy path and keeps its existing puck-label
-behavior.
+and live board coordinates; that separation is now implemented — a coach may
+pick a new tactic at any time, but it only lands on the live board at the next
+kickoff moment (`pendingFormation`/`activeFormation`, `FORMATION_TACTIC_CONFIRMED`,
+applied automatically at kickoff after a Goal and available via the
+mid-match Adjust button, both gated by the shared kickoff-moment predicate).
+Substitutions remain future work. Manual Multiplayer remains a frozen legacy
+path and keeps its existing puck-label behavior.
 
 ## 1. One authority for a player's role
 
@@ -127,35 +131,95 @@ time. There is no sixth substitution.
 - The coach may place the incoming player in any free board cell, provided
   the completed team remains legal under the roster validator.
 
+### Blocking dependency (not yet satisfiable)
+
+Substitutions depend on a canonical interruption/restart lifecycle for
+throw-in, goal kick, corner and free kick. None of these exist in the Engine
+today — only the post-goal kick-off restart (`state.kickoffRestart`) and
+match start are represented anywhere in the code.
+`docs/GAME_ENGINE_MIGRATION_PLAN.md` already places Substitution after these
+interruptions in its own sequencing. Building Substitutions before that
+lifecycle exists would only allow triggering one at kick-off (match start or
+post-goal), never at the stoppages this section describes — that contradicts
+the rule itself, so Substitutions stay out of scope until that lifecycle is
+built.
+
+When it is eventually taken up, the agreed shape (from user direction,
+2026-08-01) is:
+
+- A substitution may be *requested* at any time, but is only *performed* at
+  the next qualifying stoppage (fault, throw-in, goal kick, corner,
+  half-time, post-goal kick-off), mirroring real football.
+- The coach is prompted to pick the outgoing player, then the incoming
+  reserve.
+- The incoming player's placement is limited using the attack-direction
+  relative convention already fixed for the zone map in Section 6 below (a
+  team's own goalkeeper, standing in their own goal facing the direction of
+  attack, defines that team's left/right — not literal board side, since it
+  must stay correct however the board is oriented):
+  - `LB`, `LWB`, `LM`, `LW`: only the first 6 cells from that team's own-left
+    touchline, counted inward.
+  - `RB`, `RWB`, `RM`, `RW`: only the first 6 cells from that team's
+    own-right touchline, counted inward.
+  - `CB`, `CDM`, `CM`, `CAM`, `ST`: any remaining cell not covered above.
+  - `GK`: only the exact centre of that team's own goal.
+- After placement, the team is re-checked against the currently selected
+  tactic. If ineligible, the coach is prompted to change tactic before
+  `Ready` is accepted; until `Ready`, any placement can still be reversed.
+- `Ready` locks the substitution irreversibly and consumes one substitution
+  (and one in-play window where applicable) from the limits already defined
+  above in this section.
+- Up to 3 substitutions may be queued in one stoppage/window before `Ready`.
+- The `Substitution` control becomes `Done Subs` while a substitution
+  sequence is open; pressing it again closes the sequence without confirming
+  (equivalent to not yet pressing `Ready`).
+- Outgoing and incoming pucks carry a distinct highlight (gold for incoming,
+  grey for outgoing) until `Ready` is pressed, at which point every
+  substitution highlight clears.
+
+None of this is implemented. This note exists only so the direction is not
+lost before the interruption lifecycle exists.
+
 ## 5. Prep and Selection Rules
 
 `Prep` is a movable, resizable, minimizable and closable panel in the second
 application bar, immediately before `Tracker`. It is a Single Player Match
-Mode pre-start surface; its Editor Mode button remains visibly blocked. It does
-not itself start a Match.
+Mode surface; its Editor Mode button remains visibly blocked. It does not
+itself start a Match. Since v20.56.41, `Prep` is also reachable during an
+already-started Match (its toggle button carries no Match-started gate) — a
+tactic may be picked at any time, but it only lands on the real board at a
+kickoff moment (see 5.7/5.8).
 
 The panel always exposes these controls:
 
-`Team` · `Formation` · `Selection` · `Adjust` · `Substitution` · `Ready`
+`Team` · `Formation` · `Select Formation` · `Adjust` · `Substitution` · `Ready`
 
 ### 5.1 Team and Formation
 
 - `Team` selects Blue or Red as the team currently being prepared.
-- `Formation` selects a spatial formation template for that team. The board
-  updates immediately, using the existing stable puck identities and keeping
-  their assigned cards. This is functional in v20.56.11.
+- `Formation` selects a spatial formation template for that team. Since
+  v20.56.41 this only updates a read-only preview
+  (`src/prep/FormationPreview.jsx`) labeling each slot with its required
+  position code — it never touches the real board. `Select Formation`
+  confirms it (see 5.7/5.8). Before v20.56.41 the board updated immediately
+  on selection; that behavior is retained only for the instant-apply case
+  (a kickoff moment).
 - While Single Player Prep is open, its selected team owns Prep mutation:
   formation application, Adjust movement and card assignment/removal may alter
   only that team. The other team remains inspectable but cannot be changed
   until it is selected in Prep. This is a UI preparation boundary, not a
   gameplay ownership change.
 
-### 5.2 Selection
+### 5.2 Card assignment and the live summary
 
-`Selection` allows card assignment to every puck in the full eighteen-player
-roster: eleven starter pucks, the goalkeeper reserve and six outfield
-reserves. The existing card-inspection/assignment affordance remains the card
-selection surface; Prep adds a live information popup for the selected team.
+Card assignment to every puck in the full eighteen-player roster (eleven
+starter pucks, the goalkeeper reserve and six outfield reserves) is done
+directly on the pucks, on the board — the existing card-inspection/assignment
+affordance remains the card selection surface. Before v20.56.41, Prep had a
+separate `Selection` button whose only effect was to scroll to the summary
+below; confirmed with the user that this served no other purpose, it was
+dropped and the control was repurposed as `Select Formation` (see 5.1/5.7).
+Prep still shows the same live information popup for the selected team.
 
 Prep permanently shows a live summary for both teams, Blue first and Red
 second: current total stars, active limits, count at the `Y`-star value,
@@ -221,6 +285,15 @@ not reset the board. `Reset [team] default layout` deliberately reapplies that
 team's selected formation. Selecting a new Formation invalidates that team's
 prepared Adjust layout.
 
+Since v20.56.41, Adjust is additionally enabled only at a kickoff moment (see
+5.7). Before the Match Timeline has started, it keeps this exact pre-Match
+Workspace behavior. Once the Timeline has started (a pending post-goal
+restart), a placement instead goes through the canonical Engine command
+`ADJUST_PIECE_PLACED` (`src/engine/adjustPlacementRules.mjs`), reading the
+anchor from `state.activeFormation[team]` — so Undo/Redo/Replay/AI-export see
+it, per section 7. `Reset [team] default layout` remains a pre-Match-only
+convenience and is hidden outside that case.
+
 ### 5.5 Ready and Match start
 
 Before the Match starts, `Ready` validates the selected team's full roster,
@@ -236,6 +309,21 @@ independently.
   Ready state remains intact.
 - Ready state is transient preparation UI: it is neither WorkspaceSnapshot nor
   a Timeline, replay or AI-export event.
+
+**Once the Match has started (v20.56.43), `Ready` is a different, canonical
+action entirely** — pressing it dispatches the Engine command
+`KICKOFF_READY_CONFIRMED` (`src/engine/kickoffReadyRules.mjs`); the pre-Match
+validation above does not run. Away from a pending post-goal kick-off
+restart, it is rejected (`NOT_AT_KICKOFF_RESTART`) and nothing happens.
+While a restart is pending for that team, the Engine: re-lays out the team
+into its active tactic (so a piece pinned by an earlier tactic change
+returns to its real slot), re-validates the tactic
+(`state.tacticBlock`/`TEAM_TACTIC_INVALID` if it fails, with no board
+change), then picks whichever piece is that team's ST **under the currently
+active tactic** — not whatever was picked back when the goal happened — and
+pins it and the ball to centre. The UI only dispatches the command and
+displays whatever reason comes back; it makes none of these decisions
+itself.
 
 `Start New Game` requires both team acknowledgements. If either team is not
 Ready, its Tracker request is rejected with:
@@ -261,16 +349,17 @@ It must not create a local manual interruption.
 
 ### 5.7 Deferred Prep lifecycle redesign
 
-The current live Formation control is intentionally retained as the visible
-setup surface for card assignment. It is not yet the final protection model for
-an active Match: a mistaken formation selection can currently reposition that
-board. Do not add another local lock as a patch. A later approved Prep build
-must define separate, explicit flows for preparing a **new Match** and for an
-already active Match, alongside the functional Adjust surface and the canonical
-restart/interruption state.
+**The formation-protection half of this section is implemented as of
+v20.56.41** — see 5.1/5.4/5.8: Formation only previews until confirmed, and a
+confirmed tactic reaches the real board only at a kickoff moment (Match not
+yet started, or a pending post-goal restart), never by an accidental
+selection mid-Match.
 
-After that later lifecycle is implemented, it becomes the only substitution
-entrance:
+**The Substitution half remains fully deferred**, unchanged from the original
+note below: it still depends on a canonical interruption/restart lifecycle
+(throw-in, goal kick, corner, free kick) that does not exist yet — see the
+"Blocking dependency" note in section 4. Once that lifecycle exists, this
+becomes the only substitution entrance:
 
 - it may be armed before a stoppage and opens automatically at the first
   eligible interruption;
@@ -283,25 +372,54 @@ entrance:
 - the post-substitution `Ready` requires confirmation and resumes the pending
   interruption only after confirmation.
 
-### 5.8 Future active-Match tactic
+### 5.8 Active-Match tactic (implemented v20.56.41, extended v20.56.42)
 
-The selected Workspace formation is only a future-Match setup value. It is not
-the mutable tactical state of a Match already under way.
+The selected Prep formation is a future-kickoff setup value, distinct from
+the pieces' current physical board position at any other moment.
 
-At an eligible canonical interruption, the coach will create a tactical draft:
+At a kickoff moment (today: before Match start, or a pending post-goal
+`kickoffRestart` — not yet every canonical interruption, since only these two
+exist in the Engine so far), the coach creates a tactical draft:
 
-- selecting a new formation shows its lineup on a separate tactical preview;
-- it validates the actual eleven cards, including a proposed substitution when
-  one is part of the same draft;
-- confirmation changes an Engine-owned active tactical formation in MatchState
-  and creates a semantic Timeline/AI fact;
-- confirmation does **not** move any live player or ball coordinate;
-- a later restart that expressly permits formation placement uses the active
-  Match tactic, while all other board positions remain physical game state.
+- selecting a new formation shows its lineup on a separate tactical preview
+  (`src/prep/FormationPreview.jsx`), never the live board;
+- `Select Formation` confirms it through the canonical Engine command
+  `FORMATION_TACTIC_CONFIRMED` (`src/engine/formationTacticRules.mjs`);
+- at a kickoff moment, confirmation applies it to the real board immediately
+  and records it in `state.activeFormation[team]`;
+- away from a kickoff moment, confirmation instead queues it in
+  `state.pendingFormation[team]` — Engine-owned MatchState, a canonical
+  Timeline step, visible to Undo/Redo/Replay/AI-export;
+- confirmation away from a kickoff moment does **not** move any live player
+  or ball coordinate.
 
-The active-Match Formation control must never reuse the pre-Match live template
-application path. Until this lifecycle exists, no local tactical-change or
-substitution substitute is permitted.
+Since v20.56.42, a kickoff moment always re-lays out **both** teams into
+whichever tactic ends up active for them (a freshly confirmed/queued one, or
+whatever was already active) — this is the "return to active Match tactical
+formation" restart rule (`docs/FINALISATION_AND_RESTARTS_RULES.md` 3.2), not
+just an update path for a newly picked tactic. The one exception, always:
+the entitled kick-off piece and the ball are pinned to the centre point
+afterward, regardless of what the tactic says for that piece's slot — Adjust
+also refuses to move that specific piece while the restart is pending.
+Continue Game is unaffected: it never records an active tactic, so nothing
+is ever reapplied for it.
+
+If the tactic that ends up active for a team does not exactly match that
+team's assigned cards' roles, `state.tacticBlock[team]` is set and every
+action for that team is blocked — disabled buttons on every one of its
+pieces (`selectSinglePlayerPieceActionPresentation`) and a persistent banner
+in the match UI — until a matching tactic is confirmed. This is the only way
+such a mismatch can occur (cards themselves are locked once the Match
+starts), and it replaces the validation that the old forced kick-off pass
+used to imply.
+
+Not yet built: validating a proposed substitution as part of the same draft
+(there is no Substitution mechanic yet — section 4), and extending "kickoff
+moment" to every canonical interruption type (only kickoff exists today) or to
+half-time/extra-time (no such state exists yet).
+
+The active-Match Formation control never reuses the pre-Match live template
+application path — see 5.1's note on the two separate code paths.
 
 ## 6. Positional zones
 

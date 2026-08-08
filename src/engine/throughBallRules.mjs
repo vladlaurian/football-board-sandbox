@@ -1,8 +1,13 @@
-import { PASS_CORNERS, bodyBlockingPassOrigin, defensiveCellsForPiece, pointForPassOrigin, pointForPassTarget, segmentIntersectsOpenRect, teamKeyForPiece } from "../rules/passEngine.mjs";
+import { PASS_CORNERS, bodyBlockingPassOrigin, defensiveCellsForPiece, insideOwnPenaltyArea, pointForPassOrigin, pointForPassTarget, segmentIntersectsOpenRect, teamKeyForPiece } from "../rules/passEngine.mjs";
+import { isBenchReservePiece } from "../board/formationUtils.mjs";
 import { activateTrackerAction, createEmptyTrackerTurnState, isTeamActiveForTrackerPhase } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 import { activeBonusActionFor, beginImplementedBonusAction, completeImplementedBonusAction } from "./bonusActionCapabilities.mjs";
 import { expiredRollModifierOpportunities, pruneRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
+import { kickoffRestartAfterAction } from "./kickoffMomentRules.mjs";
+import { restartSetupAfterAction } from "./restartSetupRules.mjs";
+import { markingTurnResetFields } from "./markingRules.mjs";
+import { computeOffsideWatch } from "./offsidePositionRules.mjs";
 
 const EPSILON = 1e-9;
 const otherTeam = team => team === "blue" ? "red" : "blue";
@@ -18,24 +23,48 @@ function moveBall(state, target) {
   return state.pieces.map(piece => piece.team === "BALL" ? { ...piece, x: Number(target.x), y: Number(target.y) } : piece);
 }
 
+function restartExceptionFor(state, passer) {
+  const exception = state.goalkeeperRestartException;
+  if (!exception || String(exception.goalkeeperId) !== String(passer?.id || "")) return null;
+  return { team: exception.team, pieceId: exception.goalkeeperId };
+}
+
+function goalkeeperRestartExceptionAfterPass(state, passerId) {
+  return state.goalkeeperRestartException?.goalkeeperId === String(passerId) ? null : state.goalkeeperRestartException;
+}
+
 function areaContains(piece, context, target) {
   return defensiveCellsForPiece(piece, context.gameplayCardsById[String(piece.cardId || "")], context.boardSettings)
     .some(cell => cell.x === Number(target.x) && cell.y === Number(target.y));
 }
 
-export function planThroughBall(state, context, passer, target, cornerId) {
+// Goalkeeper Retains' restart exception (docs/SHOOTING_RULES.md): inside the
+// executing goalkeeper's own penalty area, EVERY body — teammate or
+// opponent — and every defensive area is ignored for this one restart; the
+// box is assumed crowded right after the save, so nobody standing in it
+// obstructs this one distribution. Defensive areas remain an opponent-only
+// concept (a teammate's card never produces one), so that half only ever
+// relaxes an opponent check.
+export function planThroughBall(state, context, passer, target, cornerId, restartException = null) {
   const team = teamKeyForPiece(passer);
   const enemy = otherTeam(team);
+  const exceptionActive = Boolean(restartException) && String(restartException.pieceId) === String(passer.id);
+  const ignoredByException = cell => exceptionActive && insideOwnPenaltyArea(context.boardSettings, cell, restartException.team);
   const origin = pointForPassOrigin(passer, context.ruleSet.actions.pass.pathMode, cornerId);
   const endpoint = pointForPassTarget(target);
   const maxDistance = context.ruleSet.actions.throughBall.maxDistance;
-  const originBlocked = Boolean(bodyBlockingPassOrigin(origin, passer, state.pieces));
-  const occupied = state.pieces.some(piece => piece?.team !== "BALL" && Number(piece.x) === Number(target.x) && Number(piece.y) === Number(target.y));
-  const enemyPieces = state.pieces.filter(piece => teamKeyForPiece(piece) === enemy && !piece.inactive);
-  const areaBlocked = enemyPieces.some(piece => areaContains(piece, context, passer)
-    || areaContains(piece, context, target)
-    || defensiveCellsForPiece(piece, context.gameplayCardsById[String(piece.cardId || "")], context.boardSettings).some(cell => segmentIntersectsOpenRect(origin, endpoint, cell)));
-  const bodyBlocked = state.pieces.some(piece => piece?.id !== passer.id && piece?.team !== "BALL" && !piece.inactive && segmentIntersectsOpenRect(origin, endpoint, piece));
+  const rawOriginBlocker = bodyBlockingPassOrigin(origin, passer, state.pieces);
+  const originBlocked = Boolean(rawOriginBlocker) && !ignoredByException(rawOriginBlocker);
+  const occupied = state.pieces.some(piece => piece?.team !== "BALL" && !isBenchReservePiece(piece) && Number(piece.x) === Number(target.x) && Number(piece.y) === Number(target.y));
+  const enemyPieces = state.pieces.filter(piece => teamKeyForPiece(piece) === enemy && !piece.inactive && !isBenchReservePiece(piece));
+  const areaBlocked = enemyPieces.some(piece => (areaContains(piece, context, passer) && !ignoredByException(passer))
+    || (areaContains(piece, context, target) && !ignoredByException(target))
+    || defensiveCellsForPiece(piece, context.gameplayCardsById[String(piece.cardId || "")], context.boardSettings)
+      .filter(cell => !ignoredByException(cell))
+      .some(cell => segmentIntersectsOpenRect(origin, endpoint, cell)));
+  const bodyBlocked = state.pieces.some(piece => piece?.id !== passer.id && piece?.team !== "BALL" && !piece.inactive && !isBenchReservePiece(piece)
+    && segmentIntersectsOpenRect(origin, endpoint, piece)
+    && !(exceptionActive && ignoredByException(piece)));
   const measuredDistance = distance(passer, target);
   return { origin, endpoint, maxDistance, distance: measuredDistance, originBlocked, occupied, areaBlocked, bodyBlocked, legal: !originBlocked && !occupied && !areaBlocked && !bodyBlocked && measuredDistance <= maxDistance };
 }
@@ -47,7 +76,8 @@ export function selectThroughBallTarget(state, context, command) {
   if (!pending || pending.kind !== "through-ball" || pending.status !== "targeting" || !passer || !Number.isInteger(target.x) || !Number.isInteger(target.y)) return { accepted: false, reason: "THROUGH_BALL_NOT_TARGETING" };
   const cols = Number(context.boardSettings?.cols), rows = Number(context.boardSettings?.rows);
   if (target.x < 0 || target.y < 0 || (cols > 0 && target.x >= cols) || (rows > 0 && target.y >= rows)) return { accepted: false, reason: "THROUGH_BALL_INVALID" };
-  const routes = PASS_CORNERS.map(corner => ({ cornerId: corner.id, ...planThroughBall(state, context, passer, target, corner.id) }));
+  const restartException = restartExceptionFor(state, passer);
+  const routes = PASS_CORNERS.map(corner => ({ cornerId: corner.id, ...planThroughBall(state, context, passer, target, corner.id, restartException) }));
   return { accepted: true, nextState: { ...state, actionResolution: { ...pending, status: "route-selection", target, routes } }, event: { type: "THROUGH_BALL_TARGET_SELECTED", team: pending.team, metadata: { target } }, timeline: { allowNoop: true } };
 }
 
@@ -55,7 +85,11 @@ export function startThroughBall(state, command) {
   const piece = state.pieces.find(item => String(item?.id) === String(command.payload?.pieceId)) || null;
   const team = teamKeyForPiece(piece);
   const tracker = normalizeTrackerSnapshot(state.tracker);
-  if (!piece || !team || !hasBall(state, piece)) return { accepted: false, reason: "THROUGH_BALL_NOT_AVAILABLE" };
+  if (!piece || !team || !hasBall(state, piece) || isBenchReservePiece(piece)) return { accepted: false, reason: "THROUGH_BALL_NOT_AVAILABLE" };
+  // A pending kick-off restart's entitled piece must act first (any pass
+  // type is legal there since v20.56.42) — see passStartRules.mjs's
+  // matching guard.
+  if (state.kickoffRestart && String(state.kickoffRestart.pieceId) !== String(piece.id)) return { accepted: false, reason: "KICKOFF_RESTART_WRONG_PLAYER" };
   const bonus = beginImplementedBonusAction(state, { team, pieceId: piece.id, type: "THROUGH_BALL" });
   if (!bonus && !isTeamActiveForTrackerPhase(tracker, team)) return { accepted: false, reason: "THROUGH_BALL_NOT_AVAILABLE" };
   return { accepted: true, nextState: { ...state, actionContinuation: bonus || state.actionContinuation, actionResolution: { id: String(command.payload?.throughBallId || command.id), kind: "through-ball", status: "targeting", passerId: piece.id, team, bonusContinuationId: bonus?.id || null } }, event: { type: bonus ? "BONUS_THROUGH_BALL_TARGETING_STARTED" : "THROUGH_BALL_TARGETING_STARTED", team, metadata: { passerId: piece.id, continuationId: bonus?.id || null } }, timeline: { groupId: bonus?.id || null, undoMode: bonus ? "atomic" : "step", allowNoop: true } };
@@ -69,17 +103,8 @@ export function cancelThroughBall(state) {
   return { accepted: true, nextState: { ...state, actionResolution: null, actionContinuation: reset }, event: { type: "THROUGH_BALL_CANCELLED", team: pending.team }, timeline: { groupId: pending.bonusContinuationId || null, undoMode: pending.bonusContinuationId ? "atomic" : "step", allowNoop: true } };
 }
 
-export function cancelThroughBallRoute(state) {
-  const pending = state.actionResolution;
-  if (!pending || pending.kind !== "through-ball" || pending.status !== "route-selection") return { accepted: false, reason: "THROUGH_BALL_NOT_ROUTE_SELECTION" };
-  // Re-selecting the chosen target does not abandon the action. It returns to
-  // canonical target selection while retaining the visible target marker.
-  const { routes, cornerId, ...targeting } = pending;
-  return { accepted: true, nextState: { ...state, actionResolution: { ...targeting, status: "targeting" } }, event: { type: "THROUGH_BALL_ROUTE_CANCELLED", team: pending.team, metadata: { target: pending.target } }, timeline: { allowNoop: true } };
-}
-
 function recoveryCandidates(state, context, team, passer, target) {
-  const ranked = requestedTeam => state.pieces.filter(piece => teamKeyForPiece(piece) === requestedTeam && !piece.inactive && piece.id !== passer.id)
+  const ranked = requestedTeam => state.pieces.filter(piece => teamKeyForPiece(piece) === requestedTeam && !piece.inactive && !isBenchReservePiece(piece) && piece.id !== passer.id)
     .map(piece => ({ piece, distance: distance(piece, target), speed: speed(context, piece) }));
   const attackers = ranked(team);
   const defenders = ranked(otherTeam(team));
@@ -102,7 +127,7 @@ export function commitThroughBall(state, context, command) {
   const passer = state.pieces.find(item => item.id === pending.passerId);
   const cornerId = String(command.payload?.cornerId || "top-left");
   if (!passer || !Number.isInteger(target.x) || !Number.isInteger(target.y) || !PASS_CORNERS.some(corner => corner.id === cornerId)) return { accepted: false, reason: "THROUGH_BALL_INVALID" };
-  const route = planThroughBall(state, context, passer, target, cornerId);
+  const route = planThroughBall(state, context, passer, target, cornerId, restartExceptionFor(state, passer));
   if (!route.legal) return { accepted: false, reason: route.distance > route.maxDistance ? "THROUGH_BALL_MAX_DISTANCE" : "THROUGH_BALL_ROUTE_BLOCKED" };
   const bonus = pending.bonusContinuationId ? activeBonusActionFor(state, { team: pending.team, pieceId: passer.id, type: "THROUGH_BALL", continuationId: pending.bonusContinuationId }) : null;
   if (pending.bonusContinuationId && !bonus) return { accepted: false, reason: "BONUS_THROUGH_BALL_NOT_ACTIVE" };
@@ -112,12 +137,20 @@ export function commitThroughBall(state, context, command) {
   const tracker = { ...state.tracker, actionLog: activation.actionLog, usedActions: activation.usedActions, personalActionsByPieceId: activation.personalActionsByPieceId, matchActionState: activation.matchActionState };
   if (!recovery.defenderWins) {
     const nextContinuation = bonus ? completeImplementedBonusAction(state, { team: pending.team, pieceId: passer.id, type: "THROUGH_BALL", continuationId: bonus.id }) : state.actionContinuation;
-    return { accepted: true, nextState: { ...state, pieces: moveBall(state, target), actionResolution: null, actionContinuation: nextContinuation, threeTwoOpportunity: { sourceAction: "THROUGH_BALL", team: pending.team, passerId: passer.id, target, turn: normalizeTrackerSnapshot(state.tracker).currentTurn }, tracker }, event: { type: "THROUGH_BALL_COMPLETED", team: pending.team, metadata: { passerId: passer.id, target, cornerId, continuationId: bonus?.id || null, ...recovery } }, timeline: { groupId: bonus?.id || command.id, undoMode: bonus ? "atomic" : "step", allowNoop: false } };
+    // Offside Build 2 (docs/GAMEPLAY_RULES_FOUNDATIONS.md section 6): the
+    // race above only decided attacker-team-vs-defender-team, never which
+    // specific attacker eventually reaches the now-loose ball — that's
+    // resolved later by real gameplay (3/2, a normal move, a Bonus Move),
+    // each checked against this watch in offsidePositionRules.mjs. Computed
+    // against the pre-move `state` (the ball is still at the passer's own
+    // cell here, matching Pass Build 1's own convention).
+    const offsideWatch = computeOffsideWatch(state, context, { attackingTeam: pending.team, passerId: passer.id });
+    return { accepted: true, nextState: { ...state, pieces: moveBall(state, target), actionResolution: null, actionContinuation: nextContinuation, threeTwoOpportunity: { sourceAction: "THROUGH_BALL", team: pending.team, passerId: passer.id, target, turn: normalizeTrackerSnapshot(state.tracker).currentTurn }, tracker, goalkeeperRestartException: goalkeeperRestartExceptionAfterPass(state, passer.id), kickoffRestart: kickoffRestartAfterAction(state, passer.id), offsideWatch }, event: { type: "THROUGH_BALL_COMPLETED", team: pending.team, metadata: { passerId: passer.id, target, cornerId, continuationId: bonus?.id || null, ...recovery } }, timeline: { groupId: bonus?.id || command.id, undoMode: bonus ? "atomic" : "step", allowNoop: false } };
   }
   const choiceRequired = recovery.defenderCandidates.length > 1;
   const selected = choiceRequired ? null : recovery.defenderCandidates[0]?.piece || null;
   const resolution = { ...pending, status: choiceRequired ? "awaiting-recoverer-choice" : "awaiting-recovery-confirmation", target, cornerId, recovery: { ...recovery, defenderCandidates: recovery.defenderCandidates.map(item => ({ pieceId: item.piece.id, distance: item.distance, speed: item.speed })), selectedRecovererId: selected?.id || null } };
-  return { accepted: true, nextState: { ...state, pieces: moveBall(state, target), actionResolution: resolution, threeTwoOpportunity: null, tracker }, event: { type: choiceRequired ? "THROUGH_BALL_RECOVERER_CHOICE_REQUIRED" : "THROUGH_BALL_AUTO_RECOVERY_PENDING", team: otherTeam(pending.team), metadata: { passerId: passer.id, target, cornerId, ...resolution.recovery } }, timeline: { allowNoop: false } };
+  return { accepted: true, nextState: { ...state, pieces: moveBall(state, target), actionResolution: resolution, threeTwoOpportunity: null, tracker, kickoffRestart: kickoffRestartAfterAction(state, passer.id), restartSetup: restartSetupAfterAction(state, passer.id) }, event: { type: choiceRequired ? "THROUGH_BALL_RECOVERER_CHOICE_REQUIRED" : "THROUGH_BALL_AUTO_RECOVERY_PENDING", team: otherTeam(pending.team), metadata: { passerId: passer.id, target, cornerId, ...resolution.recovery } }, timeline: { allowNoop: false } };
 }
 
 export function selectThroughBallRecoverer(state, command) {
@@ -139,5 +172,5 @@ export function confirmThroughBallRecovery(state) {
   const emptyTurn = createEmptyTrackerTurnState();
   const nextTurn = Math.min(tracker.settings.turns, Math.max(1, tracker.currentTurn + 1));
   const expiredRollBonuses = expiredRollModifierOpportunities(state.teamModifierTokens, nextTurn);
-  return { accepted: true, nextState: { ...state, pieces: moveBall(state, recoverer), movementStateByPieceId: {}, actionResolution: null, threeTwoOpportunity: null, actionContinuation: null, teamModifierTokens: pruneRollModifierOpportunities(state.teamModifierTokens, nextTurn), tracker: { ...state.tracker, startingTeam: nextTeam, currentTurn: nextTurn, usedActions: emptyTurn.usedActions, actionLog: emptyTurn.actionLog, personalActionsByPieceId: emptyTurn.personalActionsByPieceId, matchActionState: emptyTurn.matchActionState, turnPhase: "attack" } }, event: { type: "THROUGH_BALL_AUTO_RECOVERED", team: nextTeam, metadata: { passerId: pending.passerId, target: pending.target, recovererId: recoverer.id, startedTurn: nextTurn, expiredRollBonuses: expiredRollBonuses.map(item => ({ id: item.id, team: item.team, modifierType: item.modifierType })) } }, timeline: { allowNoop: false } };
+  return { accepted: true, nextState: { ...state, pieces: moveBall(state, recoverer), movementStateByPieceId: {}, actionResolution: null, threeTwoOpportunity: null, actionContinuation: null, teamModifierTokens: pruneRollModifierOpportunities(state.teamModifierTokens, nextTurn), goalkeeperRestartException: goalkeeperRestartExceptionAfterPass(state, pending.passerId), ...markingTurnResetFields(), tracker: { ...state.tracker, startingTeam: nextTeam, currentTurn: nextTurn, usedActions: emptyTurn.usedActions, actionLog: emptyTurn.actionLog, personalActionsByPieceId: emptyTurn.personalActionsByPieceId, matchActionState: emptyTurn.matchActionState, turnPhase: "attack" } }, event: { type: "THROUGH_BALL_AUTO_RECOVERED", team: nextTeam, metadata: { passerId: pending.passerId, target: pending.target, recovererId: recoverer.id, startedTurn: nextTurn, expiredRollBonuses: expiredRollBonuses.map(item => ({ id: item.id, team: item.team, modifierType: item.modifierType })) } }, timeline: { allowNoop: false } };
 }

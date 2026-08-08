@@ -2,6 +2,7 @@ import { getMovementGeometry } from "../board/movementState.mjs";
 import { teamKeyForPiece } from "../rules/passEngine.mjs";
 import { activateTrackerAction, addPersonalAction, hasGroupMoveAuthorization, personalActionStatusForPiece } from "../tracker/actionRules.mjs";
 import { normalizeMatchActionState, normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
+import { isBenchReservePiece } from "../board/formationUtils.mjs";
 
 function groupRules(context) {
   const raw = context?.ruleSet?.actions?.groupMove || {};
@@ -98,7 +99,7 @@ export function evaluateGroupMovePieceEligibility(state, command) {
   const group = tracker.matchActionState.groupMove || {};
   const piece = pieceForCommand(state, command);
   if (!group.active || !hasGroupMoveAuthorization(tracker, group.team)) return { accepted: false, reason: "GROUP_MOVE_NOT_ACTIVE" };
-  if (!piece || piece.team === "BALL" || piece.inactive || teamKeyForPiece(piece) !== group.team) return { accepted: false, reason: "GROUP_MOVE_PIECE_INVALID" };
+  if (!piece || piece.team === "BALL" || piece.inactive || isBenchReservePiece(piece) || teamKeyForPiece(piece) !== group.team) return { accepted: false, reason: "GROUP_MOVE_PIECE_INVALID" };
   if (Number(piece.x) < group.zoneStartX || Number(piece.x) >= group.zoneStartX + group.zoneLength) return { accepted: false, reason: "GROUP_MOVE_OUTSIDE_ZONE" };
   if (group.movedPieceIds.includes(piece.id)) return { accepted: false, reason: "GROUP_MOVE_PIECE_ALREADY_MOVED" };
   if (group.movedPieceIds.length >= group.maxPlayers) return { accepted: false, reason: "GROUP_MOVE_LIMIT_REACHED" };

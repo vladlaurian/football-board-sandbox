@@ -176,16 +176,15 @@ test("Through Ball begins and resolves as the one canonical action inside Bonus 
   assert.equal(committed.timeline.undoMode, "atomic");
 });
 
-test("reselecting a Through Ball target returns to canonical targeting without losing that target", () => {
+test("reselecting a Through Ball target exits the action entirely, exactly like Pass and Lofted Through Ball", () => {
   const state = normalMoveState({ pieces: [{ id: "ball", team: "BALL", x: 1, y: 1 }, { id: "blue-1", team: "A", cardId: "blue-1", x: 1, y: 1 }] });
   const context = throughBallContext();
   const started = applyGameCommand({ state, context, command: { id: "tb-start-return", type: "THROUGH_BALL_STARTED", payload: { pieceId: "blue-1" } } });
   const selected = applyGameCommand({ state: started.nextState, context, command: { id: "tb-target-return", type: "THROUGH_BALL_TARGET_SELECTED", payload: { x: 4, y: 1 } } });
-  const returned = applyGameCommand({ state: selected.nextState, context, command: { id: "tb-route-return", type: "THROUGH_BALL_ROUTE_CANCELLED", payload: {} } });
-  assert.equal(returned.accepted, true);
-  assert.equal(returned.nextState.actionResolution.status, "targeting");
-  assert.deepEqual(returned.nextState.actionResolution.target, { x: 4, y: 1 });
-  assert.equal(returned.nextState.actionResolution.routes, undefined);
+  const cancelled = applyGameCommand({ state: selected.nextState, context, command: { id: "tb-cancel-return", type: "THROUGH_BALL_CANCELLED", payload: {} } });
+  assert.equal(cancelled.accepted, true);
+  assert.equal(cancelled.nextState.actionResolution, null);
+  assert.equal(cancelled.events[0].type, "THROUGH_BALL_CANCELLED");
 });
 
 test("Through Ball requires defender choice on equal recovery distance and speed, then starts the recovering team turn", () => {
@@ -209,6 +208,103 @@ test("Through Ball requires defender choice on equal recovery distance and speed
   assert.equal(recovered.nextState.tracker.currentTurn, 2);
 });
 
+test("Offside Build 2: a flagged attacker reaching a Through Ball's loose ball across a turn boundary is still offside", () => {
+  const state = normalMoveState({
+    pieces: [
+      { id: "ball", team: "BALL", x: 1, y: 1 },
+      { id: "blue-1", team: "A", cardId: "blue-1", x: 1, y: 1 },
+      { id: "blue-2", team: "A", cardId: "blue-2", x: 11, y: 1 },
+      { id: "red-1", team: "B", cardId: "red-1", x: 0, y: 11 },
+      { id: "red-2", team: "B", cardId: "red-2", x: 5, y: 11 },
+    ],
+  });
+  const context = throughBallContext(20);
+  // blue-2 (x:11) is offside — past halfway (10), past the passer/ball (1),
+  // past the second-last defender (both red pieces sit far in their own
+  // corner) — and the race to the target (16,6) is an easy attacker win: a
+  // diagonal distance of 5 for blue-2 vs. ~16+ for either red defender.
+  const committed = beginThroughBall(state, context, { x: 16, y: 6 });
+  assert.equal(committed.accepted, true);
+  assert.equal(committed.nextState.actionResolution, null, "the attacking team won the recovery race outright");
+  assert.deepEqual(committed.nextState.offsideWatch, { attackingTeam: "blue", flaggedPieceIds: ["blue-2"] });
+  const ballAfterThroughBall = committed.nextState.pieces.find(piece => piece.id === "ball");
+  assert.equal(ballAfterThroughBall.x, 16); assert.equal(ballAfterThroughBall.y, 6);
+
+  // Turn 1's attack phase: blue-2 (Speed 4) can only close a diagonal
+  // distance of 3 of the 5 needed (diagonal cost is nonlinear: distance 3
+  // costs exactly 4, distance 4 would cost 6).
+  const move1Start = applyGameCommand({ state: committed.nextState, context, command: { id: "b2-move1-start", type: "NORMAL_MOVE_STARTED", payload: { pieceId: "blue-2" } } });
+  assert.equal(move1Start.accepted, true);
+  const move1 = applyGameCommand({ state: move1Start.nextState, context, command: { id: "b2-move1", type: "NORMAL_MOVE_COMMITTED", payload: { pieceId: "blue-2", x: 14, y: 4 } } });
+  assert.equal(move1.accepted, true);
+  assert.deepEqual(move1.nextState.offsideWatch, { attackingTeam: "blue", flaggedPieceIds: ["blue-2"] }, "landing short of the ball is not a claim");
+
+  // Attack phase ends, a full defense phase passes with nobody reaching the
+  // ball, and a brand-new numbered turn begins (Speed refills for everyone) —
+  // none of this may clear the watch.
+  const attackEnded = applyGameCommand({ state: move1.nextState, context, command: { id: "phase-blue-offside", type: "TRACKER_PHASE_ENDED", payload: { team: "blue" } } });
+  assert.equal(attackEnded.accepted, true);
+  const defenseEnded = applyGameCommand({ state: attackEnded.nextState, context, command: { id: "phase-red-offside", type: "TRACKER_PHASE_ENDED", payload: { team: "red" } } });
+  assert.equal(defenseEnded.accepted, true);
+  assert.equal(defenseEnded.nextState.tracker.currentTurn, 2);
+  assert.deepEqual(defenseEnded.nextState.movementStateByPieceId, {}, "Speed budgets reset for the new turn");
+  assert.deepEqual(defenseEnded.nextState.offsideWatch, { attackingTeam: "blue", flaggedPieceIds: ["blue-2"] }, "the watch itself must NOT reset on a turn/phase change");
+
+  // Turn 2's attack phase: blue-2 finishes the remaining diagonal distance 2
+  // and lands exactly on the ball — still offside from the original Through
+  // Ball, even though its own Speed budget is fully refreshed.
+  const move2Start = applyGameCommand({ state: defenseEnded.nextState, context, command: { id: "b2-move2-start", type: "NORMAL_MOVE_STARTED", payload: { pieceId: "blue-2" } } });
+  assert.equal(move2Start.accepted, true);
+  const move2 = applyGameCommand({ state: move2Start.nextState, context, command: { id: "b2-move2", type: "NORMAL_MOVE_COMMITTED", payload: { pieceId: "blue-2", x: 16, y: 6 } } });
+  assert.equal(move2.accepted, true);
+  assert.equal(move2.nextState.offsideWatch, null, "the watch is spent the moment it's claimed, offside or not");
+  assert.equal(move2.nextState.actionResolution?.kind, "offside");
+  assert.equal(move2.nextState.actionResolution?.status, "result-display");
+  assert.equal(move2.nextState.actionResolution?.result.recipientId, "blue-2");
+  assert.equal(move2.nextState.actionResolution?.result.team, "blue");
+  assert.deepEqual(move2.nextState.pendingRestartResult, { type: "indirectFreeKick", team: "red", spot: { x: 16, y: 6 }, executable: false });
+  assert.equal(move2.events[0].metadata.offside, true);
+  // blue-2 still physically completes the move onto the ball — the offence
+  // is discovered at that instant, it doesn't prevent the move itself.
+  assert.equal(move2.nextState.pieces.find(piece => piece.id === "blue-2").x, 16);
+});
+
+test("Offside Build 2: a non-flagged attacker reaching the loose ball first clears the watch and play continues normally", () => {
+  const state = normalMoveState({
+    pieces: [
+      { id: "ball", team: "BALL", x: 1, y: 1 },
+      { id: "blue-1", team: "A", cardId: "blue-1", x: 1, y: 1 },
+      // blue-2 is offside exactly like the test above, but never moves in
+      // this test — it's here only to prove the watch really is about
+      // *specific flagged pieces*, not "whichever attacker touches it".
+      { id: "blue-2", team: "A", cardId: "blue-2", x: 11, y: 1 },
+      // blue-3 is onside (x:10, not > halfway) and is the one who actually
+      // reaches the ball, across the same kind of turn boundary.
+      { id: "blue-3", team: "A", cardId: "blue-2", x: 10, y: 6 },
+      { id: "red-1", team: "B", cardId: "red-1", x: 0, y: 11 },
+      { id: "red-2", team: "B", cardId: "red-2", x: 5, y: 11 },
+    ],
+  });
+  const context = throughBallContext(20);
+  const committed = beginThroughBall(state, context, { x: 16, y: 6 });
+  assert.deepEqual(committed.nextState.offsideWatch, { attackingTeam: "blue", flaggedPieceIds: ["blue-2"] });
+
+  const move1Start = applyGameCommand({ state: committed.nextState, context, command: { id: "b3-move1-start", type: "NORMAL_MOVE_STARTED", payload: { pieceId: "blue-3" } } });
+  const move1 = applyGameCommand({ state: move1Start.nextState, context, command: { id: "b3-move1", type: "NORMAL_MOVE_COMMITTED", payload: { pieceId: "blue-3", x: 14, y: 6 } } });
+  assert.equal(move1.accepted, true);
+  assert.deepEqual(move1.nextState.offsideWatch, { attackingTeam: "blue", flaggedPieceIds: ["blue-2"] }, "landing short of the ball is not a claim");
+
+  const attackEnded = applyGameCommand({ state: move1.nextState, context, command: { id: "phase-blue-onside", type: "TRACKER_PHASE_ENDED", payload: { team: "blue" } } });
+  const defenseEnded = applyGameCommand({ state: attackEnded.nextState, context, command: { id: "phase-red-onside", type: "TRACKER_PHASE_ENDED", payload: { team: "red" } } });
+  assert.equal(defenseEnded.accepted, true);
+
+  const move2Start = applyGameCommand({ state: defenseEnded.nextState, context, command: { id: "b3-move2-start", type: "NORMAL_MOVE_STARTED", payload: { pieceId: "blue-3" } } });
+  const move2 = applyGameCommand({ state: move2Start.nextState, context, command: { id: "b3-move2", type: "NORMAL_MOVE_COMMITTED", payload: { pieceId: "blue-3", x: 16, y: 6 } } });
+  assert.equal(move2.accepted, true);
+  assert.equal(move2.nextState.offsideWatch, null, "blue-3 was never flagged, so claiming it just ends the watch");
+  assert.equal(move2.nextState.actionResolution, null, "no offside — play continues normally");
+});
+
 test("3/2 preserves prior direction and remaining Speed when the Rule Set continuation option is enabled", () => {
   const state = normalMoveState({
     pieces: [{ id: "ball", team: "BALL", x: 5, y: 5 }, { id: "blue-1", team: "A", cardId: "blue-1", x: 3, y: 3 }],
@@ -224,6 +320,74 @@ test("3/2 preserves prior direction and remaining Speed when the Rule Set contin
   assert.equal(forward.accepted, true);
   const reverse = applyGameCommand({ state: threeTwo.nextState, context, command: { id: "tb-reverse", type: "NORMAL_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 4, y: 4 } } });
   assert.deepEqual(reverse, { accepted: false, reason: "direction" });
+});
+
+test("Offside movement lock: 3/2 cannot be used to reverse out of a direction already locked by an earlier retreat", () => {
+  const state = normalMoveState({
+    pieces: [{ id: "ball", team: "BALL", x: 12, y: 5 }, { id: "blue-1", team: "A", cardId: "blue-1", x: 10, y: 5 }],
+    // blue-1 already retreated leftward (dx:-1) this session and got
+    // direction-locked by that move — exactly the reported live scenario
+    // (a Bonus Move retreat out of offside, then 3/2 used to break forward).
+    movementStateByPieceId: { "blue-1": { axis: "horizontal", direction: { dx: -1, dy: 0 }, spent: 2, distance: 2, directionLocked: true } },
+    threeTwoOpportunity: { team: "blue", passerId: "other", target: { x: 12, y: 5 }, turn: 1 },
+  });
+  const context = throughBallContext();
+  const result = applyGameCommand({ state, context, command: { id: "tb-32-locked-reverse", type: "THREE_TWO_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 12, y: 5 } } });
+  assert.deepEqual(result, { accepted: false, reason: "offside-direction" });
+});
+
+test("Offside movement lock: a fresh 3/2 used while offside locks direction for the rest of the session", () => {
+  const state = normalMoveState({
+    pieces: [
+      { id: "ball", team: "BALL", x: 9, y: 5 },
+      { id: "blue-1", team: "A", cardId: "blue-1", x: 11, y: 5 },
+      { id: "red-1", team: "B", cardId: "red-1", x: 0, y: 0 },
+      { id: "red-2", team: "B", cardId: "red-2", x: 0, y: 1 },
+    ],
+    threeTwoOpportunity: { team: "blue", passerId: "other", target: { x: 9, y: 5 }, turn: 1 },
+  });
+  const context = throughBallContext();
+  // blue-1 (x:11) is offside — past halfway (10), past the ball (9), past
+  // both (far) red defenders — and 3/2 is its very first hop this session.
+  const threeTwo = applyGameCommand({ state, context, command: { id: "tb-32-fresh-offside", type: "THREE_TWO_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 9, y: 5 } } });
+  assert.equal(threeTwo.accepted, true);
+  assert.deepEqual(threeTwo.nextState.movementStateByPieceId["blue-1"], { axis: "horizontal", direction: { dx: -1, dy: 0 }, spent: 0, distance: 0, threeTwoUsed: true, movementEnded: false, directionLocked: true, offsideDirectionLocked: true });
+  const started = applyGameCommand({ state: threeTwo.nextState, context, command: { id: "b1-start-after-32", type: "NORMAL_MOVE_STARTED", payload: { pieceId: "blue-1" } } });
+  assert.equal(started.accepted, true);
+  const breakaway = applyGameCommand({ state: started.nextState, context, command: { id: "b1-breakaway-after-32", type: "NORMAL_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 10, y: 5 } } });
+  assert.deepEqual(breakaway, { accepted: false, reason: "offside-direction" });
+});
+
+test("Offside Build 2: 3/2 resolving onto an offside-flagged attacker's own loose ball triggers the offside consequence", () => {
+  const state = normalMoveState({
+    pieces: [{ id: "ball", team: "BALL", x: 5, y: 5 }, { id: "blue-1", team: "A", cardId: "blue-1", x: 3, y: 3 }],
+    threeTwoOpportunity: { team: "blue", passerId: "other", target: { x: 5, y: 5 }, turn: 1 },
+    offsideWatch: { attackingTeam: "blue", flaggedPieceIds: ["blue-1"] },
+  });
+  const context = throughBallContext();
+  const result = applyGameCommand({ state, context, command: { id: "tb-32-offside", type: "THREE_TWO_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 5, y: 5 } } });
+  assert.equal(result.accepted, true);
+  assert.equal(result.nextState.offsideWatch, null);
+  assert.equal(result.nextState.actionResolution?.kind, "offside");
+  assert.equal(result.nextState.actionResolution?.result.recipientId, "blue-1");
+  assert.deepEqual(result.nextState.pendingRestartResult, { type: "indirectFreeKick", team: "red", spot: { x: 5, y: 5 }, executable: false });
+});
+
+test("Offside Build 2: a Bonus Move landing on an offside-flagged attacker's own loose ball triggers the offside consequence", () => {
+  const state = normalMoveState({
+    pieces: [{ id: "ball", team: "BALL", x: 5, y: 5 }, { id: "blue-2", team: "A", cardId: "card-blue-1", x: 3, y: 5 }],
+    actionContinuation: { id: "bonus-offside-claim", kind: "bonus-card-action", team: "blue", status: "ready", resumePolicy: { type: "advance-turn", team: "blue", nextTurn: 2 } },
+    offsideWatch: { attackingTeam: "blue", flaggedPieceIds: ["blue-2"] },
+  });
+  const context = normalMoveContext();
+  const started = applyGameCommand({ state, context, command: { id: "bonus-offside-start", type: "BONUS_MOVE_STARTED", payload: { pieceId: "blue-2" } } });
+  assert.equal(started.accepted, true);
+  const committed = applyGameCommand({ state: started.nextState, context, command: { id: "bonus-offside-commit", type: "BONUS_MOVE_COMMITTED", payload: { pieceId: "blue-2", x: 5, y: 5 } } });
+  assert.equal(committed.accepted, true);
+  assert.equal(committed.nextState.offsideWatch, null);
+  assert.equal(committed.nextState.actionResolution?.kind, "offside");
+  assert.equal(committed.nextState.actionResolution?.result.recipientId, "blue-2");
+  assert.deepEqual(committed.nextState.pendingRestartResult, { type: "indirectFreeKick", team: "red", spot: { x: 5, y: 5 }, executable: false });
 });
 
 test("rejected commands do not mutate MatchState", () => {
@@ -387,7 +551,7 @@ test("NORMAL_MOVE_COMMITTED owns validation, movement, ball carry, and active-mo
   assert.equal(committed.accepted, true);
   assert.deepEqual(committed.nextState.pieces.find(piece => piece.id === "blue-1"), { id: "blue-1", team: "A", cardId: "card-blue-1", label: "Blue 1", x: 5, y: 5 });
   assert.deepEqual(committed.nextState.pieces.find(piece => piece.id === "ball"), { id: "ball", team: "BALL", x: 5, y: 5 });
-  assert.deepEqual(committed.nextState.movementStateByPieceId["blue-1"], { axis: "horizontal", direction: { dx: 1, dy: 0 }, spent: 2, distance: 2, threeTwoUsed: false, movementEnded: false });
+  assert.deepEqual(committed.nextState.movementStateByPieceId["blue-1"], { axis: "horizontal", direction: { dx: 1, dy: 0 }, spent: 2, distance: 2, threeTwoUsed: false, movementEnded: false, origin: { x: 3, y: 5 }, visitedCells: [{ x: 4, y: 5 }, { x: 5, y: 5 }] });
   assert.equal(committed.nextState.tracker.matchActionState.activeMovement.active, false);
   assert.equal(committed.events[0].type, "PIECE_MOVED");
 });
@@ -422,6 +586,46 @@ test("ordinary segmented MOVE may reverse on its established axis before 3/2 loc
   const reverse = applyGameCommand({ state: first.nextState, context: normalMoveContext(), command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 4, y: 5 }, "move-reverse") });
   assert.equal(reverse.accepted, true);
   assert.equal(reverse.nextState.movementStateByPieceId["blue-1"].directionLocked, undefined);
+});
+
+test("a piece that starts a movement session while offside is locked to that direction and cannot reverse to break away alone", () => {
+  const start = normalMoveState({
+    pieces: [
+      { id: "ball", team: "BALL", x: 5, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", label: "Blue 1", x: 15, y: 5 },
+      { id: "red-1", team: "B", cardId: "card-red-1", x: 19, y: 2 },
+      { id: "red-2", team: "B", cardId: "card-red-2", x: 12, y: 8 },
+    ],
+  });
+  const context = normalMoveContext();
+  const activated = applyGameCommand({ state: start, context, command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "offside-move-start") });
+  assert.equal(activated.accepted, true);
+  // blue-1 (x:15) is offside: past halfway (10), past the ball (5), and past
+  // the second-last red defender (red-2 at x:12; red-1 at x:19 is last) —
+  // same 3-condition test as Pass's own offside check.
+  const retreat = applyGameCommand({ state: activated.nextState, context, command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 13, y: 5 }, "offside-retreat") });
+  assert.equal(retreat.accepted, true, "retreating onside is still allowed — it's only the reversal that's locked");
+  assert.deepEqual(retreat.nextState.movementStateByPieceId["blue-1"].direction, { dx: -1, dy: 0 });
+  assert.equal(retreat.nextState.movementStateByPieceId["blue-1"].directionLocked, true);
+  const breakaway = applyGameCommand({ state: retreat.nextState, context, command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 14, y: 5 }, "offside-breakaway") });
+  assert.deepEqual(breakaway, { accepted: false, reason: "offside-direction" });
+});
+
+test("a piece that is not offside when its movement session starts may still reverse direction freely", () => {
+  const start = normalMoveState({
+    pieces: [
+      { id: "ball", team: "BALL", x: 5, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", label: "Blue 1", x: 8, y: 5 },
+      { id: "red-1", team: "B", cardId: "card-red-1", x: 19, y: 2 },
+      { id: "red-2", team: "B", cardId: "card-red-2", x: 12, y: 8 },
+    ],
+  });
+  const context = normalMoveContext();
+  const activated = applyGameCommand({ state: start, context, command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "onside-move-start") });
+  const forward = applyGameCommand({ state: activated.nextState, context, command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 9, y: 5 }, "onside-forward") });
+  assert.equal(forward.accepted, true);
+  const reverse = applyGameCommand({ state: forward.nextState, context, command: normalMoveCommand("NORMAL_MOVE_COMMITTED", { x: 8, y: 5 }, "onside-reverse") });
+  assert.equal(reverse.accepted, true, "blue-1 started this session in its own half, well short of halfway (10) — never offside, so no lock applies");
 });
 
 test("NORMAL_MOVE continues after its final paid Tracker action until End Turn", () => {
@@ -642,6 +846,33 @@ test("BONUS_MOVE can cancel only before its first physical segment", () => {
   const moved = applyGameCommand({ state: started.nextState, context: normalMoveContext(), command: normalMoveCommand("BONUS_MOVE_COMMITTED", { x: 4, y: 5 }) });
   const rejected = applyGameCommand({ state: moved.nextState, context: normalMoveContext(), command: normalMoveCommand("BONUS_MOVE_CANCELLED") });
   assert.deepEqual(rejected, { accepted: false, reason: "BONUS_MOVE_NOT_CANCELLABLE" });
+});
+
+test("a Bonus Move continuation is also locked to its first direction when it starts offside", () => {
+  const start = normalMoveState({
+    pieces: [
+      { id: "ball", team: "BALL", x: 5, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", label: "Blue 1", x: 15, y: 5 },
+      { id: "red-1", team: "B", cardId: "card-red-1", x: 19, y: 2 },
+      { id: "red-2", team: "B", cardId: "card-red-2", x: 12, y: 8 },
+    ],
+    actionContinuation: {
+      id: "bonus-move-offside",
+      kind: "bonus-card-action",
+      team: "blue",
+      status: "ready",
+      resumePolicy: { type: "advance-turn", team: "blue", nextTurn: 2 },
+    },
+  });
+  const context = normalMoveContext();
+  const started = applyGameCommand({ state: start, context, command: normalMoveCommand("BONUS_MOVE_STARTED", {}, "bonus-offside-start") });
+  assert.equal(started.accepted, true);
+  const retreat = applyGameCommand({ state: started.nextState, context, command: normalMoveCommand("BONUS_MOVE_COMMITTED", { x: 13, y: 5 }, "bonus-offside-retreat") });
+  assert.equal(retreat.accepted, true);
+  assert.deepEqual(retreat.nextState.movementStateByPieceId["blue-1"].direction, { dx: -1, dy: 0 });
+  assert.equal(retreat.nextState.movementStateByPieceId["blue-1"].directionLocked, true);
+  const breakaway = applyGameCommand({ state: retreat.nextState, context, command: normalMoveCommand("BONUS_MOVE_COMMITTED", { x: 14, y: 5 }, "bonus-offside-breakaway") });
+  assert.deepEqual(breakaway, { accepted: false, reason: "offside-direction" });
 });
 
 test("BONUS_ACTION_ENDED is Engine-owned, records decline semantics, and starts its canonical next turn", () => {
@@ -868,6 +1099,143 @@ test("FREE_MOVE commands are administrative, keep the ball fixed, and lock other
   });
   assert.equal(ended.accepted, true);
   assert.equal(ended.nextState.tracker.matchActionState.freeMode.active, false);
+});
+
+test("FREE_MOVE and FREE_BALL_MOVED bypass an active restart setup, in both pre-execution and execution phases (reported live: soft-locked a fault test)", () => {
+  const withRestart = phase => createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 3, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 3, y: 5 },
+      { id: "red-1", team: "B", x: 9, y: 5 },
+    ],
+    restartSetup: { type: "freeKickDirect", team: "blue", phase, ballCell: { x: 3, y: 5 }, wallSize: 0, wallCells: [], executorId: null, availableActions: ["short-pass"] },
+  });
+  ["wall", "reposition", "executor", "execution"].forEach(phase => {
+    const state = withRestart(phase);
+    const started = applyGameCommand({ state, context: normalMoveContext(), command: { id: `free-start-${phase}`, type: "FREE_MOVE_STARTED", payload: { pieceId: "blue-1" } } });
+    assert.equal(started.accepted, true, `FREE_MOVE_STARTED should bypass restart phase "${phase}"`);
+    const moved = applyGameCommand({ state: started.nextState, context: normalMoveContext(), command: { id: `free-commit-${phase}`, type: "FREE_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 12, y: 8 } } });
+    assert.equal(moved.accepted, true, `FREE_MOVE_COMMITTED should bypass restart phase "${phase}"`);
+    const ended = applyGameCommand({ state: moved.nextState, context: normalMoveContext(), command: { id: `free-end-${phase}`, type: "FREE_MOVE_ENDED", payload: { pieceId: "blue-1" } } });
+    assert.equal(ended.accepted, true, `FREE_MOVE_ENDED should bypass restart phase "${phase}"`);
+    const ballMoved = applyGameCommand({ state: ended.nextState, context: normalMoveContext(), command: { id: `free-ball-${phase}`, type: "FREE_BALL_MOVED", payload: { x: 15, y: 9 } } });
+    assert.equal(ballMoved.accepted, true, `FREE_BALL_MOVED should bypass restart phase "${phase}"`);
+    assert.equal(ballMoved.nextState.restartSetup.phase, phase, "the restart setup itself is untouched by these administrative commands");
+  });
+});
+
+test("a wall-continuation reposition opens a Yes/No gate that blocks everything else until answered", () => {
+  const restartSetup = {
+    type: "freeKickDirect", team: "blue", phase: "reposition", repositionTurn: "defense",
+    repositionRemaining: { attack: 2, defense: 2 }, repositionCount: 2,
+    ballCell: { x: 10, y: 6 }, wallCells: [{ x: 15, y: 6 }], wallSize: 1, wallLength: 1, wallOffset: 0,
+    availableActions: ["short-pass"], executorId: null,
+  };
+  const start = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 10, y: 6 },
+      { id: "red-1", team: "B", cardId: "card-red-1", x: 0, y: 0 },
+    ],
+    restartSetup,
+  });
+  const opened = applyGameCommand({
+    state: start, context: normalMoveContext(),
+    command: { id: "reposition-continuation", type: "RESTART_PIECE_REPOSITIONED", payload: { pieceId: "red-1", x: 15, y: 7 } },
+  });
+  assert.equal(opened.accepted, true);
+  assert.deepEqual(opened.nextState.pendingRestartWallContinuation, { pieceId: "red-1", x: 15, y: 7, side: "defense", team: "red" });
+  assert.equal(opened.nextState.pieces.find(piece => piece.id === "red-1").x, 0, "not moved yet");
+
+  const blocked = applyGameCommand({
+    state: opened.nextState, context: normalMoveContext(),
+    command: { id: "blocked-skip", type: "RESTART_REPOSITION_PASSED", payload: {} },
+  });
+  assert.deepEqual(blocked, { accepted: false, reason: "RESTART_WALL_CONTINUATION_PENDING" });
+
+  const confirmed = applyGameCommand({
+    state: opened.nextState, context: normalMoveContext(),
+    command: { id: "confirm-continuation", type: "RESTART_WALL_CONTINUATION_CONFIRMED", payload: {} },
+  });
+  assert.equal(confirmed.accepted, true);
+  assert.equal(confirmed.nextState.pendingRestartWallContinuation, null);
+  assert.equal(confirmed.nextState.pieces.find(piece => piece.id === "red-1").x, 15);
+  assert.equal(confirmed.nextState.restartSetup.repositionRemaining.defense, 1);
+});
+
+test("declining a wall-continuation reposition through the full command dispatch leaves the piece put", () => {
+  const restartSetup = {
+    type: "freeKickDirect", team: "blue", phase: "reposition", repositionTurn: "defense",
+    repositionRemaining: { attack: 2, defense: 2 }, repositionCount: 2,
+    ballCell: { x: 10, y: 6 }, wallCells: [{ x: 15, y: 6 }], wallSize: 1, wallLength: 1, wallOffset: 0,
+    availableActions: ["short-pass"], executorId: null,
+  };
+  const start = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 10, y: 6 },
+      { id: "red-1", team: "B", cardId: "card-red-1", x: 0, y: 0 },
+    ],
+    restartSetup,
+  });
+  const opened = applyGameCommand({
+    state: start, context: normalMoveContext(),
+    command: { id: "reposition-continuation", type: "RESTART_PIECE_REPOSITIONED", payload: { pieceId: "red-1", x: 15, y: 7 } },
+  });
+  const declined = applyGameCommand({
+    state: opened.nextState, context: normalMoveContext(),
+    command: { id: "decline-continuation", type: "RESTART_WALL_CONTINUATION_DECLINED", payload: {} },
+  });
+  assert.equal(declined.accepted, true);
+  assert.equal(declined.nextState.pendingRestartWallContinuation, null);
+  assert.equal(declined.nextState.pieces.find(piece => piece.id === "red-1").x, 0);
+  assert.equal(declined.nextState.restartSetup.repositionRemaining.defense, 2, "no move consumed");
+});
+
+test("an active gkReposition gates every command except its own trio (and Free Move/Free Ball), self side moves first", () => {
+  const gkReposition = { team: "blue", opponentTeam: "red", turn: "self", remaining: { self: 1, opponent: 1 }, count: 1, activePieceId: null };
+  const start = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      { id: "ball", team: "BALL", x: 3, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 3, y: 5 },
+      { id: "red-1", team: "B", x: 9, y: 5 },
+    ],
+    gkReposition,
+  });
+  const blocked = applyGameCommand({
+    state: start, context: normalMoveContext(),
+    command: normalMoveCommand("NORMAL_MOVE_STARTED", {}, "blocked-by-gk-reposition"),
+  });
+  assert.deepEqual(blocked, { accepted: false, reason: "GK_REPOSITION_ACTIVE" });
+
+  const freeMoveStillWorks = applyGameCommand({
+    state: start, context: normalMoveContext(),
+    command: { id: "free-start-gk-reposition", type: "FREE_MOVE_STARTED", payload: { pieceId: "blue-1" } },
+  });
+  assert.equal(freeMoveStillWorks.accepted, true, "Free Move stays available, same testing-engine exception as restartSetup");
+
+  const selected = applyGameCommand({
+    state: start, context: normalMoveContext(),
+    command: { id: "gk-reposition-select", type: "GK_REPOSITION_PIECE_SELECTED", payload: { pieceId: "blue-1" } },
+  });
+  assert.equal(selected.accepted, true);
+  assert.equal(selected.nextState.gkReposition.activePieceId, "blue-1");
+
+  const moved = applyGameCommand({
+    state: selected.nextState, context: normalMoveContext(),
+    command: { id: "gk-reposition-move", type: "GK_REPOSITION_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 5, y: 5 } },
+  });
+  assert.equal(moved.accepted, true);
+  assert.equal(moved.nextState.pieces.find(piece => piece.id === "blue-1").x, 5);
+
+  const ended = applyGameCommand({
+    state: moved.nextState, context: normalMoveContext(),
+    command: { id: "gk-reposition-end", type: "GK_REPOSITION_TURN_ENDED", payload: {} },
+  });
+  assert.equal(ended.accepted, true);
+  assert.equal(ended.nextState.gkReposition.turn, "opponent", "self moved first, now it's opponent's turn");
 });
 
 test("FREE_MOVE permits the ball square but rejects a second player destination", () => {
@@ -1262,6 +1630,29 @@ test("offline PASS blocks orthogonal and diagonal adjacent targets for either te
   assert.equal(selected.nextState.actionResolution.targetInvalidReason, null);
 });
 
+// v20.56.30: an origin-blocked corner is now a displayed disabled badge
+// (matching Through Ball, Lofted Through Ball and Shot) rather than being
+// silently hidden, so its canonical verdict must actually say "blocked"
+// instead of falling through to "risk" or "clear".
+test("PASS_TARGET_SELECTED marks an origin-blocked corner's canonical verdict as blocked, not risk or clear", () => {
+  const context = normalMoveContext();
+  const state = normalMoveState({
+    pieces: [
+      { id: "ball", team: "BALL", x: 3, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 3, y: 5 },
+      { id: "red-diagonal", team: "B", cardId: "card-red-1", x: 2, y: 4 },
+    ],
+  });
+  const started = applyGameCommand({ state, context, command: { id: "origin-blocked-start", type: "PASS_STARTED", payload: { pieceId: "blue-1", passId: "origin-blocked" } } });
+  const selected = applyGameCommand({ state: started.nextState, context, command: { id: "origin-blocked-target", type: "PASS_TARGET_SELECTED", payload: { passId: "origin-blocked", x: 9, y: 5 } } });
+  assert.equal(selected.accepted, true);
+  const topLeft = selected.nextState.actionResolution.routePresentation.find(route => route.cornerId === "top-left");
+  assert.equal(topLeft.originBlocked, true);
+  assert.equal(topLeft.verdict, "blocked");
+  const other = selected.nextState.actionResolution.routePresentation.find(route => route.cornerId === "bottom-right");
+  assert.equal(other.originBlocked, false);
+});
+
 test("PASS_TARGET_SELECTED remains in the atomic Bonus Pass transaction without touching Tracker", () => {
   const start = createGameState({
     ...normalMoveState(),
@@ -1589,13 +1980,71 @@ test("GAMEPLAY_ROLL_SUBMITTED is accepted for the canonical pending roll of an a
           subjectId: "blue-1",
           reactionIndex: 0,
         },
+        createdAt: 1000,
       },
     },
   });
   assert.equal(result.accepted, true);
   assert.equal(result.events[0].type, "LOFTED_THROUGH_BALL_ROLLED");
-  assert.equal(result.nextState.actionResolution.status, "roll-resolved");
-  assert.equal(result.nextState.actionResolution.result.natural, 7);
+  assert.equal(result.nextState.actionResolution.status, "awaiting-lofted-resolution");
+  assert.equal(result.events[0].metadata.delayedResolution.kind, "lofted-through-ball");
+  assert.equal(result.events[0].metadata.delayedResolution.resolveAt - result.events[0].metadata.delayedResolution.createdAt, 1000);
+  const resolved = applyGameCommand({
+    state: result.nextState,
+    context: normalMoveContext(),
+    command: {
+      id: "bonus-lt-resolution-due",
+      type: "LOFTED_THROUGH_BALL_RESOLUTION_DUE",
+      payload: { loftedThroughBallId: "lt-in-bonus-action", rollEventId: "bonus-lt-generic-roll-event" },
+    },
+  });
+  assert.equal(resolved.accepted, true);
+  assert.equal(resolved.events[0].type, "LOFTED_THROUGH_BALL_RESOLVED");
+  assert.equal(resolved.nextState.actionResolution.status, "roll-resolved");
+  assert.equal(resolved.nextState.actionResolution.result.natural, 7);
+});
+
+function loftedAwaitingRollState() {
+  return normalMoveState({
+    actionResolution: {
+      id: "lt-1", kind: "lofted-through-ball", status: "awaiting-roll", passerId: "blue-1", team: "blue", bonusContinuationId: null,
+      pendingRoll: { requestId: "lt-1-roll", actionId: "lt-1", team: "blue", dieType: 20, subjectId: "blue-1", reactionIndex: 0, context: { actionType: "LOFTED_THROUGH_BALL" } },
+      plan: { rollStatValue: 10, difficultyThreshold: 16, disadvantageStacks: 0, foot: { dominant: true } },
+    },
+  });
+}
+
+test("LOFTED_THROUGH_BALL_ROLL_SUBMITTED rejects a missing or invalid createdAt without mutating state", () => {
+  const command = {
+    id: "lt-roll-no-time",
+    type: "LOFTED_THROUGH_BALL_ROLL_SUBMITTED",
+    payload: { rollEvent: { id: "lt-roll-event", requestId: "lt-1-roll", actionId: "lt-1", team: "blue", dieType: 20, natural: 12, subjectId: "blue-1", reactionIndex: 0 } },
+  };
+  const rejected = applyGameCommand({ state: loftedAwaitingRollState(), context: normalMoveContext(), command });
+  assert.equal(rejected.accepted, false);
+  assert.equal(rejected.reason, "LOFTED_THROUGH_BALL_ROLL_TIME_INVALID");
+});
+
+test("LOFTED_THROUGH_BALL_RESOLUTION_DUE rejects a mismatched identity or a non-resolving status", () => {
+  const context = normalMoveContext();
+  const rolled = applyGameCommand({
+    state: loftedAwaitingRollState(), context,
+    command: {
+      id: "lt-roll-ok", type: "LOFTED_THROUGH_BALL_ROLL_SUBMITTED",
+      payload: { rollEvent: { id: "lt-roll-event", requestId: "lt-1-roll", actionId: "lt-1", team: "blue", dieType: 20, natural: 12, subjectId: "blue-1", reactionIndex: 0 }, createdAt: 1000 },
+    },
+  });
+  assert.equal(rolled.accepted, true);
+  assert.equal(rolled.nextState.actionResolution.status, "awaiting-lofted-resolution");
+  const wrongActionId = applyGameCommand({ state: rolled.nextState, context, command: { id: "bad-1", type: "LOFTED_THROUGH_BALL_RESOLUTION_DUE", payload: { loftedThroughBallId: "not-lt-1", rollEventId: "lt-roll-event" } } });
+  assert.equal(wrongActionId.accepted, false);
+  assert.equal(wrongActionId.reason, "LOFTED_THROUGH_BALL_RESOLUTION_STALE");
+  const wrongRollEventId = applyGameCommand({ state: rolled.nextState, context, command: { id: "bad-2", type: "LOFTED_THROUGH_BALL_RESOLUTION_DUE", payload: { loftedThroughBallId: "lt-1", rollEventId: "not-the-roll" } } });
+  assert.equal(wrongRollEventId.accepted, false);
+  assert.equal(wrongRollEventId.reason, "LOFTED_THROUGH_BALL_RESOLUTION_STALE");
+  const notResolving = applyGameCommand({ state: loftedAwaitingRollState(), context, command: { id: "bad-3", type: "LOFTED_THROUGH_BALL_RESOLUTION_DUE", payload: { loftedThroughBallId: "lt-1", rollEventId: "anything" } } });
+  assert.equal(notResolving.accepted, false);
+  assert.equal(notResolving.reason, "LOFTED_THROUGH_BALL_NOT_RESOLVING");
 });
 
 test("PASS_INTERCEPTION_ROLL_SUBMITTED rejects an invalid or replayed roll without mutation", () => {

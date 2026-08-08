@@ -794,11 +794,12 @@ and Rule Set documents retain their existing ownership boundaries.
 | Through Ball | Implemented | `THROUGH_BALL_RULES.md` | Through Ball Engine; shared 3/2 contract |
 | Lofted Through Ball | Implemented | `LOFTED_THROUGH_BALL_RULES.md` | Lofted Through Engine; shared roll/continuation contract |
 | Cross | Rule agreed, not implemented | `CROSS_RULES.md` | requires modifiers and Goal/Goal Kick/Corner routing |
-| Marking | Rule agreed, not implemented | `MARKING_RULES.md` | requires canonical movement reaction state |
+| Marking | Implemented (sections 1-8) | `MARKING_RULES.md` | `src/engine/markingRules.mjs` |
 | Dribbling | Rule agreed, not implemented | `DRIBBLING_RULES.md` | follows Marking; uses restart routing for its outcomes |
 | Tackling | Rule agreed, not implemented | `TACKLING_RULES.md` | follows Marking, inactive state, modifiers and Foul/Free Kick/Penalty routing |
-| Shot / restarts / Penalty | Rule agreed, not implemented | `SHOOTING_RULES.md`, `FINALISATION_AND_RESTARTS_RULES.md` | first restart vertical slice is Shot + Goal/Goal Kick/Corner/Kick-off |
-| Prep, formations, tactics, substitutions | Prep implemented; tactics/substitutions deferred | `TEAM_COMPOSITION_AND_FORMATIONS.md` | requires canonical interruption/restart lifecycle |
+| Shot / Goal Kick / Corner / Kick-off | Implemented (v20.56.29-45) | `SHOOTING_RULES.md`, `FINALISATION_AND_RESTARTS_RULES.md` | `src/engine/shotRules.mjs`, `src/engine/restartSetupRules.mjs` |
+| Penalty (in-match and shoot-out) | Rule agreed, not implemented | `FINALISATION_AND_RESTARTS_RULES.md` section 8 | still requires its own execution/roll flow, separate from the restart-setup engine above |
+| Prep, formations, tactics, substitutions | Prep and mid-match tactic change implemented; substitutions deferred | `TEAM_COMPOSITION_AND_FORMATIONS.md` | substitutions still require canonical interruption/restart lifecycle |
 
 No code/document contradiction was resolved silently in this audit. The one
 necessary future alignment is explicit: Kick-off now refers to an active Match
@@ -861,6 +862,51 @@ non-Pass mechanic, is removed. The four documented v20.56.28 outcome cases
 remain bit-identical because that fixture never exceeds the cap. Manual
 Multiplayer, Firebase, Editor Mode and every Shot consequence (Goal/Goal
 Kick/Corner/goalkeeper-retains) remain untouched.
+
+### v20.56.30 — Shared roll-cap, corner-badge and cancel contracts
+
+**Status:** Complete.
+
+This build closes three duplicated-per-mechanic behaviors discovered while
+testing v20.56.29, across Pass/Interception, Through Ball, Lofted Through
+Ball and Shot, with one shared utility each rather than four separate fixes:
+
+`src/rules/rollModifierMath.mjs` exports `sumAndCapRollModifier(sources,
+modifierCap)`. Shot and Lofted Through Ball previously capped situational
+modifiers alone and added the rolling subject's own card stat back
+afterward, letting the combined total silently exceed the frozen cap; Pass's
+pre-roll Interception prompt had the identical bug relative to its own later
+`resolveInterception` math, which already summed the defender's stat inside
+the capped total. All three, plus `selectSinglePlayerRollPromptPresentation`'s
+token-selection overlay, now share the one function; `resolveInterception`
+is refactored onto it with an identical numeric result. The per-source
+uncapped facts remain unchanged for AI Export.
+
+`selectRouteCornerBadges(routes, { actionLabel, footLabel })` in
+`matchPresentationSelectors.mjs` is the one shared board-badge projection.
+Through Ball, Lofted Through Ball and Shot already showed a blocked corner
+disabled rather than removing it; Pass now matches them instead of hiding an
+origin-blocked corner entirely.
+
+Reselecting an already-chosen target during route-selection now fully
+cancels the action for every mechanic, matching Pass's existing behavior,
+instead of returning only to targeting while leaving the action's own Cancel
+control active. `SHOT_CANCELLED` is a new Engine command. The now-unreachable
+`LOFTED_THROUGH_BALL_ROUTE_CANCELLED` and `THROUGH_BALL_ROUTE_CANCELLED`
+commands are removed, including their `bonusActionCapabilities.mjs` mapping
+and their sole test coverage, which is replaced with full-cancel coverage.
+`main.jsx` consolidates the Escape handler, board re-click detection and the
+Inspector's inline cancel control into one `cancelActiveResolutionTargeting()`
+dispatcher instead of four duplicated per-mechanic branches.
+
+`docs/ACTION_RESOLUTION_ENGINE.md` records all three as mandatory shared
+utilities for any future manual-D20 or board-first mechanic (Dribbling,
+Cross, Tackling), so this is now a Mechanic Integration Gate requirement
+rather than an implicit convention. No physical rule, targeting, route
+geometry, Tracker cost or result formula changed for any mechanic; the four
+documented v20.56.28 Shot outcome cases remain bit-identical because that
+fixture never exceeded the cap. Manual Multiplayer, Firebase and Editor Mode
+are unchanged.
 
 ### Post-v20.56.24 implementation order
 

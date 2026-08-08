@@ -161,18 +161,46 @@ Choose Roll is only a different source of the same `RollEvent`; it is not a sepa
 
 ## Adding a new action
 
-For a future Dribble action:
+For a future Dribble, Cross or Tackling action:
 
-1. Create `src/rules/dribbleEngine.mjs` for legal target, opponent eligibility, modifiers and outcome calculation.
+1. Create `src/rules/dribbleEngine.mjs` (or the equivalent module) for legal target, opponent eligibility, modifiers and outcome calculation.
 2. Create the action state with a stable action ID and empty `consumedEventIds`.
 3. Use `createPendingDecision()` when the player/defender must choose.
 4. Use `createPendingRoll()` when a manual D20 is required.
 5. Create a `RollEvent` from either Roll or Choose Roll.
-6. Call `consumeActionEvent()` before applying the Dribble-specific result.
+6. Call `consumeActionEvent()` before applying the action-specific result.
 7. Record the state transition in the common Timeline.
 8. Keep modal, animation and result notices outside the gameplay state.
 
-Do not add Dribble-specific branches to generic Dice, Undo/Redo or Firebase code unless the generic contract itself genuinely needs expansion.
+Do not add mechanic-specific branches to generic Dice, Undo/Redo or Firebase code unless the generic contract itself genuinely needs expansion.
+
+### Mandatory shared utilities (added v20.56.30)
+
+A new mechanic with a manual D20 roll or a board-first target/route must use these three shared modules rather than re-implementing their own version. This is a Mechanic Integration Gate requirement (ADR-050), not an optional convenience:
+
+- **Roll modifier sum and cap** — `sumAndCapRollModifier(sources, modifierCap)` in `src/rules/rollModifierMath.mjs`. The rolling subject's own base card stat is one modifier source among the others; every source is summed first, then the combined total is capped symmetrically exactly once at the frozen `diceModifiers.stackCap`. A mechanic must never cap situational modifiers alone and add its own stat back afterward — that lets the cap silently drift, which is exactly the bug this contract closes for Shot, Lofted Through Ball and the Pass/Interception prompt.
+- **Corner/route badge projection** — `selectRouteCornerBadges(routes, { actionLabel, footLabel })` in `src/engine/matchPresentationSelectors.mjs`. Every board-first mechanic's corner/route picker converges on this one badge shape; a blocked corner is shown disabled rather than removed from the list. This unifies only the *shape* of the badge (legal/illegal, disabled, foot, modifier label) — it deliberately does not force one shared meaning for "risk" (red) across mechanics, because that meaning is mechanic-specific and must stay so: **Pass** marks a corner "risk" only when an opposing defender is actually eligible to intercept it (`plan.interceptors?.length`), because that is the corner's real chance of failure; a non-dominant-foot penalty alone stays "clear" (green) because it is informational and never triggers a roll by itself. **Shot** marks a corner "risk" whenever it carries any roll modifier at all (`route.modifierSources?.length`), because a Shot always resolves through one D20 roll and every modifier affects that roll's real outcome. A future mechanic must pick its own "risk" criterion based on whether the mechanic has a roll and what actually threatens it — do not "fix" this apparent inconsistency by forcing one mechanic's criterion onto another.
+- **Cancel by reselecting a target** — a mechanic with `targeting`/`route-selection` stages and a `target` field must expose a full-cancel command (see `SHOT_CANCELLED`, `THROUGH_BALL_CANCELLED`, `LOFTED_THROUGH_BALL_CANCELLED`, `PASS_CANCELLED`) and register it in `main.jsx`'s `cancelActiveResolutionTargeting()` dispatcher rather than adding a new parallel Escape/re-click/Inspector branch. Reselecting an already-chosen target always cancels the action entirely; there is no "return to targeting only" partial-cancel command.
+
+### Mandatory shared hold and UI components (added v20.56.32)
+
+A mechanic whose manual D20 roll has an automatic post-roll consequence must split the roll into two Engine commands — a roll-only command that writes canonical `state.dice`, opens `createSinglePlayerRollResultHold()` (`src/match/delayedResolution.mjs`) and stores a `status` meaning "awaiting resolution", then a second `..._RESOLUTION_DUE` command that performs the actual outcome math once the shared 1000 ms hold elapses. Do not resolve the outcome inside the roll-submission command itself, even if the math is trivial; the hold exists so every mechanic's roll reads the same way regardless of how fast its consequence would otherwise resolve. See `resolveLoftedThroughBallRoll` in `src/rules/loftedThroughBallRules.mjs` for the reference split (added to bring Lofted Through Ball to parity with Pass/Shot, which already had it).
+
+A mechanic's UI must use the shared presentation components rather than writing its own modal or prompt markup:
+
+- **`RollPromptCard`** (`src/main.jsx`, defined above `App()`) for the pre-roll prompt shown while `status` is `awaiting-roll`/`awaiting-interception-roll`. Takes `promptKey`, `title`, `subject`, `breakdown` (from `renderRollBreakdown`), `comparisonLabel` (what this roll must beat — always visible, unconditional on the roll having already happened), optional `extra`, and `modifierChoice` (from `renderRollModifierChoice`).
+- **`ActionResultModal`** (`src/main.jsx`, defined above `App()`) for a terminal or continuable result screen. Takes `title`, `team`, `historyControls`, and `onContinue` only when the screen is not deliberately terminal (see ADR-058 for Shot) or has become continuable because a real canonical consequence now exists to trigger (see ADR-058's v20.56.33 update for Goal/Goalkeeper Retains — the button is not a fake control under rule 11 as long as it dispatches the actual consequence command, never a local-only dismiss).
+- **`ActionDecisionModal`** (`src/main.jsx`, defined above `App()`) for an equal-priority choice screen (interceptor, recoverer). Takes `title`, `team`, `historyControls`, `message`, and `options`.
+
+A component's `title` is the action's own name only (e.g. "Shot", "Lofted Through Ball") — never a wordy suffix like "resolution", "result" or "recovered". What happened is communicated by the body content, not the title. A future Dribble, Cross or Tackling screen reuses these same three components; it must not add a fourth hand-written modal shape.
+
+### Mandatory comparison-label format (added v20.56.3x)
+
+Any roll screen's "what this roll must beat" line — `RollPromptCard`'s `comparisonLabel` prop pre-roll, and `renderRollBreakdown`'s second argument post-roll in `main.jsx` — must read **value first, then whose stat it is (position + name), then the attribute name**: `13 — GK Noah Diving Saves`, not `GK Noah fixed Diving Saves 13`. Where no player identity applies (Lofted Through Ball's Difficulty), the value still comes first: `12 — Difficulty`. This must be identical on the pre-roll prompt and the post-roll result screen, and identical across every mechanic (Shot, Lofted Through Ball, Pass/Interception, and any future roll). A future mechanic's comparison label must follow this same value-first ordering; do not invent a per-mechanic phrasing.
+
+### Mandatory goalkeeper-restart-exception geometry (added v20.56.3x)
+
+A mechanic that can execute the Goalkeeper Retains restart (Short Pass, Long Pass, Through Ball, Lofted Through Ball — see `docs/SHOOTING_RULES.md`) must accept an optional `restartException: { team, pieceId }` parameter in its plan-building function and filter it through `insideOwnPenaltyArea(settings, cell, team)` in `src/rules/passEngine.mjs`, which covers both the large and small box. It must ignore a defensive-area cell or a **body** — **teammate or opponent alike** — only when that cell/body sits inside the executing goalkeeper's own penalty area, and only for the one piece named in `restartException.pieceId`. (Defensive areas remain an opponent-only concept regardless, since a teammate's card never produces one — only the body-ignoring half is team-neutral.) "Body ignored" is not limited to origin-corner blocking — it also covers direct-contact/hit-redirection mechanics (Pass's `firstPlayerHit`/`endpointBodyContact`, which otherwise redirect the pass onto the first body the route touches), always excluding whoever occupies the requested target cell (the intended receiver is never an obstruction to clear). Two earlier versions of this rule were wrong in production: the first excluded direct-contact mechanics as out of scope entirely; the second restricted the exemption to opponent bodies only, both live-reported bugs — see ADR-061's amendments. Target-cell occupancy checks that decide whether a cell is legal to target at all (Through Ball/Lofted Through Ball's `occupied`) remain untouched, since those are about board-shape legality, not about who contests or receives the ball. The mechanic's own terminal completion path must then clear `state.goalkeeperRestartException` once that one restart action resolves (successfully or via interception/recovery), mirroring `kickoffRestartAfterPass`'s "consumed by pieceId match" pattern in `passStartRules.mjs`. See `buildPassPlan`, `planThroughBall` and `planLoftedThroughBall` for the three existing implementations.
 
 ## Timeline event rule added in v19.12
 

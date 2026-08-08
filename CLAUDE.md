@@ -56,6 +56,12 @@ npm run build   # required before delivery
 - Every mechanic with an automatic post-roll consequence must write canonical
   `state.dice` and create the shared 1000 ms roll-result hold.
 
+## What's built vs. not
+
+**Read `docs/IMPLEMENTATION_STATUS.md` before assuming any mechanic's status.**
+It's a checklist, kept current — other docs' prose about "not implemented"
+goes stale after remote work ships and must not be trusted on its own.
+
 ## Where things live
 
 | Need | File |
@@ -72,17 +78,6 @@ Deeper contracts, only when actually needed:
 `docs/ACTION_RESOLUTION_ENGINE.md`, `docs/GAME_ENGINE_ARCHITECTURE.md`,
 `docs/SHOOTING_RULES.md`, `docs/ARCHITECTURE_DECISIONS.md`,
 `docs/DEVELOPMENT_WORKFLOW.md`.
-
-## Approved programme
-
-| Build | Scope |
-|---|---|
-| v20.56.29 | Shot roll parity: canonical `state.dice`, shared hold, `plan.rollPreview`, result via selector. Delete the "Resolving interception…" prompt. |
-| v20.56.30 | Uniform hold on every mechanic; Lofted Through Ball gains it. |
-| v20.56.31 | One shared result component (replaces 5) + one shared decision component (replaces 3). |
-| v20.56.32 | One shared pre-roll prompt component (replaces 3) + permanent contract in `ACTION_RESOLUTION_ENGINE.md` and a new Mechanic Integration Gate row. |
-
-Each build needs its own explicit approval.
 
 ## Delivery
 

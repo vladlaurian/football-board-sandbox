@@ -27,6 +27,7 @@ import {
   selectSinglePlayerNormalMoveContinuationPresentation,
   selectSinglePlayerNormalMovePresentation,
   selectSinglePlayerPassPresentation,
+  selectRouteCornerBadges,
   selectSinglePlayerShotPresentation,
   selectSinglePlayerShotTargetPresentation,
   selectSinglePlayerPieceActionPresentation,
@@ -35,7 +36,20 @@ import {
   selectSinglePlayerRollPromptPresentation,
   selectNaturalRollOutcomePresentation,
   selectSinglePlayerThreeTwoPresentation,
+  selectSinglePlayerTacticPresentation,
+  selectSinglePlayerRestartSetupPresentation,
+  selectSinglePlayerWallPositionPreview,
+  selectSinglePlayerWallContinuationPresentation,
+  selectSinglePlayerRestartRepositionCellPreview,
+  selectSinglePlayerGkRepositionPresentation,
+  selectSinglePlayerGkRepositionMovePresentation,
+  selectSinglePlayerMarkingDecisionPresentation,
+  selectSinglePlayerMarkingSwitchPresentation,
+  selectSinglePlayerMarkingContinuePresentation,
+  selectSinglePlayerMarkingTrackChoicePresentation,
+  selectSinglePlayerActiveMarkingsPresentation,
 } from "./engine/matchPresentationSelectors.mjs";
+import { FormationPreview } from "./prep/FormationPreview.jsx";
 import {
   isBenchReservePiece,
   normalizeFormationPlayers,
@@ -220,7 +234,7 @@ const googleProvider = new GoogleAuthProvider();
 const CARD_EXPORT_WIDTH = 360;
 const CARD_EXPORT_HEIGHT = 540;
 const CARD_EXPORT_PIXEL_RATIO = 4;
-const APP_VERSION = "v20.56.29";
+const APP_VERSION = "v21.1.0";
 
 
 const BASE_LAYOUT_STYLE_KEYS = {
@@ -1944,6 +1958,59 @@ function DraggableActionPrompt({ promptKey, className = "", children }) {
   >{children}</div>;
 }
 
+// Shared terminal/interim result screen for every automated action (Pass,
+// Through Ball, Lofted Through Ball, Shot). The title is the action's own
+// name only — never a wordy suffix like "resolution" or "result" — because
+// what happened is already communicated by the body content. `onContinue`
+// is omitted entirely for a screen that is deliberately terminal (Shot, per
+// ADR-058): no fake close/continue control is rendered.
+function ActionResultModal({ title, team, historyControls, children, onContinue, continueLabel = "Continue" }) {
+  return <div className="modal-backdrop pass-result-backdrop">
+    <div className={`modal pass-result-modal ${team || ""}`} role="dialog" aria-modal="true">
+      <div className="modal-title"><strong>{title}</strong>{historyControls}</div>
+      <div className="pass-result-lines">{children}</div>
+      {onContinue && <div className="modal-actions"><button className="save-label" onClick={onContinue}>{continueLabel}</button></div>}
+    </div>
+  </div>;
+}
+
+// Shared decision screen for every automated action's equal-priority choice
+// (Pass interceptor, Lofted Through Ball recoverer, Through Ball recoverer).
+// `options` is omitted or empty when the local client cannot choose (for
+// example, the non-controlling multiplayer client sees the message only).
+function ActionDecisionModal({ title, team, historyControls, message, options }) {
+  return <div className="modal-backdrop interceptor-choice-backdrop">
+    <div className={`modal interceptor-choice-modal ${team || ""}`} role="dialog" aria-modal="true">
+      <div className="modal-title"><strong>{title}</strong>{historyControls}</div>
+      <div className="interceptor-choice-message">{message}</div>
+      {Boolean(options?.length) && <div className="interceptor-choice-options">
+        {options.map(option => <button key={option.key} type="button" onClick={option.onClick}>{option.label}</button>)}
+      </div>}
+    </div>
+  </div>;
+}
+
+// Shared pre-roll prompt for every automated action's canonical gameplay
+// roll (Pass interception, Lofted Through Ball, Shot). `breakdown` and
+// `modifierChoice` are pre-rendered by the caller (via renderRollBreakdown /
+// renderRollModifierChoice) since those read match-session closure state,
+// matching the ActionResultModal/ActionDecisionModal prop pattern above.
+// `comparisonLabel` is what this roll must beat (defender's target Passing
+// stat, Lofted's Difficulty, the goalkeeper's fixed save stat) and is always
+// visible here, unconditionally — unlike renderRollBreakdown's own trailing
+// "vs" line, which only renders once `natural` exists post-roll and would
+// never appear on this pre-roll prompt at all.
+function RollPromptCard({ promptKey, title, subject, breakdown, comparisonLabel, extra, modifierChoice }) {
+  return <DraggableActionPrompt promptKey={promptKey} className="warning">
+    <strong>{title}</strong>
+    <span>{subject}</span>
+    {breakdown}
+    {comparisonLabel && <span><strong>vs {comparisonLabel}</strong></span>}
+    {extra}
+    {modifierChoice}
+  </DraggableActionPrompt>;
+}
+
 function App() {
   const [settings, setSettings] = useState(() => normalizeSettingsForApp(DEFAULT_SETTINGS));
   const [formations] = useState(() => loadStoredFormations());
@@ -2054,6 +2121,18 @@ function App() {
   const [dicePanelSize, setDicePanelSize] = useState({ w: 330, h: 250 });
   const [dicePanelDragging, setDicePanelDragging] = useState(null);
   const [dicePanelResizing, setDicePanelResizing] = useState(null);
+  const [restartPanelPosition, setRestartPanelPosition] = useState({ x: 480, y: 140 });
+  const [restartPanelMinimized, setRestartPanelMinimized] = useState(false);
+  const restartPanelDragRef = useRef(null);
+  // Local-only staging for the restart-setup panel (wall/reposition/executor
+  // selection). A board click here never dispatches anything by itself — it
+  // only updates this staging state, exactly like Shot's own target-then-
+  // confirm flow. The real RESTART_* command fires only from the panel's
+  // Done/Confirm button, and the Engine validates it independently.
+  const [restartWallSelection, setRestartWallSelection] = useState([]);
+  const [restartWallPositionDraft, setRestartWallPositionDraft] = useState(null);
+  const [restartRepositionDraft, setRestartRepositionDraft] = useState(null);
+  const [restartExecutorDraft, setRestartExecutorDraft] = useState(null);
   const [rulerPanelPosition, setRulerPanelPosition] = useState({ x: 20, y: 150 });
   const [rulerPanelSize, setRulerPanelSize] = useState({ w: 280, h: 230 });
   const [rulerPanelDragging, setRulerPanelDragging] = useState(null);
@@ -2110,13 +2189,50 @@ function App() {
   const [trackerGameStarted, setTrackerGameStarted] = useState(false);
   const [trackerStartingTeam, setTrackerStartingTeam] = useState("red");
   const [trackerCurrentTurn, setTrackerCurrentTurn] = useState(0);
+  const [score, setScore] = useState({ blue: 0, red: 0 });
+  const [kickoffRestartState, setKickoffRestartState] = useState(null);
+  const [pendingFormationState, setPendingFormationState] = useState({ blue: null, red: null });
+  const [activeFormationState, setActiveFormationState] = useState({ blue: null, red: null });
+  const [tacticBlockState, setTacticBlockState] = useState({ blue: false, red: false });
+  const [restartSetupState, setRestartSetupState] = useState(null);
+  const [pendingRestartWallContinuationState, setPendingRestartWallContinuationState] = useState(null);
+  const [gkRepositionState, setGkRepositionState] = useState(null);
+  const [gkRepositionMovementState, setGkRepositionMovementState] = useState({});
+  const [pendingMarkingState, setPendingMarkingState] = useState(null);
+  const [activeMarkingsState, setActiveMarkingsState] = useState([]);
+  const [markingOpportunitiesState, setMarkingOpportunitiesState] = useState({ blue: 2, red: 2 });
+  const [pendingMarkingTrackState, setPendingMarkingTrackState] = useState(null);
+  const [pendingMarkingContinueState, setPendingMarkingContinueState] = useState(null);
+  const [pendingMarkingSwitchState, setPendingMarkingSwitchState] = useState(null);
+  const [markingEndedNoticesState, setMarkingEndedNoticesState] = useState([]);
+  const [markingTrackRejection, setMarkingTrackRejection] = useState(null);
+  const [tacticPromptOpen, setTacticPromptOpen] = useState(false);
+  const [tacticPromptTeam, setTacticPromptTeam] = useState(null);
+  const previousKickoffRestartRef = useRef(null);
+  const wasMarkingTrackPendingRef = useRef(false);
+  const announcedMarkingEndedIdsRef = useRef(new Set());
+  // Backstop for confirmShotConsequence's direct trigger — catches a
+  // kickoffRestart that appears through any other path (e.g. Undo/Redo,
+  // Replay navigation) so the prompt still surfaces exactly once per
+  // restart, not once per render. Fires for both Start New Game and
+  // Continue Game matches — either can score a goal; the prompt only
+  // offers to open Prep, it never touches Continue's own frozen kickoff
+  // behavior.
+  useEffect(() => {
+    const wasActive = Boolean(previousKickoffRestartRef.current);
+    const isActive = Boolean(kickoffRestartState);
+    previousKickoffRestartRef.current = kickoffRestartState;
+    if (!wasActive && isActive) {
+      setTacticPromptTeam(kickoffRestartState.team);
+      setTacticPromptOpen(true);
+    }
+  }, [kickoffRestartState]);
   const [trackerUsedActions, setTrackerUsedActions] = useState({ red: 0, blue: 0 });
   const [trackerActionLog, setTrackerActionLog] = useState({ red: [], blue: [] });
   const [trackerPersonalActionsByPieceId, setTrackerPersonalActionsByPieceId] = useState({});
   const [matchActionState, setMatchActionState] = useState(() => normalizeMatchActionState({}));
   const [turnPhase, setTurnPhase] = useState("attack");
   const [pendingEndTurn, setPendingEndTurn] = useState(null);
-  const [pendingAutoMove, setPendingAutoMove] = useState(null);
   const [actionResolution, setActionResolution] = useState(null);
   const [passTargetIntentPending, setPassTargetIntentPending] = useState(false);
   const [passCancelIntentPending, setPassCancelIntentPending] = useState(false);
@@ -2129,6 +2245,8 @@ function App() {
   const [freeBallMoveIntentPending, setFreeBallMoveIntentPending] = useState(false);
   const [actionContinuation, setActionContinuation] = useState(null);
   const [passResultNotice, setPassResultNotice] = useState(null);
+  const [markingEndedNoticeBanner, setMarkingEndedNoticeBanner] = useState(null);
+  const [markingReturnNotice, setMarkingReturnNotice] = useState(false);
   const [trackerSharedEnabled, setTrackerSharedEnabled] = useState(false);
   const [gameMode, setGameMode] = useState("editor");
   const [freeBallActive, setFreeBallActive] = useState(false);
@@ -2294,10 +2412,7 @@ function App() {
   useEffect(() => {
     const cancelPendingPassWithEscape = event => {
       if (event.key !== "Escape") return;
-      const pending = actionResolutionRef.current;
-      if (pending?.kind === "pass" && ["targeting", "route-selection"].includes(pending.status)) cancelPassTargeting();
-      if (pending?.kind === "through-ball" && ["targeting", "route-selection"].includes(pending.status)) cancelThroughBallTargeting();
-      if (pending?.kind === "lofted-through-ball" && ["targeting", "route-selection"].includes(pending.status)) cancelLoftedThroughBallTargeting({ routeOnly: pending.status === "route-selection" });
+      cancelActiveResolutionTargeting();
     };
     window.addEventListener("keydown", cancelPendingPassWithEscape);
     return () => window.removeEventListener("keydown", cancelPendingPassWithEscape);
@@ -2844,7 +2959,6 @@ function App() {
     diceRollIntentPendingRef.current = false;
     setActionStartIntentPending(false);
     actionStartIntentPendingRef.current = false;
-    setPendingAutoMove(null);
     setPendingThreeTwoMove(null);
     if (restoreCanonical) {
       const timeline = gameTimelineRef.current;
@@ -4413,6 +4527,21 @@ function App() {
       actionResolution: actionResolutionRef.current,
       actionContinuation: actionContinuationRef.current,
       teamModifierTokens: teamModifierTokensRef.current,
+      kickoffRestart: kickoffRestartState,
+      pendingFormation: pendingFormationState,
+      activeFormation: activeFormationState,
+      tacticBlock: tacticBlockState,
+      restartSetup: restartSetupState,
+      pendingRestartWallContinuation: pendingRestartWallContinuationState,
+      gkReposition: gkRepositionState,
+      gkRepositionMovementByPieceId: gkRepositionMovementState,
+      pendingMarking: pendingMarkingState,
+      activeMarkings: activeMarkingsState,
+      markingOpportunities: markingOpportunitiesState,
+      pendingMarkingTrack: pendingMarkingTrackState,
+      pendingMarkingContinue: pendingMarkingContinueState,
+      pendingMarkingSwitch: pendingMarkingSwitchState,
+      markingEndedNotices: markingEndedNoticesState,
       tracker: {
         gameStarted: trackerGameStarted,
         startingTeam: trackerStartingTeam,
@@ -5107,7 +5236,6 @@ function App() {
     setPendingEndTurn(null);
     setPendingTurnChange(null);
     setTurnAdvanceNotice(false);
-    setPendingAutoMove(null);
     setPendingThreeTwoMove(null);
     setPendingEditorModeExit(false);
     setIllegalMoveNotice(null);
@@ -5128,7 +5256,7 @@ function App() {
       window.alert("Ieși din sesiunea multiplayer înainte de a importa un meci. Replay-ul este local și nu scrie în Firebase.");
       return;
     }
-    if (blueDieRolling || redDieRolling || pendingEndTurn || pendingTurnChange || pendingAutoMove || pendingThreeTwoMove) {
+    if (blueDieRolling || redDieRolling || pendingEndTurn || pendingTurnChange || pendingThreeTwoMove) {
       window.alert("Finalizează acțiunea sau aruncarea de zar aflată în curs înainte de import.");
       return;
     }
@@ -5314,6 +5442,22 @@ function App() {
     setRedDieResult(state.dice.redResult);
     setBlueLastDieType(state.dice.blueLastDieType);
     setRedLastDieType(state.dice.redLastDieType);
+    setScore(state.score || { blue: 0, red: 0 });
+    setKickoffRestartState(state.kickoffRestart || null);
+    setPendingFormationState(state.pendingFormation || { blue: null, red: null });
+    setActiveFormationState(state.activeFormation || { blue: null, red: null });
+    setTacticBlockState(state.tacticBlock || { blue: false, red: false });
+    setRestartSetupState(state.restartSetup || null);
+    setGkRepositionState(state.gkReposition || null);
+    setGkRepositionMovementState(state.gkRepositionMovementByPieceId || {});
+    setPendingRestartWallContinuationState(state.pendingRestartWallContinuation || null);
+    setPendingMarkingState(state.pendingMarking || null);
+    setActiveMarkingsState(state.activeMarkings || []);
+    setMarkingOpportunitiesState(state.markingOpportunities || { blue: 2, red: 2 });
+    setPendingMarkingTrackState(state.pendingMarkingTrack || null);
+    setPendingMarkingContinueState(state.pendingMarkingContinue || null);
+    setPendingMarkingSwitchState(state.pendingMarkingSwitch || null);
+    setMarkingEndedNoticesState(state.markingEndedNotices || []);
     if (preserveLocalSelection) {
       // Snapshot listeners intentionally live across renders. Read the latest
       // selection through the state updater instead of a captured render value.
@@ -5805,7 +5949,6 @@ function App() {
     setFreeBallActive(false);
     setSelectedId(null);
     setHoveredCell(null);
-    setPendingAutoMove(null);
     setPendingThreeTwoMove(null);
   }
 
@@ -5823,7 +5966,6 @@ function App() {
       return next;
     });
     setHoveredCell(null);
-    setPendingAutoMove(null);
     setPendingThreeTwoMove(null);
   }
 
@@ -5990,6 +6132,7 @@ function App() {
     if (result.reason === "speed") primary = <>Movement cost: {result.moveCost ?? result.geometry?.cost ?? "—"}<br/>Movement remaining: {result.remaining ?? "—"}</>;
     else if (result.reason === "axis") primary = <>The player cannot change movement axis during the same turn.</>;
     else if (result.reason === "direction") primary = <>The player must continue in the same movement direction after using 3/2.</>;
+    else if (result.reason === "offside-direction") primary = <>This player was in an offside position when this movement session began and cannot reverse direction — it may still finish moving the way it started, receive a pass, build up play, or shoot.</>;
     else if (result.reason === "three-two-not-granted") primary = <>This player cannot use 3/2 on his own Through Ball.</>;
     else if (result.reason === "mixed") primary = <>Mixed movement is not allowed.</>;
     else if (result.reason === "no-speed") primary = <>No Speed value is assigned to this player.</>;
@@ -6026,6 +6169,27 @@ function App() {
     else if (result.reason === "all-actions-complete") primary = <>All actions are complete. Advance to the next turn.</>;
     else if (result.reason === "exit-free-mode") primary = <>Exit FREE MOVE first.</>;
     else if (result.reason === "advance-turn") primary = <>Advance to next turn.</>;
+    else if (result.reason === "TEAM_TACTIC_INVALID") primary = <>Incorrect team — change tactics or make a substitution to be implemented.</>;
+    else if (result.reason === "NOT_AT_KICKOFF_RESTART") primary = <>This only applies while a kick-off restart is pending for this team.</>;
+    else if (result.reason === "KICKOFF_READY_NO_PIECE") primary = <>No eligible outfield player found for this team.</>;
+    else if (result.reason === "RESTART_TARGET_INSIDE_EXECUTING_TEAM_BOX") primary = <>The team not taking the Goal Kick cannot reposition into the executing team&apos;s penalty area.</>;
+    else if (result.reason === "RESTART_MUST_CLEAR_OWN_PLAYERS_FROM_BOX") primary = <>Reposition every player still inside the executing team&apos;s penalty area before skipping.</>;
+    else if (result.reason === "RESTART_MUST_REPOSITION_BOX_PLAYER_FIRST") primary = <>Reposition the player(s) still inside the executing team&apos;s penalty area first.</>;
+    else if (result.reason === "RESTART_MUST_REPOSITION_ILLEGAL_DISTANCE_PLAYER_FIRST") primary = <>This player must first be moved at least 5 cells from the ball orthogonally, or 4 diagonally.</>;
+    else if (result.reason === "RESTART_MUST_CLEAR_ILLEGAL_DISTANCE_PLAYERS_FIRST") primary = <>A defending player is still standing too close to the ball. Move it at least 5 cells away orthogonally, or 4 diagonally, before skipping.</>;
+    else if (result.reason === "RESTART_TARGET_WITHIN_ILLEGAL_DISTANCE") primary = <>That cell is within the illegal distance from the ball (5 cells orthogonally, 4 diagonally). The defending side may not place a player there.</>;
+    else if (result.reason === "RESTART_TARGET_OCCUPIED") primary = <>That cell is already occupied.</>;
+    else if (result.reason === "RESTART_TARGET_IS_BALL_CELL") primary = <>A player cannot be repositioned onto the ball&apos;s own cell.</>;
+    else if (result.reason === "RESTART_TARGET_OUTSIDE_BOARD") primary = <>That cell is outside the board.</>;
+    else if (result.reason === "RESTART_WALL_TOO_MANY_PLAYERS") primary = <>Too many players selected for the wall.</>;
+    else if (result.reason === "RESTART_WALL_PLAYER_COUNT_MISMATCH") primary = <>The wall needs exactly the number of players confirmed for this restart.</>;
+    else if (result.reason === "RESTART_WALL_WRONG_TEAM") primary = <>Only the defending team may stand in the wall.</>;
+    else if (result.reason === "RESTART_REPOSITION_WRONG_TEAM") primary = <>It is not this team&apos;s turn to reposition.</>;
+    else if (result.reason === "RESTART_EXECUTOR_WRONG_TEAM") primary = <>Only the entitled team may choose the executor.</>;
+    else if (result.reason === "GK_REPOSITION_WRONG_TEAM") primary = <>It is not this team&apos;s turn to reposition.</>;
+    else if (result.reason === "GK_REPOSITION_PIECE_ALREADY_ACTIVE") primary = <>Finish repositioning the selected player, or press Done, before selecting another.</>;
+    else if (result.reason === "GK_REPOSITION_PIECE_ALREADY_USED") primary = <>This player has already moved. Please select another player.</>;
+    else if (result.reason === "PASS_LONG_ILLEGAL_FROM_CORNER") primary = <>Long Pass is illegal from a Corner into the penalty area.</>;
     else primary = <>This move is not allowed.</>;
     if (!result.threeTwoAlreadyUsed) return primary;
     return <>{primary}<br/><br/><strong>The 3/2 rule has already been used by this player during the current turn.</strong></>;
@@ -6064,13 +6228,44 @@ function App() {
       setHoveredCell(null);
       setPassResultNotice(null);
       setFreeBallActive(false);
-      setPendingAutoMove(null);
       setPendingThreeTwoMove(null);
       setGroupMoveZoneDraft(null);
       teamModifierTokensRef.current = nextState.teamModifierTokens || [];
       setTeamModifierTokens(teamModifierTokensRef.current);
       setPendingRollModifierType(null);
       setRollModifierChoice(null);
+      // Editor Mode is a fresh future-Match workspace, never a paused Match
+      // (see createEditorStateAfterMatchExit) — every Match-runtime field
+      // that function resets must be synced back into visible React state
+      // here too, or a later re-entry into Match Mode (which reads these
+      // same variables via captureTimelineGameState) silently inherits the
+      // ending Match's stale gameStarted/currentTurn/score/etc.
+      setTrackerGameStarted(false);
+      setTrackerStartingTeam(nextState.tracker.startingTeam);
+      setTrackerCurrentTurn(0);
+      setTrackerUsedActions(nextState.tracker.usedActions);
+      setTrackerActionLog(nextState.tracker.actionLog);
+      setTrackerPersonalActionsByPieceId(nextState.tracker.personalActionsByPieceId);
+      setTurnPhase(nextState.tracker.turnPhase);
+      setScore({ blue: 0, red: 0 });
+      setKickoffRestartState(null);
+      setPendingFormationState({ blue: null, red: null });
+      setActiveFormationState({ blue: null, red: null });
+      setTacticBlockState({ blue: false, red: false });
+      setRestartSetupState(null);
+      setPendingRestartWallContinuationState(null);
+      setGkRepositionState(null);
+      setGkRepositionMovementState({});
+      setPendingMarkingState(null);
+      setActiveMarkingsState([]);
+      setMarkingOpportunitiesState({ blue: 2, red: 2 });
+      setPendingMarkingTrackState(null);
+      setPendingMarkingContinueState(null);
+      setPendingMarkingSwitchState(null);
+      setMarkingEndedNoticesState([]);
+      announcedMarkingEndedIdsRef.current = new Set();
+      setBlueDieResult(null);
+      setRedDieResult(null);
       setPrepReadyConfirmationOpen(false);
       setPrepReadyConfirmationTeam(null);
       setPrepReadySuccessOpen(false);
@@ -6362,6 +6557,14 @@ function App() {
   }
 
   function moveSelectedPieceTo(x, y) {
+    // Marking's tracking move (docs/MARKING_RULES.md section 5) is the only
+    // thing either coach may do while it's pending — bypasses whatever piece
+    // is currently selected, since the marker is the only piece that can act.
+    if (!sessionCode && gameMode === "match" && pendingMarkingTrackState) {
+      const accepted = commitMarkingTrackCell(x, y);
+      if (!accepted) setIllegalMoveNotice({ reason: "MARKING_TRACK_CELL_INVALID" });
+      return accepted;
+    }
     const piece = (piecesRef.current || pieces).find(item => item.id === (interactionState.activePieceId || selectedId));
     if (!piece) return false;
 
@@ -6369,6 +6572,26 @@ function App() {
       if (piece.team !== prepSelectedTeam) {
         setIllegalMoveNotice({ reason: "PREP_TEAM_NOT_SELECTED" });
         return false;
+      }
+      // Once the Match Timeline has started, an Adjust placement is real
+      // gameplay state and must go through the canonical Engine command
+      // (kickoff-moment-gated there too) so Undo/Redo/Replay/AI-export see
+      // it. Pre-Match Adjust keeps its existing local Workspace path.
+      if (trackerGameStarted) {
+        const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+        const dispatched = dispatchSinglePlayerGameCommand({
+          timeline: gameTimelineRef.current,
+          state: before,
+          context: singlePlayerMatchContext(),
+          command: {
+            id: createActionEventId(`adjust_${piece.id}`),
+            type: GAME_COMMAND_TYPE.ADJUST_PIECE_PLACED,
+            payload: { pieceId: piece.id, x: Number(x), y: Number(y) },
+          },
+          label: `Adjust: ${getPieceDisplayLabel(piece)} → ${toCoord(x, y)}`,
+        });
+        if (!dispatched.result.accepted) { setIllegalMoveNotice({ reason: dispatched.result.reason }); return false; }
+        return true;
       }
       const formation = getFormationById(piece.team === "A" ? blueFormationId : redFormationId);
       const allowed = formationAdjustCells(piece, formation, settingsRef.current)
@@ -6460,7 +6683,7 @@ function App() {
             if (evaluation.reason !== "same") setIllegalMoveNotice(evaluation);
             return false;
           }
-          setPendingAutoMove({ pieceId: piece.id, x, y, evaluation });
+          void performAutoMove({ pieceId: piece.id, x, y, evaluation });
           return true;
         }
       }
@@ -6631,6 +6854,18 @@ function App() {
     }
     const piece = (piecesRef.current || pieces).find(item => item.id === pieceId);
     if (!piece) return;
+    // The "execution" phase hands control back to the ordinary action UI
+    // (Pass/Shot/etc, restricted to the entitled executor by the Engine
+    // gate) — only wall/reposition/executor selection route through the
+    // restart-setup panel's own staged clicks.
+    if (restartSetupPresentation.active && restartSetupPresentation.phase !== "execution") {
+      handleRestartSetupPieceClick(piece);
+      return;
+    }
+    if (gkRepositionPresentation.active) {
+      handleGkRepositionPieceClick(piece);
+      return;
+    }
     if (gameMode === "match" && piece.team === "BALL" && !freeBallActive) {
       if (!sessionCode) {
         const selectedPiece = (piecesRef.current || pieces).find(item => item.id === (interactionState.activePieceId || selectedId));
@@ -6639,14 +6874,14 @@ function App() {
       return;
     }
 
-    if (["pass", "through-ball", "lofted-through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "route-selection" && canControlActiveResolution(actionResolutionRef.current)
-      && Number(actionResolutionRef.current.target?.x) === Number(piece.x) && Number(actionResolutionRef.current.target?.y) === Number(piece.y)) {
-      if (actionResolutionRef.current.kind === "lofted-through-ball") {
-        if (sessionCode) cancelLoftedThroughBallTargeting(); else cancelLoftedThroughBallTargeting({ routeOnly: true });
-      } else if (actionResolutionRef.current.kind === "through-ball") {
-        if (sessionCode) cancelThroughBallTargeting(); else returnThroughBallToTargeting();
-      } else cancelPassTargeting();
-      return;
+    if (["pass", "through-ball", "lofted-through-ball", "shot"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "route-selection" && canControlActiveResolution(actionResolutionRef.current)) {
+      const targetCoordinate = actionResolutionRef.current.kind === "shot"
+        ? shotTargetBoardCoordinate(actionResolutionRef.current.target)
+        : actionResolutionRef.current.target;
+      if (Number(targetCoordinate?.x) === Number(piece.x) && Number(targetCoordinate?.y) === Number(piece.y)) {
+        cancelActiveResolutionTargeting();
+        return;
+      }
     }
     if (["pass", "through-ball", "lofted-through-ball", "shot"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "targeting" && canControlActiveResolution(actionResolutionRef.current)) {
       if (actionResolutionRef.current.kind === "shot") { chooseShotTarget({ x: piece.x, y: piece.y }); return; }
@@ -6876,6 +7111,31 @@ function App() {
   ].map(problem => [problem.pieceId, problem])), [prepSelectionSummaries]);
   const prepSelectedTeamValidation = prepSelectedTeam === "A" ? prepReadyValidation.blue : prepReadyValidation.red;
   const prepSelectedTeamReady = Boolean(prepReadyTeams[prepSelectedTeam]);
+  const prepTacticPresentation = selectSinglePlayerTacticPresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState());
+  const restartSetupPresentation = restartSetupState ? selectSinglePlayerRestartSetupPresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState()) : { active: false };
+  const wallContinuationPresentation = pendingRestartWallContinuationState ? selectSinglePlayerWallContinuationPresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState()) : { active: false };
+  const gkRepositionPresentation = gkRepositionState ? selectSinglePlayerGkRepositionPresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState()) : { active: false };
+  useEffect(() => {
+    setRestartWallSelection([]);
+    setRestartWallPositionDraft(restartSetupPresentation.phase === "wall-position"
+      ? { offset: 0, length: restartSetupPresentation.wallLength }
+      : null);
+    setRestartRepositionDraft(null);
+    setRestartExecutorDraft(null);
+  }, [restartSetupState?.type, restartSetupState?.phase, restartSetupState?.repositionTurn]);
+  const wallPositionPreview = restartSetupPresentation.phase === "wall-position" && restartWallPositionDraft
+    ? selectSinglePlayerWallPositionPreview(currentTimelineGameStateSnapshot() || captureTimelineGameState(), restartWallPositionDraft)
+    : { active: false };
+  const wallPositionCells = wallPositionPreview.active ? wallPositionPreview.cells : [];
+  // A local, cosmetic-only preview: while a reposition destination is
+  // staged (piece + cell picked, Confirm not yet pressed), render that one
+  // piece at the staged cell so the click doesn't look like it did nothing.
+  // Nothing here is canonical — Confirm is still what dispatches
+  // RESTART_PIECE_REPOSITIONED, which the Engine validates independently.
+  const boardRenderedPieces = restartSetupPresentation.phase === "reposition"
+    && restartRepositionDraft?.pieceId && restartRepositionDraft.x !== null && restartRepositionDraft.y !== null && restartRepositionDraft.y !== undefined
+    ? pieces.map(item => (String(item.id) === String(restartRepositionDraft.pieceId) ? { ...item, x: restartRepositionDraft.x, y: restartRepositionDraft.y } : item))
+    : pieces;
   const bothPrepTeamsReady = areBothPrepTeamsReady(prepReadyTeams);
   const libraryPositionOptions = useMemo(() => Array.from(new Set((cardState.cards || []).map(card => card.position).filter(Boolean))).sort((a, b) => {
     const rankA = CARD_POSITION_OPTIONS.indexOf(a);
@@ -7123,8 +7383,8 @@ function App() {
   const defensiveAreaOverlays = useMemo(() => {
     if (defAreaMode === 0) return [];
     const sourcePieces = defAreaMode === 1
-      ? (inspectedPiece && inspectedPiece.team !== "BALL" && !inspectedPiece.inactive ? [inspectedPiece] : [])
-      : pieces.filter(piece => piece.team !== "BALL" && !piece.inactive);
+      ? (inspectedPiece && inspectedPiece.team !== "BALL" && !inspectedPiece.inactive && !isBenchReservePiece(inspectedPiece) ? [inspectedPiece] : [])
+      : pieces.filter(piece => piece.team !== "BALL" && !piece.inactive && !isBenchReservePiece(piece));
     return sourcePieces.flatMap(piece => {
       const card = cardById[piece.cardId];
       if (!card || !Array.isArray(card.defensiveArea)) return [];
@@ -7173,6 +7433,88 @@ function App() {
     }));
   }, [adjustActive, sessionCode, selectedId, pieces, prepSelectedTeam, blueFormationId, redFormationId, settings]);
 
+  // Cursor feedback only (confirmed with the user — no persistent board
+  // highlight): a small badge over whatever cell the coach is hovering,
+  // exactly like Normal Move's own movementPreview badge, saying whether
+  // that cell is one of the marker's legal tracking-move destinations.
+  const markingTrackHoverPreview = useMemo(() => {
+    if (sessionCode || gameMode !== "match" || !pendingMarkingTrackState || !hoveredCell) return null;
+    const presentation = selectSinglePlayerMarkingTrackChoicePresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState());
+    if (!presentation.active) return null;
+    const cell = presentation.cells.find(item => item.x === hoveredCell.x && item.y === hoveredCell.y);
+    return cell
+      ? { legal: true, label: `Mark here (${cell.distance}/${cell.maxDistance})` }
+      : { legal: false, label: "🚫" };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionCode, gameMode, pendingMarkingTrackState, hoveredCell]);
+
+  useEffect(() => {
+    // The marker is the only piece either coach may act on while its
+    // tracking move is pending — select it automatically so its highlighted
+    // cells (above) are visible without an extra click.
+    if (!sessionCode && gameMode === "match" && pendingMarkingTrackState) {
+      setSelectedId(pendingMarkingTrackState.markerId);
+      setHoveredCell(null);
+    }
+  }, [sessionCode, gameMode, pendingMarkingTrackState]);
+
+  useEffect(() => {
+    // The tracking move just resolved (pendingMarkingTrackState went from
+    // set to null) and the interrupted action has already resumed — tell
+    // the coach what's happening for a couple of seconds, per the user.
+    const wasPending = wasMarkingTrackPendingRef.current;
+    wasMarkingTrackPendingRef.current = Boolean(pendingMarkingTrackState);
+    if (wasPending && !pendingMarkingTrackState) {
+      setMarkingReturnNotice(true);
+      const timer = window.setTimeout(() => setMarkingReturnNotice(false), 2500);
+      return () => window.clearTimeout(timer);
+    }
+  }, [pendingMarkingTrackState]);
+
+  useEffect(() => {
+    // state.markingEndedNotices (docs/MARKING_RULES.md sections 6 and 7) is
+    // overwritten fresh on every check, not a queue — dedupe by marking id
+    // so the same ending is never announced twice, and only the first NEW
+    // one in this batch gets a banner (multiple markings ending in the same
+    // instant is rare enough not to need a stacked-banner design).
+    //
+    // Fix (confirmed bug report): marking ids are unique per instance and
+    // never literally repeat during normal forward play, but Undo/Redo can
+    // navigate BACK to a state that re-exposes a previously-seen id, which
+    // must re-announce it. Evicting any id no longer present in the CURRENT
+    // notices on every navigation makes that safe — it only has an
+    // observable effect when timeline-navigating, never during ordinary
+    // forward play (a real notice never reappears once left behind).
+    const currentIds = new Set((markingEndedNoticesState || []).map(notice => notice.id));
+    for (const id of Array.from(announcedMarkingEndedIdsRef.current)) {
+      if (!currentIds.has(id)) announcedMarkingEndedIdsRef.current.delete(id);
+    }
+    const fresh = (markingEndedNoticesState || []).find(notice => !announcedMarkingEndedIdsRef.current.has(notice.id));
+    if (!fresh) {
+      // Reported live: navigating away (Undo/Redo, Editor exit, a fresh
+      // check that clears the notices entirely) changes this effect's
+      // dependency, which cancels whatever 4-second auto-hide timer was
+      // already pending from the PREVIOUS run — React always tears down an
+      // effect's own cleanup before running it again. Without an explicit
+      // clear here, a banner shown moments earlier is stuck on screen
+      // forever, since nothing else was ever going to hide it. Only clear a
+      // banner that's actually gone from the current notices — a still-
+      // current one keeps its own already-scheduled timer below.
+      setMarkingEndedNoticeBanner(current => (current && !currentIds.has(current.id) ? null : current));
+      return;
+    }
+    announcedMarkingEndedIdsRef.current.add(fresh.id);
+    setMarkingEndedNoticeBanner(fresh);
+    const timer = window.setTimeout(() => setMarkingEndedNoticeBanner(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [markingEndedNoticesState]);
+
+  useEffect(() => {
+    if (!markingTrackRejection) return undefined;
+    const timer = window.setTimeout(() => setMarkingTrackRejection(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [markingTrackRejection]);
+
   const passPreview = useMemo(() => {
     const pending = actionResolution;
     if (pending?.kind === "shot" && pending.shooterId && (pending.target || pending.attemptedTarget)) {
@@ -7200,13 +7542,7 @@ function App() {
           status: route.status,
           selected: route.cornerId === pending.plan?.cornerId,
         })),
-        routes: (pending.status === "route-selection" || pending.targetInvalidReason) ? (presentation?.routes || []).map(route => ({
-          ...route,
-          id: route.cornerId,
-          foot: route.foot?.foot === "Left" ? "LF" : route.foot?.foot === "Right" ? "RF" : "BF",
-          modifier: route.modifierLabel,
-          actionLabel: "SHOT",
-        })) : [],
+        routes: (pending.status === "route-selection" || pending.targetInvalidReason) ? selectRouteCornerBadges(presentation?.routes || [], { actionLabel: "SHOT" }) : [],
       };
     }
     if (pending?.kind === "lofted-through-ball" && pending.passerId && pending.target) {
@@ -7217,7 +7553,7 @@ function App() {
         target: pending.status === "route-selection" ? pending.target : null,
         visibleCells: [], blockedCells: [],
         lines: routes.map(route => ({ id: route.cornerId || "center", origin: route.origin, endpoint: route.endpoint, status: route.legal ? "clear" : "blocked", selected: route.cornerId === pending.cornerId })),
-        routes: pending.status === "route-selection" ? routes.map(route => ({ id: route.cornerId || "center", cornerId: route.cornerId, origin: route.origin, foot: route.foot?.foot === "Left" ? "LF" : route.foot?.foot === "Right" ? "RF" : "BF", modifier: route.foot?.dominant ? "0" : "−1", status: route.legal ? "clear" : "blocked", disabled: !route.legal })) : [],
+        routes: pending.status === "route-selection" ? selectRouteCornerBadges(routes.map(route => ({ ...route, modifier: route.rollPreview?.modifier })), { actionLabel: "LT" }) : [],
       };
     }
     if (pending?.kind === "through-ball" && pending.passerId && pending.target) {
@@ -7231,7 +7567,7 @@ function App() {
         target: pending.status === "route-selection" ? pending.target : null,
         visibleCells: [], blockedCells: [],
         lines: routes.map(route => ({ id: route.cornerId, origin: route.origin, endpoint: route.endpoint, status: route.legal ? "clear" : "blocked", selected: route.cornerId === pending.cornerId })),
-        routes: pending.status === "route-selection" ? routes.map(route => ({ id: route.cornerId, cornerId: route.cornerId, origin: route.origin, foot: "TB", modifier: "", status: route.legal ? "clear" : "blocked", disabled: !route.legal })) : [],
+        routes: pending.status === "route-selection" ? selectRouteCornerBadges(routes, { actionLabel: "TB", footLabel: () => "TB" }) : [],
       };
     }
     if (pending?.kind !== "pass" || !pending.passerId || !pending.target) return null;
@@ -7249,7 +7585,7 @@ function App() {
         target: presentation?.target,
         visibleCells,
         blockedCells,
-        lines: (presentation?.routeOptions || []).filter(route => !route.originBlocked).map(route => ({
+        lines: (presentation?.routeOptions || []).map(route => ({
           id: route.id,
           origin: route.origin,
           endpoint: route.requestedEndpoint || route.endpoint,
@@ -7257,10 +7593,10 @@ function App() {
           selected: route.cornerId === pending.cornerId || (routePlans.length === 1 && !pending.cornerId),
           segments: route.segments || null,
         })),
-        routes: pending.status === "route-selection" ? (presentation?.routeOptions || []).filter(route => !route.originBlocked).map(route => ({
-          ...route,
-          modifier: route.modifierLabel,
-        })) : [],
+        routes: pending.status === "route-selection" ? selectRouteCornerBadges(presentation?.routeOptions || [], {
+          actionLabel: presentation?.routeOptions?.[0]?.isLong ? "LONG" : "SHORT",
+          footLabel: route => route.foot,
+        }) : [],
         targetStatus: presentation?.selectedRoute?.targetStatus || "clear",
       };
     }
@@ -8736,6 +9072,38 @@ function App() {
   }, [inspectorAnchorPieceId]);
   const selectedPiece = pieces.find(p => p.id === (activeInteractionPieceId || selectedId));
   const movementPreview = useMemo(() => {
+    // A pending restart setup (wall/reposition/executor/execution) is never
+    // an ordinary Move — its own panel stages selections directly, so the
+    // normal legal/illegal hover hint stays neutral for every phase except
+    // reposition's own destination click, once a piece is actually staged:
+    // that one gets the same legal/illegal cursor Normal Move uses (via the
+    // Engine's own repositionRestartPiece validation), but deliberately no
+    // distance/cost label — confirmed live with the user: "just enough to
+    // understand a cell can be selected", nothing more.
+    if (restartSetupPresentation.active) {
+      if (restartSetupPresentation.phase === "reposition" && restartRepositionDraft?.pieceId && hoveredCell) {
+        const state = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+        const result = selectSinglePlayerRestartRepositionCellPreview(state, singlePlayerMatchContext(), { pieceId: restartRepositionDraft.pieceId, x: hoveredCell.x, y: hoveredCell.y });
+        return { legal: result.legal, hideCostBadge: true };
+      }
+      return null;
+    }
+    // Untracked Goalkeeper Retains reposition: real Normal-Move-style
+    // legality/visuals (confirmed live with the user), evaluated through its
+    // own parallel engine — see gkRepositionRules.mjs. Bypasses the ordinary
+    // Tracker-phase preview gates below entirely, same as restart-setup does.
+    if (gkRepositionPresentation.active) {
+      if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL") return null;
+      const gkState = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const result = selectSinglePlayerGkRepositionMovePresentation(gkState, singlePlayerMatchContext(), { piece: selectedPiece, x: hoveredCell.x, y: hoveredCell.y });
+      const geometry = result.geometry;
+      const axisIcon = movementAxisSymbol(geometry?.axis);
+      if (!result.legal) {
+        return { ...result, label: result.reason === "speed" ? `⚠ ${result.moveCost ?? geometry?.cost ?? "—"} / ${result.remaining}` : "🚫" };
+      }
+      return { ...result, label: `${axisIcon ? `${axisIcon} ` : ""}${result.moveCost ?? geometry?.cost ?? "—"} / ${result.remaining}` };
+    }
+    if (pendingMarkingState || pendingMarkingSwitchState || pendingMarkingTrackState) return null;
     if (!selectedPiece || !hoveredCell || selectedPiece.team === "BALL" || !canPreviewMovementForPiece(selectedPiece)) return null;
     if (["pass", "through-ball", "lofted-through-ball"].includes(actionResolution?.kind)) return null;
     const groupMove = !sessionCode && gameMode === "match" ? matchActionState.groupMove : null;
@@ -8752,6 +9120,11 @@ function App() {
     }
     const threeTwo = getThreeTwoEligibility(selectedPiece, hoveredCell.x, hoveredCell.y);
     if (threeTwo.eligible) return { ...threeTwo, legal: true, label: "3/2" };
+    // Show the offside flag immediately for 3/2 itself — falling through to
+    // the generic Move/Bonus Move preview below would very likely reject for
+    // an unrelated reason (that path's own authorization/activation state),
+    // silently losing the flag exactly like the live bug report described.
+    if (threeTwo.reason === "offside-direction") return { ...threeTwo, legal: false, label: "🚫🚩" };
     const bonusMove = !sessionCode && gameMode === "match" && actionContinuation?.kind === "bonus-card-action"
       && actionContinuation.team === pieceTeamKey(selectedPiece)
       && [CONTINUATION_STATUS.READY, CONTINUATION_STATUS.ACTION_ACTIVE].includes(actionContinuation.status)
@@ -8775,11 +9148,13 @@ function App() {
         ...result,
         label: result.reason === "speed"
           ? `⚠ ${result.moveCost ?? geometry?.cost ?? "—"} / ${result.remaining}`
-          : "🚫",
+          : result.reason === "offside-direction"
+            ? "🚫🚩"
+            : "🚫",
       };
     }
     return { ...result, label: `${axisIcon ? `${axisIcon} ` : ""}${result.moveCost ?? geometry?.cost ?? "—"} / ${result.remaining}` };
-  }, [selectedPiece, hoveredCell, gameMode, movementStateByPieceId, matchActionState, trackerUsedActions, cardState, sessionCardsById, sessionLibraryById, pieces, sessionCode, myTeam, cardVisibilityMode, cardRevealPermissions, user?.uid, actionResolution, actionContinuation]);
+  }, [selectedPiece, hoveredCell, gameMode, movementStateByPieceId, matchActionState, trackerUsedActions, cardState, sessionCardsById, sessionLibraryById, pieces, sessionCode, myTeam, cardVisibilityMode, cardRevealPermissions, user?.uid, actionResolution, actionContinuation, restartSetupState, pendingMarkingState, pendingMarkingSwitchState, pendingMarkingTrackState, gkRepositionState, gkRepositionMovementState, restartRepositionDraft]);
 
   const groupMovePieceStatusById = useMemo(() => {
     const groupMove = !sessionCode && gameMode === "match" ? matchActionState.groupMove : null;
@@ -9167,20 +9542,24 @@ function App() {
     // This prevents the underlying square from being treated as a player move.
     const pendingAction = actionResolutionRef.current;
     const shotTargeting = pendingAction?.kind === "shot" && pendingAction.status === "targeting";
-    const point = gridPointFromClient(e.clientX, e.clientY, { clampToBoard: !shotTargeting, allowGoalGrid: shotTargeting });
+    const shotRouteSelecting = pendingAction?.kind === "shot" && pendingAction.status === "route-selection";
+    const point = gridPointFromClient(e.clientX, e.clientY, { clampToBoard: !shotTargeting && !shotRouteSelecting, allowGoalGrid: shotTargeting || shotRouteSelecting });
     if (!point) return;
-    if (["pass", "through-ball", "lofted-through-ball"].includes(actionResolutionRef.current?.kind) && actionResolutionRef.current.status === "route-selection") {
-      const pending = actionResolutionRef.current;
-      if (canControlActiveResolution(pending) && Number(pending.target?.x) === Number(point.x) && Number(pending.target?.y) === Number(point.y)) {
-        if (pending.kind === "lofted-through-ball") {
-          if (sessionCode) cancelLoftedThroughBallTargeting(); else cancelLoftedThroughBallTargeting({ routeOnly: true });
-        } else if (pending.kind === "through-ball") {
-          if (sessionCode) cancelThroughBallTargeting(); else returnThroughBallToTargeting();
-        } else cancelPassTargeting();
+    if (restartSetupPresentation.active && restartSetupPresentation.phase !== "execution") {
+      handleRestartSetupCellClick(point);
+      return;
+    }
+    if (gkRepositionPresentation.active) {
+      handleGkRepositionCellClick(point);
+      return;
+    }
+    if (["pass", "through-ball", "lofted-through-ball", "shot"].includes(pendingAction?.kind) && pendingAction.status === "route-selection") {
+      const targetCoordinate = pendingAction.kind === "shot" ? shotTargetBoardCoordinate(pendingAction.target) : pendingAction.target;
+      if (canControlActiveResolution(pendingAction) && Number(targetCoordinate?.x) === Number(point.x) && Number(targetCoordinate?.y) === Number(point.y)) {
+        cancelActiveResolutionTargeting();
       }
       return;
     }
-    if (pendingAction?.kind === "shot" && pendingAction.status === "route-selection") return;
     if (groupMoveZoneDraft) return;
     if (shotTargeting) {
       if (!canControlActiveResolution(pendingAction)) return;
@@ -9394,6 +9773,27 @@ function App() {
     setSelectionRules(current => selectionRulesWithPatch(current, patch));
   }
   function requestPrepReady() {
+    // Mid-Match, Ready is a different, canonical action entirely — it
+    // dispatches KICKOFF_READY_CONFIRMED and only ever displays whatever
+    // the Engine decides; it never runs the pre-Match roster validation
+    // below, which has nothing to do with an already-started Match.
+    if (trackerGameStarted) {
+      const teamKey = prepSelectedTeam === "A" ? "blue" : "red";
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`kickoff_ready_${teamKey}`),
+          type: GAME_COMMAND_TYPE.KICKOFF_READY_CONFIRMED,
+          payload: { team: teamKey },
+        },
+        label: `${prepSelectedTeam === "A" ? "Blue" : "Red"} kick-off Ready`,
+      });
+      if (!dispatched.result.accepted) setIllegalMoveNotice({ reason: dispatched.result.reason });
+      return;
+    }
     const ready = prepSelectedTeamValidation;
     if (!ready.valid) {
       setPrepReadyIssues(ready.issues);
@@ -9561,6 +9961,25 @@ function App() {
 
   function isPassPreviewCancellable(pending = actionResolutionRef.current) {
     return pending?.kind === "pass" && ["targeting", "route-selection"].includes(pending.status);
+  }
+
+  function isActiveResolutionCancellable(pending = actionResolutionRef.current) {
+    return ["pass", "through-ball", "lofted-through-ball", "shot"].includes(pending?.kind)
+      && ["targeting", "route-selection"].includes(pending?.status);
+  }
+
+  // One shared entrance for every board-first mechanic's full cancel: the
+  // Escape key, a re-click on the already-selected target, and the
+  // Inspector's own action-row control all resolve to the same canonical
+  // command per mechanic. None of them special-cases "return to targeting
+  // only" — reselecting a target always starts that mechanic over, exactly
+  // like Pass has always behaved.
+  function cancelActiveResolutionTargeting(pending = actionResolutionRef.current) {
+    if (!isActiveResolutionCancellable(pending)) return false;
+    if (pending.kind === "through-ball") return cancelThroughBallTargeting();
+    if (pending.kind === "lofted-through-ball") return cancelLoftedThroughBallTargeting();
+    if (pending.kind === "shot") return cancelShotTargeting();
+    return cancelPassTargeting();
   }
 
   async function requestHostActionStart({ mode, actionType = null, piece, continuationId = null }) {
@@ -9880,18 +10299,6 @@ function App() {
     return Boolean(dispatched.result.accepted);
   }
 
-  function returnThroughBallToTargeting() {
-    const pending = actionResolutionRef.current;
-    if (pending?.kind !== "through-ball" || pending.status !== "route-selection" || sessionCode) return false;
-    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
-    const dispatched = dispatchSinglePlayerGameCommand({
-      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
-      command: { id: createActionEventId(`through_ball_route_cancel_${pending.id}`), type: GAME_COMMAND_TYPE.THROUGH_BALL_ROUTE_CANCELLED, payload: {} },
-      label: `Through Ball route cancelled: ${toCoord(pending.target.x, pending.target.y)} remains selected`,
-    });
-    return Boolean(dispatched.result.accepted);
-  }
-
   function loftedThroughCommand(type, payload = {}, label = "Lofted Through Ball") {
     const pending = actionResolutionRef.current;
     const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
@@ -9924,11 +10331,10 @@ function App() {
     return loftedThroughCommand(GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_COMMITTED, { cornerId }, `Lofted Through Ball executed: ${toCoord(pending.target.x, pending.target.y)}`).result.accepted;
   }
 
-  function cancelLoftedThroughBallTargeting({ routeOnly = false } = {}) {
+  function cancelLoftedThroughBallTargeting() {
     const pending = actionResolutionRef.current;
-    if (pending?.kind !== "lofted-through-ball" || sessionCode) return false;
-    const type = routeOnly ? GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_ROUTE_CANCELLED : GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_CANCELLED;
-    return loftedThroughCommand(type, {}, routeOnly ? "Lofted Through route cancelled" : "Lofted Through Ball cancelled").result.accepted;
+    if (pending?.kind !== "lofted-through-ball" || !["targeting", "route-selection"].includes(pending.status) || sessionCode) return false;
+    return loftedThroughCommand(GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_CANCELLED, {}, "Lofted Through Ball cancelled").result.accepted;
   }
 
   function confirmLoftedThroughBallResolution() {
@@ -10050,6 +10456,8 @@ function App() {
         setIllegalMoveNotice({ reason: "pass-target-field-player-required" });
       } else if (dispatched.state.actionResolution?.targetInvalidReason === "PASS_MAX_DISTANCE_EXCEEDED") {
         setIllegalMoveNotice({ reason: "pass-max-distance-exceeded", maxPassDistance: dispatched.state.actionResolution?.routePlans?.[0]?.maxPassDistance || 32 });
+      } else if (dispatched.state.actionResolution?.targetInvalidReason === "PASS_LONG_ILLEGAL_FROM_CORNER") {
+        setIllegalMoveNotice({ reason: "PASS_LONG_ILLEGAL_FROM_CORNER" });
       } else {
         setIllegalMoveNotice(null);
       }
@@ -10118,6 +10526,19 @@ function App() {
     return commitPassTargetSelection(x, y, pending);
   }
 
+  // Shot's canonical target is a { side, depth, y } goal-grid cell, not the
+  // { x, y } board coordinate every other mechanic uses. This is the one
+  // shared conversion so a re-click on the occupying piece (usually the
+  // goalkeeper) can be compared against the actual board cell.
+  function shotTargetBoardCoordinate(target) {
+    if (!target) return null;
+    const goalTop = Math.floor((Number(settings.rows) - Number(settings.goalWidth)) / 2);
+    return {
+      x: target.side === "right" ? Number(settings.cols) + Number(target.depth) : -Number(settings.goalDepth) + Number(target.depth),
+      y: goalTop + Number(target.y),
+    };
+  }
+
   // Shot has the same board-first entrance as Pass. The UI sends no geometry
   // or legal verdict: target cells and route truth come back from the Engine.
   function beginShotTargeting(piece) {
@@ -10184,6 +10605,295 @@ function App() {
     if (!dispatched.result.accepted) { setIllegalMoveNotice({ reason: dispatched.result.reason }); return false; }
     setIllegalMoveNotice(null);
     return true;
+  }
+
+  // Full cancel from targeting or route-selection, exactly like Pass, Through
+  // Ball and Lofted Through Ball: it exits Shot entirely rather than only
+  // clearing the target.
+  function cancelShotTargeting() {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "shot" || !["targeting", "route-selection"].includes(pending.status) || sessionCode) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`shot_cancel_${pending.id}`), type: GAME_COMMAND_TYPE.SHOT_CANCELLED, payload: { shotId: pending.id } },
+      label: "Shot cancelled",
+    });
+    return Boolean(dispatched.result.accepted);
+  }
+
+  // Every documented Shot outcome now has a real consequence: Goal and
+  // Goalkeeper Retains (Builds A/B), plus Corner and Goal Kick since the
+  // restart-setup engine (each starts its own restartSetup instead of a
+  // direct board change). All four use the same Continue-button pattern as
+  // Lofted Through Ball: the player clicks Continue, which dispatches the
+  // real canonical SHOT_CONSEQUENCE_DUE transition (rule 11 — not a fake
+  // control, since it performs the actual ball move/turn/restart change).
+  function confirmShotConsequence() {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "shot" || pending.status !== "result-display"
+      || !["goalkeeper-retains", "goal", "corner", "goal-kick"].includes(pending.result?.outcome) || sessionCode) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const labels = { goal: "Goal — Kick-off", "goalkeeper-retains": "Goalkeeper retains — new turn", corner: "Corner — restart setup", "goal-kick": "Goal Kick — restart setup" };
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`shot_consequence_${pending.id}`), type: GAME_COMMAND_TYPE.SHOT_CONSEQUENCE_DUE, payload: { shotId: pending.id } },
+      label: labels[pending.result.outcome] || "Shot consequence",
+    });
+    // Trigger the tactic-change prompt directly here too, not only through
+    // the kickoffRestartState useEffect — this is the one moment the goal's
+    // restart is known to have just been created, so it removes any doubt
+    // about a state-update ordering edge case suppressing the effect.
+    const newKickoffRestart = dispatched.result?.nextState?.kickoffRestart;
+    if (dispatched.result?.accepted && newKickoffRestart) {
+      setTacticPromptTeam(newKickoffRestart.team);
+      setTacticPromptOpen(true);
+    }
+    return Boolean(dispatched.result.accepted);
+  }
+
+  function acknowledgeTacklingNotice() {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "tackling" || !["blocked", "out-of-range"].includes(pending.status) || sessionCode) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`tackling_ack_${pending.defenderId}`), type: GAME_COMMAND_TYPE.TACKLING_NOTICE_ACKNOWLEDGED, payload: {} },
+      label: pending.status === "blocked" ? "Tackling blocked" : "Tackling out of range",
+    });
+    return Boolean(dispatched.result.accepted);
+  }
+
+  function confirmOffsideRestart() {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "offside" || pending.status !== "result-display" || sessionCode) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId("offside_restart_confirmed"), type: GAME_COMMAND_TYPE.OFFSIDE_RESTART_CONFIRMED, payload: {} },
+      label: "Offside — Indirect Free Kick",
+    });
+    return Boolean(dispatched.result.accepted);
+  }
+
+  function confirmTacklingConsequence() {
+    const pending = actionResolutionRef.current;
+    if (pending?.kind !== "tackling" || pending.status !== "result-display"
+      || pending.result?.outOfPlay || (pending.result?.foul && pending.result?.restartType === "penalty") || sessionCode) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`tackling_consequence_${pending.id}`), type: GAME_COMMAND_TYPE.TACKLING_CONSEQUENCE_DUE, payload: { rollEventId: pending.lastRollEvent?.id } },
+      label: pending.result?.success ? "Tackling succeeds" : "Tackling fails",
+    });
+    return Boolean(dispatched.result.accepted);
+  }
+
+  // A click while restartSetupPresentation is active only stages a local
+  // selection (which players for the wall, which piece + cell to reposition,
+  // which piece executes) — never a canonical command by itself. The piece
+  // stays visible/selected in Inspector throughout, exactly like any other
+  // selection; its action buttons are already blocked by
+  // selectSinglePlayerPieceActionPresentation while restartSetup is active.
+  function handleRestartSetupPieceClick(piece) {
+    const pieceId = String(piece.id);
+    setSelectedId(piece.id);
+    setHoveredCell(null);
+    if (restartSetupPresentation.phase === "wall") {
+      if (!restartSetupPresentation.wallEligiblePieceIds.includes(pieceId)) return;
+      setRestartWallSelection(current => {
+        if (current.includes(pieceId)) return current.filter(id => id !== pieceId);
+        if (current.length >= restartSetupPresentation.wallLength) return current;
+        return [...current, pieceId];
+      });
+      return;
+    }
+    if (restartSetupPresentation.phase === "reposition") {
+      if (!restartSetupPresentation.repositionEligiblePieceIds.includes(pieceId)) return;
+      setRestartRepositionDraft({ pieceId, x: null, y: null });
+      return;
+    }
+    if (restartSetupPresentation.phase === "executor") {
+      if (!restartSetupPresentation.executorEligiblePieceIds.includes(pieceId)) return;
+      setRestartExecutorDraft(pieceId);
+    }
+  }
+
+  function handleRestartSetupCellClick(point) {
+    if (restartSetupPresentation.phase !== "reposition" || !restartRepositionDraft?.pieceId) return;
+    setRestartRepositionDraft(draft => ({ ...draft, x: point.x, y: point.y }));
+  }
+
+  // Untracked Goalkeeper Retains reposition (gkRepositionRules.mjs): click a
+  // piece to select it for the current side's turn, then click cell(s) to
+  // move it — every move commits immediately through the Engine, exactly
+  // like ordinary Normal Move, just via GK_REPOSITION_* commands instead.
+  function handleGkRepositionPieceClick(piece) {
+    if (piece.team === "BALL") return;
+    setSelectedId(piece.id);
+    setHoveredCell(null);
+    if (pieceTeamKey(piece) !== gkRepositionPresentation.activeTeam) return;
+    if (String(gkRepositionPresentation.activePieceId || "") === String(piece.id)) return;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`gk_reposition_select_${piece.id}`), type: GAME_COMMAND_TYPE.GK_REPOSITION_PIECE_SELECTED, payload: { pieceId: piece.id } },
+      label: `${pieceTeamKey(piece) === "blue" ? "Blue" : "Red"} Reposition: ${getPieceDisplayLabel(piece)}`,
+    });
+    if (!dispatched.result?.accepted) setIllegalMoveNotice({ reason: dispatched.result?.reason });
+  }
+
+  function handleGkRepositionCellClick(point) {
+    const piece = (piecesRef.current || pieces).find(item => String(item.id) === String(selectedId));
+    if (!piece) return;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`gk_reposition_move_${piece.id}`), type: GAME_COMMAND_TYPE.GK_REPOSITION_MOVE_COMMITTED, payload: { pieceId: piece.id, x: Number(point.x), y: Number(point.y) } },
+      label: `${pieceTeamKey(piece) === "blue" ? "Blue" : "Red"} ${getPieceDisplayLabel(piece)} → ${toCoord(point.x, point.y)}`,
+    });
+    if (!dispatched.result?.accepted) {
+      if (dispatched.result?.reason !== "same") setIllegalMoveNotice({ reason: dispatched.result?.reason });
+    }
+  }
+
+  function endGkRepositionTurnThroughEngine() {
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`gk_reposition_end_${Date.now()}`), type: GAME_COMMAND_TYPE.GK_REPOSITION_TURN_ENDED, payload: {} },
+      label: "Reposition turn ended",
+    });
+    if (dispatched.result?.accepted) { setSelectedId(null); setHoveredCell(null); }
+    else setIllegalMoveNotice({ reason: dispatched.result?.reason });
+    return Boolean(dispatched.result?.accepted);
+  }
+
+  function findPieceForRestartSetup(pieceId) {
+    return (piecesRef.current || pieces).find(item => String(item.id) === String(pieceId)) || null;
+  }
+
+  function adjustWallPositionOffset(delta) {
+    setRestartWallPositionDraft(draft => (draft ? { ...draft, offset: draft.offset + delta } : draft));
+  }
+
+  function adjustWallPositionLength(delta) {
+    setRestartWallPositionDraft(draft => (draft
+      ? { ...draft, length: Math.max(1, Math.min(restartSetupPresentation.wallSize, draft.length + delta)) }
+      : draft));
+  }
+
+  function confirmRestartWallPosition({ noWall = false } = {}) {
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const payload = noWall ? { noWall: true } : { offset: restartWallPositionDraft?.offset ?? 0, length: restartWallPositionDraft?.length ?? restartSetupPresentation.wallSize };
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`restart_wall_position_${Date.now()}`), type: GAME_COMMAND_TYPE.RESTART_WALL_POSITION_SET, payload },
+      label: noWall ? "No wall" : "Wall position set",
+    });
+    if (!dispatched.result?.accepted) setIllegalMoveNotice({ reason: dispatched.result?.reason });
+    return Boolean(dispatched.result?.accepted);
+  }
+
+  function confirmRestartWall(pieceIds = restartWallSelection) {
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`restart_wall_${Date.now()}`), type: GAME_COMMAND_TYPE.RESTART_WALL_SET, payload: { pieceIds } },
+      label: pieceIds.length ? "Wall placed" : "No wall",
+    });
+    if (dispatched.result?.accepted) setRestartWallSelection([]);
+    else setIllegalMoveNotice({ reason: dispatched.result?.reason });
+    return Boolean(dispatched.result?.accepted);
+  }
+
+  function confirmRestartReposition() {
+    if (!restartRepositionDraft?.pieceId || restartRepositionDraft.x === null || restartRepositionDraft.y === null) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: {
+        id: createActionEventId(`restart_reposition_${Date.now()}`),
+        type: GAME_COMMAND_TYPE.RESTART_PIECE_REPOSITIONED,
+        payload: { pieceId: restartRepositionDraft.pieceId, x: restartRepositionDraft.x, y: restartRepositionDraft.y },
+      },
+      label: "Reposition",
+    });
+    if (dispatched.result?.accepted) setRestartRepositionDraft(null);
+    else {
+      // Rejected: clear the staged destination so the preview reverts to the
+      // piece's real canonical cell instead of appearing stuck on an illegal
+      // one, and surface why it failed.
+      setIllegalMoveNotice({ reason: dispatched.result?.reason });
+      setRestartRepositionDraft(draft => (draft ? { ...draft, x: null, y: null } : draft));
+    }
+    return Boolean(dispatched.result?.accepted);
+  }
+
+  function confirmWallContinuationReposition() {
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`restart_wall_continuation_confirm_${Date.now()}`), type: GAME_COMMAND_TYPE.RESTART_WALL_CONTINUATION_CONFIRMED, payload: {} },
+      label: "Kept in continuation of the wall",
+    });
+    if (!dispatched.result?.accepted) setIllegalMoveNotice({ reason: dispatched.result?.reason });
+    return Boolean(dispatched.result?.accepted);
+  }
+
+  function declineWallContinuationReposition() {
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`restart_wall_continuation_decline_${Date.now()}`), type: GAME_COMMAND_TYPE.RESTART_WALL_CONTINUATION_DECLINED, payload: {} },
+      label: "Wall continuation declined",
+    });
+    if (!dispatched.result?.accepted) setIllegalMoveNotice({ reason: dispatched.result?.reason });
+    return Boolean(dispatched.result?.accepted);
+  }
+
+  function skipRestartReposition() {
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`restart_reposition_pass_${Date.now()}`), type: GAME_COMMAND_TYPE.RESTART_REPOSITION_PASSED, payload: {} },
+      label: "Reposition skipped",
+    });
+    if (dispatched.result?.accepted) setRestartRepositionDraft(null);
+    else setIllegalMoveNotice({ reason: dispatched.result?.reason });
+    return Boolean(dispatched.result?.accepted);
+  }
+
+  function confirmRestartExecutor() {
+    if (!restartExecutorDraft) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      preserveLocalSelection: true, timeline: gameTimelineRef.current, state: before, context: singlePlayerMatchContext(),
+      command: { id: createActionEventId(`restart_executor_${Date.now()}`), type: GAME_COMMAND_TYPE.RESTART_EXECUTOR_SELECTED, payload: { pieceId: restartExecutorDraft } },
+      label: "Executor selected",
+    });
+    if (dispatched.result?.accepted) setRestartExecutorDraft(null);
+    else setIllegalMoveNotice({ reason: dispatched.result?.reason });
+    return Boolean(dispatched.result?.accepted);
+  }
+
+  function onRestartPanelPointerDown(e) {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    restartPanelDragRef.current = { startX: e.clientX, startY: e.clientY, originX: restartPanelPosition.x, originY: restartPanelPosition.y };
+  }
+
+  function onRestartPanelPointerMove(e) {
+    const drag = restartPanelDragRef.current;
+    if (!drag) return;
+    setRestartPanelPosition({
+      x: clamp(drag.originX + (e.clientX - drag.startX), 0, window.innerWidth - 80),
+      y: clamp(drag.originY + (e.clientY - drag.startY), 0, window.innerHeight - 50),
+    });
+  }
+
+  function onRestartPanelPointerUp() {
+    restartPanelDragRef.current = null;
   }
 
   function activatePassRoute(cornerId) {
@@ -10315,6 +11025,141 @@ function App() {
       allowNoop: true,
     });
     return true;
+  }
+
+  // Marking (docs/MARKING_RULES.md sections 4 and 5) is offline Match only —
+  // like restartSetup, it has no Manual Multiplayer counterpart. The
+  // defending coach picks exactly ONE defender from the whole eligible list
+  // at once (docs section 3) — accepting any one drops every other
+  // candidate without asking about them.
+  function resolveMarkingAccept(defenderId) {
+    if (sessionCode || gameMode !== "match" || !pendingMarkingState) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: {
+        id: createActionEventId(`marking_accept_${pendingMarkingState.id}_${defenderId}`),
+        type: GAME_COMMAND_TYPE.MARKING_ACCEPTED,
+        payload: { defenderId },
+      },
+      label: "Marking accepted",
+    });
+    return Boolean(dispatched.result.accepted);
+  }
+
+  function resolveMarkingDecline() {
+    if (sessionCode || gameMode !== "match" || !pendingMarkingState) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: {
+        id: createActionEventId(`marking_decline_${pendingMarkingState.id}`),
+        type: GAME_COMMAND_TYPE.MARKING_DECLINED,
+        payload: {},
+      },
+      label: "Marking declined",
+    });
+    return Boolean(dispatched.result.accepted);
+  }
+
+  // "Continue Marking?" (docs/MARKING_RULES.md section 5): asked before
+  // every tracking response after a marking's first one.
+  function resolveMarkingContinue(accept) {
+    if (sessionCode || gameMode !== "match" || !pendingMarkingContinueState) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: {
+        id: createActionEventId(`marking_continue_${accept ? "accept" : "decline"}_${pendingMarkingContinueState.id}`),
+        type: accept ? GAME_COMMAND_TYPE.MARKING_CONTINUE_ACCEPTED : GAME_COMMAND_TYPE.MARKING_CONTINUE_DECLINED,
+        payload: {},
+      },
+      label: accept ? "Continue Marking accepted" : "Continue Marking declined",
+    });
+    return Boolean(dispatched.result.accepted);
+  }
+
+  // Marking switch (docs/MARKING_RULES.md section 8): an already-marked
+  // attacker entering a different eligible defender's area. Accepting a
+  // candidate ends the current marking (no refund) and starts a fresh one
+  // for the chosen defender; declining keeps the current marker untouched.
+  function resolveMarkingSwitchAccept(defenderId) {
+    if (sessionCode || gameMode !== "match" || !pendingMarkingSwitchState) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: {
+        id: createActionEventId(`marking_switch_accept_${pendingMarkingSwitchState.id}_${defenderId}`),
+        type: GAME_COMMAND_TYPE.MARKING_SWITCH_ACCEPTED,
+        payload: { defenderId },
+      },
+      label: "Marking switch accepted",
+    });
+    return Boolean(dispatched.result.accepted);
+  }
+
+  function resolveMarkingSwitchDecline() {
+    if (sessionCode || gameMode !== "match" || !pendingMarkingSwitchState) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: {
+        id: createActionEventId(`marking_switch_decline_${pendingMarkingSwitchState.id}`),
+        type: GAME_COMMAND_TYPE.MARKING_SWITCH_DECLINED,
+        payload: {},
+      },
+      label: "Marking switch declined",
+    });
+    return Boolean(dispatched.result.accepted);
+  }
+
+  // Cancel MRK (docs/MARKING_RULES.md section 6): the defending coach may
+  // voluntarily end an active Marking at any time it is active.
+  function resolveMarkingCancel(markerId) {
+    if (sessionCode || gameMode !== "match") return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: {
+        id: createActionEventId(`marking_cancel_${markerId}_${before?.tracker?.currentTurn ?? 0}_${Date.now()}`),
+        type: GAME_COMMAND_TYPE.MARKING_TRACK_CANCELED,
+        payload: { markerId },
+      },
+      label: "Marking canceled",
+    });
+    return Boolean(dispatched.result.accepted);
+  }
+
+  function commitMarkingTrackCell(x, y) {
+    if (sessionCode || gameMode !== "match" || !pendingMarkingTrackState) return false;
+    const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+    const dispatched = dispatchSinglePlayerGameCommand({
+      timeline: gameTimelineRef.current,
+      state: before,
+      context: singlePlayerMatchContext(),
+      command: {
+        id: createActionEventId(`marking_track_${pendingMarkingTrackState.id}_${x}_${y}`),
+        type: GAME_COMMAND_TYPE.MARKING_TRACK_MOVE_COMMITTED,
+        payload: { x, y },
+      },
+      label: "Marking tracking move committed",
+    });
+    if (!dispatched.result.accepted && dispatched.result.reason === "MARKING_TRACK_NOT_CONTAINED") {
+      setMarkingTrackRejection({ attackerId: pendingMarkingTrackState.attackerId, markerId: pendingMarkingTrackState.markerId, team: pendingMarkingTrackState.team });
+    }
+    return Boolean(dispatched.result.accepted);
   }
 
   function confirmPassRoute(cornerId) {
@@ -10465,7 +11310,7 @@ function App() {
     return `TOTAL BONUSES ${sign}${modifier}${capNote}`;
   }
 
-  function passTargetLabel(plan) {
+  function passTargetLabel(plan, passerId) {
     const statId = String(plan?.attackerTargetStatId || "stat:passing");
     const schemaStats = [
       ...(cardStateRef.current?.backStatsSchema?.passiveAttributes || []),
@@ -10473,7 +11318,8 @@ function App() {
     ];
     const statName = schemaStats.find(stat => String(stat?.id) === statId)?.name
       || (statId === "stat:passing" ? "Passing" : statId.replace(/^stat:/, "").replace(/-/g, " ").replace(/\b\w/g, char => char.toUpperCase()));
-    return `Target ${Number(plan?.attackerTargetValue ?? plan?.passerPass) || 0} — ${statName}`;
+    const attacker = pieces.find(piece => piece.id === passerId);
+    return `${Number(plan?.attackerTargetValue ?? plan?.passerPass) || 0} — ${getPieceIdentity(attacker)} ${statName}`;
   }
 
   function formatInterceptionModifiers(roll) {
@@ -10797,6 +11643,70 @@ function App() {
       }
       return;
     }
+    if (request?.kind === "tackling") {
+      const pending = canonicalActionResolution || actionResolutionRef.current;
+      if (
+        sessionCode
+        || pending?.kind !== "tackling"
+        || pending.status !== "awaiting-tackling-resolution"
+        || pending.id !== request.actionId
+        || String(pending.lastRollEvent?.id || "") !== String(request.payload?.rollEvent?.id || "")
+      ) {
+        multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "canonical tackling action does not match roll request", {
+          traceId, actionId: request.actionId, pendingActionId: pending?.id || null, pendingStatus: pending?.status || null,
+        });
+        return;
+      }
+      cancelDelayedResolutionTimer();
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`tackling_resolution_due_${pending.id}`),
+          type: GAME_COMMAND_TYPE.TACKLING_RESOLUTION_DUE,
+          payload: { tacklingId: pending.id, rollEventId: pending.lastRollEvent.id },
+        },
+        label: "Tackling result",
+      });
+      if (!dispatched.result.accepted) {
+        multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "engine rejected canonical tackling result", { traceId, actionId: pending.id, reason: dispatched.result.reason });
+      }
+      return;
+    }
+    if (request?.kind === "lofted-through-ball") {
+      const pending = canonicalActionResolution || actionResolutionRef.current;
+      if (
+        sessionCode
+        || pending?.kind !== "lofted-through-ball"
+        || pending.status !== "awaiting-lofted-resolution"
+        || pending.id !== request.actionId
+        || String(pending.lastRollEvent?.id || "") !== String(request.payload?.rollEvent?.id || "")
+      ) {
+        multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "canonical lofted through ball action does not match roll request", {
+          traceId, actionId: request.actionId, pendingActionId: pending?.id || null, pendingStatus: pending?.status || null,
+        });
+        return;
+      }
+      cancelDelayedResolutionTimer();
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`lofted_resolution_due_${pending.id}`),
+          type: GAME_COMMAND_TYPE.LOFTED_THROUGH_BALL_RESOLUTION_DUE,
+          payload: { loftedThroughBallId: pending.id, rollEventId: pending.lastRollEvent.id },
+        },
+        label: "Lofted Through Ball result",
+      });
+      if (!dispatched.result.accepted) {
+        multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "engine rejected canonical lofted through ball result", { traceId, actionId: pending.id, reason: dispatched.result.reason });
+      }
+      return;
+    }
     if (request?.kind !== "pass-interception") {
       multiplayerTracerRef.current.guard("RESOLUTION_ABORTED", "unsupported delayed-resolution kind", { traceId, kind: request?.kind || null });
       return;
@@ -11078,15 +11988,19 @@ function App() {
     }
     const pendingPass = actionResolutionRef.current;
     if (pendingPass?.kind === "through-ball") {
-      if (type === "THROUGH_BALL" && pendingPass.passerId === piece.id) cancelThroughBallTargeting();
+      if (type === "THROUGH_BALL" && pendingPass.passerId === piece.id) cancelActiveResolutionTargeting();
       return;
     }
     if (pendingPass?.kind === "lofted-through-ball") {
-      if (type === "LOFTED_THROUGH_BALL" && pendingPass.passerId === piece.id) cancelLoftedThroughBallTargeting({ routeOnly: pendingPass.status === "route-selection" });
+      if (type === "LOFTED_THROUGH_BALL" && pendingPass.passerId === piece.id) cancelActiveResolutionTargeting();
+      return;
+    }
+    if (pendingPass?.kind === "shot") {
+      if (type === "SHOT" && pendingPass.shooterId === piece.id) cancelActiveResolutionTargeting();
       return;
     }
     if (pendingPass?.kind === "pass") {
-      if (type === "PASS" && pendingPass.passerId === piece.id && isPassPreviewCancellable(pendingPass)) cancelPassTargeting();
+      if (type === "PASS" && pendingPass.passerId === piece.id) cancelActiveResolutionTargeting();
       return;
     }
     const activeNormalMove = currentTimelineTrackerSnapshot().matchActionState.activeMovement || {};
@@ -11231,7 +12145,25 @@ function App() {
       commitNormalMoveStart(piece);
       return;
     }
-    if (!sessionCode && ["CROSS", "DRIBBLE", "TACKLING"].includes(type)) {
+    if (!sessionCode && type === "TACKLING") {
+      const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+      const dispatched = dispatchSinglePlayerGameCommand({
+        timeline: gameTimelineRef.current,
+        state: before,
+        context: singlePlayerMatchContext(),
+        command: {
+          id: createActionEventId(`tackling_start_${piece.id}`),
+          type: GAME_COMMAND_TYPE.TACKLING_STARTED,
+          payload: { pieceId: piece.id },
+        },
+        label: `${pieceTeamKey(piece) === "blue" ? "Blue" : "Red"} Tackling: ${getPieceDisplayLabel(piece)}`,
+      });
+      if (!dispatched.result.accepted) return;
+      setSelectedId(null);
+      setHoveredCell(null);
+      return;
+    }
+    if (!sessionCode && ["CROSS", "DRIBBLE"].includes(type)) {
       const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
       const dispatched = dispatchSinglePlayerGameCommand({
         timeline: gameTimelineRef.current,
@@ -11365,10 +12297,7 @@ function App() {
     });
   }
 
-  async function confirmAutoMove(shouldMove) {
-    const pending = pendingAutoMove;
-    setPendingAutoMove(null);
-    if (!pending || !shouldMove) return;
+  async function performAutoMove(pending) {
     const piece = (piecesRef.current || pieces).find(item => item.id === pending.pieceId);
     if (!piece || !canMovePiece(piece) || !canUseActionForPiece(piece)) return;
     if (!sessionCode) {
@@ -11725,7 +12654,7 @@ function App() {
       const command = {
         id: createActionEventId(`${restartingExistingMatch ? "match_restart" : "match_start"}_${team}`),
         type: restartingExistingMatch ? GAME_COMMAND_TYPE.MATCH_RESTARTED : GAME_COMMAND_TYPE.MATCH_STARTED,
-        payload: { team },
+        payload: { team, blueFormationId, redFormationId },
       };
       const dispatched = restartingExistingMatch
         ? dispatchSinglePlayerGameCommand({
@@ -12456,7 +13385,10 @@ function App() {
         measureType={measureType}
         rulerMarkers={rulerMarkers}
         defensiveAreaOverlays={defensiveAreaOverlays}
+        wallPositionCells={wallPositionCells}
+        wallSelectedPieceIds={restartSetupPresentation.phase === "wall" ? restartWallSelection : []}
         adjustZoneCells={adjustZoneOverlays}
+        markingTrackHoverPreview={markingTrackHoverPreview}
         formationRoleProblemsByPieceId={formationRoleProblemsByPieceId}
         passPreview={passPreview}
         passTargeting={["pass", "through-ball", "lofted-through-ball", "shot"].includes(actionResolution?.kind) && actionResolution.status === "targeting" && canControlActiveResolution(actionResolution)}
@@ -12474,7 +13406,7 @@ function App() {
         onGroupMoveZoneDragMove={moveGroupMoveZoneDrag}
         onGroupMoveZoneDragEnd={endGroupMoveZoneDrag}
         groupMovePieceStatusById={groupMovePieceStatusById}
-        pieces={pieces}
+        pieces={boardRenderedPieces}
         personalActionsByPieceId={!sessionCode ? trackerPersonalActionsByPieceId : {}}
         getPieceDisplayLabel={getPieceDisplayLabel}
         onPiecePointerDown={onPiecePointerDown}
@@ -12490,7 +13422,7 @@ function App() {
         onPointerCancel={stopInspectorPointerWork}
       >
         <div className="inspector-head inspector-drag-handle" onPointerDown={onInspectorDragDown}>
-          <strong>Inspector</strong>
+          <strong className="inspector-head-title">Inspector</strong>
           <div className="inspector-head-right">
             {inspectedPiece && <span>{inspectedPiece.team === "BALL" ? "Match Ball" : `Post card: ${getPieceDisplayLabel(inspectedPiece) || "—"}`}</span>}
             <button className="inspector-window-btn" title="Minimize" onPointerDown={e => e.stopPropagation()} onClick={() => setInspectorMinimized(v => !v)}>{inspectorMinimized ? "□" : "—"}</button>
@@ -12509,25 +13441,76 @@ function App() {
             ) : (
               <>
                 <div className="inspector-piece-line">
-                  {!sessionCode && <div className={`personal-action-tracker ${pieceTeamKey(inspectedPiece)}`} aria-label="Personal actions">
-                    {[0, 1, 2].map(index => {
-                      const limit = personalActionLimitForInspectorPiece(inspectedPiece);
-                      const used = Math.max(0, Number(trackerPersonalActionsByPieceId?.[inspectedPiece.id]) || 0);
-                      const unavailable = index >= limit;
-                      const checked = index < used;
-                      const interactive = gameMode === "editor" && !unavailable;
-                      return <button
-                        key={index}
-                        type="button"
-                        className={`personal-action-check ${checked ? "checked" : ""} ${unavailable ? "unavailable" : ""}`}
-                        aria-label={`Personal action ${index + 1}${unavailable ? " unavailable" : checked ? " used" : " unused"}`}
-                        aria-pressed={checked}
-                        disabled={!interactive}
-                        onClick={() => toggleEditorPersonalAction(inspectedPiece, index)}
-                      />;
-                    })}
+                  {!sessionCode && <div className="inspector-tracker-group">
+                    <span className="inspector-tracker-label">P.A.</span>
+                    <div className={`personal-action-tracker ${pieceTeamKey(inspectedPiece)}`} aria-label="Personal actions">
+                      {[0, 1, 2].map(index => {
+                        const limit = personalActionLimitForInspectorPiece(inspectedPiece);
+                        const used = Math.max(0, Number(trackerPersonalActionsByPieceId?.[inspectedPiece.id]) || 0);
+                        const unavailable = index >= limit;
+                        const checked = index < used;
+                        const interactive = gameMode === "editor" && !unavailable;
+                        return <button
+                          key={index}
+                          type="button"
+                          className={`personal-action-check ${checked ? "checked" : ""} ${unavailable ? "unavailable" : ""}`}
+                          aria-label={`Personal action ${index + 1}${unavailable ? " unavailable" : checked ? " used" : " unused"}`}
+                          aria-pressed={checked}
+                          disabled={!interactive}
+                          onClick={() => toggleEditorPersonalAction(inspectedPiece, index)}
+                        />;
+                      })}
+                    </div>
+                  </div>}
+                  {!sessionCode && <div className="inspector-tracker-group">
+                    <span className="inspector-tracker-label">MRK</span>
+                    <div className={`personal-action-tracker ${pieceTeamKey(inspectedPiece)}`} aria-label="Marking opportunities used this turn">
+                      {[0, 1].map(index => {
+                        const team = pieceTeamKey(inspectedPiece);
+                        const remaining = Math.max(0, Math.min(2, Number(markingOpportunitiesState?.[team] ?? 2)));
+                        const used = 2 - remaining;
+                        const checked = index < used;
+                        return <span
+                          key={index}
+                          className={`personal-action-check ${checked ? "checked" : ""}`}
+                          aria-label={`Marking ${index + 1}${checked ? " used" : " unused"}`}
+                        />;
+                      })}
+                    </div>
+                  </div>}
+                  {!sessionCode && <div className="inspector-tracker-group">
+                    <span className="inspector-tracker-label">3/2</span>
+                    <div className={`personal-action-tracker ${pieceTeamKey(inspectedPiece)}`} aria-label="Three-Two used this session">
+                      {(() => {
+                        const checked = Boolean(movementStateByPieceId[inspectedPiece.id]?.threeTwoUsed);
+                        return <span
+                          className={`personal-action-check ${checked ? "checked" : ""}`}
+                          aria-label={`3/2${checked ? " used" : " unused"}`}
+                        />;
+                      })()}
+                    </div>
                   </div>}
                   <div className="inspector-piece-primary-actions">
+                    {!sessionCode && gameMode === "match" && inspectedCard && canControlPieceStatus(inspectedPiece) && (() => {
+                      const activeMarking = (activeMarkingsState || []).find(marking => marking.markerId === inspectedPiece.id);
+                      // Confirmed with the user: once the attacking team's
+                      // phase has ended this numbered turn, that attacker
+                      // cannot move again until next turn, so there is
+                      // nothing left this turn for the marking to react to
+                      // — Cancel MRK goes inert (even though the marking
+                      // stays technically active in canonical state until
+                      // the turn actually resets) rather than sitting there
+                      // implying a decision still worth making right now.
+                      const cancelable = Boolean(activeMarking) && turnPhase === "attack";
+                      return <button
+                        type="button"
+                        className={`inspector-flip-request-btn piece-status-btn team-action-btn ${pieceTeamKey(inspectedPiece)} ${cancelable ? "deactivate" : "activate"}`}
+                        disabled={!cancelable}
+                        onClick={() => cancelable && resolveMarkingCancel(inspectedPiece.id)}
+                      >
+                        {activeMarking ? "Cancel MRK" : "MRK"}
+                      </button>;
+                    })()}
                     {inspectedCard && canControlPieceStatus(inspectedPiece) && (
                       <button
                         type="button"
@@ -12928,6 +13911,128 @@ function App() {
         </div>
       )}
 
+      {restartSetupPresentation.active && restartSetupPresentation.phase !== "execution" && !lockUI && (() => {
+        const typeLabels = { corner: "Corner", goalKick: "Goal Kick", freeKickDirect: "Free Kick — Direct", freeKickIndirect: "Free Kick — Indirect", throwIn: "Throw-in" };
+        const teamLabel = team => team === "blue" ? "Blue Team" : "Red Team";
+        return (
+          <div
+            className="dice-panel restart-setup-panel"
+            style={{ left: restartPanelPosition.x, top: restartPanelPosition.y, width: 300 }}
+            onPointerMove={onRestartPanelPointerMove}
+            onPointerUp={onRestartPanelPointerUp}
+            onPointerCancel={onRestartPanelPointerUp}
+          >
+            <div className="dice-panel-title" onPointerDown={onRestartPanelPointerDown}>
+              <strong>{typeLabels[restartSetupPresentation.type] || "Restart"}</strong>
+              <div className="dice-actions">
+                <button onPointerDown={e => e.stopPropagation()} onClick={() => setRestartPanelMinimized(value => !value)}>_</button>
+              </div>
+            </div>
+            {!restartPanelMinimized && (
+              <div className="dice-panel-body">
+                {restartSetupPresentation.phase === "wall-position" && restartWallPositionDraft && (
+                  <>
+                    <p>Select the wall&apos;s position and length (max {restartSetupPresentation.wallSize}), or skip it entirely.</p>
+                    <div className="restart-setup-stepper-row">
+                      <span>Position</span>
+                      <button onClick={() => adjustWallPositionOffset(-1)}>−</button>
+                      <span>{restartWallPositionDraft.offset}</span>
+                      <button onClick={() => adjustWallPositionOffset(1)}>+</button>
+                    </div>
+                    <div className="restart-setup-stepper-row">
+                      <span>Length</span>
+                      <button disabled={restartWallPositionDraft.length <= 1} onClick={() => adjustWallPositionLength(-1)}>−</button>
+                      <span>{restartWallPositionDraft.length}</span>
+                      <button disabled={restartWallPositionDraft.length >= restartSetupPresentation.wallSize} onClick={() => adjustWallPositionLength(1)}>+</button>
+                    </div>
+                    <div className="dice-actions">
+                      <button onClick={() => confirmRestartWallPosition({ noWall: true })}>No Wall</button>
+                      <button onClick={() => confirmRestartWallPosition()}>Confirm</button>
+                    </div>
+                  </>
+                )}
+                {restartSetupPresentation.phase === "wall" && (
+                  <>
+                    <p>Please select players for wall, {restartSetupPresentation.wallLength} needed.</p>
+                    <ul className="restart-setup-selection-list">
+                      {restartWallSelection.length === 0 && <li className="restart-setup-selection-empty">No players selected.</li>}
+                      {restartWallSelection.map(id => <li key={id}>{getPieceIdentity(findPieceForRestartSetup(id))}</li>)}
+                    </ul>
+                    <div className="dice-actions">
+                      <button disabled={restartWallSelection.length !== restartSetupPresentation.wallLength} onClick={() => confirmRestartWall()}>Done</button>
+                    </div>
+                  </>
+                )}
+                {restartSetupPresentation.phase === "reposition" && wallContinuationPresentation.active && (
+                  <>
+                    <p>{getPieceIdentity(findPieceForRestartSetup(wallContinuationPresentation.pieceId))} won&apos;t be considered part of the wall for this free kick. Leave it there?</p>
+                    <div className="dice-actions">
+                      <button onClick={declineWallContinuationReposition}>No</button>
+                      <button onClick={confirmWallContinuationReposition}>Yes</button>
+                    </div>
+                  </>
+                )}
+                {restartSetupPresentation.phase === "reposition" && !wallContinuationPresentation.active && (
+                  <>
+                    <p>{teamLabel(restartSetupPresentation.repositionTurnTeam)} may reposition ({restartSetupPresentation.repositionRemaining[restartSetupPresentation.repositionTurnTeam]} left).</p>
+                    {restartSetupPresentation.repositionMustClearBoxFirst && <p>Reposition every player still inside the executing team&apos;s penalty area first.</p>}
+                    {restartSetupPresentation.repositionMustClearIllegalDistanceFirst && <p>A defending player is still standing too close to the ball. Move it at least 5 cells away orthogonally, or 4 diagonally, before doing anything else.</p>}
+                    <p>{restartRepositionDraft?.pieceId
+                      ? `Selected: ${getPieceIdentity(findPieceForRestartSetup(restartRepositionDraft.pieceId))}${restartRepositionDraft.x !== null ? ` → (${restartRepositionDraft.x}, ${restartRepositionDraft.y})` : " — now click a free cell"}`
+                      : "Click one of your players, then a free cell."}</p>
+                    <div className="dice-actions">
+                      <button disabled={restartSetupPresentation.repositionMustClearBoxFirst || restartSetupPresentation.repositionMustClearIllegalDistanceFirst} onClick={skipRestartReposition}>Skip</button>
+                      <button disabled={restartRepositionDraft?.x === null || restartRepositionDraft?.x === undefined} onClick={confirmRestartReposition}>Confirm</button>
+                    </div>
+                  </>
+                )}
+                {restartSetupPresentation.phase === "executor" && (
+                  <>
+                    <p>{teamLabel(restartSetupPresentation.attackTeam)}: choose who executes.</p>
+                    <p>{restartExecutorDraft ? `Selected: ${getPieceIdentity(findPieceForRestartSetup(restartExecutorDraft))}` : "Click one of your players."}</p>
+                    <div className="dice-actions">
+                      <button disabled={!restartExecutorDraft} onClick={confirmRestartExecutor}>Confirm</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {gkRepositionPresentation.active && !lockUI && (() => {
+        const teamLabel = team => team === "blue" ? "Blue Team" : "Red Team";
+        return (
+          <div
+            className="dice-panel restart-setup-panel"
+            style={{ left: restartPanelPosition.x, top: restartPanelPosition.y, width: 300 }}
+            onPointerMove={onRestartPanelPointerMove}
+            onPointerUp={onRestartPanelPointerUp}
+            onPointerCancel={onRestartPanelPointerUp}
+          >
+            <div className="dice-panel-title" onPointerDown={onRestartPanelPointerDown}>
+              <strong>Goalkeeper Retains — Reposition</strong>
+              <div className="dice-actions">
+                <button onPointerDown={e => e.stopPropagation()} onClick={() => setRestartPanelMinimized(value => !value)}>_</button>
+              </div>
+            </div>
+            {!restartPanelMinimized && (
+              <div className="dice-panel-body">
+                <p>{teamLabel(gkRepositionPresentation.activeTeam)} may reposition ({gkRepositionPresentation.remaining[gkRepositionPresentation.activeTeam]} left).</p>
+                <p>{gkRepositionPresentation.activePieceId
+                  ? `Selected: ${getPieceIdentity(findPieceForRestartSetup(gkRepositionPresentation.activePieceId))} — move it, then Done.`
+                  : "Click one of your players, then a free cell, or Skip this turn."}</p>
+                <div className="dice-actions">
+                  <button disabled={Boolean(gkRepositionPresentation.activePieceId)} onClick={endGkRepositionTurnThroughEngine}>Skip</button>
+                  <button disabled={!gkRepositionPresentation.activePieceId} onClick={endGkRepositionTurnThroughEngine}>Done</button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {!sessionCode && gameMode === "match" && <PrepPanel
         visible={prepVisible}
         lockUI={lockUI}
@@ -12945,9 +14050,34 @@ function App() {
         formations={formations}
         formationId={prepSelectedTeam === "A" ? blueFormationId : redFormationId}
         onFormationChange={id => {
+          // Preview only. It never touches the live board — Select Formation
+          // does that, and only lands immediately at a kickoff moment.
           if (prepSelectedTeam === "A") setBlueFormationId(id);
           else setRedFormationId(id);
-          applyFormation(prepSelectedTeam, id);
+        }}
+        previewFormation={getFormationById(prepSelectedTeam === "A" ? blueFormationId : redFormationId)}
+        boardSettings={settings}
+        isKickoffMoment={prepTacticPresentation.isKickoffMoment}
+        pendingFormationId={prepSelectedTeam === "A" ? prepTacticPresentation.pendingFormation.blue : prepTacticPresentation.pendingFormation.red}
+        onSelectFormation={() => {
+          const formationId = prepSelectedTeam === "A" ? blueFormationId : redFormationId;
+          if (!trackerGameStarted) {
+            applyFormation(prepSelectedTeam, formationId);
+            return;
+          }
+          const teamKey = prepSelectedTeam === "A" ? "blue" : "red";
+          const before = currentTimelineGameStateSnapshot() || captureTimelineGameState();
+          dispatchSinglePlayerGameCommand({
+            timeline: gameTimelineRef.current,
+            state: before,
+            context: singlePlayerMatchContext(),
+            command: {
+              id: createActionEventId(`formation_tactic_${teamKey}`),
+              type: GAME_COMMAND_TYPE.FORMATION_TACTIC_CONFIRMED,
+              payload: { team: teamKey, formationId },
+            },
+            label: `${prepSelectedTeam === "A" ? "Blue" : "Red"} tactic: ${getFormationById(formationId).name}`,
+          });
         }}
         adjustActive={adjustActive}
         onAdjust={() => {
@@ -12958,6 +14088,7 @@ function App() {
           setAdjustActive(true);
         }}
         onResetAdjust={() => {
+          if (trackerGameStarted) return;
           applyFormation(prepSelectedTeam, prepSelectedTeam === "A" ? blueFormationId : redFormationId);
           setPrepLayoutState(current => ({
             ...current,
@@ -12998,6 +14129,7 @@ function App() {
         onToggleAction={toggleTrackerAction}
         onRemoveLastAction={removeLastTrackerAction}
         currentTurn={trackerCurrentTurn}
+        score={score}
         turnsReadOnly={!sessionCode && gameMode === "match"}
         onSelectTurn={selectTrackerTurn}
         onResizeDown={onTrackerResizeDown}
@@ -13012,6 +14144,41 @@ function App() {
       {diceNotice && (
         <div className={`dice-notice ${diceNotice.team} ${diceNotice.result === 1 ? "critical-one" : diceNotice.result === diceNotice.dieType ? "critical-max" : ""}`}>
           {diceNotice.team === "blue" ? "BLUE" : "RED"} rolled {diceNotice.result} <span className="dice-notice-die">(D{diceNotice.dieType})</span>
+        </div>
+      )}
+
+      {tacticPromptOpen && !sessionCode && (
+        <div className="modal-backdrop" onPointerDown={() => setTacticPromptOpen(false)}>
+          <div className="modal turn-confirm-modal" onPointerDown={event => event.stopPropagation()}>
+            <div className="modal-title"><strong>{tacticPromptTeam === "blue" ? "Blue" : "Red"} kick-off</strong></div>
+            <p>Vrei să faci schimbări tactice?</p>
+            <div className="turn-confirm-actions">
+              <button onClick={() => setTacticPromptOpen(false)}>Nu</button>
+              <button className="prep-ready-button is-valid" onClick={() => {
+                setTacticPromptOpen(false);
+                setPrepSelectedTeam(tacticPromptTeam === "blue" ? "A" : "B");
+                setPrepVisible(true);
+                setPrepMinimized(false);
+              }}>Da</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!sessionCode && (prepTacticPresentation.tacticBlock.blue || prepTacticPresentation.tacticBlock.red) && (
+        <div className="tactic-block-banner">
+          {prepTacticPresentation.tacticBlock.blue && (
+            <div className="tactic-block-row">
+              <strong>Blue</strong> tactic doesn't match its assigned cards — every Blue action is blocked. Fix it in Prep.
+              <button onClick={() => { setPrepSelectedTeam("A"); setPrepVisible(true); setPrepMinimized(false); }}>Open Prep</button>
+            </div>
+          )}
+          {prepTacticPresentation.tacticBlock.red && (
+            <div className="tactic-block-row">
+              <strong>Red</strong> tactic doesn't match its assigned cards — every Red action is blocked. Fix it in Prep.
+              <button onClick={() => { setPrepSelectedTeam("B"); setPrepVisible(true); setPrepMinimized(false); }}>Open Prep</button>
+            </div>
+          )}
         </div>
       )}
 
@@ -13164,18 +14331,176 @@ function App() {
         </div>
       )}
 
-      {pendingAutoMove && (
-        <div className="modal-backdrop turn-confirm-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setPendingAutoMove(null); }}>
-          <div className="modal turn-confirm-modal" onPointerDown={e => e.stopPropagation()}>
-            <div className="modal-title"><strong>Move player?</strong></div>
-            <div className="turn-confirm-message">Do you want to move this player?</div>
-            <div className="modal-actions turn-confirm-actions">
-              <button onClick={() => confirmAutoMove(true)}>Yes</button>
-              <button onClick={() => confirmAutoMove(false)}>No</button>
-            </div>
-          </div>
-        </div>
+      {!sessionCode && gameMode === "match" && pendingMarkingState && (() => {
+        const presentation = selectSinglePlayerMarkingDecisionPresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState());
+        if (!presentation.active) return null;
+        const team = presentation.team;
+        const teamName = team === "blue" ? "Blue" : "Red";
+        const attackerTeamName = team === "blue" ? "Red" : "Blue";
+        const attacker = pieces.find(piece => piece.id === presentation.attackerId);
+        const attackerLabel = `${getPieceIdentity(attacker)} (${attackerTeamName})`;
+        const opportunityWord = presentation.opportunitiesRemaining === 1 ? "marking" : "markings";
+        const options = [
+          ...presentation.candidates.map(candidate => {
+            const defender = pieces.find(piece => piece.id === candidate.defenderId);
+            const defenderLabel = `${getPieceIdentity(defender)} (${teamName})`;
+            return { key: candidate.defenderId, label: `Mark with ${defenderLabel}`, onClick: () => resolveMarkingAccept(candidate.defenderId) };
+          }),
+          { key: "decline", label: "Decline", onClick: () => resolveMarkingDecline() },
+        ];
+        return <ActionDecisionModal
+          title="Marking"
+          team={team}
+          message={<>
+            <span>{attackerLabel} entered a defensive area — pick a defender to mark it, or decline.</span>
+            <span>{teamName} team has {presentation.opportunitiesRemaining} {opportunityWord} left.</span>
+          </>}
+          historyControls={renderBlockingGameplayHistoryControls()}
+          options={options}
+        />;
+      })()}
+
+      {!sessionCode && gameMode === "match" && pendingMarkingContinueState && (() => {
+        const presentation = selectSinglePlayerMarkingContinuePresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState());
+        if (!presentation.active) return null;
+        const teamName = presentation.team === "blue" ? "Blue" : "Red";
+        const attackerTeamName = presentation.team === "blue" ? "Red" : "Blue";
+        const marker = pieces.find(piece => piece.id === presentation.markerId);
+        const attacker = pieces.find(piece => piece.id === presentation.attackerId);
+        const markerLabel = `${getPieceIdentity(marker)} (${teamName})`;
+        const attackerLabel = `${getPieceIdentity(attacker)} (${attackerTeamName})`;
+        const options = [
+          { key: "yes", label: "Yes", onClick: () => resolveMarkingContinue(true) },
+          { key: "no", label: "No", onClick: () => resolveMarkingContinue(false) },
+        ];
+        return <ActionDecisionModal
+          title="Marking"
+          team={presentation.team}
+          message={<span>Do you want to continue Marking {markerLabel} with {attackerLabel}?</span>}
+          historyControls={renderBlockingGameplayHistoryControls()}
+          options={options}
+        />;
+      })()}
+
+      {!sessionCode && gameMode === "match" && pendingMarkingSwitchState && (() => {
+        const presentation = selectSinglePlayerMarkingSwitchPresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState());
+        if (!presentation.active) return null;
+        const team = presentation.team;
+        const teamName = team === "blue" ? "Blue" : "Red";
+        const attackerTeamName = team === "blue" ? "Red" : "Blue";
+        const attacker = pieces.find(piece => piece.id === presentation.attackerId);
+        const attackerLabel = `${getPieceIdentity(attacker)} (${attackerTeamName})`;
+        const currentMarker = pieces.find(piece => piece.id === presentation.currentMarkerId);
+        const currentMarkerLabel = `${getPieceIdentity(currentMarker)} (${teamName})`;
+        const opportunityWord = presentation.opportunitiesRemaining === 1 ? "marking" : "markings";
+        const options = [
+          ...presentation.candidates.map(candidate => {
+            const defender = pieces.find(piece => piece.id === candidate.defenderId);
+            const defenderLabel = `${getPieceIdentity(defender)} (${teamName})`;
+            return { key: candidate.defenderId, label: `Switch to ${defenderLabel}`, onClick: () => resolveMarkingSwitchAccept(candidate.defenderId) };
+          }),
+          { key: "keep", label: `Keep ${currentMarkerLabel}`, onClick: () => resolveMarkingSwitchDecline() },
+        ];
+        return <ActionDecisionModal
+          title="Marking"
+          team={team}
+          message={<>
+            <span>{attackerLabel} entered another defender's area — switch markers, or keep {currentMarkerLabel}.</span>
+            <span>{teamName} team has {presentation.opportunitiesRemaining} {opportunityWord} left.</span>
+          </>}
+          historyControls={renderBlockingGameplayHistoryControls()}
+          options={options}
+        />;
+      })()}
+
+      {!sessionCode && gameMode === "match" && pendingMarkingTrackState && (() => {
+        const presentation = selectSinglePlayerMarkingTrackChoicePresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState());
+        if (!presentation.active) return null;
+        const teamName = presentation.team === "blue" ? "Blue" : "Red";
+        const marker = pieces.find(piece => piece.id === presentation.markerId);
+        return <DraggableActionPrompt promptKey="marking-track-move" className="warning">
+          <strong>Marking</strong>
+          <span>{getPieceIdentity(marker)} ({teamName}) can track its attacker.</span>
+        </DraggableActionPrompt>;
+      })()}
+
+      {markingReturnNotice && (
+        <DraggableActionPrompt promptKey="marking-track-returning" className="waiting">
+          <strong>Marking</strong>
+          <span>Returning to normal turn.</span>
+        </DraggableActionPrompt>
       )}
+
+      {markingTrackRejection && (() => {
+        const teamName = markingTrackRejection.team === "blue" ? "Blue" : "Red";
+        const attackerTeamName = markingTrackRejection.team === "blue" ? "Red" : "Blue";
+        const marker = pieces.find(piece => piece.id === markingTrackRejection.markerId);
+        const attacker = pieces.find(piece => piece.id === markingTrackRejection.attackerId);
+        const attackerLabel = `${getPieceIdentity(attacker)} (${attackerTeamName})`;
+        return <DraggableActionPrompt promptKey="marking-track-rejected" className="warning">
+          <strong>Marking</strong>
+          <span>{getPieceIdentity(marker)} ({teamName}): you have to have {attackerLabel} in your defensive area or cancel your marking.</span>
+        </DraggableActionPrompt>;
+      })()}
+
+      {markingEndedNoticeBanner && (() => {
+        const notice = markingEndedNoticeBanner;
+        const defenderTeamName = notice.team === "blue" ? "Blue" : "Red";
+        const attackerTeamName = notice.team === "blue" ? "Red" : "Blue";
+        const attacker = pieces.find(piece => piece.id === notice.attackerId);
+        const attackerLabel = `${getPieceIdentity(attacker)} (${attackerTeamName})`;
+        const markerLabelFor = markerId => `${getPieceIdentity(pieces.find(piece => piece.id === markerId))} (${defenderTeamName})`;
+        if (notice.reason === "no-marking-left") {
+          return <DraggableActionPrompt promptKey="marking-ended" className="waiting">
+            <strong>Marking</strong>
+            <span>{defenderTeamName} team has no marking left.</span>
+          </DraggableActionPrompt>;
+        }
+        if (notice.reason === "fast-exit-prevented") {
+          const markerLabels = (notice.markerIds || []).map(markerLabelFor).join(", ");
+          return <DraggableActionPrompt promptKey="marking-ended" className="waiting">
+            <strong>Marking</strong>
+            <span>{attackerLabel} can't be marked by {markerLabels} — fast exit.</span>
+          </DraggableActionPrompt>;
+        }
+        if (notice.reason === "fast-exit-attempted") {
+          const markerLabel = markerLabelFor(notice.markerId);
+          return <DraggableActionPrompt promptKey="marking-ended" className="waiting">
+            <strong>Marking</strong>
+            <span>{attackerLabel}: crossed more than 2 orthogonal / 1 diagonal cells this turn inside {markerLabel}'s defensive area — fast exit not available.</span>
+          </DraggableActionPrompt>;
+        }
+        const markerLabel = markerLabelFor(notice.markerId);
+        const text = notice.reason === "fast-exit"
+          ? <>{attackerLabel} escaped Marking by {markerLabel} — fast exit.</>
+          : notice.reason === "insufficient-speed"
+            ? <>{markerLabel} ran out of Speed and lost Marking on {attackerLabel}.</>
+            : notice.reason === "canceled"
+              ? <>{markerLabel} canceled Marking on {attackerLabel}.</>
+              : notice.reason === "switched"
+                ? <>{markerLabel} stopped Marking {attackerLabel} — the coach switched to a new marker.</>
+                : notice.reason === "declined-continue"
+                  ? <>{markerLabel} stopped Marking {attackerLabel} — Continue Marking was declined.</>
+                  : <>{markerLabel} had no legal cell left and lost Marking on {attackerLabel}.</>;
+        return <DraggableActionPrompt promptKey="marking-ended" className="waiting">
+          <strong>Marking ended</strong>
+          <span>{text}</span>
+        </DraggableActionPrompt>;
+      })()}
+
+      {actionResolution?.kind === "offside" && actionResolution.status === "result-display" && (() => {
+        const recipient = pieces.find(piece => piece.id === actionResolution.result?.recipientId);
+        const passer = actionResolution.result?.passerId ? pieces.find(piece => piece.id === actionResolution.result.passerId) : null;
+        const attackingTeamLabel = actionResolution.team === "blue" ? "Blue" : "Red";
+        const defendingTeamLabel = actionResolution.team === "blue" ? "Red" : "Blue";
+        return <ActionResultModal title="Offside" team={actionResolution.team} historyControls={renderBlockingGameplayHistoryControls()} onContinue={confirmOffsideRestart}>
+          <p><strong>OFFSIDE</strong></p>
+          <p>
+            {getPieceIdentity(recipient)} ({attackingTeamLabel}) was in an offside position when {passer ? <>{getPieceIdentity(passer)} played the ball</> : <>the ball was played on a Through Ball / Lofted Through Ball, and has now reached it</>}.
+            {" "}Continue to set up the Indirect Free Kick to {defendingTeamLabel}.
+          </p>
+        </ActionResultModal>;
+      })()}
 
       {actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interceptor-choice" && (() => {
         const offlineProjection = !sessionCode && gameMode === "match"
@@ -13185,31 +14510,23 @@ function App() {
         const defenseTeam = offlineProjection?.team || teamKeyForPiece(candidates[0]?.defender);
         const canChoose = !sessionCode || myTeam === defenseTeam;
         const teamName = defenseTeam === "blue" ? "Blue" : "Red";
-        return <div className="modal-backdrop interceptor-choice-backdrop">
-          <div className={`modal interceptor-choice-modal ${defenseTeam || ""}`} role="dialog" aria-modal="true">
-            <div className="modal-title">
-              <strong>Choose interceptor</strong>
-              {renderBlockingGameplayHistoryControls()}
-            </div>
-            <div className="interceptor-choice-message">
-              {canChoose
-                ? `${teamName} has equally ranked eligible defenders. Choose who attempts the next interception.`
-                : `Waiting for ${teamName} to choose the next interceptor.`}
-            </div>
-            {canChoose && <div className="interceptor-choice-options">
-              {candidates.map(item => {
-                const defender = pieces.find(piece => piece.id === item.defender?.id) || item.defender;
-                const interception = !sessionCode && gameMode === "match"
-                  ? Number(item.interception) || 0
-                  : cardStat(cardById[defender?.cardId], "stat:interception");
-                const sign = interception >= 0 ? "+" : "";
-                return <button key={defender?.id} type="button" onClick={() => choosePassInterceptor(defender?.id)}>
-                  {getPieceIdentity(defender)} ({teamName}) — Interception {sign}{interception}
-                </button>;
-              })}
-            </div>}
-          </div>
-        </div>;
+        const options = canChoose ? candidates.map(item => {
+          const defender = pieces.find(piece => piece.id === item.defender?.id) || item.defender;
+          const interception = !sessionCode && gameMode === "match"
+            ? Number(item.interception) || 0
+            : cardStat(cardById[defender?.cardId], "stat:interception");
+          const sign = interception >= 0 ? "+" : "";
+          return { key: defender?.id, label: `${getPieceIdentity(defender)} (${teamName}) — Interception ${sign}${interception}`, onClick: () => choosePassInterceptor(defender?.id) };
+        }) : [];
+        return <ActionDecisionModal
+          title="Choose interceptor"
+          team={defenseTeam}
+          historyControls={renderBlockingGameplayHistoryControls()}
+          message={canChoose
+            ? `${teamName} has equally ranked eligible defenders. Choose who attempts the next interception.`
+            : `Waiting for ${teamName} to choose the next interceptor.`}
+          options={options}
+        />;
       })()}
 
       {actionResolution?.kind === "pass" && actionResolution.status === "awaiting-interception-roll" && !pendingDelayedResolution && (() => {
@@ -13219,14 +14536,14 @@ function App() {
         const preview = !sessionCode && gameMode === "match"
           ? selectSinglePlayerRollPromptPresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState(), singlePlayerMatchContext(), { team: defenseTeam, selectedModifierType: pendingRollModifierType })
           : defender ? buildInterceptionRollDetails({ pending: actionResolution, defender, interceptor, natural: 2 }) : null;
-        return <DraggableActionPrompt promptKey="interception-roll" className="warning">
-          <strong>Interception roll required</strong>
-          <span>{getPieceIdentity(defender)} ({defenseTeam === "blue" ? "Blue" : "Red"}) rolls D20. Roll {defenseTeam?.toUpperCase()}.</span>
-          {preview && <span>{preview.modifierSources.map(formatModifierSource).join(" + ")}</span>}
-          {preview && <span><strong>{formatTotalModifier(preview)}</strong></span>}
-          {preview && <span><strong>{passTargetLabel(actionResolution.plan)}</strong></span>}
-          {!sessionCode && gameMode === "match" && renderRollModifierChoice(defenseTeam)}
-        </DraggableActionPrompt>;
+        return <RollPromptCard
+          promptKey="interception-roll"
+          title="Interception roll required"
+          subject={`${getPieceIdentity(defender)} (${defenseTeam === "blue" ? "Blue" : "Red"}) rolls D20. Roll ${defenseTeam?.toUpperCase()}.`}
+          breakdown={renderRollBreakdown(preview, null)}
+          comparisonLabel={passTargetLabel(actionResolution.plan, actionResolution.passerId)}
+          modifierChoice={!sessionCode && gameMode === "match" && renderRollModifierChoice(defenseTeam)}
+        />;
       })()}
 
       {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "awaiting-roll" && (() => {
@@ -13234,12 +14551,31 @@ function App() {
         const preview = !sessionCode && gameMode === "match"
           ? selectSinglePlayerRollPromptPresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState(), singlePlayerMatchContext(), { team: actionResolution.team, selectedModifierType: pendingRollModifierType })
           : actionResolution.plan?.rollPreview;
-        return <DraggableActionPrompt promptKey="lofted-through-roll" className="warning">
-          <strong>Lofted Through Ball roll required</strong>
-          <span>{getPieceIdentity(passer)} rolls D20. Roll {actionResolution.team?.toUpperCase()}.</span>
-          {renderRollBreakdown(preview, `Difficulty ${actionResolution.plan?.difficultyThreshold}`)}
-          {!sessionCode && gameMode === "match" && renderRollModifierChoice(actionResolution.team)}
-        </DraggableActionPrompt>;
+        return <RollPromptCard
+          promptKey="lofted-through-roll"
+          title="Lofted Through Ball roll required"
+          subject={`${getPieceIdentity(passer)} rolls D20. Roll ${actionResolution.team?.toUpperCase()}.`}
+          breakdown={renderRollBreakdown(preview, null)}
+          comparisonLabel={`${actionResolution.plan?.difficultyThreshold} — Difficulty`}
+          modifierChoice={!sessionCode && gameMode === "match" && renderRollModifierChoice(actionResolution.team)}
+        />;
+      })()}
+
+      {actionResolution?.kind === "tackling" && actionResolution.status === "awaiting-interception-roll" && (() => {
+        const defender = pieces.find(piece => piece.id === actionResolution.defenderId);
+        const attacker = pieces.find(piece => piece.id === actionResolution.attackerId);
+        const preview = !sessionCode && gameMode === "match"
+          ? selectSinglePlayerRollPromptPresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState(), singlePlayerMatchContext(), { team: actionResolution.team, selectedModifierType: pendingRollModifierType })
+          : null;
+        const ballControl = cardStat(cardById[attacker?.cardId], "Ball Control");
+        return <RollPromptCard
+          promptKey="tackling-roll"
+          title="Tackling roll required"
+          subject={`${getPieceIdentity(defender)} (${actionResolution.team === "blue" ? "Blue" : "Red"}) rolls D20.`}
+          breakdown={renderRollBreakdown(preview, null)}
+          comparisonLabel={`${ballControl} — ${getPieceIdentity(attacker)} Ball Control`}
+          modifierChoice={!sessionCode && gameMode === "match" && renderRollModifierChoice(actionResolution.team)}
+        />;
       })()}
 
       {actionResolution?.kind === "shot" && actionResolution.status === "awaiting-roll" && (() => {
@@ -13253,12 +14589,57 @@ function App() {
         const preview = !sessionCode && gameMode === "match"
           ? selectSinglePlayerRollPromptPresentation(currentTimelineGameStateSnapshot() || captureTimelineGameState(), singlePlayerMatchContext(), { team: actionResolution.team, selectedModifierType: pendingRollModifierType })
           : plan.rollPreview;
-        return <DraggableActionPrompt promptKey="shot-roll" className="warning">
-          <strong>Shot roll required</strong>
-          <span>{getPieceIdentity(shooter)} ({actionResolution.team === "blue" ? "Blue" : "Red"}) rolls D20. Target: {targetLabel}; distance {Number(plan.distance || 0).toFixed(2)} — {plan.band === "finishing" ? "Finishing" : plan.band === "long-shot" ? "Long Shot" : "Distant Long Shot"}.</span>
-          {renderRollBreakdown(preview, `${getPieceIdentity(goalkeeper)} fixed ${goalkeeperLabel} ${goalkeeperStat}`)}
-          {!sessionCode && gameMode === "match" && renderRollModifierChoice(actionResolution.team)}
-        </DraggableActionPrompt>;
+        return <RollPromptCard
+          promptKey="shot-roll"
+          title="Shot roll required"
+          subject={`${getPieceIdentity(shooter)} (${actionResolution.team === "blue" ? "Blue" : "Red"}) rolls D20. Target: ${targetLabel}; distance ${Number(plan.distance || 0).toFixed(2)} — ${plan.band === "finishing" ? "Finishing" : plan.band === "long-shot" ? "Long Shot" : "Distant Long Shot"}.`}
+          breakdown={renderRollBreakdown(preview, null)}
+          comparisonLabel={`${goalkeeperStat} — ${getPieceIdentity(goalkeeper)} ${goalkeeperLabel}`}
+          modifierChoice={!sessionCode && gameMode === "match" && renderRollModifierChoice(actionResolution.team)}
+        />;
+      })()}
+
+      {actionResolution?.kind === "tackling" && ["blocked", "out-of-range"].includes(actionResolution.status) && (() => {
+        const defender = pieces.find(piece => piece.id === actionResolution.defenderId);
+        const attacker = pieces.find(piece => piece.id === actionResolution.attackerId);
+        const blockers = (actionResolution.blockerIds || []).map(id => pieces.find(piece => piece.id === id)).filter(Boolean);
+        const teamLabel = actionResolution.team === "blue" ? "Blue" : "Red";
+        const blockerList = blockers.map(piece => `${getPieceIdentity(piece)} (${pieceTeamKey(piece) === "blue" ? "Blue" : "Red"})`).join(", ");
+        return <ActionResultModal title="Tackling" team={actionResolution.team} historyControls={renderBlockingGameplayHistoryControls()} onContinue={acknowledgeTacklingNotice}>
+          {actionResolution.status === "out-of-range"
+            ? <p>Tackling by {getPieceIdentity(defender)} ({teamLabel}) cannot be executed — {getPieceIdentity(attacker)} is no longer inside {getPieceIdentity(defender)}'s defensive area.</p>
+            : blockers.length
+              ? <p>Tackling by {getPieceIdentity(defender)} ({teamLabel}) cannot be executed — every movement axis is blocked, by {blockerList}. Please find a free movement path to {getPieceIdentity(attacker)} to execute Tackling.</p>
+              : <p>Tackling by {getPieceIdentity(defender)} ({teamLabel}) cannot be executed — no legal movement axis reaches {getPieceIdentity(attacker)}'s proximity. Please find a free movement path to {getPieceIdentity(attacker)} to execute Tackling.</p>}
+        </ActionResultModal>;
+      })()}
+
+      {actionResolution?.kind === "tackling" && actionResolution.status === "result-display" && (() => {
+        const defender = pieces.find(piece => piece.id === actionResolution.defenderId);
+        const attacker = pieces.find(piece => piece.id === actionResolution.attackerId);
+        const result = actionResolution.result || {};
+        const penaltyFoul = result.foul && result.restartType === "penalty";
+        const frozen = Boolean(penaltyFoul || result.outOfPlay);
+        const outcomeLabel = result.foul
+          ? (result.cardType === "red" ? "FOUL — RED CARD" : result.cardType === "yellow" ? "FOUL — YELLOW CARD" : "FOUL")
+          : result.outOfPlay ? "BALL OUT OF PLAY"
+            : result.success ? "SUCCESSFUL TACKLE" : "TACKLE FAILED";
+        const attackingTeamLabel = actionResolution.team === "blue" ? "Red" : "Blue";
+        const defendingTeamLabel = actionResolution.team === "blue" ? "Blue" : "Red";
+        return <ActionResultModal title="Tackling" team={actionResolution.team} historyControls={renderBlockingGameplayHistoryControls()} onContinue={frozen ? undefined : confirmTacklingConsequence}>
+          <p><strong>{outcomeLabel}</strong></p>
+          {renderRollBreakdown(result, `${Number(result.ballControl)} — ${getPieceIdentity(attacker)} Ball Control`)}
+          {result.naturalOutcome && <p>{selectNaturalRollOutcomePresentation(result.naturalOutcome)}</p>}
+          {result.foul
+            ? (penaltyFoul
+              ? <p>{result.cardType ? `${result.cardType === "red" ? "Red" : "Yellow"} card for ${getPieceIdentity(defender)}. ` : ""}{`Penalty to ${attackingTeamLabel}`} — not yet implemented. This screen won't advance until Penalty execution is built. Use Undo to keep playing.</p>
+              : <p>{result.cardType ? `${result.cardType === "red" ? "Red" : "Yellow"} card for ${getPieceIdentity(defender)}. ` : ""}{`Free Kick to ${attackingTeamLabel}`}. Continue to set up the wall and choose the executor.</p>)
+            : result.outOfPlay
+              ? <p>The ball goes out of play near {getPieceIdentity(attacker)}'s position. Throw-in/Corner to {attackingTeamLabel} — not yet implemented. This screen won't advance until that restart execution is built. Use Undo to keep playing.</p>
+              : result.success
+                ? <p>{getPieceIdentity(defender)} wins the ball. {getPieceIdentity(attacker)} is dispossessed and stays inactive. Continue to start {defendingTeamLabel}'s turn.</p>
+                : <p>{getPieceIdentity(defender)} fails to win the ball and stays inactive. Continue — {attackingTeamLabel} keeps possession.</p>}
+        </ActionResultModal>;
       })()}
 
       {actionResolution?.kind === "shot" && actionResolution.status === "result-display" && (() => {
@@ -13271,58 +14652,76 @@ function App() {
           "goalkeeper-retains": "GOALKEEPER RETAINS",
         };
         const goalkeeperLabel = actionResolution.goalkeeperStatId === "stat:reflexes" ? "Reflexes" : "Diving Saves";
-        return <div className="modal-backdrop pass-result-backdrop">
-          <div className={`modal pass-result-modal ${actionResolution.team || ""}`} role="dialog" aria-modal="true" aria-label="Shot resolution checkpoint">
-            <div className="modal-title"><strong>Shot resolution</strong>{renderBlockingGameplayHistoryControls()}</div>
-            <div className="pass-result-lines">
-              <p><strong>{outcomes[result.outcome] || "SHOT RESULT"}</strong></p>
-              {renderRollBreakdown(result, `${getPieceIdentity(goalkeeper)} fixed ${goalkeeperLabel} ${Number(result.goalkeeperStat)}`)}
-              <p>Shot result recorded. Score, ball, possession, turn and restart remain unchanged at this checkpoint.</p>
-              <p>Use Timeline Undo/Redo or New Game to test another result.</p>
-            </div>
-          </div>
-        </div>;
+        const retains = result.outcome === "goalkeeper-retains";
+        const goal = result.outcome === "goal";
+        const corner = result.outcome === "corner";
+        const goalKick = result.outcome === "goal-kick";
+        return <ActionResultModal title="Shot" team={actionResolution.team} historyControls={renderBlockingGameplayHistoryControls()} onContinue={confirmShotConsequence}>
+          <p><strong>{outcomes[result.outcome] || "SHOT RESULT"}</strong></p>
+          {renderRollBreakdown(result, `${Number(result.goalkeeperStat)} — ${getPieceIdentity(goalkeeper)} ${goalkeeperLabel}`)}
+          {retains
+            ? <p>{getPieceIdentity(goalkeeper)} keeps the ball. Continue to start the goalkeeper's team's turn.</p>
+            : goal
+              ? <p>Goal! Continue for Kick-off — both teams reset to their starting layout and the conceding team's striker takes its restart.</p>
+              : corner
+                ? <p>Corner. Continue to start the Corner's wall/reposition/executor setup for the attacking team.</p>
+                : goalKick
+                  ? <p>Goal Kick. Continue to start the Goal Kick's reposition/executor setup and a new turn for the goalkeeper's team.</p>
+                  : <p>Shot result recorded.</p>}
+        </ActionResultModal>;
       })()}
 
-      {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "roll-resolved" && <div className="modal-backdrop pass-result-backdrop"><div className={`modal pass-result-modal ${actionResolution.team || ""}`} role="dialog" aria-modal="true"><div className="modal-title"><strong>Lofted Through Ball result</strong>{renderBlockingGameplayHistoryControls()}</div><div className="pass-result-lines">{renderRollBreakdown(actionResolution.result, `Difficulty ${actionResolution.plan?.difficultyThreshold}`)}{Number(actionResolution.result?.natural) === 20 && <p>{selectNaturalRollOutcomePresentation(actionResolution.result?.naturalOutcome)}</p>}<p>{actionResolution.result?.succeeds ? "Lofted Through Ball succeeds." : "Lofted Through Ball fails."}</p></div><div className="modal-actions"><button className="save-label" onClick={confirmLoftedThroughBallResolution}>Continue</button></div></div></div>}
+      {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "roll-resolved" && (
+        <ActionResultModal title="Lofted Through Ball" team={actionResolution.team} historyControls={renderBlockingGameplayHistoryControls()} onContinue={confirmLoftedThroughBallResolution}>
+          {renderRollBreakdown(actionResolution.result, `${actionResolution.plan?.difficultyThreshold} — Difficulty`)}
+          {Number(actionResolution.result?.natural) === 20 && <p>{selectNaturalRollOutcomePresentation(actionResolution.result?.naturalOutcome)}</p>}
+          <p>{actionResolution.result?.succeeds ? "Lofted Through Ball succeeds." : "Lofted Through Ball fails."}</p>
+        </ActionResultModal>
+      )}
 
       {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "awaiting-recoverer-choice" && (() => {
         const candidates = actionResolution.recovery?.defenderCandidates || [];
         const team = actionResolution.team === "blue" ? "red" : "blue";
-        return <div className="modal-backdrop interceptor-choice-backdrop"><div className={`modal interceptor-choice-modal ${team}`} role="dialog" aria-modal="true"><div className="modal-title"><strong>Choose recovering defender</strong>{renderBlockingGameplayHistoryControls()}</div><div className="interceptor-choice-message">Eligible defenders are equally ranked for this Lofted Through Ball recovery.</div><div className="interceptor-choice-options">{candidates.map(candidate => { const defender = pieces.find(piece => piece.id === candidate.pieceId); return <button key={candidate.pieceId} type="button" onClick={() => chooseLoftedThroughBallRecoverer(candidate.pieceId)}>{getPieceIdentity(defender)} ({team.toUpperCase()})</button>; })}</div></div></div>;
+        return <ActionDecisionModal
+          title="Choose recovering defender"
+          team={team}
+          historyControls={renderBlockingGameplayHistoryControls()}
+          message="Eligible defenders are equally ranked for this Lofted Through Ball recovery."
+          options={candidates.map(candidate => {
+            const defender = pieces.find(piece => piece.id === candidate.pieceId);
+            return { key: candidate.pieceId, label: `${getPieceIdentity(defender)} (${team.toUpperCase()})`, onClick: () => chooseLoftedThroughBallRecoverer(candidate.pieceId) };
+          })}
+        />;
       })()}
 
       {actionResolution?.kind === "lofted-through-ball" && actionResolution.status === "awaiting-recovery-confirmation" && (() => {
         const recoverer = pieces.find(piece => piece.id === actionResolution.recovery?.selectedRecovererId);
-        return <div className="modal-backdrop pass-result-backdrop"><div className={`modal pass-result-modal ${pieceTeamKey(recoverer) || ""}`} role="dialog" aria-modal="true"><div className="modal-title"><strong>Lofted Through Ball recovered</strong>{renderBlockingGameplayHistoryControls()}</div><div className="pass-result-lines"><p>{getPieceIdentity(recoverer)} recovers the ball.</p></div><div className="modal-actions"><button className="save-label" onClick={confirmLoftedThroughBallRecovery}>Continue</button></div></div></div>;
+        return <ActionResultModal title="Lofted Through Ball" team={pieceTeamKey(recoverer)} historyControls={renderBlockingGameplayHistoryControls()} onContinue={confirmLoftedThroughBallRecovery}>
+          <p>{getPieceIdentity(recoverer)} recovers the ball.</p>
+        </ActionResultModal>;
       })()}
 
       {actionResolution?.kind === "through-ball" && actionResolution.status === "awaiting-recoverer-choice" && (() => {
         const candidates = actionResolution.recovery?.defenderCandidates || [];
         const team = actionResolution.team === "blue" ? "red" : "blue";
-        return <div className="modal-backdrop interceptor-choice-backdrop">
-          <div className={`modal interceptor-choice-modal ${team}`} role="dialog" aria-modal="true">
-            <div className="modal-title"><strong>Choose recovering defender</strong>{renderBlockingGameplayHistoryControls()}</div>
-            <div className="interceptor-choice-message">Two or more defenders are equally closest and have the same Speed. Choose who recovers the ball.</div>
-            <div className="interceptor-choice-options">
-              {candidates.map(candidate => {
-                const defender = pieces.find(piece => piece.id === candidate.pieceId);
-                return <button key={candidate.pieceId} type="button" onClick={() => chooseThroughBallRecoverer(candidate.pieceId)}>{getPieceIdentity(defender)} ({team === "blue" ? "Blue" : "Red"}) — Speed {candidate.speed}</button>;
-              })}
-            </div>
-          </div>
-        </div>;
+        return <ActionDecisionModal
+          title="Choose recovering defender"
+          team={team}
+          historyControls={renderBlockingGameplayHistoryControls()}
+          message="Two or more defenders are equally closest and have the same Speed. Choose who recovers the ball."
+          options={candidates.map(candidate => {
+            const defender = pieces.find(piece => piece.id === candidate.pieceId);
+            return { key: candidate.pieceId, label: `${getPieceIdentity(defender)} (${team === "blue" ? "Blue" : "Red"}) — Speed ${candidate.speed}`, onClick: () => chooseThroughBallRecoverer(candidate.pieceId) };
+          })}
+        />;
       })()}
 
       {actionResolution?.kind === "through-ball" && actionResolution.status === "awaiting-recovery-confirmation" && (() => {
         const recoverer = pieces.find(piece => piece.id === actionResolution.recovery?.selectedRecovererId);
-        return <div className="modal-backdrop pass-result-backdrop">
-          <div className={`modal pass-result-modal ${pieceTeamKey(recoverer) || ""}`} role="dialog" aria-modal="true">
-            <div className="modal-title"><strong>Through Ball recovered</strong>{renderBlockingGameplayHistoryControls()}</div>
-            <div className="pass-result-lines"><p>{getPieceIdentity(recoverer)} is closer to the ball and recovers it.</p><p>Your turn ends. Possession changes.</p></div>
-            <div className="modal-actions"><button className="save-label" onClick={confirmThroughBallRecovery}>Continue</button></div>
-          </div>
-        </div>;
+        return <ActionResultModal title="Through Ball" team={pieceTeamKey(recoverer)} historyControls={renderBlockingGameplayHistoryControls()} onContinue={confirmThroughBallRecovery}>
+          <p>{getPieceIdentity(recoverer)} is closer to the ball and recovers it.</p>
+          <p>Your turn ends. Possession changes.</p>
+        </ActionResultModal>;
       })()}
 
       {actionResolution?.kind === "pass" && actionResolution.status === "targeting" && passTargetIntentPending && (
@@ -13346,13 +14745,9 @@ function App() {
       )}
 
       {passResultNotice && (
-        <div className="modal-backdrop pass-result-backdrop">
-          <div className={`modal pass-result-modal ${passResultNotice.team || ""}`} role="dialog" aria-modal="true">
-            <div className="modal-title"><strong>{passResultNotice.title}</strong>{renderBlockingGameplayHistoryControls()}</div>
-            <div className="pass-result-lines">{passResultNotice.lines.map((line, index) => <p key={index}>{line}</p>)}</div>
-            <div className="modal-actions"><button className="save-label" onClick={() => setPassResultNotice(null)}>OK</button></div>
-          </div>
-        </div>
+        <ActionResultModal title={passResultNotice.title} team={passResultNotice.team} historyControls={renderBlockingGameplayHistoryControls()} onContinue={() => setPassResultNotice(null)} continueLabel="OK">
+          {passResultNotice.lines.map((line, index) => <p key={index}>{line}</p>)}
+        </ActionResultModal>
       )}
 
       {pendingThreeTwoMove && (
@@ -13514,8 +14909,8 @@ function App() {
               <span className="rule-manual-pill">Dice: manual roll only</span>
             </section>
             <section className="rule-action-card">
-              <div><strong>Shot</strong><span>v20.56.29: canonical roll parity</span></div>
-              <p>Goal cells are selected on the board. Routes always use the approved corner-to-centre presentation. The D20 roll and result use the same canonical dice, hold and modifier-cap contract as Lofted Through Ball, but this build deliberately applies no Goal, Goal Kick, Corner or goalkeeper-retains consequence.</p>
+              <div><strong>Shot</strong><span>v20.56.30: unified roll cap, corner display and cancel</span></div>
+              <p>Goal cells are selected on the board. Routes always use the approved corner-to-centre presentation. The D20 roll, the modifier cap and reselecting a target to cancel all use the same shared contract as Pass, Through Ball and Lofted Through Ball, but this build deliberately applies no Goal, Goal Kick, Corner or goalkeeper-retains consequence.</p>
               <label>Normal Long Shot range (whole squares)
                 <input disabled={ruleSetEditingLocked} type="number" min="1" step="1" value={ruleSetDraft.actions?.shot?.longShotNormalRangeMax ?? 11} onChange={e => setRuleSetDraft(draft => {
                   const normal = e.target.value === "" ? "" : Math.max(1, Math.floor(Number(e.target.value) || 1));
@@ -13542,6 +14937,21 @@ function App() {
                   <option value="disadvantage">DV</option><option value="majorDisadvantage">DVM</option>
                 </select>
               </label>
+              <label>Goal Kick interval (natural rolls starting at 1)
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="5" step="1" value={ruleSetDraft.actions?.shot?.goalKickInterval ?? 1} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, shot: { ...draft.actions?.shot, goalKickInterval: clamp(Math.floor(Number(e.target.value) || 1), 1, 5) } } }))} />
+              </label>
+              <label>Corner interval (totals at-or-below the goalkeeper&apos;s stat)
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="5" step="1" value={ruleSetDraft.actions?.shot?.cornerInterval ?? 1} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, shot: { ...draft.actions?.shot, cornerInterval: clamp(Math.floor(Number(e.target.value) || 1), 1, 5) } } }))} />
+              </label>
+              <p className="rules-lock-note">Neither interval can ever turn an actual Goal into anything else — a total that beats the goalkeeper&apos;s stat always stays a Goal.</p>
+              <label>Goalkeeper Retains reposition — moves per side (0 disables it)
+                <input disabled={ruleSetEditingLocked} type="number" min="0" max="11" step="1" value={ruleSetDraft.actions?.shot?.goalkeeperRetainsReposition?.count ?? 4} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, shot: { ...draft.actions?.shot, goalkeeperRetainsReposition: { ...draft.actions?.shot?.goalkeeperRetainsReposition, count: clamp(Math.floor(Number(e.target.value) || 0), 0, 11) } } } }))} />
+              </label>
+              <p>Untracked — the goalkeeper&apos;s own (fresh attacking) team moves first, alternating with the opponent, using real movement legality but never counted in any Tracker. Any combination of these may be checked at once:</p>
+              {[["afterFreeKick", "After a Free Kick"], ["afterCornerHeader", "After a corner header (not yet built)"], ["anyCatch", "Any time the goalkeeper catches the ball"]].map(([key, label]) => <label key={key}>
+                <input disabled={ruleSetEditingLocked} type="checkbox" checked={ruleSetDraft.actions?.shot?.goalkeeperRetainsReposition?.[key] === true} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, shot: { ...draft.actions?.shot, goalkeeperRetainsReposition: { ...draft.actions?.shot?.goalkeeperRetainsReposition, [key]: e.target.checked } } } }))} />
+                {label}
+              </label>)}
             </section>
             <section className="rule-action-card">
               <div><strong>Through Ball</strong><span>Configured automation — no roll</span></div>
@@ -13573,6 +14983,72 @@ function App() {
               <label>Equal total outcome<select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.loftedThroughBall?.equalRollOutcome || "lofted-fails"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, loftedThroughBall: { ...draft.actions?.loftedThroughBall, equalRollOutcome: e.target.value } } }))}><option value="lofted-fails">Lofted Through fails</option><option value="lofted-succeeds">Lofted Through succeeds</option></select></label>
             </section>
             <section className="rule-action-card">
+              <div><strong>Tackling</strong><span>Build 1 — normal defensive action only</span></div>
+              <p>Eligibility is the ball carrier standing inside the defender&apos;s defensive area at the start of the defense phase. Free Kick/Yellow/Red are independent thresholds: at 1, each checks the natural roll directly; from 2 up, each checks the total instead (after the Tackling bonus) — the Tackling stat can then let a defender avoid a card even on a bad roll. Equality is a band below Ball Control, always on total. Natural 1 always fails; Natural 20 always succeeds.</p>
+              <label>Free Kick interval (natural rolls starting at 1)
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="7" step="1" value={ruleSetDraft.actions?.tackling?.freeKickInterval ?? 1} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, tackling: { ...draft.actions?.tackling, freeKickInterval: clamp(Math.floor(Number(e.target.value) || 1), 1, 7) } } }))} />
+              </label>
+              <label>Yellow Card interval (natural rolls starting at 1)
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="7" step="1" value={ruleSetDraft.actions?.tackling?.yellowCardInterval ?? 1} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, tackling: { ...draft.actions?.tackling, yellowCardInterval: clamp(Math.floor(Number(e.target.value) || 1), 1, 7) } } }))} />
+              </label>
+              <label>Red Card interval (natural rolls starting at 1)
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="7" step="1" value={ruleSetDraft.actions?.tackling?.redCardInterval ?? 1} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, tackling: { ...draft.actions?.tackling, redCardInterval: clamp(Math.floor(Number(e.target.value) || 1), 1, 7) } } }))} />
+              </label>
+              <p className="rules-lock-note">Red always wins a Yellow/Red overlap.</p>
+              <label>Equality interval (totals within this many points of Ball Control)
+                <input disabled={ruleSetEditingLocked} type="number" min="1" max="5" step="1" value={ruleSetDraft.actions?.tackling?.equalityInterval ?? 1} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, tackling: { ...draft.actions?.tackling, equalityInterval: clamp(Math.floor(Number(e.target.value) || 1), 1, 5) } } }))} />
+              </label>
+              <label>Equality result<select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.tackling?.equalityResult || "outOfPlay"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, tackling: { ...draft.actions?.tackling, equalityResult: e.target.value } } }))}><option value="outOfPlay">Ball out of play (Throw-in/Corner)</option><option value="succeeds">Tackling succeeds</option></select></label>
+              <label>Natural 20 effect<select disabled={ruleSetEditingLocked} value={ruleSetDraft.actions?.tackling?.natural20Result || "av"} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, tackling: { ...draft.actions?.tackling, natural20Result: e.target.value } } }))}><option value="av">AV</option><option value="avm">AVM</option><option value="bonusAction">Bonus Action</option><option value="none">No extra effect</option></select></label>
+              <p className="rules-lock-note">Free Kick/Penalty, Throw-in and Corner-from-open-play execution are not implemented — a foul or an out-of-play equality result records a canonical fact and freezes the result screen until they are.</p>
+            </section>
+            {[
+              ["corner", "Corner", null],
+              ["goalKick", "Goal Kick", null],
+              ["freeKickDirect", "Free Kick — Direct", null],
+              ["freeKickIndirect", "Free Kick — Indirect", null],
+              ["throwIn", "Throw-in", "Not yet triggerable in a Match — out-of-bounds detection is not built."],
+            ].map(([key, label, notYetNote]) => (
+              <section className="rule-action-card" key={key}>
+                <div><strong>{label}</strong><span>Fixed restart: wall, reposition, executor</span></div>
+                {notYetNote && <p className="rules-lock-note">{notYetNote}</p>}
+                <p>Wall size 0 skips the wall step entirely. Reposition count is per team, alternating turns starting with the attacking team. Every value here is a starting default only — see docs/FINALISATION_AND_RESTARTS_RULES.md.</p>
+                <label>Wall size (0 skips this step)
+                  <input disabled={ruleSetEditingLocked} type="number" min="0" step="1" value={ruleSetDraft.actions?.restarts?.[key]?.wallSize ?? 0} onChange={e => setRuleSetDraft(draft => {
+                    const raw = e.target.value;
+                    return { ...draft, actions: { ...draft.actions, restarts: { ...draft.actions?.restarts, [key]: { ...draft.actions?.restarts?.[key], wallSize: raw === "" ? "" : Math.max(0, Math.floor(Number(raw)) || 0) } } } };
+                  })} onBlur={() => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, restarts: { ...draft.actions?.restarts, [key]: { ...draft.actions?.restarts?.[key], wallSize: Math.max(0, Math.floor(Number(draft.actions?.restarts?.[key]?.wallSize)) || 0) } } } }))} />
+                </label>
+                <label>Reposition count (per team)
+                  <input disabled={ruleSetEditingLocked} type="number" min="0" step="1" value={ruleSetDraft.actions?.restarts?.[key]?.repositionCount ?? 0} onChange={e => setRuleSetDraft(draft => {
+                    const raw = e.target.value;
+                    return { ...draft, actions: { ...draft.actions, restarts: { ...draft.actions?.restarts, [key]: { ...draft.actions?.restarts?.[key], repositionCount: raw === "" ? "" : Math.max(0, Math.floor(Number(raw)) || 0) } } } };
+                  })} onBlur={() => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, restarts: { ...draft.actions?.restarts, [key]: { ...draft.actions?.restarts?.[key], repositionCount: Math.max(0, Math.floor(Number(draft.actions?.restarts?.[key]?.repositionCount)) || 0) } } } }))} />
+                </label>
+                {ruleSetDraft.actions?.restarts?.[key]?.loftedThroughBallDifficultyOverride !== undefined && (
+                  <label>Lofted Through Ball difficulty threshold override
+                    <input disabled={ruleSetEditingLocked} type="number" min="1" step="1" value={ruleSetDraft.actions?.restarts?.[key]?.loftedThroughBallDifficultyOverride ?? 18} onChange={e => setRuleSetDraft(draft => {
+                      const raw = e.target.value;
+                      return { ...draft, actions: { ...draft.actions, restarts: { ...draft.actions?.restarts, [key]: { ...draft.actions?.restarts?.[key], loftedThroughBallDifficultyOverride: raw === "" ? "" : Math.max(1, Math.floor(Number(raw)) || 1) } } } };
+                    })} onBlur={() => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, restarts: { ...draft.actions?.restarts, [key]: { ...draft.actions?.restarts?.[key], loftedThroughBallDifficultyOverride: Math.max(1, Math.floor(Number(draft.actions?.restarts?.[key]?.loftedThroughBallDifficultyOverride)) || 18) } } } }))} />
+                  </label>
+                )}
+                <div className="rule-restart-actions">
+                  <span>Available execution</span>
+                  {[["short-pass", "Short Pass"], ["long-pass", "Long Pass"], ["through-ball", "Through Ball"], ["lofted-through-ball", "Lofted Through Ball"], ["shot", "Shot"]].map(([actionId, actionLabel]) => (
+                    <label className="rule-checkbox-label" key={actionId}>
+                      <input disabled={ruleSetEditingLocked} type="checkbox" checked={(ruleSetDraft.actions?.restarts?.[key]?.availableActions || []).includes(actionId)} onChange={e => setRuleSetDraft(draft => {
+                        const current = draft.actions?.restarts?.[key]?.availableActions || [];
+                        const availableActions = e.target.checked ? [...current, actionId] : current.filter(id => id !== actionId);
+                        return { ...draft, actions: { ...draft.actions, restarts: { ...draft.actions?.restarts, [key]: { ...draft.actions?.restarts?.[key], availableActions } } } };
+                      })} />
+                      {actionLabel}
+                    </label>
+                  ))}
+                </div>
+              </section>
+            ))}
+            <section className="rule-action-card">
               <div><strong>3/2 reception</strong><span>Through Ball and Lofted Through Ball</span></div>
               <label className="rule-checkbox-label">
                 <input disabled={ruleSetEditingLocked} type="checkbox" checked={ruleSetDraft.actions?.threeTwo?.allowMovementAfterPriorMove === true} onChange={e => setRuleSetDraft(draft => ({ ...draft, actions: { ...draft.actions, threeTwo: { ...draft.actions?.threeTwo, allowMovementAfterPriorMove: e.target.checked } } }))} />
@@ -13582,7 +15058,7 @@ function App() {
             <section className="rule-action-card">
               <div><strong>Dice modifiers</strong><span>Shared semantic definitions</span></div>
               <p>Every dice modifier uses one of these definitions. Advantage values cannot be negative; Disadvantage values cannot be positive. Values are frozen at Match start.</p>
-              {[['advantage', 'Advantage', 1], ['majorAdvantage', 'Major Advantage', 3], ['disadvantage', 'Disadvantage', -1], ['majorDisadvantage', 'Major Disadvantage', -3], ['stackCap', 'Maximum total modifier', 4]].map(([key, label, fallback]) => <label key={key}>{label}
+              {[['advantage', 'Advantage', 1], ['majorAdvantage', 'Major Advantage', 3], ['disadvantage', 'Disadvantage', -1], ['majorDisadvantage', 'Major Disadvantage', -3], ['stackCap', 'Maximum total modifier (0 means no maximum cap)', 4]].map(([key, label, fallback]) => <label key={key}>{label}
                 <input disabled={ruleSetEditingLocked} type="number" min={key === 'disadvantage' || key === 'majorDisadvantage' ? '-20' : '0'} max={key === 'disadvantage' || key === 'majorDisadvantage' ? '0' : '20'} step="1" value={ruleSetDraft.diceModifiers?.[key] ?? fallback} onChange={e => setRuleSetDraft(draft => ({ ...draft, diceModifiers: { ...draft.diceModifiers, [key]: clamp(Math.floor(Number(e.target.value) || 0), key === 'disadvantage' || key === 'majorDisadvantage' ? -20 : 0, 20) } }))} />
               </label>)}
             </section>

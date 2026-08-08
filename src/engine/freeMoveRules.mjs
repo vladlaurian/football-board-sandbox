@@ -1,6 +1,7 @@
 import { teamKeyForPiece } from "../rules/passEngine.mjs";
 import { toggleFreeModeState } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
+import { isBenchReservePiece } from "../board/formationUtils.mjs";
 
 function pieceForCommand(state, command) {
   const pieceId = String(command.payload?.pieceId || "");
@@ -21,7 +22,7 @@ export function startFreeMove(state, command) {
   const piece = pieceForCommand(state, command);
   const team = teamKeyForPiece(piece);
   const tracker = normalizeTrackerSnapshot(state.tracker);
-  if (!piece || piece.team === "BALL" || piece.inactive || !team) return { accepted: false, reason: "FREE_MOVE_PIECE_INVALID" };
+  if (!piece || piece.team === "BALL" || piece.inactive || isBenchReservePiece(piece) || !team) return { accepted: false, reason: "FREE_MOVE_PIECE_INVALID" };
   if (!tracker.gameStarted || tracker.currentTurn < 1) return { accepted: false, reason: "match-not-started" };
   if (tracker.matchActionState.freeMode?.active) return { accepted: false, reason: "FREE_MOVE_ALREADY_ACTIVE" };
   const timelineGroupId = String(command.payload?.timelineGroupId || command.id);

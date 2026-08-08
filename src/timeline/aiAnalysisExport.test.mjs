@@ -362,6 +362,25 @@ test("AI export gives SHOT_ROLLED its own semantic identity, separate from SHOT_
   assert.equal(event.diceRoll.requestId, "shot_roll_shot-1");
 });
 
+test("AI export gives LOFTED_THROUGH_BALL_ROLLED its own semantic identity, matching SHOT_ROLLED's parity", () => {
+  const plan = { origin: { x: 10, y: 8 }, endpoint: { x: 20, y: 8 }, distance: 10, difficultyThreshold: 16, rollStatValue: 10, foot: { dominant: true } };
+  const rollEvent = { id: "lt-roll-1", requestId: "lt-roll-req", actionId: "lt-1", team: "blue", dieType: 20, natural: 15, source: "RANDOM" };
+  const before = state({ actionResolution: { kind: "lofted-through-ball", status: "awaiting-roll", passerId: "A-1", team: "blue", target: { x: 20, y: 8 }, plan } });
+  const after = state({ actionResolution: { ...before.actionResolution, status: "awaiting-lofted-resolution", lastRollEvent: rollEvent } });
+  let timeline = createTimeline(before);
+  timeline = commitTimelineEntry(timeline, {
+    id: "lt-rolled", type: "LOFTED_THROUGH_BALL_ROLLED", label: "Blue D20: 15 (LOFTED_THROUGH_BALL)", team: "blue",
+    metadata: { rollSource: "RANDOM", rollEvent, delayedResolution: { actionId: "lt-1" } },
+    before, after,
+  });
+  const exported = createAiAnalysisExport({ cardSnapshot: cards, timeline });
+  const event = exported.semanticTimeline[0];
+  assert.equal(event.type, "LOFTED_THROUGH_BALL_ROLLED");
+  assert.equal(event.explicitOutcome, "LOFTED_THROUGH_BALL_ROLL_RECORDED");
+  assert.equal(event.diceRoll.eventId, "lt-roll-1");
+  assert.equal(event.diceRoll.requestId, "lt-roll-req");
+});
+
 test("AI export retains a pending bonus-action continuation without adding Tracker economy", () => {
   const before = state();
   const after = state({

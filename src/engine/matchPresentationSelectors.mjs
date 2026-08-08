@@ -13,11 +13,16 @@ import { canUseTrackerActionForPiece, canUseTrackerFreeModeForPiece, hasGroupMov
 import { cardStat, interceptorChoiceCandidates, teamKeyForPiece } from "../rules/passEngine.mjs";
 import { activeTeamModifierTokens } from "./rollModifierOpportunities.mjs";
 import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
+import { sumAndCapRollModifier } from "../rules/rollModifierMath.mjs";
 import { BONUS_ACTION_IMPLEMENTED_TYPES } from "./bonusActionCapabilities.mjs";
 import { naturalRollOutcomeLine } from "./rollOutcomeEffects.mjs";
 import { goalCellsForTeam } from "./shotRules.mjs";
+import { isBenchReservePiece } from "../board/formationUtils.mjs";
+import { isKickoffMoment } from "./kickoffMomentRules.mjs";
+import { opponentOfTeam, opponentBoxOccupantIds, illegalDistanceDefenderIds, wallRangeCells, repositionRestartPiece, RESTART_EXECUTION_ACTION_TYPE_FAMILIES } from "./restartSetupRules.mjs";
+import { evaluateGkRepositionMove } from "./gkRepositionRules.mjs";
 
-const OFFLINE_IMPLEMENTED_ACTION_TYPES = Object.freeze(["MOVE", "GROUP_MOVE", "SHOT", ...BONUS_ACTION_IMPLEMENTED_TYPES]);
+const OFFLINE_IMPLEMENTED_ACTION_TYPES = Object.freeze(["MOVE", "GROUP_MOVE", "SHOT", "TACKLING", ...BONUS_ACTION_IMPLEMENTED_TYPES]);
 
 export function selectNaturalRollOutcomePresentation(outcome) {
   return naturalRollOutcomeLine(outcome, { teamName: outcome?.team === "blue" ? "Blue" : outcome?.team === "red" ? "Red" : null });
@@ -36,8 +41,10 @@ export function selectSinglePlayerPassPresentation(state) {
     modifierLabel: formatSigned(route.modifier),
     // Route verdict and segments are canonical Engine projection facts. Keep
     // the fallback only for pre-v20.56.1 recordings that lack this field.
-    status: route.verdict || (route.targetInvalidReason || route.goalkeeperRouteBlocked || route.endpointBodyBlocked ? "blocked" : (route.directContact?.team && route.directContact.team !== route.team) || route.risk ? "risk" : "clear"),
-    disabled: Boolean(route.targetInvalidReason || route.goalkeeperRouteBlocked || route.endpointBodyBlocked),
+    status: route.verdict || (route.targetInvalidReason || route.goalkeeperRouteBlocked || route.endpointBodyBlocked || route.originBlocked ? "blocked" : (route.directContact?.team && route.directContact.team !== route.team) || route.risk ? "risk" : "clear"),
+    // A corner blocked by the passer's own body is shown disabled, exactly
+    // like every other mechanic's corner picker, rather than hidden.
+    disabled: Boolean(route.targetInvalidReason || route.goalkeeperRouteBlocked || route.endpointBodyBlocked || route.originBlocked),
   }));
   const selectedRoute = routeOptions.find(route => route.cornerId === pending.cornerId)
     || routeOptions[0]
@@ -50,6 +57,29 @@ export function selectSinglePlayerPassPresentation(state) {
   };
 }
 
+// One shared corner-badge projection for every board-first mechanic (Pass,
+// Through Ball, Lofted Through Ball, Shot). Each mechanic still builds its
+// own route/plan objects — the physical rules genuinely differ — but they
+// converge on this one shape before reaching the board, so a blocked corner
+// is presented identically everywhere (shown, disabled) instead of some
+// mechanics hiding it and others greying it out.
+export function selectRouteCornerBadges(routes, { actionLabel, footLabel } = {}) {
+  return (Array.isArray(routes) ? routes : []).map(route => {
+    const disabled = route.disabled ?? !route.legal;
+    return {
+      id: route.cornerId || "center",
+      cornerId: route.cornerId,
+      origin: route.origin,
+      foot: footLabel ? footLabel(route) : (route.foot?.foot === "Left" ? "LF" : route.foot?.foot === "Right" ? "RF" : "BF"),
+      modifier: route.modifierLabel ?? (route.modifier !== undefined ? formatSigned(route.modifier) : ""),
+      modifierType: route.modifierType || null,
+      status: route.status || (disabled ? "blocked" : "clear"),
+      disabled: Boolean(disabled),
+      actionLabel,
+    };
+  });
+}
+
 // This is a pure label projection of the persisted Shot route plan.  The UI
 // never recreates its geometry, legal verdict, band or modifier facts.
 export function selectSinglePlayerShotPresentation(state) {
@@ -57,7 +87,12 @@ export function selectSinglePlayerShotPresentation(state) {
   if (!pending || pending.kind !== "shot") return null;
   const routes = (pending.routes || []).map(route => ({
     ...route,
-    status: !route.legal ? "blocked" : route.modifierSources?.length ? "risk" : "clear",
+    // "risk" (red) reflects defensive-area facts only — occupying one at
+    // the origin or crossing one along the route — exactly like Pass's own
+    // verdict (passStartRules.mjs). Non-dominant-foot DVM and the distant
+    // Long Shot band penalty still show in the corner's total modifier
+    // number, but must never turn the corner red by themselves.
+    status: !route.legal ? "blocked" : route.defensiveAreaCrossings?.length ? "risk" : "clear",
     disabled: !route.legal,
     modifierLabel: formatSigned(route.modifier),
   }));
@@ -208,7 +243,7 @@ export function selectSinglePlayerGroupMovePieceStatuses(state) {
   const group = state?.tracker?.matchActionState?.groupMove;
   if (!group?.active) return {};
   return Object.fromEntries((state?.pieces || [])
-    .filter(piece => piece?.team !== "BALL" && teamKeyForPiece(piece) === group.team
+    .filter(piece => piece?.team !== "BALL" && !isBenchReservePiece(piece) && teamKeyForPiece(piece) === group.team
       && Number(piece.x) >= group.zoneStartX && Number(piece.x) < group.zoneStartX + group.zoneLength)
     .map(piece => [piece.id, evaluateGroupMovePieceEligibility(state, { payload: { pieceId: piece.id } }).accepted ? "eligible" : "ineligible"]));
 }
@@ -218,20 +253,265 @@ export function selectSinglePlayerPieceActionPresentation(state, { piece, replay
   const team = teamKeyForPiece(piece);
   const actionStatus = trackerActionStatusForTeam(tracker, team);
   const personal = personalActionStatusForPiece(tracker, { team, pieceId: piece?.id });
+  const isReserve = isBenchReservePiece(piece);
+  const tacticBlocked = Boolean(state?.tacticBlock?.[team]);
+  // A pending restart setup (wall/reposition/executor selection, or an
+  // execution phase whose one entitled executor is a different piece) blocks
+  // every ordinary action button — those phases are driven entirely by the
+  // restart-setup panel's own RESTART_* commands, never the normal action UI.
+  const restartSetup = state?.restartSetup;
+  const restartBlocked = Boolean(restartSetup) && (restartSetup.phase !== "execution" || String(restartSetup.executorId) !== String(piece?.id));
+  // Untracked Goalkeeper Retains reposition (gkRepositionRules.mjs): same
+  // idea as restartBlocked — every ordinary action stays gated to this
+  // phase's own GK_REPOSITION_* commands until it closes.
+  const gkRepositionBlocked = Boolean(state?.gkReposition);
+  const isBlocked = isReserve || tacticBlocked || restartBlocked || gkRepositionBlocked;
+  // Free Move is a deliberate global exception to restartBlocked/
+  // gkRepositionBlocked (confirmed live with the user — this is a testing
+  // engine, not the official game, and needs a way to freely reposition
+  // either team's pieces even mid restart-setup or mid gkReposition; safe
+  // because Free Move is already administrative, no Tracker cost and it
+  // never moves a carried ball). Every other action stays gated to each
+  // phase's own flow.
+  const freeBlocked = isReserve || tacticBlocked;
+  const freeModeActiveForPiece = Boolean(tracker.matchActionState?.freeMode?.active && String(tracker.matchActionState.freeMode.pieceId || "") === String(piece?.id || ""));
   return {
     team,
     actionStatus,
     personal,
     teamActive: isTeamActiveForTrackerPhase(tracker, team),
-    actionAllowed: canUseTrackerActionForPiece({ replay, piece, gameMode: state?.gameMode, gameStarted: tracker.gameStarted, sessionActive: false }),
-    freeAllowed: canUseTrackerFreeModeForPiece({ replay, piece, gameMode: state?.gameMode, gameStarted: tracker.gameStarted, sessionActive: false }),
-    movementAuthorization: movementAuthorizationForPiece({ piece, team, gameMode: state?.gameMode, tracker }),
-    groupMoveAuthorized: hasGroupMoveAuthorization(tracker, team),
+    actionAllowed: !isBlocked && canUseTrackerActionForPiece({ replay, piece, gameMode: state?.gameMode, gameStarted: tracker.gameStarted, sessionActive: false }),
+    freeAllowed: !freeBlocked && canUseTrackerFreeModeForPiece({ replay, piece, gameMode: state?.gameMode, gameStarted: tracker.gameStarted, sessionActive: false }),
+    movementAuthorization: isReserve ? { allowed: false, mode: "blocked", reason: "bench-reserve" } : tacticBlocked ? { allowed: false, mode: "blocked", reason: "tactic-invalid" } : freeModeActiveForPiece ? { allowed: true, mode: "free" } : restartBlocked ? { allowed: false, mode: "blocked", reason: "restart-setup-active" } : gkRepositionBlocked ? { allowed: false, mode: "blocked", reason: "gk-reposition-active" } : movementAuthorizationForPiece({ piece, team, gameMode: state?.gameMode, tracker }),
+    groupMoveAuthorized: !isBlocked && hasGroupMoveAuthorization(tracker, team),
   };
+}
+
+// Reads the same way as every other restart-adjacent panel here — the UI
+// stages nothing itself, only which side/piece is active right now and how
+// many moves each side has left, plus the entitled team names for its own
+// "Team X may reposition" label.
+export function selectSinglePlayerGkRepositionPresentation(state) {
+  const gkReposition = state?.gkReposition;
+  if (!gkReposition) return { active: false };
+  const activeTeam = gkReposition.turn === "self" ? gkReposition.team : gkReposition.opponentTeam;
+  return {
+    active: true,
+    team: gkReposition.team,
+    opponentTeam: gkReposition.opponentTeam,
+    turn: gkReposition.turn,
+    activeTeam,
+    remaining: { [gkReposition.team]: gkReposition.remaining.self, [gkReposition.opponentTeam]: gkReposition.remaining.opponent },
+    activePieceId: gkReposition.activePieceId,
+  };
+}
+
+// Same shape/contract as selectSinglePlayerNormalMovePresentation — the
+// board's own movement-preview rendering (cursor, distance/cost label) can
+// consume either one interchangeably, since both are built directly from
+// their respective Engine evaluator's own accepted/rejected shape.
+export function selectSinglePlayerGkRepositionMovePresentation(state, context, { piece, x, y } = {}) {
+  const result = evaluateGkRepositionMove(state, context, previewCommand("GK_REPOSITION_MOVE_COMMITTED", piece, x, y), { preview: true });
+  return { ...result, geometry: result.geometry || null, legal: Boolean(result.accepted) };
 }
 
 export function selectSinglePlayerTeamActionPresentation(state, { team } = {}) {
   return { actionStatus: trackerActionStatusForTeam(state?.tracker || {}, team), teamActive: isTeamActiveForTrackerPhase(state?.tracker || {}, team) };
+}
+
+// The single read-through for anything that needs to know whether a tactic
+// confirmed right now would land on the real board (a kickoff moment) or be
+// queued for the next one, plus whatever is already queued for either team.
+// Adjust must gate on the same fact so it never moves a live piece outside a
+// kickoff moment either.
+export function selectSinglePlayerTacticPresentation(state) {
+  const pendingFormation = state?.pendingFormation || { blue: null, red: null };
+  return {
+    isKickoffMoment: isKickoffMoment(state),
+    pendingFormation,
+    adjustEligible: isKickoffMoment(state),
+    tacticBlock: state?.tacticBlock || { blue: false, red: false },
+  };
+}
+
+// The UI's one restart-setup panel family (wall / reposition / executor)
+// reads everything it needs here — which team may act right now, which of
+// its own pieces are eligible to click, and the ball cell — and decides
+// nothing itself. Every click it stages is only confirmed by dispatching
+// the matching RESTART_* command, which the Engine validates independently.
+export function selectSinglePlayerRestartSetupPresentation(state) {
+  const restartSetup = state?.restartSetup;
+  if (!restartSetup) return { active: false };
+  const attackTeam = restartSetup.team;
+  const defenseTeam = opponentOfTeam(attackTeam);
+  const eligiblePieceIds = team => {
+    const teamCode = team === "blue" ? "A" : "B";
+    return (state.pieces || [])
+      .filter(piece => piece?.team === teamCode && !piece.inactive && !isBenchReservePiece(piece))
+      .map(piece => String(piece.id));
+  };
+  // Goal Kick only: while the non-executing side still has a player inside
+  // the executing team's own box, it must move one of THOSE players next —
+  // Skip is disabled and every other of its own pieces is unclickable until
+  // the box is clear. Read via the exact same helper the Engine gate itself
+  // uses, so the UI can never drift from what a dispatched command would do.
+  // Corner / Free Kick: same pattern, for a defending piece standing closer
+  // to the ball than the legal minimum distance — see
+  // illegalDistanceDefenderIds in restartSetupRules.mjs.
+  const repositionTurnIsDefense = restartSetup.phase === "reposition" && restartSetup.repositionTurn === "defense";
+  const boxOccupantIds = repositionTurnIsDefense ? opponentBoxOccupantIds(state, state?.settings, restartSetup) : [];
+  const illegalDistanceIds = repositionTurnIsDefense ? illegalDistanceDefenderIds(state, restartSetup) : [];
+  const mustClearFirstIds = boxOccupantIds.length ? boxOccupantIds : illegalDistanceIds;
+  return {
+    active: true,
+    type: restartSetup.type,
+    phase: restartSetup.phase,
+    ballCell: restartSetup.ballCell,
+    attackTeam,
+    defenseTeam,
+    wallSize: restartSetup.wallSize,
+    // Wall-position phase (confirmed live with the user): the coach's own
+    // draft offset/length live in the UI's local state until Confirm, not
+    // on canonical state — wallOffset/wallLength here are only the
+    // LAST-CONFIRMED values (0/wallSize until the coach ever confirms one).
+    // The live highlight for an unconfirmed draft is a separate call —
+    // selectSinglePlayerWallPositionPreview below — using the exact same
+    // wallRangeCells computation setRestartWallPosition itself commits with.
+    wallOffset: restartSetup.wallOffset,
+    wallLength: restartSetup.wallLength,
+    wallCells: restartSetup.wallCells,
+    wallEligiblePieceIds: restartSetup.phase === "wall" ? eligiblePieceIds(defenseTeam) : [],
+    repositionTurnTeam: restartSetup.phase === "reposition"
+      ? (restartSetup.repositionTurn === "attack" ? attackTeam : defenseTeam)
+      : null,
+    repositionRemaining: { [attackTeam]: restartSetup.repositionRemaining?.attack ?? 0, [defenseTeam]: restartSetup.repositionRemaining?.defense ?? 0 },
+    repositionEligiblePieceIds: restartSetup.phase === "reposition"
+      ? (mustClearFirstIds.length ? mustClearFirstIds : eligiblePieceIds(restartSetup.repositionTurn === "attack" ? attackTeam : defenseTeam))
+      : [],
+    repositionMustClearBoxFirst: boxOccupantIds.length > 0,
+    repositionMustClearIllegalDistanceFirst: illegalDistanceIds.length > 0,
+    executorEligiblePieceIds: restartSetup.phase === "executor" ? eligiblePieceIds(attackTeam) : [],
+    availableActions: restartSetup.availableActions,
+  };
+}
+
+// The wall-position phase's own live highlight, for a draft offset/length
+// the coach is still adjusting locally (not yet dispatched) — uses the
+// Engine's own wallRangeCells so a preview can never drift from what
+// RESTART_WALL_POSITION_SET would actually commit.
+export function selectSinglePlayerWallPositionPreview(state, { offset, length } = {}) {
+  const restartSetup = state?.restartSetup;
+  if (!restartSetup || restartSetup.phase !== "wall-position") return { active: false };
+  const safeLength = Math.max(1, Math.min(restartSetup.wallSize, Math.floor(Number(length)) || 1));
+  const safeOffset = Math.floor(Number(offset)) || 0;
+  return {
+    active: true,
+    offset: safeOffset,
+    length: safeLength,
+    maxLength: restartSetup.wallSize,
+    cells: wallRangeCells(restartSetup, safeOffset, safeLength, state?.settings),
+  };
+}
+
+// The wall-continuation Yes/No gate (restartSetupRules.mjs), read the same
+// way as every other pending decision here — the UI stages nothing itself,
+// it only reflects state.pendingRestartWallContinuation and dispatches
+// RESTART_WALL_CONTINUATION_CONFIRMED/DECLINED.
+export function selectSinglePlayerWallContinuationPresentation(state) {
+  const pending = state?.pendingRestartWallContinuation;
+  if (!pending) return { active: false };
+  return { active: true, pieceId: pending.pieceId, x: pending.x, y: pending.y, team: pending.team };
+}
+
+// A minimal hover cursor for the reposition phase's own destination click
+// (confirmed live with the user): legal/illegal, exactly like Normal Move's
+// own cursor, using the Engine's real repositionRestartPiece validation —
+// but deliberately no distance/cost label, since a reposition target has no
+// such concept. See selectSinglePlayerRestartSetupPresentation for the rest
+// of this phase's own projection.
+export function selectSinglePlayerRestartRepositionCellPreview(state, context, { pieceId, x, y } = {}) {
+  if (!pieceId) return { legal: false };
+  const result = repositionRestartPiece(state, context, { id: `presentation:restart-reposition:${pieceId}:${x}:${y}`, payload: { pieceId, x: Number(x), y: Number(y) } });
+  return { legal: Boolean(result.accepted) };
+}
+
+// Marking (docs/MARKING_RULES.md sections 3 and 4): the pending accept/
+// decline decision for the defending coach. Every eligible defender the
+// completed route touched is exposed at once as `candidates` — the coach
+// selects exactly one (accepting drops every other candidate) or declines
+// the whole list. The whole route was already completed before this
+// decision opens — it is never a mid-move truncation any more.
+export function selectSinglePlayerMarkingDecisionPresentation(state) {
+  const pending = state?.pendingMarking;
+  if (!pending || !pending.queue?.length) return { active: false };
+  return {
+    active: true,
+    team: pending.team,
+    attackerId: pending.attackerId,
+    candidates: pending.queue.map(entry => ({ defenderId: entry.defenderId, startedInside: entry.startedInside })),
+    opportunitiesRemaining: Math.max(0, Number(state?.markingOpportunities?.[pending.team]) || 0),
+  };
+}
+
+// Marking switch (docs/MARKING_RULES.md section 8): an already-marked
+// attacker entering a different eligible defender's area. `candidates` lists
+// the new defender(s) the route touched; `currentMarkerId` is exposed so the
+// UI can label the "keep" option with the current marker's own identity.
+export function selectSinglePlayerMarkingSwitchPresentation(state) {
+  const pending = state?.pendingMarkingSwitch;
+  if (!pending || !pending.queue?.length) return { active: false };
+  return {
+    active: true,
+    team: pending.team,
+    attackerId: pending.attackerId,
+    currentMarkingId: pending.currentMarkingId,
+    currentMarkerId: pending.currentMarkerId,
+    candidates: pending.queue.map(entry => ({ defenderId: entry.defenderId, startedInside: entry.startedInside })),
+    opportunitiesRemaining: Math.max(0, Number(state?.markingOpportunities?.[pending.team]) || 0),
+  };
+}
+
+// "Continue Marking?" (docs/MARKING_RULES.md section 5): asked before every
+// tracking response after a marking's first one.
+export function selectSinglePlayerMarkingContinuePresentation(state) {
+  const pending = state?.pendingMarkingContinue;
+  if (!pending) return { active: false };
+  return {
+    active: true,
+    team: pending.team,
+    markerId: pending.markerId,
+    attackerId: pending.attackerId,
+  };
+}
+
+// Marking passive tracking (docs/MARKING_RULES.md section 5): the marker's
+// own pending tracking move — every legal cell the coach may click, already
+// restricted to the shortest axis(es) toward the attacker and to cells that
+// keep the attacker inside the resulting defensive area. The board just
+// highlights `cells`; there is no separate axis-choice step.
+export function selectSinglePlayerMarkingTrackChoicePresentation(state) {
+  const pending = state?.pendingMarkingTrack;
+  if (!pending) return { active: false };
+  return {
+    active: true,
+    team: pending.team,
+    markerId: pending.markerId,
+    attackerId: pending.attackerId,
+    cells: pending.cells,
+  };
+}
+
+// A minimal, iconography-free presentation of who is currently marking whom
+// (docs/MARKING_RULES.md section 9 defers full iconography to a future
+// presentation task) — enough for the UI to draw a plain indicator on both
+// pieces in an active marking.
+export function selectSinglePlayerActiveMarkingsPresentation(state) {
+  return (state?.activeMarkings || []).map(marking => ({
+    id: marking.id,
+    team: marking.team,
+    markerId: marking.markerId,
+    attackerId: marking.attackerId,
+  }));
 }
 
 // Presentation only: the Engine owns granting, consuming and expiring these tokens.
@@ -243,32 +523,60 @@ export function selectSinglePlayerRollModifierTokenPresentation(state, { team } 
 // The UI may choose a token type, but this Engine selector owns the resulting
 // numeric preview and source list. Prompt and submitted roll therefore share
 // one calculation contract.
+// Tackling has no stored plan/preview the way Shot/Lofted Through Ball do
+// (its own modifier is just the defender's Tackling stat, computed live
+// here rather than frozen when the action started) — see
+// tacklingRules.mjs's resolveTacklingResult for the canonical, authoritative
+// version of this same computation.
+// Only AV/AVM/DV/DVM ever get capped — never the defender's own Tackling
+// stat. With no bonus token selected yet (the only case this function
+// itself controls — see the caller for what happens once one is chosen)
+// the preview is just the bare, uncapped stat.
+function tacklingRollPreview(state, context, pending) {
+  const defender = (state?.pieces || []).find(piece => String(piece?.id) === String(pending?.defenderId));
+  if (!defender) return null;
+  const stat = Math.max(0, Number(cardStat(context?.gameplayCardsById?.[String(defender.cardId || "")], "stat:tackling")) || 0);
+  const modifierCap = Math.max(0, Number(context?.ruleSet?.diceModifiers?.stackCap) || 0);
+  return { modifierSources: [{ label: "Tackling", value: stat, source: "card" }], modifier: stat, rawModifier: stat, modifierCap, capped: false };
+}
+
 export function selectSinglePlayerRollPromptPresentation(state, context, { team, selectedModifierType = null } = {}) {
   const pending = state?.actionResolution;
   const base = pending?.kind === "lofted-through-ball" || pending?.kind === "shot"
     ? pending?.plan?.rollPreview
     : pending?.kind === "pass"
       ? pending?.rollPresentation
-      : null;
+      : pending?.kind === "tackling"
+        ? tacklingRollPreview(state, context, pending)
+        : null;
   if (!base) return null;
   const token = activeTeamModifierTokens(state?.teamModifierTokens, team, state?.tracker?.currentTurn)
     .find(item => item.modifierType === selectedModifierType) || null;
   if (!token) return base;
   const value = resolveDiceModifierStacks(context?.ruleSet?.diceModifiers, token.modifierType);
-  const rawModifier = (Number(base.rawModifier ?? base.modifier) || 0) + value;
   const cap = Math.max(0, Number(base.modifierCap ?? context?.ruleSet?.diceModifiers?.stackCap) || 0);
-  const modifier = Math.max(-cap, Math.min(cap, rawModifier));
+  // Only the situational sources (everything after the base "card" entry
+  // every preview builds first, by construction) plus the newly-chosen
+  // token are ever capped — never the rolling subject's own base stat,
+  // confirmed live with the user; see rollModifierMath.mjs.
+  const [baseSource, ...situationalSources] = Array.isArray(base.modifierSources) ? base.modifierSources : [];
+  const modifierSources = [
+    ...(baseSource ? [baseSource] : []),
+    ...situationalSources,
+    { label: ({ advantage: "Advantage", majorAdvantage: "Major Advantage", disadvantage: "Disadvantage", majorDisadvantage: "Major Disadvantage" })[token.modifierType], value, source: "team-modifier-token", detail: "earned team modifier" },
+  ];
+  const situational = sumAndCapRollModifier([...situationalSources, { value }], cap);
+  const baseValue = Number(baseSource?.value) || 0;
+  const modifier = baseValue + situational.modifier;
+  const rawModifier = baseValue + situational.rawModifier;
+  const capped = situational.capped;
   return {
     ...base,
     rawModifier,
     modifier,
     modifierCap: cap,
-    capped: modifier !== rawModifier,
-    totalBonus: (Number(base.totalBonus ?? base.modifier) || 0) + (modifier - (Number(base.modifier) || 0)),
-    modifierSources: [
-      ...(Array.isArray(base.modifierSources) ? base.modifierSources : []),
-      { label: ({ advantage: "Advantage", majorAdvantage: "Major Advantage", disadvantage: "Disadvantage", majorDisadvantage: "Major Disadvantage" })[token.modifierType], value, source: "team-modifier-token", detail: "earned team modifier" },
-    ],
+    capped,
+    modifierSources,
   };
 }
 
@@ -367,6 +675,7 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
   // owns its inline control separately in the Inspector.
   const pending = control.pending || null;
   const passCancellable = type === "PASS" && pending?.kind === "pass" && pending?.passerId === piece?.id && ["targeting", "route-selection"].includes(pending.status);
+  const shotCancellable = type === "SHOT" && pending?.kind === "shot" && pending?.shooterId === piece?.id && ["targeting", "route-selection"].includes(pending.status);
   const normalMove = current.activeMovement || {};
   const moveCancellable = type === "MOVE" && normalMove.active && normalMove.kind === "normal-move" && String(normalMove.pieceId || "") === String(piece?.id || "");
   const bonusMoveCancellable = type === "MOVE" && continuation?.status === "action-active" && continuation.actionType === "MOVE" && String(continuation.pieceId || "") === String(piece?.id || "") && !continuation.movementStarted;
@@ -378,10 +687,23 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
   const implementedBonusAction = BONUS_ACTION_IMPLEMENTED_TYPES.includes(type);
   const implementedOfflineAction = OFFLINE_IMPLEMENTED_ACTION_TYPES.includes(type);
   const trackerComplete = control.actionStatus.exhausted;
+  // Reported live: the Inspector let the executor click Shot on a Free Kick
+  // Indirect (not in its own availableActions) — it only failed after
+  // dispatch, with an illegal-move notice. Blocked here instead, for every
+  // mechanic uniformly, using the exact same family map the real dispatch
+  // gate in gameEngine.mjs enforces (RESTART_EXECUTION_ACTION_TYPE_FAMILIES)
+  // — never a UI-local approximation of it.
+  const restartSetup = state?.restartSetup;
+  const restartExecutionBlocked = restartSetup?.phase === "execution" && (() => {
+    const families = RESTART_EXECUTION_ACTION_TYPE_FAMILIES[type];
+    return !families || !families.some(id => restartSetup.availableActions.includes(id));
+  })();
   const disabled = bonusMoveCancellable
     ? false
     : passCancellable
       ? false
+      : shotCancellable
+        ? false
       : moveCancellable
         ? false
         : normalMove.active
@@ -406,15 +728,20 @@ export function selectSinglePlayerInspectorActionPresentation(state, context, { 
                 || personalBlocked
                 || current.freeMode?.active
                 || current.groupMove?.active
+                || restartExecutionBlocked
                 || (["PASS", "THROUGH_BALL", "LOFTED_THROUGH_BALL", "SHOT"].includes(type) && !pieceHasBall(state, piece))
                 || (type === "MOVE" && pieceState.moveUsed && !normalHasRemaining)
                 || (type === "GROUP_MOVE" && control.actionStatus.remaining !== 1 && !trackerComplete)
+                // docs/TACKLING_RULES.md section 1.1: the normal defensive
+                // action is only available to a defender the defense-phase-
+                // start snapshot actually froze as eligible.
+                || (type === "TACKLING" && !(state?.tacklingEligibility || []).some(entry => entry.defenderId === String(piece?.id || "")))
               );
   return {
     ...control,
     disabled,
-    actionLocked: trackerComplete && !continuationReady && !passCancellable && !moveCancellable,
-    label: passCancellable ? "CANCEL PASS" : (moveCancellable || bonusMoveCancellable) ? "CANCEL MOVE" : type === "PASS" ? "PASS S/L" : String(type || "").replace("GROUP_MOVE", "GROUP MOVE"),
+    actionLocked: trackerComplete && !continuationReady && !passCancellable && !shotCancellable && !moveCancellable,
+    label: passCancellable ? "CANCEL PASS" : shotCancellable ? "CANCEL SHOT" : (moveCancellable || bonusMoveCancellable) ? "CANCEL MOVE" : type === "PASS" ? "PASS S/L" : String(type || "").replace("GROUP_MOVE", "GROUP MOVE"),
   };
 }
 

@@ -205,6 +205,42 @@ test("Single Player Controller publishes direct-board normal MOVE only when star
   assert.equal(rejected.state.tracker.usedActions.blue, 0);
 });
 
+// Regression: a direct-board move is dispatched as a 2-step sequence
+// (NORMAL_MOVE_STARTED then NORMAL_MOVE_COMMITTED). If an unrelated active
+// Marking owes a tracking response (docs/MARKING_RULES.md section 5), the
+// FIRST step itself opens state.pendingMarkingTrack and is correctly
+// accepted — which then correctly rejects the SECOND step (every other
+// command is blocked while a tracking decision is pending). That rejection
+// must not discard the sequence entirely: the diverted, already-committed
+// state (with pendingMarkingTrack now open) has to reach the caller so the
+// UI can show it, not silently vanish leaving the coach unable to act at all.
+test("Single Player Controller publishes an in-sequence Marking tracking decision instead of discarding the whole sequence", () => {
+  const start = createGameState({
+    ...normalMoveState(),
+    pieces: [
+      ...normalMoveState().pieces,
+      { id: "blue-2", team: "A", cardId: "card-blue-1", x: 15, y: 3 },
+      { id: "red-2", team: "B", cardId: "card-red-1", x: 15, y: 8 },
+    ],
+    activeMarkings: [{ id: "m1", team: "red", markerId: "red-2", attackerId: "blue-2", speedBudget: 4, speedSpent: 0 }],
+  });
+  const dispatched = dispatchSinglePlayerGameCommandSequence({
+    state: start,
+    context: normalMoveContext(),
+    commands: [
+      { command: { id: "board-start-diverted", type: "NORMAL_MOVE_STARTED", payload: { pieceId: "blue-1" } }, label: "Blue MOVE" },
+      { command: { id: "board-commit-diverted", type: "NORMAL_MOVE_COMMITTED", payload: { pieceId: "blue-1", x: 5, y: 5 } }, label: "Blue → F5" },
+    ],
+  });
+  assert.equal(dispatched.accepted, true);
+  assert.ok(dispatched.state.pendingMarkingTrack, "the diverted state must reach the caller, not be discarded");
+  assert.equal(dispatched.state.pendingMarkingTrack.markerId, "red-2");
+  assert.equal(dispatched.state.pendingMarkingTrack.attackerId, "blue-2");
+  // blue-1's own move must NOT have happened — it's still exactly where the
+  // decision interrupted it.
+  assert.equal(dispatched.state.pieces.find(piece => piece.id === "blue-1").x, 3);
+});
+
 test("Single Player Controller publishes direct-board Bonus MOVE only when its start and first segment both succeed", () => {
   const start = createGameState({ ...normalMoveState(),
     actionContinuation: {

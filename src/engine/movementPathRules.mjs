@@ -18,8 +18,13 @@ export function movementPathSquares(from, to, { includeDestination = true } = {}
 export function firstPlayerBlockingMovementPath({ pieces = [], movingPieceId, from, to, includeDestination = false } = {}) {
   const path = movementPathSquares(from, to, { includeDestination });
   for (const square of path) {
+    // docs/GAMEPLAY_RULES_FOUNDATIONS.md section 3: an inactive player "has
+    // no body that blocks a route or movement path" — its occupied cell only
+    // stays unavailable as a finishing cell, which is a separate, callers-own
+    // occupancy check, not this route-blocking one.
     const piece = pieces.find(item => item?.id !== movingPieceId
       && item?.team !== "BALL"
+      && !item?.inactive
       && Number(item?.x) === square.x
       && Number(item?.y) === square.y);
     if (piece) return { piece, square };

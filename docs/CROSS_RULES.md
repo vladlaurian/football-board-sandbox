@@ -221,9 +221,9 @@ The direct-goalkeeper target is the exception: it stays in the goalkeeper's
 existing cell under section 7.
 
 The goalkeeper may restart through Short Pass, Long Pass, Through Ball or
-Lofted Through Ball. Within either penalty area, that restart ignores opposing
-bodies and defensive areas. Outside the large penalty area, all ordinary rules
-of the chosen action apply.
+Lofted Through Ball. Within either penalty area, that restart ignores every
+body (teammate or opponent) and every defensive area. Outside the large
+penalty area, all ordinary rules of the chosen action apply.
 
 ## 12. Miss, receiver and goalkeeper inactivity
 

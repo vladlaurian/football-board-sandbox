@@ -23,6 +23,8 @@ test("Rule Set migration configures Shot for pre-v13 saved matches without overr
   const legacy = normalizeRuleSet({ id: "legacy-shot", schemaVersion: 12, actions: { pass: { status: "configured" } } });
   assert.deepEqual(legacy.actions.shot, {
     status: "configured", longShotNormalRangeMax: 11, shotMaximumRange: 16, distantBandModifier: "disadvantage",
+    goalKickInterval: 1, cornerInterval: 1,
+    goalkeeperRetainsReposition: { count: 4, afterFreeKick: false, afterCornerHeader: false, anyCatch: false },
   });
   const current = normalizeRuleSet({ id: "current-shot", schemaVersion: 13, actions: { shot: { status: "not-configured" } } });
   assert.equal(current.actions.shot.status, "not-configured");

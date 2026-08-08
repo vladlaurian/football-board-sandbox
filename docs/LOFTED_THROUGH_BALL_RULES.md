@@ -20,7 +20,11 @@ is `src/engine/loftedThroughBallRules.mjs`.
   defensive area. The route may cross defensive areas; each crossed opposing
   defensive area imposes one configured Disadvantage stack on the roll.
 - The selected physical foot also applies its configured Disadvantage when it
-  is non-dominant. The final modifier is subject to the frozen global cap.
+  is non-dominant. The Lofted Through statistic and every situational
+  modifier (foot, crossed defensive areas, an earned Tracker token) sum
+  together, then that combined total is capped symmetrically exactly once at
+  the frozen global cap (v20.56.30) — the statistic is not added back in
+  after capping.
 
 ## 2. Roll
 

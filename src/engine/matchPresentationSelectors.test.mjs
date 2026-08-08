@@ -5,7 +5,78 @@ import { createGameState } from "../game/gameState.mjs";
 import { GAME_COMMAND_TYPE } from "./gameCommands.mjs";
 import { applyGameCommand } from "./gameEngine.mjs";
 import { createMatchContext } from "./matchContext.mjs";
-import { selectSinglePlayerBallCellMoveChoicePresentation, selectSinglePlayerBonusMovePresentation, selectSinglePlayerDicePresentation, selectSinglePlayerFreeBallPresentation, selectSinglePlayerFreeMovePresentation, selectSinglePlayerGroupMoveDraftPresentation, selectSinglePlayerGroupMovePieceStatuses, selectSinglePlayerInspectorActionPresentation, selectSinglePlayerInspectorControlPresentation, selectSinglePlayerNormalMovePresentation, selectSinglePlayerPassPresentation, selectSinglePlayerRollPromptPresentation, selectSinglePlayerThreeTwoPresentation } from "./matchPresentationSelectors.mjs";
+import { selectSinglePlayerBallCellMoveChoicePresentation, selectSinglePlayerBonusMovePresentation, selectSinglePlayerDicePresentation, selectSinglePlayerFreeBallPresentation, selectSinglePlayerFreeMovePresentation, selectSinglePlayerGroupMoveDraftPresentation, selectSinglePlayerGroupMovePieceStatuses, selectSinglePlayerInspectorActionPresentation, selectSinglePlayerInspectorControlPresentation, selectSinglePlayerNormalMovePresentation, selectSinglePlayerPassPresentation, selectRouteCornerBadges, selectSinglePlayerRollPromptPresentation, selectSinglePlayerThreeTwoPresentation, selectSinglePlayerPieceActionPresentation, selectSinglePlayerGkRepositionPresentation, selectSinglePlayerGkRepositionMovePresentation } from "./matchPresentationSelectors.mjs";
+import { buildRestartSetup } from "./restartSetupRules.mjs";
+import { createDefaultRuleSet } from "../rules/ruleSets.mjs";
+
+// Free Move as a testing-engine global exception (confirmed live with the
+// user): every ordinary action stays gated to an active restart-setup's own
+// flow, but Free Move must work regardless — a coach needs to be able to
+// freely reposition either team's pieces even mid restart-setup.
+test("Free Move bypasses an active restart setup, but ordinary actions stay gated to it", () => {
+  const piece = { id: "red-1", team: "B" };
+  const baseTracker = {
+    gameStarted: true, currentTurn: 1,
+    matchActionState: { byPieceId: {}, freeMode: { active: false, pieceId: null } },
+  };
+  const stateDuringWall = {
+    gameMode: "match",
+    tracker: baseTracker,
+    restartSetup: { type: "freeKickDirect", team: "blue", phase: "wall", executorId: null },
+  };
+  const blockedProjection = selectSinglePlayerPieceActionPresentation(stateDuringWall, { piece });
+  assert.equal(blockedProjection.freeAllowed, true, "Free Move stays available even mid restart-setup");
+  assert.equal(blockedProjection.movementAuthorization.mode, "blocked", "ordinary movement stays gated to the restart-setup panel");
+  assert.equal(blockedProjection.movementAuthorization.reason, "restart-setup-active");
+
+  const stateWithFreeModeActive = {
+    gameMode: "match",
+    tracker: { gameStarted: true, currentTurn: 1, matchActionState: { byPieceId: {}, freeMode: { active: true, pieceId: "red-1" } } },
+    restartSetup: { type: "freeKickDirect", team: "blue", phase: "wall", executorId: null },
+  };
+  const activeProjection = selectSinglePlayerPieceActionPresentation(stateWithFreeModeActive, { piece });
+  assert.equal(activeProjection.movementAuthorization.mode, "free", "once toggled on, the actual placement click also works mid restart-setup");
+  assert.equal(activeProjection.movementAuthorization.allowed, true);
+});
+
+test("Free Move bypasses an active gkReposition too, but ordinary actions stay gated to it", () => {
+  const piece = { id: "red-1", team: "B" };
+  const stateDuring = {
+    gameMode: "match",
+    tracker: { gameStarted: true, currentTurn: 1, matchActionState: { byPieceId: {}, freeMode: { active: false, pieceId: null } } },
+    gkReposition: { team: "blue", opponentTeam: "red", turn: "opponent", remaining: { self: 2, opponent: 2 }, count: 2, activePieceId: null },
+  };
+  const blockedProjection = selectSinglePlayerPieceActionPresentation(stateDuring, { piece });
+  assert.equal(blockedProjection.freeAllowed, true, "Free Move stays available even mid gkReposition");
+  assert.equal(blockedProjection.movementAuthorization.mode, "blocked");
+  assert.equal(blockedProjection.movementAuthorization.reason, "gk-reposition-active");
+});
+
+test("selectSinglePlayerGkRepositionPresentation reports the active side by real team name, remaining counts keyed by team", () => {
+  assert.deepEqual(selectSinglePlayerGkRepositionPresentation({}), { active: false });
+  const state = { gkReposition: { team: "red", opponentTeam: "blue", turn: "opponent", remaining: { self: 3, opponent: 1 }, count: 3, activePieceId: "blue-9" } };
+  const presentation = selectSinglePlayerGkRepositionPresentation(state);
+  assert.equal(presentation.active, true);
+  assert.equal(presentation.activeTeam, "blue", "turn:\"opponent\" of team:\"red\" resolves to blue");
+  assert.deepEqual(presentation.remaining, { red: 3, blue: 1 });
+  assert.equal(presentation.activePieceId, "blue-9");
+});
+
+test("selectSinglePlayerGkRepositionMovePresentation previews the same accepted/rejected shape evaluateGkRepositionMove returns", () => {
+  const state = createGameState({
+    gameMode: "match",
+    pieces: [
+      { id: "ball", team: "BALL", x: 3, y: 5 },
+      { id: "blue-1", team: "A", cardId: "card-blue-1", x: 3, y: 5 },
+    ],
+    gkReposition: { team: "blue", opponentTeam: "red", turn: "self", remaining: { self: 1, opponent: 1 }, count: 1, activePieceId: null },
+  });
+  const context = createMatchContext({ id: "gk-move-preview", boardSettings: { cols: 20, rows: 12 }, gameplayCards: [{ id: "card-blue-1", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 4 }] }] });
+  const preview = selectSinglePlayerGkRepositionMovePresentation(state, context, { piece: state.pieces[1], x: 5, y: 5 });
+  assert.equal(preview.legal, true);
+  assert.equal(preview.moveCost, 2);
+  assert.equal(preview.geometry.axis, "horizontal");
+});
 
 test("Single Player Pass selector projects persisted route and roll facts without recalculating them", () => {
   const projection = selectSinglePlayerPassPresentation({
@@ -63,6 +134,45 @@ test("Single Player Pass selector renders Engine-invalid targets as blocked rout
   });
   assert.equal(projection.routeOptions[0].status, "blocked");
   assert.equal(projection.routeOptions[0].disabled, true);
+});
+
+// Pass now shows a corner blocked by the passer's own body as a disabled
+// badge, exactly like Through Ball, Lofted Through Ball and Shot already do,
+// instead of removing it from the projection entirely.
+test("Single Player Pass selector shows an origin-blocked corner disabled rather than hiding it", () => {
+  const projection = selectSinglePlayerPassPresentation({
+    actionResolution: {
+      kind: "pass",
+      status: "route-selection",
+      target: { x: 8, y: 4 },
+      routePresentation: [{
+        id: "top-left", cornerId: "top-left", origin: { x: 3, y: 2 }, endpoint: { x: 8.5, y: 4.5 }, foot: "LF",
+        modifier: 0, isLong: false, originBlocked: true, goalkeeperRouteBlocked: false, endpointBodyBlocked: false, risk: false,
+      }],
+    },
+  });
+  assert.equal(projection.routeOptions.length, 1);
+  assert.equal(projection.routeOptions[0].status, "blocked");
+  assert.equal(projection.routeOptions[0].disabled, true);
+});
+
+test("selectRouteCornerBadges projects one uniform badge shape for every board-first mechanic", () => {
+  const shotStyle = selectRouteCornerBadges([
+    { cornerId: "top-left", origin: { x: 1, y: 1 }, foot: { foot: "Left", dominant: false }, modifierLabel: "−4", status: "risk", disabled: false },
+    { cornerId: "top-right", origin: { x: 2, y: 1 }, foot: { foot: "Right", dominant: true }, modifierLabel: "+1", disabled: true },
+  ], { actionLabel: "SHOT" });
+  assert.deepEqual(shotStyle.map(badge => badge.foot), ["LF", "RF"]);
+  assert.deepEqual(shotStyle.map(badge => badge.modifier), ["−4", "+1"]);
+  assert.deepEqual(shotStyle.map(badge => badge.status), ["risk", "blocked"]);
+  assert.deepEqual(shotStyle.map(badge => badge.disabled), [false, true]);
+  assert.deepEqual(shotStyle.map(badge => badge.actionLabel), ["SHOT", "SHOT"]);
+
+  // A mechanic without a legality/disabled field falls back to route.legal.
+  const legalOnly = selectRouteCornerBadges([{ cornerId: "bottom-left", origin: { x: 0, y: 0 }, legal: false }], { actionLabel: "TB", footLabel: () => "TB" });
+  assert.equal(legalOnly[0].disabled, true);
+  assert.equal(legalOnly[0].status, "blocked");
+  assert.equal(legalOnly[0].foot, "TB");
+  assert.equal(legalOnly[0].modifier, "");
 });
 
 test("Single Player Pass selector keeps a dominant-foot origin badge neutral and compact", () => {
@@ -359,6 +469,36 @@ test("ready Bonus Action controls do not inherit normal Tracker phase or action 
   assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "GROUP_MOVE" }).disabled, true);
 });
 
+test("during a Free Kick Indirect's execution, the executor's Shot button is blocked (not in availableActions) and Move is always blocked, but Pass/Through Ball/Lofted Through Ball stay enabled (reported live: Shot only failed post-dispatch before)", () => {
+  const restartSetup = { ...buildRestartSetup(createDefaultRuleSet(), "freeKickIndirect", "blue", { x: 14, y: 5 }), phase: "execution", executorId: "blue-1" };
+  assert.ok(!restartSetup.availableActions.includes("shot"), "sanity check on the default Rule Set this test relies on");
+  const state = createGameState({
+    gameMode: "match",
+    pieces: [{ id: "ball", team: "BALL", x: 14, y: 5 }, { id: "blue-1", team: "A", cardId: "blue-card", x: 14, y: 5 }],
+    restartSetup,
+    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+  });
+  const context = createMatchContext({ gameplayCards: [{ id: "blue-card", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 5 }] }] });
+  assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "SHOT" }).disabled, true);
+  assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "MOVE" }).disabled, true, "Move has no execution-phase family at all");
+  assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "PASS" }).disabled, false);
+  assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "THROUGH_BALL" }).disabled, false);
+  assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "LOFTED_THROUGH_BALL" }).disabled, false);
+});
+
+test("a Free Kick Direct's execution leaves Shot enabled — it IS in that restart type's own availableActions", () => {
+  const restartSetup = { ...buildRestartSetup(createDefaultRuleSet(), "freeKickDirect", "blue", { x: 14, y: 5 }), phase: "execution", executorId: "blue-1" };
+  assert.ok(restartSetup.availableActions.includes("shot"));
+  const state = createGameState({
+    gameMode: "match",
+    pieces: [{ id: "ball", team: "BALL", x: 14, y: 5 }, { id: "blue-1", team: "A", cardId: "blue-card", x: 14, y: 5 }],
+    restartSetup,
+    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+  });
+  const context = createMatchContext({ gameplayCards: [{ id: "blue-card", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 5 }] }] });
+  assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "SHOT" }).disabled, false);
+});
+
 test("Through Ball targeting locks the ordinary Inspector action row", () => {
   const state = createGameState({
     gameMode: "match",
@@ -370,6 +510,26 @@ test("Through Ball targeting locks the ordinary Inspector action row", () => {
   assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "MOVE" }).disabled, true);
   assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "PASS" }).disabled, true);
   assert.equal(selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "GROUP_MOVE" }).disabled, true);
+});
+
+// v20.56.30: Shot's Inspector action row control gets the same visible
+// cancel affordance Pass already had ("CANCEL PASS"), instead of staying
+// disabled while a Shot is active with no way to trigger it from the row.
+test("an active Shot shows CANCEL SHOT on its own Inspector control and stays enabled", () => {
+  const state = createGameState({
+    gameMode: "match",
+    pieces: [{ id: "ball", team: "BALL", x: 14, y: 5 }, { id: "blue-1", team: "A", cardId: "blue-card", x: 14, y: 5 }],
+    actionResolution: { kind: "shot", status: "targeting", shooterId: "blue-1", team: "blue" },
+    tracker: { gameStarted: true, startingTeam: "blue", currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
+  });
+  const context = createMatchContext({ gameplayCards: [{ id: "blue-card", passiveAttributes: [{ id: "stat:speed", name: "Speed", value: 5 }] }] });
+  const projection = selectSinglePlayerInspectorActionPresentation(state, context, { piece: state.pieces[1], type: "SHOT" });
+  assert.equal(projection.disabled, false);
+  assert.equal(projection.label, "CANCEL SHOT");
+  // A different piece's Shot button is unaffected.
+  const otherState = { ...state, pieces: [...state.pieces, { id: "blue-2", team: "A", cardId: "blue-card", x: 12, y: 5 }] };
+  const otherProjection = selectSinglePlayerInspectorActionPresentation(otherState, context, { piece: otherState.pieces[2], type: "SHOT" });
+  assert.equal(otherProjection.label, "SHOT");
 });
 
 test("Bonus Move projection preserves cost and remaining speed for a rejected destination", () => {
@@ -388,31 +548,37 @@ test("Bonus Move projection preserves cost and remaining speed for a rejected de
   assert.equal(projection.remaining, 4);
 });
 
-test("selected AVM is included in the official pending-roll preview", () => {
+test("selected AVM is included in the official pending-roll preview, capped separately from the card stat", () => {
   const state = createGameState({
     gameMode: "match",
-    actionResolution: { kind: "lofted-through-ball", status: "awaiting-roll", team: "blue", plan: { rollPreview: { modifier: -1, rawModifier: -1, modifierCap: 4, totalBonus: 9, modifierSources: [{ label: "Lofted Through", value: 10, source: "card" }, { label: "Disadvantage", value: -1, source: "area" }] } } },
+    actionResolution: { kind: "lofted-through-ball", status: "awaiting-roll", team: "blue", plan: { rollPreview: { modifier: -1, rawModifier: -1, modifierCap: 4, modifierSources: [{ label: "Lofted Through", value: 10, source: "card" }, { label: "Disadvantage", value: -1, source: "area" }] } } },
     rollModifierOpportunities: [{ id: "avm", team: "blue", modifierType: "majorAdvantage", availableFromTurn: 1, expiresAfterTurn: 1 }],
     tracker: { gameStarted: true, currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
   });
   const context = createMatchContext({ ruleSet: { diceModifiers: { advantage: 1, majorAdvantage: 3, disadvantage: -1, majorDisadvantage: -3, stackCap: 4 } } });
   const preview = selectSinglePlayerRollPromptPresentation(state, context, { team: "blue", selectedModifierType: "majorAdvantage" });
-  assert.equal(preview.totalBonus, 12);
-  assert.equal(preview.modifier, 2);
+  // Only disadvantage(-1) + majorAdvantage(3) = 2 is ever capped (well under
+  // ±4, so nothing actually clips); the card stat (10) is always added back
+  // in full — confirmed live with the user, see rollModifierMath.mjs.
+  assert.equal(preview.rawModifier, 12);
+  assert.equal(preview.modifier, 12);
+  assert.equal(preview.capped, false);
   assert.equal(preview.modifierSources.at(-1).label, "Major Advantage");
 });
 
 test("selected AV is included in the interception prompt total, including the card statistic", () => {
   const state = createGameState({
     gameMode: "match",
-    actionResolution: { kind: "pass", status: "awaiting-interception-roll", rollPresentation: { defenderStatValue: 2, modifier: 1, rawModifier: 1, modifierCap: 4, totalBonus: 3, modifierSources: [{ label: "Interception", value: 2, source: "card" }, { label: "Advantage", value: 1, source: "order" }] } },
+    actionResolution: { kind: "pass", status: "awaiting-interception-roll", rollPresentation: { defenderStatValue: 2, modifier: 1, rawModifier: 1, modifierCap: 4, modifierSources: [{ label: "Interception", value: 2, source: "card" }, { label: "Advantage", value: 1, source: "order" }] } },
     rollModifierOpportunities: [{ id: "av", team: "blue", modifierType: "advantage", availableFromTurn: 1, expiresAfterTurn: 1 }],
     tracker: { gameStarted: true, currentTurn: 1, turnPhase: "attack", settings: { attackActions: 5, defenseActions: 4, turns: 20 } },
   });
   const context = createMatchContext({ ruleSet: { diceModifiers: { advantage: 1, majorAdvantage: 3, disadvantage: -1, majorDisadvantage: -3, stackCap: 4 } } });
   const preview = selectSinglePlayerRollPromptPresentation(state, context, { team: "blue", selectedModifierType: "advantage" });
-  assert.equal(preview.modifier, 2);
-  assert.equal(preview.totalBonus, 4);
+  // card(2) + order(1) + advantage(1) = 4, exactly at the frozen ±4 cap.
+  assert.equal(preview.rawModifier, 4);
+  assert.equal(preview.modifier, 4);
+  assert.equal(preview.capped, false);
   assert.equal(preview.modifierSources.at(-1).source, "team-modifier-token");
 });
 

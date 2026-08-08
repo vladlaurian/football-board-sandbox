@@ -94,7 +94,7 @@ The planned reactions are:
 - Interception — already defined by [`INTERCEPTION_ENGINE.md`](INTERCEPTION_ENGINE.md);
 - goalkeeper Cross Claim — defined by [`CROSS_RULES.md`](CROSS_RULES.md), not
   yet implemented;
-- Marking — not implemented;
+- Marking — implemented, see [`MARKING_RULES.md`](MARKING_RULES.md);
 - defensive Tackling — not implemented.
 
 There is deliberately no global Engine rule stating that two reactions may
@@ -148,6 +148,24 @@ and the positional tests follow [IFAB Law 11](https://www.theifab.com/laws/lates
 The game does not, at present, model the additional IFAB offences where an
 offside-positioned player does not receive the ball but obstructs an opponent,
 blocks vision or otherwise interferes with play.
+
+**Movement-direction lock (house rule, not IFAB law):** confirmed live with
+the user — in a turn-based game there is no real-time reaction cost, so a
+player who is in an offside position when it starts a movement session could
+otherwise retreat onside, receive a pass from a teammate's own action mid-turn
+(itself perfectly legal — the pass never touches this player's own movement
+state), and then simply reverse direction and break away alone in the same
+session, defeating any defensive offside trap unconditionally. To keep the
+offside trap usable as a tactic, a player who is standing in an offside
+position (checked live against the ball's current position, independent of
+any specific pass) at the moment it starts a fresh movement session is locked
+to whichever direction its first hop takes for the rest of that session — it
+may still finish moving that direction, receive a pass, take part in
+build-up, or shoot; it just cannot also reverse axis direction within the
+same session. See `src/engine/offsidePositionRules.mjs` (the shared live
+position check) and `src/engine/normalMoveRules.mjs` (where it locks
+`movementStateByPieceId`'s existing `directionLocked` flag, reusing exactly
+the mechanism Three-Two Move's own bonus continuation already relies on).
 
 ## 7. Deferred mechanic contracts
 

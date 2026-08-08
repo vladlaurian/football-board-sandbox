@@ -97,6 +97,17 @@ export function dispatchSinglePlayerGameCommandSequence({ timeline = null, state
     });
     results.push(dispatched);
     if (!dispatched.result.accepted) {
+      // A prior step in THIS sequence can itself open a blocking Marking
+      // decision (docs/MARKING_RULES.md section 5 — e.g. NORMAL_MOVE_STARTED
+      // finds the marked attacker's earlier move now needs a tracking
+      // response) which then correctly rejects this step's own command.
+      // That is not a real failure of the sequence: the already-committed
+      // diverted state (currentState/currentTimeline, from the step that
+      // opened it) must still reach the UI, not be silently discarded.
+      if (currentState.pendingMarkingTrack && dispatched.result.reason === "MARKING_DECISION_PENDING") {
+        const opened = results[results.length - 2];
+        return { accepted: true, result: opened.result, timeline: currentTimeline, state: currentState, entry: opened.entry, results };
+      }
       return { accepted: false, result: dispatched.result, timeline: initialTimeline, state: initialState, entry: null, results };
     }
     currentTimeline = dispatched.timeline;

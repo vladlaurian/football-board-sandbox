@@ -82,7 +82,10 @@ export function BoardCanvas({
   measureType,
   rulerMarkers,
   defensiveAreaOverlays = [],
+  wallPositionCells = [],
+  wallSelectedPieceIds = [],
   adjustZoneCells = [],
+  markingTrackHoverPreview = null,
   passPreview,
   passTargeting,
   passActive,
@@ -289,7 +292,9 @@ export function BoardCanvas({
           </>}
 
           {!passActive && movementPreview && hoveredCell && <div className={`destination-cell-highlight ${!movementPreview.legal ? "illegal" : "legal"}`} style={{ left: `calc(${hoveredCell.x} * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell))` }} />}
-          {!passActive && movementPreview && hoveredCell && <div className={`movement-cost-badge ${movementPreview.legal ? "" : "illegal"}`} style={{ left: `calc((${hoveredCell.x} + .5) * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell) - 4px)` }}>{movementPreview.label}</div>}
+          {!passActive && movementPreview && hoveredCell && !movementPreview.hideCostBadge && <div className={`movement-cost-badge ${movementPreview.legal ? "" : "illegal"}`} style={{ left: `calc((${hoveredCell.x} + .5) * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell) - 4px)` }}>{movementPreview.label}</div>}
+          {markingTrackHoverPreview && hoveredCell && <div className={`destination-cell-highlight ${markingTrackHoverPreview.legal ? "legal" : "illegal"}`} style={{ left: `calc(${hoveredCell.x} * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell))` }} />}
+          {markingTrackHoverPreview && hoveredCell && <div className={`movement-cost-badge ${markingTrackHoverPreview.legal ? "" : "illegal"}`} style={{ left: `calc((${hoveredCell.x} + .5) * var(--cell))`, top: `calc(${hoveredCell.y} * var(--cell) - 4px)` }}>{markingTrackHoverPreview.label}</div>}
           {passTargeting && passTargetDistance && <div className="pass-target-distance" style={{ left: `calc((${passTargetDistance.x} + .5) * var(--cell))`, top: `calc((${passTargetDistance.y} + .5) * var(--cell))` }}>
             <strong>{passTargetDistance.label}</strong>
           </div>}
@@ -355,6 +360,7 @@ export function BoardCanvas({
               }}
             />)}
           </> : defensiveAreaOverlays.map(cell => <div key={cell.id} className={`def-area-board-cell ${cell.team === "A" ? "blue" : "red"}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
+          {wallPositionCells.map((cell, index) => <div key={`wall-position-${index}`} className="wall-position-board-cell" style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
           {adjustZoneCells.map(cell => <div key={cell.id} className={`adjust-zone-cell ${cell.team === "A" ? "blue" : "red"} ${cell.selected ? "selected" : ""}`} style={{ left: `calc(${cell.x} * var(--cell))`, top: `calc(${cell.y} * var(--cell))` }} />)}
 
           {passPreview?.lines?.length > 0 && <svg className="pass-preview-svg" viewBox={routeViewBox} preserveAspectRatio="none" style={routeGoalPadding ? { left: `calc(${-routeGoalPadding} * var(--cell))`, right: "auto", width: `calc((${settings.cols} + ${routeGoalPadding * 2}) * var(--cell))` } : null}>
@@ -390,9 +396,10 @@ export function BoardCanvas({
             const ballHeld = isBall && pieces.some(otherPiece => otherPiece.team !== "BALL" && Number(otherPiece.x) === Number(piece.x) && Number(otherPiece.y) === Number(piece.y));
             const normalizedPiece = withBoardPosition(piece, settings);
             const groupMoveStatus = groupMovePieceStatusById[piece.id] || "";
+            const isWallSelected = wallSelectedPieceIds.some(id => String(id) === String(piece.id));
             const formationRoleProblem = formationRoleProblemsByPieceId[piece.id];
             return <div key={piece.id} data-coord={normalizedPiece.coord} title={`${getPieceDisplayLabel(piece)} ${normalizedPiece.coord}${formationRoleProblem ? ` · Expected ${formationRoleProblem.expectedRole}, assigned ${formationRoleProblem.actualRole}` : ""}${piece.cardId ? " · Card attached" : ""}${piece.inactive ? " · INACTIVE" : ""}`} className={`piece-hitbox ${isBall ? "ball-hitbox" : "player-hitbox"}`} style={{ left: `calc(${piece.x} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})`, top: `calc(${piece.y} * var(--cell) + var(--cell) * ${isBall ? 0.25 : 0})` }} onPointerDown={event => onPiecePointerDown(piece.id, event)} onDoubleClick={() => openEdit(piece)}>
-              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${formationRoleProblem ? "formation-role-mismatch" : ""} ${selectedId === piece.id ? "selected" : ""} ${activeInteractionPieceId === piece.id && selectedId !== piece.id ? "interaction-active" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""} ${hasPossession ? "has-possession" : ""} ${ballHeld ? "ball-held" : ""} ${groupMoveStatus ? `group-move-${groupMoveStatus}` : ""}`}>{isBall ? <><MatchBallIcon className="board-ball-icon" /></> : <><span className="piece-label">{getPieceDisplayLabel(piece)}</span>{formationRoleProblem && <span className="formation-role-warning" aria-label={`Expected ${formationRoleProblem.expectedRole}, assigned ${formationRoleProblem.actualRole}`} title={`Expected ${formationRoleProblem.expectedRole}, assigned ${formationRoleProblem.actualRole}`}>🔒</span>}{Math.max(0, Math.min(3, Number(personalActionsByPieceId?.[piece.id]) || 0)) > 0 && <span className="piece-personal-action-dots" aria-label={`${Math.max(0, Math.min(3, Number(personalActionsByPieceId?.[piece.id]) || 0))} personal actions used`}>{Array.from({ length: Math.max(0, Math.min(3, Number(personalActionsByPieceId?.[piece.id]) || 0)) }, (_, index) => <i key={index} />)}</span>}{groupMoveStatus === "ineligible" && <span className="group-move-lock" aria-label="Not eligible for Group Move">🔒</span>}</>}</div>
+              <div className={`piece ${piece.team === "A" ? "team-a" : piece.team === "B" ? "team-b" : "ball"} ${formationRoleProblem ? "formation-role-mismatch" : ""} ${selectedId === piece.id || isWallSelected ? "selected" : ""} ${activeInteractionPieceId === piece.id && selectedId !== piece.id ? "interaction-active" : ""} ${piece.cardId ? "has-card" : ""} ${piece.inactive ? "inactive" : ""} ${hasPossession ? "has-possession" : ""} ${ballHeld ? "ball-held" : ""} ${groupMoveStatus ? `group-move-${groupMoveStatus}` : ""}`}>{isBall ? <><MatchBallIcon className="board-ball-icon" /></> : <><span className="piece-label">{getPieceDisplayLabel(piece)}</span>{formationRoleProblem && <span className="formation-role-warning" aria-label={`Expected ${formationRoleProblem.expectedRole}, assigned ${formationRoleProblem.actualRole}`} title={`Expected ${formationRoleProblem.expectedRole}, assigned ${formationRoleProblem.actualRole}`}>🔒</span>}{Math.max(0, Math.min(3, Number(personalActionsByPieceId?.[piece.id]) || 0)) > 0 && <span className="piece-personal-action-dots" aria-label={`${Math.max(0, Math.min(3, Number(personalActionsByPieceId?.[piece.id]) || 0))} personal actions used`}>{Array.from({ length: Math.max(0, Math.min(3, Number(personalActionsByPieceId?.[piece.id]) || 0)) }, (_, index) => <i key={index} />)}</span>}{groupMoveStatus === "ineligible" && <span className="group-move-lock" aria-label="Not eligible for Group Move">🔒</span>}</>}</div>
             </div>;
           })}
         </div>

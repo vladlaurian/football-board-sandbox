@@ -1,8 +1,10 @@
 import { activeTeamForTrackerPhase, createEmptyTrackerTurnState, nextTrackerPhase } from "../tracker/actionRules.mjs";
 import { clearGroupMoveState, normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 import { expiredRollModifierOpportunities, pruneRollModifierOpportunities } from "./rollModifierOpportunities.mjs";
+import { markingTurnResetFields, opponentTeamOf } from "./markingRules.mjs";
+import { computeTacklingEligibility, clearTacklingInactivityForNewTurn } from "./tacklingRules.mjs";
 
-export function endTrackerPhase(state, command) {
+export function endTrackerPhase(state, context, command) {
   if (state.gameMode !== "match") return { accepted: false, reason: "MATCH_MODE_REQUIRED" };
   if (state.actionResolution) return { accepted: false, reason: "ACTION_RESOLUTION_ACTIVE" };
   const tracker = normalizeTrackerSnapshot(state.tracker);
@@ -20,12 +22,14 @@ export function endTrackerPhase(state, command) {
     const emptyTurn = createEmptyTrackerTurnState();
     const nextTurn = tracker.currentTurn + 1;
     const expiredRollBonuses = expiredRollModifierOpportunities(state.teamModifierTokens, nextTurn);
+    const reactivated = clearTacklingInactivityForNewTurn(state);
     return {
       accepted: true,
       nextState: {
-        ...state,
+        ...reactivated,
         movementStateByPieceId: {}, threeTwoOpportunity: null,
         teamModifierTokens: pruneRollModifierOpportunities(state.teamModifierTokens, nextTurn),
+        ...markingTurnResetFields(),
         tracker: {
           ...baseTracker,
           currentTurn: nextTurn,
@@ -47,9 +51,13 @@ export function endTrackerPhase(state, command) {
       timeline: { groupId: null, undoMode: "step", allowNoop: false },
     };
   }
+  // docs/TACKLING_RULES.md section 1.1: eligibility for the normal defensive
+  // action is frozen the instant the defense phase starts — computed exactly
+  // once here, never recomputed for the rest of that phase.
+  const tacklingEligibility = nextPhase === "defense" ? computeTacklingEligibility(state, context, opponentTeamOf(team)) : state.tacklingEligibility || [];
   return {
     accepted: true,
-    nextState: { ...state, threeTwoOpportunity: null, tracker: { ...baseTracker, turnPhase: nextPhase } },
+    nextState: { ...state, threeTwoOpportunity: null, tacklingEligibility, tracker: { ...baseTracker, turnPhase: nextPhase } },
     event: {
       type: "PHASE_ENDED",
       team,

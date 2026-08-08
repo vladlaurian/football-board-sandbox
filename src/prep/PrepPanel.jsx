@@ -1,4 +1,5 @@
 import React, { useRef } from "react";
+import { FormationPreview } from "./FormationPreview.jsx";
 
 function SelectionStatus({ summary }) {
   const rules = summary?.rules;
@@ -50,6 +51,11 @@ export function PrepPanel({
   formations,
   formationId,
   onFormationChange,
+  previewFormation,
+  boardSettings,
+  onSelectFormation,
+  isKickoffMoment,
+  pendingFormationId,
   adjustActive,
   onAdjust,
   onResetAdjust,
@@ -62,6 +68,7 @@ export function PrepPanel({
   const selectionSummaryRef = useRef(null);
   if (!visible || lockUI) return null;
   const teamName = selectedTeam === "A" ? "Blue" : "Red";
+  const pendingFormationName = pendingFormationId ? (formations || []).find(f => f.id === pendingFormationId)?.name : null;
 
   return (
     <div
@@ -93,13 +100,37 @@ export function PrepPanel({
               {(formations || []).map(formation => <option key={formation.id} value={formation.id}>{formation.id}. {formation.name}</option>)}
             </select>
           </section>
+          <FormationPreview team={selectedTeam} formation={previewFormation} boardSettings={boardSettings} />
+          {!isKickoffMoment && (
+            <div className="prep-tactic-status">
+              {pendingFormationName
+                ? `Queued: ${pendingFormationName} — applies at the next kick-off.`
+                : "Not a kick-off moment. Select Formation will queue this tactic for the next kick-off instead of applying it now."}
+            </div>
+          )}
+          {isKickoffMoment && pendingFormationName && (
+            <div className="prep-tactic-status">Queued tactic {pendingFormationName} will apply now on Select Formation.</div>
+          )}
           <div className="prep-action-grid">
-            <button onClick={() => selectionSummaryRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })}>Selection</button>
-            <button disabled={adjustDisabled} className={adjustActive ? "active" : ""} onClick={onAdjust} title={adjustDisabled ? "Correct the selected formation's starter roles before Adjust." : "Select a starter to adjust it inside its local formation area."}>Adjust</button>
+            <button onClick={onSelectFormation}>Select Formation</button>
+            <button
+              disabled={adjustDisabled || !isKickoffMoment}
+              className={adjustActive ? "active" : ""}
+              onClick={onAdjust}
+              title={
+                !isKickoffMoment
+                  ? "Adjust is only available at a kick-off moment (before the Match starts, or during a pending post-goal restart)."
+                  : adjustDisabled
+                    ? "Correct the selected formation's starter roles before Adjust."
+                    : "Select a starter to adjust it inside its local formation area."
+              }
+            >
+              Adjust
+            </button>
             <button disabled title="Substitution waits for the canonical interruption/restart lifecycle.">Substitution</button>
             <button className={`prep-ready-button ${readyValid ? "is-valid" : ""} ${teamReady ? "is-confirmed" : ""}`} onClick={onReady}>{teamReady ? "Ready ✓" : "Ready"}</button>
           </div>
-          {adjustActive && <button className="prep-reset-adjust" onClick={onResetAdjust}>Reset {teamName} default layout</button>}
+          {adjustActive && isKickoffMoment && <button className="prep-reset-adjust" onClick={onResetAdjust}>Reset {teamName} default layout</button>}
           <div className="prep-selection-statuses" ref={selectionSummaryRef}>
             <SelectionStatus summary={selectionSummaries.blue} />
             <SelectionStatus summary={selectionSummaries.red} />

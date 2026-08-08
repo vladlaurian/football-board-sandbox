@@ -3,13 +3,19 @@
 ## Status and scope
 
 This document is the agreed gameplay contract for **Shot** (Șut), including
-direct Shot from a Free Kick and Corner. v20.56.28 implements only the narrow
-normal-play **resolution checkpoint** described below. Direct Free Kick/Corner
-Shot and every physical consequence remain future work.
+direct Shot from a Free Kick and Corner. v20.56.28 implemented only the narrow
+normal-play **resolution checkpoint** described below. Goal and Goalkeeper
+Retains have had their physical consequence since Builds A/B; Corner and Goal
+Kick have had theirs since v20.56.45 (the restart-setup engine — see
+[FINALISATION_AND_RESTARTS_RULES.md](FINALISATION_AND_RESTARTS_RULES.md)).
+Direct Corner Shot's own execution-time exception (section 5) is implemented
+as of v20.56.45. Direct Free Kick Shot (section 4) remains future work — Free
+Kick has no trigger mechanic yet (no foul/tackling detection), so its
+exception is written but unreachable in a Match.
 
-Goal, goal kick, Corner, kick-off, wall placement and restart setup remain in
-[FINALISATION_AND_RESTARTS_RULES.md](FINALISATION_AND_RESTARTS_RULES.md). This
-document fixes Shot resolution only.
+Goal, goal kick, Corner, kick-off, wall placement and restart setup are owned
+by [FINALISATION_AND_RESTARTS_RULES.md](FINALISATION_AND_RESTARTS_RULES.md).
+This document fixes Shot resolution only.
 
 ### v20.56.28 implemented boundary
 
@@ -20,9 +26,13 @@ display. Only an opponent GoalGrid cell is a valid Shot target. Any other board
 cell persists a grey, non-selectable route preview and reports “Please select a
 cell inside the opponent's goal.” without a Tracker cost. Goal cells receive no
 special target fill. The live pointer label displays centre-to-centre distance
-and FIN/LS/DLS/MAX band. Green means legal with no route DV/DVM, red means legal
-with one or more route DV/DVM, and grey means blocked. A route is selected by
-clicking its origin corner on the board.
+and FIN/LS/DLS/MAX band. Green means legal with no defensive-area fact on that
+route (at the origin or crossed along it); red means legal but with one or
+more defensive-area facts; grey means blocked. Non-dominant-foot DVM and the
+distant Long Shot band penalty still count in the corner's shown total
+modifier number, but never turn it red by themselves — this exactly matches
+Pass's own corner-colour rule, not a Shot-specific exception. A route is
+selected by clicking its origin corner on the board.
 
 The result values `goal`, `goal-kick`, `corner` and `goalkeeper-retains` are
 canonical MatchState/Timeline facts only. v20.56.27 applies no score, ball,
@@ -38,7 +48,15 @@ cell. The physical route is corner-to-centre of the selected goal cell.
 
 A normal Shot route is legal only when:
 
-- it remains inside the board for its complete route;
+- it remains inside the board for its complete route (implemented v20.56.44
+  — the goal is a notch attached to the pitch only across the goal's own
+  width band; at a wide-open angle, the straight line crosses the goal-line
+  plane while still outside that band before curving back in at a later x,
+  which is illegal for a normal Shot — see `routeExitsBoard` in
+  `src/engine/shotRules.mjs`. The threshold is exactly 45° to the near post
+  and is derived from board geometry, not a separate Rule Set value. A
+  direct Corner Shot's own contract in section 5 is the one documented
+  exception, via an explicit `exemptFromBoardBoundary` opt-out);
 - it does not enter the interior of any occupied active player cell, whether
   teammate or opponent;
 - its centre-to-centre shot distance does not exceed the frozen maximum.
@@ -102,12 +120,36 @@ For either normal Shot band:
 Natural 20 is always Goal and has no additional effect. Natural 1 always
 misses the goal and produces a goal kick.
 
+Implemented v20.56.45: `goalKickInterval` and `cornerInterval` (Rule Set,
+1-5, default 1 — the rule exactly as stated above) widen these two edges.
+`goalKickInterval` extends "Natural 1" to "Natural 1 through N"; `cornerInterval`
+extends "total equals the goalkeeper's stat" to "total is at most N-1 below
+it". Neither can ever turn a real Goal (total strictly above the goalkeeper's
+stat) into anything else — that comparison is checked first, unconditionally,
+in `resolveShotResult` (`src/engine/shotRules.mjs`).
+
 When a goalkeeper retains a normal Shot, it keeps the ball in its existing
 cell. Its subsequent restart may use Short Pass, Long Pass, Through Ball or
 Lofted Through Ball. Inside the goalkeeper's large and small penalty areas,
-opposing bodies and defensive areas are ignored for that restart, exactly as
-for a goalkeeper who retained a Cross. Outside the large penalty area, ordinary
+every body (teammate or opponent) and every defensive area is ignored for
+that restart — the box is assumed crowded right after the save, so this one
+distribution is unobstructed by anyone standing in it — exactly as for a
+goalkeeper who retained a Cross. Outside the large penalty area, ordinary
 rules resume.
+
+Implemented v21.1.0: an optional, Rule-Set-configurable **untracked
+reposition window** may open right after the retain, before the goalkeeper's
+own restart action — the goalkeeper's team moves first, then alternates with
+the opponent, up to a configured number of moves per side (0 disables it).
+Each move uses the same movement legality as an ordinary Move (Speed,
+diagonal cost, axis lock) but is never counted in any Tracker or personal
+action budget. Exactly one piece may move per turn, and a piece already used
+is retired for the rest of the window — it cannot be picked again on a later
+turn, which would otherwise let it walk across several turns' worth of
+Speed. Three independent Rule Set checkboxes decide when this window
+triggers: after a Free Kick's own Goalkeeper Retains, after a corner header
+(not yet built, so this checkbox is currently inert), or any time the
+goalkeeper retains the ball at all. See `src/engine/gkRepositionRules.mjs`.
 
 ## 4. Direct Shot from a Free Kick
 
@@ -141,6 +183,10 @@ Bonus Action, possession changes and the defending team begins its next
 numbered turn attacking.
 
 ## 5. Direct Shot from a Corner
+
+Implemented v20.56.45 (`buildShotRoutePlan`'s `restartModifiers` in
+`src/engine/shotRules.mjs`, gated on `state.restartSetup.type === "corner"`
+during the execution phase for the entitled executor only).
 
 A direct Corner Shot is available only under the Corner restart contract. It
 uses Long Shot against the goalkeeper's Diving Saves and retains the ordinary
@@ -190,3 +236,10 @@ goalkeeper exception or result.
 Manual Multiplayer remains unchanged. Future multiplayer must route the
 Natural-1 wall-player choice and every other defensive choice to the entitled
 team in MatchState.
+
+Implemented v20.56.45: a Corner or Goal Kick result now starts
+`state.restartSetup` (wall/reposition/executor — see
+[FINALISATION_AND_RESTARTS_RULES.md](FINALISATION_AND_RESTARTS_RULES.md))
+instead of resolving directly; the ball cell echoes which half of the goal
+the missed/saved Shot was aimed at (top/bottom), falling back to the app's
+own random choice only for a dead-centre attempt.

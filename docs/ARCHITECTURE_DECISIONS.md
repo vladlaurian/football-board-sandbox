@@ -46,6 +46,21 @@ state remain intentionally unchanged.
   facts, so a future consequence cannot depend on UI-local geometry;
 - Manual Multiplayer/Firebase retain no knowledge of this offline checkpoint.
 
+**Update (v20.56.33 — Goalkeeper Retains):** the "no exit but Undo/Redo or a
+new match" clause above is narrowed to the outcomes that still have no
+consequence (Goal, Goal Kick, Corner). Goalkeeper Retains now shows a
+Continue button, exactly like Lofted Through Ball's and Pass's own
+non-terminal result screens, instead of gaining a novel third behavior. The
+button dispatches the real canonical `SHOT_CONSEQUENCE_DUE` transition (ball
+to the goalkeeper's cell, new turn for the goalkeeper's team) — it is not a
+fake control under rule 11 because it performs the actual consequence, the
+same way Lofted's own Continue button already does. No timed auto-advance
+was added; a first attempt at one was reverted after testing showed a 1
+second hold reads as too abrupt and inconsistent with every other result
+screen's own exit pattern. Goal, Goal Kick and Corner remain exactly the
+ADR's original terminal checkpoint, with no Continue control at all, until
+their own future builds land.
+
 ## ADR-059 — Invalid direct-board targets are canonical previews, not UI errors
 
 **Status:** Active
@@ -698,13 +713,13 @@ Extra Roll is administrative rather than a Bonus card action. An active Bonus Ac
 
 **Decision:** The remaining offline Match controls discovered by the Phase 8 audit must not retain direct UI state mutation. `INACTIVE` / `ACTIVE`, Reset Trackers and Change Possession are Engine commands with normal Timeline/Undo/Redo/AI visibility. Reset and possession remain temporary administrative safety tools while Match automation is still under construction.
 
-Unimplemented individual action buttons (`SHOT`, `CROSS`, `DRIBBLE`, `TACKLING`) remain available for manual test matches, but only as canonical declarations. A normal declaration consumes the existing Tracker action; a Bonus declaration consumes the chosen Bonus Action and remains awaiting explicit `END B.A.`. Neither declaration invents a board consequence, probability, die result or rule outcome. AI Analysis must explicitly say that manual resolution is required.
+Unimplemented individual action buttons (`SHOT`, `CROSS`, `DRIBBLE`, `TACKLING`) remain available for manual test matches, but only as canonical declarations. A normal declaration consumes the existing Tracker action; a Bonus declaration consumes the chosen Bonus Action and remains awaiting explicit `END B.A.`. Neither declaration invents a board consequence, probability, die result or rule outcome. AI Analysis must explicitly say that manual resolution is required. **Superseded for `SHOT` (v20.56.29):** Shot is now a full canonical Engine mechanic (`src/engine/shotRules.mjs`) with its own roll, hold and resolution commands — this manual-declaration path no longer applies to it. `CROSS`, `DRIBBLE` and `TACKLING` remain manual declarations as described above.
 
 Editor Workspace setup is locked after an offline Match starts whenever a change could contradict frozen MatchContext or rewrite live Match setup. Editor Mode remains unrestricted and Manual Multiplayer remains unchanged.
 
 **Consequences:**
 
-- Future implementations of Dribble, Shot, Cross and Tackling replace only the Engine treatment of their already-wired commands; UI, Timeline and action economy do not need another migration.
+- Future implementations of Dribble, Cross and Tackling (Shot already delivered, v20.56.29) replace only the Engine treatment of their already-wired commands; UI, Timeline and action economy do not need another migration.
 - Safety controls can later be retired from Match Mode without leaving hidden direct mutation paths.
 - Phase 8B may centralize the Controller gateway without re-auditing the completed 8A mutation inventory.
 
@@ -895,3 +910,258 @@ formula facts unless they are explicitly granted as a team token.
 same token state. Existing Interception and Lofted Through AV/AVM effects use
 the model without changing their rule outcome. Manual Multiplayer and Firebase
 do not consume or publish this Single Player feature.
+
+## ADR-060 — Shared roll-cap, corner-badge and cancel contracts
+
+**Status:** Active.
+
+**Decision:** Every manual-D20 mechanic (Pass/Interception, Through Ball,
+Lofted Through Ball, Shot, and any future Cross/Dribbling/Tackling roll)
+computes its capped roll modifier through the one shared
+`sumAndCapRollModifier(sources, modifierCap)` in `src/rules/rollModifierMath.mjs`.
+The rolling subject's own base card stat is a modifier source like any
+other: every source sums first, and the combined total is capped
+symmetrically exactly once at the frozen `diceModifiers.stackCap`. A
+mechanic must never cap situational modifiers alone and add its own stat
+back in afterward.
+
+Every board-first mechanic's corner/route picker converges on the one
+`selectRouteCornerBadges(routes, { actionLabel, footLabel })` projection in
+`matchPresentationSelectors.mjs`. A corner blocked by the acting player's own
+body is shown disabled; it is never removed from the projected list.
+
+Reselecting an already-chosen target during `route-selection` always fully
+cancels the action, for every mechanic, through one shared
+`cancelActiveResolutionTargeting()` dispatcher in `main.jsx`. There is no
+"return to targeting only" partial-cancel command; a mechanic exposes one
+full-cancel Engine command (for example `SHOT_CANCELLED`,
+`THROUGH_BALL_CANCELLED`) and registers it in that dispatcher.
+
+**Reason:** Shot and Lofted Through Ball capped situational modifiers alone
+and added the rolling subject's card stat back afterward, letting the
+combined total silently exceed the frozen cap; Pass's pre-roll Interception
+prompt had the identical bug relative to its own later `resolveInterception`
+math. Separately, Pass hid an origin-blocked corner from its route picker
+while Through Ball, Lofted Through Ball and Shot already showed it disabled,
+and reselecting a route-selection target fully cancelled Pass but only
+returned Through Ball/Lofted Through Ball to targeting while leaving their
+Cancel control active. Fixing each mechanic independently would have left
+the same three defects reachable by every future mechanic; a shared
+contract closes the whole class at once and is now a Mechanic Integration
+Gate requirement (ADR-050) rather than an implicit convention.
+
+**Consequences:**
+
+- `resolveInterception` is refactored onto the shared cap function with an
+  identical numeric result; no Interception rule or test outcome changed.
+- The uncapped per-source modifier facts remain intact for AI Export in
+  every mechanic; only the displayed/resolved capped total's composition
+  changed for Shot, Lofted Through Ball and the Pass Interception prompt.
+- `LOFTED_THROUGH_BALL_ROUTE_CANCELLED` and `THROUGH_BALL_ROUTE_CANCELLED`
+  are removed as dead code; their sole UI callers now dispatch the full
+  cancel instead.
+- `docs/ACTION_RESOLUTION_ENGINE.md` records these three utilities as
+  mandatory for any future mechanic under this contract.
+- Manual Multiplayer, Firebase and Editor Mode do not consume this
+  Single Player projection/cancel contract.
+
+## ADR-061 — Goal's Kick-off moves only the ball and the kickoff piece to the board's true geometric centre
+
+**Status:** Active. Amended once already — see the postmortem below.
+
+**Decision:** Build B of the Shot consequence vertical slice introduces
+canonical `state.score`, `state.kickoffRestart`, and reuses/extends
+`state.goalkeeperRestartException` (added with Goalkeeper Retains, Build A).
+A Goal's consequence (`applyShotConsequence`'s `applyGoalConsequence` in
+`src/engine/shotRules.mjs`) computes the board's true geometric centre cell
+directly from `context.boardSettings` (`floor(cols/2), floor(rows/2)`),
+finds the entitled (conceding) team's first `position: "ST"` piece (falling
+back to any outfield piece if no ST exists), and moves only that piece and
+the ball onto that centre cell. **Every other piece is left exactly where it
+already is** — this build does not attempt a full 22-piece formation reset.
+`state.kickoffRestart = { team, pieceId }` gates every command except the
+whitelisted Pass/Through Ball/Lofted Through Ball set (`gameEngine.mjs`)
+until that one player acts. **Updated (v20.56.42):** that action is no
+longer a forced free backward Short Pass — it may be any pass type, any
+direction, at ordinary normal Tracker cost, exactly like any other pass
+(`passStartRules.mjs`/`throughBallRules.mjs`/`loftedThroughBallRules.mjs`,
+all keyed off `kickoffRestart.pieceId`, cleared via the shared
+`kickoffRestartAfterAction` in `kickoffMomentRules.mjs`). Only the piece
+restriction remains.
+
+**Postmortem — the first version of this ADR was wrong in production.** The
+original decision snapshotted `state.pieces` into `state.kickoffLayout` at
+every `MATCH_STARTED`/`MATCH_RESTARTED` and restored the full layout from it.
+This is unsound: `main.jsx`'s "Continue Game" path (see
+`prepSelectionBoundary.test.mjs`'s "Offline Continue starts an unstarted
+current board without Prep" contract) deliberately starts a Match from
+whatever is currently on the board, with **no** Prep/formation step at all —
+by design, not a bug in that path. A user who tested through "Continue Game"
+got `kickoffLayout` frozen as an arbitrary mid-match snapshot, not a
+formation; the very next Goal then placed the conceding team's kickoff piece
+directly on top of the scoring player, because the "centre" cell it computed
+was wherever the ball happened to be at that arbitrary snapshot moment (right
+next to the goal the shot was just taken from), and no other piece moved at
+all because the "restored" layout was nearly identical to the current board.
+The Engine has no way to distinguish a genuine Prep-derived formation from an
+arbitrary "Continue" snapshot, and there is no dedicated
+"committed-formation" concept anywhere in the codebase to snapshot instead
+(confirmed by search: no `readyLineup`/`formationSnapshot`/equivalent
+exists). Rather than depend on a snapshot whose validity secretly depends on
+*how the Match was started*, this ADR now computes the centre cell from pure
+board geometry, which is correct unconditionally, and drops the full-layout
+restore entirely as out of scope for this build.
+
+**Reason:** A pure Engine module cannot depend on Editor-only formation
+application without violating Phase 1's "engine imports no React, DOM, or
+UI-layer module" contract (`docs/GAME_ENGINE_MIGRATION_PLAN.md`), and no
+Engine-owned concept of "the currently committed starting formation" exists
+to snapshot safely regardless of how a Match started. Board geometry alone
+(`cols`/`rows`) is always correct and needs no such concept.
+
+**Consequences:**
+
+- A Goal's Kick-off does **not** reset the rest of both teams to a starting
+  formation in this build — only the ball and the entitled team's kickoff
+  piece move. Restoring a full formation on every Kick-off remains a
+  documented gap for a future build, contingent on a real Prep-committed
+  layout concept being added first.
+  **Superseded (v20.56.42).** That concept now exists: `state.activeFormation
+  = { blue, red }` (`src/game/gameState.mjs`), set at `MATCH_STARTED` from
+  Prep's selected formations and updated by the canonical
+  `FORMATION_TACTIC_CONFIRMED` command (`src/engine/formationTacticRules.mjs`)
+  — this is the "Engine-owned concept of the currently committed starting
+  formation" this ADR's Reason section said did not exist. A Goal now DOES
+  re-lay out both teams into whichever tactic is active for them
+  (`applyGoalConsequence`), still computing the centre cell from pure board
+  geometry exactly as this ADR decided, then unconditionally pinning the
+  ball and the kick-off piece there regardless of what that formation says
+  for their slot — so the postmortem's core lesson (never trust a raw
+  `state.pieces` snapshot to represent "the formation") remains fully
+  respected; nothing here reintroduces `kickoffLayout`. Continue Game is
+  still unaffected: it never populates `activeFormation`, so nothing is ever
+  reapplied for it. See `docs/TEAM_COMPOSITION_AND_FORMATIONS.md` section
+  5.8 and `docs/FINALISATION_AND_RESTARTS_RULES.md` section 3.2.
+- The kickoff piece can, in principle, still land on another piece that
+  happens to already occupy the exact centre cell — a rare coincidence now,
+  not the systematic overlap the snapshot-based version produced. No
+  rejection guard was added for this narrower case per explicit user
+  direction; it may be revisited later.
+- `kickoffRestart` is a hard gate (`gameEngine.mjs`'s `kickoffRestartActive`
+  guard) — unlike `goalkeeperRestartException` below, which never blocks a
+  command, only relaxes geometry for the one matching piece.
+- The Goalkeeper Retains restart exception (`docs/SHOOTING_RULES.md`:
+  opposing bodies and defensive areas inside the goalkeeper's own penalty
+  area are ignored for that one restart) is now shared, exported geometry:
+  `insideOwnPenaltyArea(settings, cell, team)` in `src/rules/passEngine.mjs`
+  covers both the large and small box. `buildPassPlan`, `planThroughBall` and
+  `planLoftedThroughBall` each accept an optional `restartException: {team,
+  pieceId}` and filter it into their own existing defensive-area/body-block
+  computations; a mechanic's own completion path (`completePass`,
+  `completeNormalInterception`, Through Ball's and Lofted Through Ball's
+  terminal transitions) clears `state.goalkeeperRestartException` once that
+  one restart resolves, exactly mirroring how `kickoffRestart` is consumed.
+  **Amended — the first version of this bullet was wrong.** It originally
+  left `firstPlayerHit`/`endpointBodyContact` (the mechanic that redirects a
+  Pass onto the first body it meets along the route) untouched, reasoning
+  that the exception should be scoped to defensive-area crossings and
+  origin/segment body-blocks only. Live testing showed this was incorrect:
+  "opposing bodies... are ignored" (docs/SHOOTING_RULES.md) means exactly
+  that — an opponent's body sitting on the goalkeeper's restart route inside
+  its own box must not become the pass's effective target either, or the
+  ball is redirected straight into that opponent instead of reaching the
+  real intended receiver. `firstPlayerHit` and `endpointBodyContact` now
+  accept an `ignorePieceIds` set (bodies inside the box under the active
+  exception, computed once in `buildPassPlan`, always excluding whoever
+  occupies the requested target cell — the intended receiver is never an
+  obstruction to clear) and exclude them from hit-detection entirely, so the
+  ball passes through to whatever body (or empty cell) is actually next.
+  `occupied`-style target-cell checks (Through Ball/Lofted Through Ball)
+  were already correctly left untouched — see the note there.
+  **Amended a second time.** The exception was first re-scoped to still only
+  ignore an *opponent's* body, reasoning it should mirror
+  `docs/SHOOTING_RULES.md`'s literal "opposing bodies... are ignored"
+  wording. The user clarified this was also wrong for this specific
+  restart: a teammate's body standing in a box that is necessarily crowded
+  right after a save must be ignored too, not just an opponent's — this was
+  confirmed as an intentional rule change, not a documentation-reading
+  error, and `docs/SHOOTING_RULES.md` and `docs/CROSS_RULES.md` were updated
+  to say "every body (teammate or opponent)" rather than "opposing bodies"
+  for this one restart. `bodyIgnoredByException` (renamed from
+  `opponentIgnoredByException`) and `originBlocker`'s exemption in
+  `buildPassPlan`, and Through Ball's `bodyBlocked` check in
+  `planThroughBall`, no longer filter by team. The general Pass rule itself
+  (`docs/PASS_AND_INTERCEPTION_RULES.md`: a teammate's body along an
+  ordinary, non-exception route "receives directly" rather than blocking)
+  is unrelated and unchanged — that is a different concept (a completed
+  short pass to whoever is physically in the way) from this restart's
+  crowded-box exemption.
+- Goal Kick's own, textually similar but narrower exception ("opposing
+  defensive areas ignored... does NOT state that opponents' bodies are
+  ignored") is a different rule and a separate future build (Build C); it
+  must not reuse `goalkeeperRestartException`'s body-ignoring behavior
+  wholesale.
+- The Goal/Goalkeeper Retains result screens both use a **Continue** button
+  (`confirmShotConsequence` in `main.jsx`) rather than a timed auto-advance,
+  matching Lofted Through Ball's and Pass's own non-terminal result screens
+  (see ADR-058's v20.56.33 update). **Superseded (v20.56.45):** Corner and
+  Goal Kick now use the same Continue button — see ADR-062.
+
+## ADR-062 — A shared restart-setup engine owns Corner and Goal Kick, not two bespoke mechanics
+
+**Status:** Active.
+
+**Decision:** `src/engine/restartSetupRules.mjs` is one generic state
+machine (`state.restartSetup`) covering every fixed-restart type documented
+in `docs/FINALISATION_AND_RESTARTS_RULES.md` section 9's routing principle —
+Corner and Goal Kick today; Free Kick Direct/Indirect and Throw-in are
+Rule-Set-configured the same way but have no trigger mechanic yet, so they
+never reach this engine in a live Match. Kick-off and Penalty are
+deliberately excluded — Kick-off is a whole-team automatic tactical reset
+(ADR-061, a structurally different shape), and Penalty is a single fixed
+roll with no wall/reposition/execution-choice phases at all.
+
+Four phases, each skippable via Rule-Set config (`wallSize`/`repositionCount`
+= 0): **wall** (`RESTART_WALL_SET`, coach picks which of its own pieces, the
+Engine computes their board cells) → **reposition** (`RESTART_PIECE_REPOSITIONED`
+/`RESTART_REPOSITION_PASSED`, alternating turns starting with the attacking
+side) → **executor** (`RESTART_EXECUTOR_SELECTED`, the coach's one true
+choice — which piece executes; the cell is never chosen here) →
+**execution** (`gameEngine.mjs` restricts every command to the entitled
+executor and to that restart type's Rule-Set-configured `availableActions`
+list). `selectSinglePlayerRestartSetupPresentation`
+(`matchPresentationSelectors.mjs`) is the one read boundary the UI's
+restart-setup panel uses (ADR-049's pattern): it exposes which team may act,
+which of its own pieces are clickable, and the ball cell, and decides
+nothing — every board click only stages a local selection; the real
+`RESTART_*` command fires only from the panel's Done/Confirm button, exactly
+like Shot's own target-then-confirm flow.
+
+**Consequences:**
+
+- The ball cell itself is always fixed automatically by whichever mechanic
+  triggers the stoppage, echoing which half of the goal the shot that
+  produced it was aimed at (falls back to random only for a dead-centre
+  attempt) — never a coach choice, for any restart type, including Goal
+  Kick (a deliberate reversal from this document's original "coach places
+  the executing player" wording for Goal Kick).
+- A cell the Engine itself computes (the wall line, or the ball cell before
+  the executor lands there) automatically, freely relocates whoever already
+  stands on it, as early as possible, so that displaced piece is still a
+  normal, manually-repositionable piece for whatever phase follows rather
+  than a placement the coach has no further chance to adjust.
+- Hardcoded per-(restart-type × action) exceptions live where that action's
+  own plan is built, gated on `state.restartSetup`, exactly like the
+  existing `goalkeeperRestartException` pattern: Corner Shot's board-boundary
+  exemption/mandatory DVM/wall DV and Free-Kick-Direct Shot's no-body-block/
+  wall-DV-instead-of-defensive-DV live in `shotRules.mjs`'s
+  `buildShotRoutePlan`; Free Kick's Lofted Through Ball difficulty override
+  lives in `loftedThroughBallRules.mjs`'s `planLoftedThroughBall`; Corner's
+  illegal-Long-Pass-into-the-box lives in `passEngine.mjs`'s `buildPassPlan`.
+  Only the exception's own numbers (e.g. the Lofted Through Ball difficulty)
+  are Rule-Set-editable; which exceptions apply to which pair is not.
+- Goal Kick alone additionally forbids the non-executing side from ever
+  finishing its reposition turn (by `RESTART_REPOSITION_PASSED` or by
+  exhausting its allotted moves) while any of its own pieces remains inside
+  the executing team's own box — Corner has no such restriction, since the
+  attacking team is meant to be able to stack the box it is attacking.

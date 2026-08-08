@@ -6,6 +6,7 @@ import {
   PASS_CORNERS,
   bodyBlockingPassOrigin,
   cardStat,
+  insideOwnPenaltyArea,
   interceptorChoiceCandidates,
   interceptorPriorityDistanceSquared,
   isGoalkeeperPiece,
@@ -351,10 +352,15 @@ test("gameplay reads stable global stat IDs before legacy labels", () => {
 });
 
 test("interception resolution exposes its unclamped modifier and cap", () => {
+  // Only the situational sources (orderModifier + nonDominantPenalty = 2)
+  // are ever capped; the defender's own Interception stat (3) is always
+  // added back in full — confirmed live with the user, see
+  // rollModifierMath.mjs. 2 stays well under the cap of 4, so nothing here
+  // actually gets clamped.
   const result = resolveInterceptionRoll({ natural: 12, interception: 3, orderModifier: 1, nonDominantPenalty: 1, passerPass: 16, modifierCap: 4 });
   assert.equal(result.rawModifier, 5);
-  assert.equal(result.modifier, 4);
-  assert.equal(result.capped, true);
+  assert.equal(result.modifier, 5);
+  assert.equal(result.capped, false);
   assert.equal(result.modifierCap, 4);
 });
 
@@ -367,12 +373,12 @@ test("teammate direct hit still resolves eligible interception reactions", () =>
 });
 
 
-test("zero modifier cap disables progressive and final modifiers", () => {
+test("a zero modifier cap means no maximum — situational sources add uncapped, on top of the defender's own stat", () => {
   const result = resolveInterceptionRoll({ natural: 12, interception: 3, orderModifier: 5, previousNaturalOnePenalty: -2, passerPass: 12, modifierCap: 0 });
   assert.equal(result.modifierCap, 0);
-  assert.equal(result.modifier, 0);
-  assert.equal(result.total, 12);
-  assert.equal(result.capped, true);
+  assert.equal(result.modifier, 6, "3 (stat) + 5 - 2 (situational, uncapped)");
+  assert.equal(result.total, 18);
+  assert.equal(result.capped, false);
 });
 
 test("maximum total modifier clamps negative totals symmetrically", () => {
@@ -440,4 +446,95 @@ test("a goalkeeper physically blocks a pass route instead of becoming its direct
   assert.deepEqual(plan.directHit, { pieceId: "gk", team: "red", entryT: plan.directHit.entryT });
   assert.equal(plan.goalkeeperRouteBlocked, true);
   assert.deepEqual(plan.goalkeeperBlocker, { pieceId: "gk", team: "red", entryT: plan.directHit.entryT });
+});
+
+// Goalkeeper Retains' restart exception (docs/SHOOTING_RULES.md).
+const boxSettings = { cols: 20, rows: 12, boxDepth: 6, boxWidth: 8, smallDepth: 3, smallWidth: 4 };
+const boxRules = { actions: { pass: { pathMode: "center-to-center" } }, diceModifiers: { advantage: 1, majorAdvantage: 3, disadvantage: -1, majorDisadvantage: -3, stackCap: 4 } };
+
+test("insideOwnPenaltyArea covers both the large and small box, on the correct side per team", () => {
+  assert.equal(insideOwnPenaltyArea(boxSettings, { x: 2, y: 5 }, "blue"), true);
+  assert.equal(insideOwnPenaltyArea(boxSettings, { x: 17, y: 5 }, "red"), true);
+  assert.equal(insideOwnPenaltyArea(boxSettings, { x: 17, y: 5 }, "blue"), false);
+  assert.equal(insideOwnPenaltyArea(boxSettings, { x: 12, y: 5 }, "blue"), false);
+  assert.equal(insideOwnPenaltyArea(boxSettings, { x: 2, y: 0 }, "blue"), false);
+});
+
+test("goalkeeper-restart exception ignores an opposing defensive-area crossing inside the goalkeeper's own penalty area, for that goalkeeper only", () => {
+  const passer = { id: "gk", team: "A", x: 2, y: 5, cardId: "gk-card" };
+  const defender = { id: "red-def", team: "B", x: 2, y: 6, cardId: "def-card" };
+  const cardById = {
+    "gk-card": { passiveAttributes: [{ name: "Passing", value: 10 }] },
+    "def-card": { defensiveArea: [{ dx: 0, dy: 0 }] },
+  };
+  const plan = (restartException) => buildPassPlan({
+    passer, passerCard: cardById["gk-card"], pieces: [passer, defender], cardById,
+    settings: boxSettings, target: { x: 2, y: 7 }, cornerId: null, rules: boxRules, restartException,
+  });
+  assert.ok(plan(null).interceptors.length > 0, "fixture must actually be contested without the exception");
+  assert.equal(plan({ team: "blue", pieceId: "gk" }).interceptors.length, 0);
+  assert.ok(plan({ team: "blue", pieceId: "someone-else" }).interceptors.length > 0, "exception must not apply to a different piece");
+});
+
+test("goalkeeper-restart exception does not apply outside the goalkeeper's own penalty area", () => {
+  const passer = { id: "gk", team: "A", x: 12, y: 5, cardId: "gk-card" };
+  const defender = { id: "red-def", team: "B", x: 12, y: 6, cardId: "def-card" };
+  const cardById = {
+    "gk-card": { passiveAttributes: [{ name: "Passing", value: 10 }] },
+    "def-card": { defensiveArea: [{ dx: 0, dy: 0 }] },
+  };
+  const plan = buildPassPlan({
+    passer, passerCard: cardById["gk-card"], pieces: [passer, defender], cardById,
+    settings: boxSettings, target: { x: 12, y: 7 }, cornerId: null, rules: boxRules, restartException: { team: "blue", pieceId: "gk" },
+  });
+  assert.ok(plan.interceptors.length > 0, "outside the box, the exception must not suppress the crossing");
+});
+
+// Regression: the exception ignoring a defensive-area crossing is not the
+// same as it ignoring an opposing BODY directly on the route. Reported live:
+// a "risk" corner sent the ball straight into the opponent's body instead of
+// through to the real target, even though the defensive-area corners worked.
+test("goalkeeper-restart exception ignores an opposing body directly on the route inside the goalkeeper's own penalty area", () => {
+  const passer = { id: "gk", team: "A", x: 2, y: 5, cardId: "gk-card" };
+  const mate = { id: "blue-mate", team: "A", x: 2, y: 7, cardId: "mate-card" };
+  const opponentBody = { id: "red-body", team: "B", x: 2, y: 6, cardId: "def-card" };
+  const cardById = {
+    "gk-card": { passiveAttributes: [{ name: "Passing", value: 10 }] },
+    "mate-card": {},
+    "def-card": {},
+  };
+  const plan = (restartException) => buildPassPlan({
+    passer, passerCard: cardById["gk-card"], pieces: [passer, mate, opponentBody], cardById,
+    settings: boxSettings, target: { x: 2, y: 7 }, cornerId: null, rules: boxRules, restartException,
+  });
+  const withoutException = plan(null);
+  assert.equal(withoutException.directHit?.pieceId, "red-body", "fixture must actually redirect to the opposing body without the exception");
+
+  // Once the opponent's body is correctly ignored, the ball reaches all the
+  // way to the intended friendly receiver — which is itself modeled as a
+  // "direct hit" on that teammate (the normal, successful reception), not a
+  // null/no-hit result.
+  const withException = plan({ team: "blue", pieceId: "gk" });
+  assert.equal(withException.directHit?.pieceId, "blue-mate", "the goalkeeper's own restart must ignore the opposing body and reach the real receiver");
+  assert.equal(withException.targetPlayerId, "blue-mate");
+});
+
+// docs/SHOOTING_RULES.md and docs/CROSS_RULES.md: the goalkeeper-restart
+// exception ignores EVERY body inside its own box — teammate or opponent —
+// not just an opponent's. The box is assumed crowded right after the save,
+// so nobody standing in it (on either side) obstructs this one restart.
+test("goalkeeper-restart exception ignores a teammate's body too, inside the goalkeeper's own penalty area", () => {
+  const passer = { id: "gk", team: "A", x: 2, y: 5, cardId: "gk-card" };
+  const mate = { id: "blue-mate", team: "A", x: 2, y: 7, cardId: "mate-card" };
+  const blockingTeammate = { id: "blue-body", team: "A", x: 2, y: 6, cardId: "mate-card" };
+  const cardById = {
+    "gk-card": { passiveAttributes: [{ name: "Passing", value: 10 }] },
+    "mate-card": {},
+  };
+  const plan = (restartException) => buildPassPlan({
+    passer, passerCard: cardById["gk-card"], pieces: [passer, mate, blockingTeammate], cardById,
+    settings: boxSettings, target: { x: 2, y: 7 }, cornerId: null, rules: boxRules, restartException,
+  });
+  assert.equal(plan(null).directHit?.pieceId, "blue-body", "control: without the exception, a teammate's body still redirects the pass");
+  assert.equal(plan({ team: "blue", pieceId: "gk" }).directHit?.pieceId, "blue-mate", "with the exception active, the teammate's body is ignored too and the ball reaches the real receiver");
 });

@@ -4,11 +4,16 @@ import { consumeActionEvent, createPendingDecision, createPendingRoll, createRol
 import { PASS_CORNERS, applyInterceptorChoice, buildPassPlan, cardStat, interceptorChoiceCandidates, passRequiresInterceptionSequence, teamKeyForPiece } from "../rules/passEngine.mjs";
 import { createSinglePlayerRollResultHold } from "../match/delayedResolution.mjs";
 import { resolveInterception } from "../rules/interceptionEngine.mjs";
+import { sumAndCapRollModifier } from "../rules/rollModifierMath.mjs";
 import { resolveDiceModifierStacks } from "../rules/ruleSets.mjs";
 import { activateTrackerAction, createEmptyTrackerTurnState, isTeamActiveForTrackerPhase, trackerActionStatusForTeam } from "../tracker/actionRules.mjs";
 import { normalizeTrackerSnapshot } from "../tracker/trackerState.mjs";
 import { consumeTeamModifierToken, expiredTeamModifierTokens, grantTeamModifierToken, pruneTeamModifierTokens } from "./rollModifierOpportunities.mjs";
 import { naturalRollOutcome } from "./rollOutcomeEffects.mjs";
+import { isBenchReservePiece } from "../board/formationUtils.mjs";
+import { isPieceInOffsidePosition } from "./offsidePositionRules.mjs";
+import { restartSetupAfterAction, opponentOfTeam } from "./restartSetupRules.mjs";
+import { markingTurnResetFields } from "./markingRules.mjs";
 
 function pieceForCommand(state, command) {
   const pieceId = String(command.payload?.pieceId || "");
@@ -21,6 +26,25 @@ function hasBall(state, piece) {
 
 function passIdForCommand(command) {
   return String(command.payload?.passId || "").trim();
+}
+
+// The Goalkeeper Retains restart exception (docs/SHOOTING_RULES.md) applies
+// only to that one goalkeeper's own very next restart pass.
+function restartExceptionFor(state, passer) {
+  const exception = state.goalkeeperRestartException;
+  if (!exception || String(exception.goalkeeperId) !== String(passer?.id || "")) return null;
+  return { team: exception.team, pieceId: exception.goalkeeperId };
+}
+
+// Corner only (docs/SHOOTING_RULES.md): a Long Pass into the defending
+// team's own box is illegal for this one restart execution. Returns the
+// defending team's own side ("blue"/"red") whose box counts, or null when
+// this passer isn't currently executing a Corner.
+function cornerLongPassBoxTeamFor(state, passer) {
+  const restartSetup = state.restartSetup;
+  if (!restartSetup || restartSetup.type !== "corner" || restartSetup.phase !== "execution"
+    || String(restartSetup.executorId) !== String(passer?.id || "")) return null;
+  return opponentOfTeam(restartSetup.team);
 }
 
 function decisionIdForCommand(command) {
@@ -85,9 +109,22 @@ function createInterceptionRollPresentation(pending, interceptorIndex, context) 
   const previousNaturalOnePenalty = rules.useStandardModifiers === false
     ? 0
     : resolveDiceModifierStacks(rules.diceModifiers, "disadvantage", pending.naturalOneDisadvantageStacks);
-  const rawModifier = orderModifier + nonDominantExecutionAdvantage + previousNaturalOnePenalty;
   const modifierCap = Math.max(0, Number(rules.diceModifiers?.stackCap) || 0);
-  const modifier = Math.max(-modifierCap, Math.min(modifierCap, rawModifier));
+  // Only the situational sources are ever capped — never the defender's own
+  // Interception stat (confirmed live with the user; see
+  // rollModifierMath.mjs). The prompt and the actual roll
+  // (buildInterceptionResolution below) share this same math so they never
+  // disagree.
+  const situationalSources = [
+    ...(orderModifier ? [{ label: "Advantage", type: "advantage", value: orderModifier, source: "interceptor-order", detail: interceptionOrderLabel(orderModifier) }] : []),
+    ...(nonDominantExecutionAdvantage ? [{ label: "Advantage", type: "advantage", value: nonDominantExecutionAdvantage, source: "passer-execution-disadvantage", detail: "passer non-preferred-foot execution" }] : []),
+    ...(previousNaturalOnePenalty ? [{ label: "Disadvantage", type: "disadvantage", value: previousNaturalOnePenalty, source: "previous-natural-1", detail: "previous Natural 1" }] : []),
+  ];
+  const modifierSources = [{ label: "Interception", value: interception, source: "card" }, ...situationalSources];
+  const situational = sumAndCapRollModifier(situationalSources, modifierCap);
+  const modifier = interception + situational.modifier;
+  const rawModifier = interception + situational.rawModifier;
+  const capped = situational.capped;
   return {
     defenderId: String(defender?.id || ""),
     team: teamKeyForPiece(defender),
@@ -98,15 +135,9 @@ function createInterceptionRollPresentation(pending, interceptorIndex, context) 
     rawModifier,
     modifier,
     modifierCap,
-    capped: modifier !== rawModifier,
-    totalBonus: interception + modifier,
-    modifierSources: [
-      { label: "Interception", value: interception, source: "card" },
-      ...(orderModifier ? [{ label: "Advantage", type: "advantage", value: orderModifier, source: "interceptor-order", detail: interceptionOrderLabel(orderModifier) }] : []),
-      ...(nonDominantExecutionAdvantage ? [{ label: "Advantage", type: "advantage", value: nonDominantExecutionAdvantage, source: "passer-execution-disadvantage", detail: "passer non-preferred-foot execution" }] : []),
-      ...(previousNaturalOnePenalty ? [{ label: "Disadvantage", type: "disadvantage", value: previousNaturalOnePenalty, source: "previous-natural-1", detail: "previous Natural 1" }] : []),
-    ],
-    summary: `Total Modifier ${signedValue(modifier)}${modifier !== rawModifier ? " (capped)" : ""}`,
+    capped,
+    modifierSources,
+    summary: `Total Modifier ${signedValue(modifier)}${capped ? " (capped)" : ""}`,
   };
 }
 
@@ -148,13 +179,22 @@ export function startPass(state, command) {
   if (state.actionResolution) return { accepted: false, reason: "ACTION_RESOLUTION_ACTIVE" };
   const piece = pieceForCommand(state, command);
   const passId = passIdForCommand(command);
-  if (!piece || piece.team === "BALL" || piece.inactive) return { accepted: false, reason: "PASSER_INVALID" };
+  if (!piece || piece.team === "BALL" || piece.inactive || isBenchReservePiece(piece)) return { accepted: false, reason: "PASSER_INVALID" };
   if (!passId) return { accepted: false, reason: "PASS_ID_REQUIRED" };
   const team = teamKeyForPiece(piece);
   if (!team || !hasBall(state, piece)) return { accepted: false, reason: "PASS_REQUIRES_BALL" };
 
   const tracker = normalizeTrackerSnapshot(state.tracker);
   if (!tracker.gameStarted || tracker.currentTurn < 1) return { accepted: false, reason: "MATCH_NOT_STARTED" };
+  // A Kick-off restart's entitled piece must act first (gameEngine.mjs's
+  // kickoffRestartActive guard already blocks every other command); it must
+  // come from that exact piece, not merely that team. Since v20.56.42 the
+  // pass itself is otherwise completely ordinary: any type, any direction,
+  // normal Tracker cost, normal rules — there is no forced backward Short
+  // Pass and no free activation.
+  if (state.kickoffRestart && String(state.kickoffRestart.pieceId) !== String(piece.id)) {
+    return { accepted: false, reason: "KICKOFF_RESTART_WRONG_PLAYER" };
+  }
   const continuation = normalizeActionContinuation(state.actionContinuation);
   const bonusPass = continuation?.kind === "bonus-card-action";
   let nextContinuation = continuation;
@@ -227,14 +267,18 @@ export function selectPassTarget(state, context, command) {
     target: { x, y },
     cornerId,
     rules: context.ruleSet,
+    restartException: restartExceptionFor(state, passer),
+    cornerLongPassBoxTeam: cornerLongPassBoxTeamFor(state, passer),
   }));
   const targetInvalidReason = routePlans.some(plan => plan.targetTooClose)
     ? "PASS_TARGET_TOO_CLOSE"
     : routePlans.some(plan => plan.maxDistanceExceeded)
       ? "PASS_MAX_DISTANCE_EXCEEDED"
-      : context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !targetPlayer
-        ? "PASS_TARGET_FIELD_PLAYER_REQUIRED"
-        : null;
+      : routePlans.some(plan => plan.illegalCornerLongPass)
+        ? "PASS_LONG_ILLEGAL_FROM_CORNER"
+        : context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !targetPlayer
+          ? "PASS_TARGET_FIELD_PLAYER_REQUIRED"
+          : null;
   const routePresentation = routePlans.map(plan => {
     const requestedEndpoint = { x: Number(x) + .5, y: Number(y) + .5 };
     const selectedFriendlyTarget = plan.directHit
@@ -255,7 +299,7 @@ export function selectPassTarget(state, context, command) {
           team: plan.directHit.team,
         }
       : null;
-    const verdict = targetInvalidReason || plan.goalkeeperRouteBlocked || plan.endpointBodyBlocked
+    const verdict = targetInvalidReason || plan.goalkeeperRouteBlocked || plan.endpointBodyBlocked || plan.originBlocked
       ? "blocked"
       : selectedOpponentTarget || (directContact?.team && directContact.team !== pending.team) || plan.interceptors?.length
         ? "risk"
@@ -337,11 +381,14 @@ export function confirmPassRoute(state, context, command) {
     target: pending.target,
     cornerId,
     rules: context.ruleSet,
+    restartException: restartExceptionFor(state, passer),
+    cornerLongPassBoxTeam: cornerLongPassBoxTeamFor(state, passer),
   });
   if (plan.originBlocked) return { accepted: false, reason: "PASS_ROUTE_ORIGIN_BLOCKED" };
   if (plan.goalkeeperRouteBlocked) return { accepted: false, reason: "PASS_ROUTE_GOALKEEPER_BLOCKED" };
   if (pending.targetInvalidReason === "PASS_TARGET_TOO_CLOSE" || plan.targetTooClose) return { accepted: false, reason: "PASS_TARGET_TOO_CLOSE" };
   if (pending.targetInvalidReason === "PASS_MAX_DISTANCE_EXCEEDED" || plan.maxDistanceExceeded) return { accepted: false, reason: "PASS_MAX_DISTANCE_EXCEEDED" };
+  if (pending.targetInvalidReason === "PASS_LONG_ILLEGAL_FROM_CORNER" || plan.illegalCornerLongPass) return { accepted: false, reason: "PASS_LONG_ILLEGAL_FROM_CORNER" };
   if (pending.targetInvalidReason === "PASS_TARGET_FIELD_PLAYER_REQUIRED" || (context?.ruleSet?.actions?.pass?.requireFieldPlayerTarget !== false && !plan.targetPlayerId)) return { accepted: false, reason: "PASS_TARGET_FIELD_PLAYER_REQUIRED" };
   if (plan.isLong && !plan.attackerTargetStatId) return { accepted: false, reason: "PASS_LONG_STAT_NOT_CONFIGURED" };
 
@@ -617,25 +664,31 @@ function buildInterceptionResolution({ pending, defender, context }) {
     equalRollOutcome: rules.equalRollOutcome || "pass-succeeds",
     naturalOneEffect: rules.naturalOneEffect || "carry-disadvantage",
   });
-  const modifierSources = [
-    { label: "Interception", value: interception, source: "card" },
+  const interceptionSource = { label: "Interception", value: interception, source: "card" };
+  const situationalSources = [
     { label: "Advantage", type: "advantage", stacks: Math.max(0, Number(interceptor?.orderModifier) / Math.max(1, Math.abs(resolveDiceModifierStacks(rules.diceModifiers, "advantage")))), value: orderModifier, source: "interceptor-order", detail: interceptionOrderLabel(orderModifier) },
     ...(nonDominantPenalty ? [{ label: "Advantage", type: "advantage", stacks: 1, value: nonDominantPenalty, source: "non-preferred-foot", detail: "non-preferred foot" }] : []),
     ...(previousNaturalOnePenalty ? [{ label: "Disadvantage", type: "disadvantage", stacks: pending.naturalOneDisadvantageStacks, value: previousNaturalOnePenalty, source: "previous-natural-1", detail: "previous Natural 1" }] : []),
     ...(bonusModifier ? [{ label: pending.bonusModifierType === "majorAdvantage" ? "Major Advantage" : "Advantage", type: pending.bonusModifierType, stacks: 1, value: bonusModifier, source: "bonus-roll-token", detail: "earned roll bonus" }] : []),
   ];
-  const appliedModifierSources = !roll.capped
+  const modifierSources = [interceptionSource, ...situationalSources];
+  // Only the situational sources can ever be capped — the Interception
+  // entry always shows its full value; the truncation-for-display walk
+  // below only ever touches the sources after it.
+  const situationalCap = sumAndCapRollModifier(situationalSources, rules.diceModifiers.stackCap);
+  const appliedModifierSources = !situationalCap.capped
     ? modifierSources
     : (() => {
-        const direction = Number(roll.modifier) >= 0 ? 1 : -1;
-        let remaining = Math.abs(Number(roll.modifier) || 0);
-        return modifierSources.reduce((applied, source) => {
+        const direction = Number(situationalCap.modifier) >= 0 ? 1 : -1;
+        let remaining = Math.abs(Number(situationalCap.modifier) || 0);
+        const appliedSituational = situationalSources.reduce((applied, source) => {
           const value = Number(source.value) || 0;
           if (remaining <= 0 || value * direction <= 0) return applied;
           const visibleValue = direction * Math.min(Math.abs(value), remaining);
           remaining -= Math.abs(visibleValue);
           return [...applied, { ...source, value: visibleValue }];
         }, []);
+        return [interceptionSource, ...appliedSituational];
       })();
   return {
     ...roll,
@@ -712,7 +765,62 @@ function moveBallTo(state, x, y) {
   return state.pieces.map((piece, index) => index === ballIndex ? { ...piece, x: Number(x), y: Number(y) } : piece);
 }
 
-function completePass(state, pending) {
+// A Kick-off restart's forced single free pass is consumed the moment that
+// one action fully resolves — successful completion or an interception both
+// count, since "the only action that player may perform" is spent either
+// way. Any other pending kickoffRestart (there is never more than one) is
+// left untouched.
+function kickoffRestartAfterPass(state, passerId) {
+  return state.kickoffRestart?.pieceId === String(passerId) ? null : state.kickoffRestart;
+}
+
+// The Goalkeeper Retains restart exception is consumed the same way: it
+// covers only that goalkeeper's one restart action, resolved or intercepted.
+function goalkeeperRestartExceptionAfterPass(state, passerId) {
+  return state.goalkeeperRestartException?.goalkeeperId === String(passerId) ? null : state.goalkeeperRestartException;
+}
+
+// docs/GAMEPLAY_RULES_FOUNDATIONS.md section 6, Build 1 (Short/Long Pass
+// only — Through Ball/Lofted Through Ball are a separate build, since their
+// ball can land in open space with no synchronous recipient at all).
+// Position is judged "at the exact moment a teammate plays... the ball" —
+// for Short/Long Pass nothing moves between PASS_ROUTE_CONFIRMED and this
+// completion (state.actionResolution being set blocks every other command),
+// so reading current positions here is exactly that frozen moment; no
+// separate snapshot needs to be threaded through the pass's own pending
+// state.
+//
+// `passer.x` doubles as the ball's own position here: nothing has moved
+// since PASS_ROUTE_CONFIRMED (state.actionResolution blocks every other
+// command meanwhile) and the ball itself hasn't moved yet at this point in
+// completePass, so they're the same cell — see isPieceInOffsidePosition in
+// ./offsidePositionRules.mjs for the shared 3-condition test (also reused by
+// Normal Move's movement-direction lock).
+function completePass(state, context, pending) {
+  const passer = state.pieces.find(piece => String(piece?.id) === String(pending.passerId)) || null;
+  const recipient = pending.plan?.targetPlayerId
+    ? state.pieces.find(piece => String(piece?.id) === String(pending.plan.targetPlayerId)) || null
+    : null;
+  if (passer && recipient && isPieceInOffsidePosition(state, context, { piece: recipient, attackingTeam: pending.team })) {
+    // Confirmed live with the user: the pass never completes — the ball
+    // stays exactly where it was, an indirect free kick is recorded for the
+    // opposing team at the offside player's own (unmoved) position. Same
+    // canonical shape as Build 2's own offside consequence (Through Ball /
+    // Lofted Through Ball's claim hooks in normalMoveRules.mjs etc.) — one
+    // shared result screen and one shared Continue handler
+    // (confirmOffsideRestart in offsidePositionRules.mjs) cover both.
+    const restart = { type: "indirectFreeKick", team: opponentOfTeam(pending.team), spot: { x: Number(recipient.x), y: Number(recipient.y) }, executable: false };
+    return {
+      accepted: true,
+      nextState: {
+        ...state,
+        pendingRestartResult: restart,
+        actionResolution: { kind: "offside", status: "result-display", team: pending.team, result: { offside: true, recipientId: String(recipient.id), team: pending.team, passerId: String(passer.id) } },
+      },
+      event: { type: "PASS_OFFSIDE", team: pending.team, metadata: passTimelineMetadata(pending, { passId: pending.id, recipientId: recipient.id, spot: restart.spot }) },
+      timeline: { allowNoop: true },
+    };
+  }
   const pieces = moveBallTo(state, pending.plan?.target?.x, pending.plan?.target?.y);
   if (!pieces) return { accepted: false, reason: "BALL_NOT_FOUND" };
   const continuation = normalizeActionContinuation(state.actionContinuation);
@@ -721,7 +829,7 @@ function completePass(state, pending) {
   if (bonusPass && !nextContinuation) return { accepted: false, reason: "BONUS_PASS_NOT_ACTIVE" };
   return {
     accepted: true,
-    nextState: { ...state, pieces, actionResolution: null, actionContinuation: nextContinuation },
+    nextState: { ...state, pieces, actionResolution: null, actionContinuation: nextContinuation, kickoffRestart: kickoffRestartAfterPass(state, pending.passerId), goalkeeperRestartException: goalkeeperRestartExceptionAfterPass(state, pending.passerId), restartSetup: restartSetupAfterAction(state, pending.passerId) },
     event: {
       type: "PASS_COMPLETED",
       team: pending.team,
@@ -751,6 +859,10 @@ function completeNormalInterception(state, pending, interceptor, { directHit = f
       teamModifierTokens: pruneTeamModifierTokens(state.teamModifierTokens, nextTurn),
       actionResolution: null,
       actionContinuation: null,
+      kickoffRestart: kickoffRestartAfterPass(state, pending.passerId),
+      goalkeeperRestartException: goalkeeperRestartExceptionAfterPass(state, pending.passerId),
+      restartSetup: restartSetupAfterAction(state, pending.passerId),
+      ...markingTurnResetFields(),
       tracker: {
         ...state.tracker,
         startingTeam: nextTeam,
@@ -819,6 +931,9 @@ function completeNaturalTwentyInterception(state, context, pending, interceptor)
       pieces,
       actionResolution: null,
       actionContinuation: continuation,
+      kickoffRestart: kickoffRestartAfterPass(state, pending.passerId),
+      goalkeeperRestartException: goalkeeperRestartExceptionAfterPass(state, pending.passerId),
+      restartSetup: restartSetupAfterAction(state, pending.passerId),
     },
     event: {
       type: "PASS_NATURAL_20",
@@ -838,7 +953,7 @@ function completeNaturalTwentyInterception(state, context, pending, interceptor)
 
 function advanceFailedInterception(state, pending, context) {
   const nextIndex = Math.max(0, Number(pending.interceptorIndex) || 0) + 1;
-  if (nextIndex >= (pending.plan?.interceptors || []).length) return completePass(state, pending);
+  if (nextIndex >= (pending.plan?.interceptors || []).length) return completePass(state, context, pending);
   const nextGroup = String(pending.plan?.interceptors?.[nextIndex]?.reactionGroup || "short-route");
   const next = pendingPassInput({
     ...pending,
@@ -881,7 +996,7 @@ export function applyPassConsequence(state, context, command) {
     const directHitId = String(pending.plan?.directHit?.pieceId || "");
     const directHit = directHitId ? state.pieces.find(piece => String(piece?.id || "") === directHitId) || null : null;
     if (directHit && teamKeyForPiece(directHit) !== pending.team) return completeNormalInterception(state, pending, directHit, { directHit: true });
-    return completePass(state, pending);
+    return completePass(state, context, pending);
   }
   if (pending.status !== "interception-resolved" || !pending.lastResolution || !pending.lastRollEvent) {
     return { accepted: false, reason: "PASS_NOT_CONSEQUENCE_READY" };
